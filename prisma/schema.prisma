@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  RECRUITER
+  CANDIDATE
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  FREELANCE
+}
+
+enum ExperienceLevel {
+  INTERN
+  FRESHER
+  JUNIOR
+  MID
+  SENIOR
+  LEAD
+  MANAGER
+}
+
+enum SalaryCurrency {
+  VND
+  USD
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  ARCHIVED
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  REVIEWING
+  INTERVIEW
+  OFFERED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+model User {
+  id                 String          @id @default(cuid())
+  email              String          @unique
+  passwordHash       String
+  fullName           String
+  phone              String?
+  role               UserRole        @default(CANDIDATE)
+  isActive           Boolean         @default(true)
+  companyMemberships CompanyMember[]
+  applications       Application[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([role])
+}
+
+model Company {
+  id          String          @id @default(cuid())
+  name        String
+  slug        String          @unique
+  description String?
+  website     String?
+  logoUrl     String?
+  address     String?
+  size        String?
+  members     CompanyMember[]
+  jobs        Job[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model CompanyMember {
+  id        String   @id @default(cuid())
+  userId    String
+  companyId String
+  title     String?
+  role      String   @default("OWNER")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+}
+
+model Skill {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  jobs      JobSkill[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Job {
+  id              String          @id @default(cuid())
+  companyId       String
+  title           String
+  slug            String
+  description     String
+  requirements    String
+  benefits        String?
+  location        String
+  isRemote        Boolean         @default(false)
+  employmentType  EmploymentType
+  experienceLevel ExperienceLevel
+  minSalary       Int?
+  maxSalary       Int?
+  currency        SalaryCurrency  @default(VND)
+  status          JobStatus       @default(DRAFT)
+  publishedAt     DateTime?
+  expiresAt       DateTime?
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  skills          JobSkill[]
+  applications    Application[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([companyId, slug])
+  @@index([status, createdAt])
+  @@index([companyId])
+}
+
+model JobSkill {
+  jobId    String
+  skillId  String
+  required Boolean @default(false)
+  job      Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill    Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([jobId, skillId])
+  @@index([skillId])
+}
+
+model Application {
+  id          String            @id @default(cuid())
+  jobId       String
+  candidateId String
+  coverLetter String?
+  resumeUrl   String?
+  status      ApplicationStatus @default(SUBMITTED)
+  notes       String?
+  job         Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate   User              @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([jobId, candidateId])
+  @@index([candidateId])
+  @@index([status])
+}
