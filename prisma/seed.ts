@@ -106,7 +106,7 @@ async function main() {
   });
 
   await Promise.all(
-    skills.map((skill) =>
+    skills.map((skill: (typeof skills)[number]) =>
       prisma.jobSkill.upsert({
         where: { jobId_skillId: { jobId: job.id, skillId: skill.id } },
         update: {},
