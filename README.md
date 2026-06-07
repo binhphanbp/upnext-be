@@ -26,7 +26,7 @@ corepack pnpm start:dev
 
 API: `http://localhost:3000/api/v1`
 
-Swagger: `http://localhost:3000/docs`
+API docs: `http://localhost:3000/docs`
 
 ## Docker
 
@@ -36,7 +36,7 @@ docker compose up --build
 
 API in Docker: `http://localhost:3636/api/v1`
 
-Swagger in Docker: `http://localhost:3636/docs`
+API docs in Docker: `http://localhost:3636/docs`
 
 ## Useful Commands
 
