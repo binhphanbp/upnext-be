@@ -8,6 +8,7 @@ import { validateEnv } from './common/config/env.validation';
       isGlobal: true,
       validate: validateEnv,
     }),
+    CandidateAccountsModule,
   ],
 })
 export class AppModule {}
