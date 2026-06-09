@@ -109,11 +109,11 @@ enum SalaryPeriod {
 }
 
 enum JobStatus {
-  DRAFT          @map("draft")
-  PUBLISHED      @map("published")
-  CLOSED         @map("closed")
-  EXPIRED        @map("expired")
-  HIDDEN         @map("hidden")
+  DRAFT     @map("draft")
+  PUBLISHED @map("published")
+  CLOSED    @map("closed")
+  EXPIRED   @map("expired")
+  HIDDEN    @map("hidden")
 }
 
 // trạng thái kiểm duyệt
@@ -164,8 +164,8 @@ enum CompanyVerificationStatus {
 }
 
 enum CompanyStatus {
-  ACTIVE   @map("active")
-  LOCKED   @map("locked")
+  ACTIVE @map("active")
+  LOCKED @map("locked")
 }
 
 enum ShortlistStatus {
@@ -225,8 +225,8 @@ enum SubscriptionStatus {
 
 enum PaymentMethod {
   STRIPE @map("stripe")
-  MOMO          @map("momo")
-  SEPAY          @map("sepay")
+  MOMO   @map("momo")
+  SEPAY  @map("sepay")
 }
 
 enum PaymentStatus {
