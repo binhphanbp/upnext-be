@@ -1,0 +1,179 @@
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { toPagination } from '../../common/dto/pagination-query.dto';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { ListRecruiterAccountsQueryDto } from './dto/recruiter-accounts/list-recruiter-accounts-query.dto';
+import { UpdateRecruiterAccountDto } from './dto/recruiter-accounts/update-recruiter-account.dto';
+import { CreateRecruiterProfileDto } from './dto/recruiter-profiles/create-recruiter-profile.dto';
+import { UpdateRecruiterProfileDto } from './dto/recruiter-profiles/update-recruiter-profile.dto';
+
+@Injectable()
+export class RecruitersService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  // ─── Recruiter Accounts ───────────────────────────────────────────────────
+
+  async findAllAccounts(query: ListRecruiterAccountsQueryDto) {
+    const where: Prisma.RecruiterAccountWhereInput = {
+      ...(query.q
+        ? { email: { contains: query.q, mode: 'insensitive' } }
+        : {}),
+      ...(query.status ? { status: query.status } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.recruiterAccount.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        ...toPagination(query),
+        include: {
+          profile: true,
+          recruiterRole: true,
+          company: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.recruiterAccount.count({ where }),
+    ]);
+
+    return {
+      items,
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
+  }
+
+  async findOneAccount(id: string) {
+    const account = await this.prisma.recruiterAccount.findUnique({
+      where: { id },
+      include: {
+        profile: true,
+        recruiterRole: true,
+        company: { select: { id: true, name: true, status: true } },
+        companyMembers: true,
+      },
+    });
+
+    if (!account) {
+      throw new NotFoundException(`Recruiter account ${id} not found`);
+    }
+
+    return account;
+  }
+
+  async updateAccount(id: string, dto: UpdateRecruiterAccountDto) {
+    await this.ensureAccountExists(id);
+
+    return this.prisma.recruiterAccount.update({
+      where: { id },
+      data: dto,
+      include: {
+        profile: true,
+        recruiterRole: true,
+        company: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  async deactivateAccount(id: string) {
+    await this.ensureAccountExists(id);
+
+    return this.prisma.recruiterAccount.update({
+      where: { id },
+      data: { status: 'BANNED' },
+    });
+  }
+
+  // ─── Recruiter Profiles ───────────────────────────────────────────────────
+
+  async createProfile(dto: CreateRecruiterProfileDto) {
+    await this.ensureAccountExists(dto.recruiterAccountId);
+
+    const existing = await this.prisma.recruiterProfile.findUnique({
+      where: { recruiterAccountId: dto.recruiterAccountId },
+    });
+
+    if (existing) {
+      throw new ConflictException(
+        `Profile for recruiter account ${dto.recruiterAccountId} already exists`,
+      );
+    }
+
+    return this.prisma.recruiterProfile.create({
+      data: dto,
+    });
+  }
+
+  async findMyProfile(accountId: string) {
+    const profile = await this.prisma.recruiterProfile.findUnique({
+      where: { recruiterAccountId: accountId },
+      include: {
+        recruiterAccount: {
+          select: { id: true, email: true, status: true, company: { select: { id: true, name: true } } },
+        },
+      },
+    });
+
+    if (!profile) {
+      throw new NotFoundException(`Profile for recruiter account ${accountId} not found`);
+    }
+
+    return profile;
+  }
+
+  async findOneProfile(id: string) {
+    const profile = await this.prisma.recruiterProfile.findUnique({
+      where: { id },
+      include: {
+        recruiterAccount: {
+          select: { id: true, email: true, status: true, company: { select: { id: true, name: true } } },
+        },
+      },
+    });
+
+    if (!profile) {
+      throw new NotFoundException(`Recruiter profile ${id} not found`);
+    }
+
+    return profile;
+  }
+
+  async updateProfile(id: string, dto: UpdateRecruiterProfileDto) {
+    await this.ensureProfileExists(id);
+
+    return this.prisma.recruiterProfile.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async removeProfile(id: string) {
+    await this.ensureProfileExists(id);
+    await this.prisma.recruiterProfile.delete({ where: { id } });
+  }
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  private async ensureAccountExists(id: string) {
+    const account = await this.prisma.recruiterAccount.findUnique({ where: { id } });
+
+    if (!account) {
+      throw new NotFoundException(`Recruiter account ${id} not found`);
+    }
+
+    return account;
+  }
+
+  private async ensureProfileExists(id: string) {
+    const profile = await this.prisma.recruiterProfile.findUnique({ where: { id } });
+
+    if (!profile) {
+      throw new NotFoundException(`Recruiter profile ${id} not found`);
+    }
+
+    return profile;
+  }
+}

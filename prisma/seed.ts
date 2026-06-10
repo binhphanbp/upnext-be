@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, EmploymentType, ExperienceLevel, JobStatus } from '@prisma/client';
+import { PrismaClient, JobStatus, SkillPriority } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { hash } from 'bcryptjs';
 import 'dotenv/config';
@@ -12,65 +12,82 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   const passwordHash = await hash('Password123!', 12);
 
-  const admin = await prisma.user.upsert({
+  const adminRole = await prisma.adminRole.upsert({
+    where: { roleName: 'Platform Admin' },
+    update: {},
+    create: {
+      roleName: 'Platform Admin',
+      description: 'Default administrator role for local development.',
+    },
+  });
+
+  await prisma.adminUser.upsert({
     where: { email: 'admin@upnext.dev' },
     update: {},
     create: {
       email: 'admin@upnext.dev',
       fullName: 'UpNext Admin',
       passwordHash,
-      role: UserRole.ADMIN,
+      roleId: adminRole.id,
     },
   });
 
-  const recruiter = await prisma.user.upsert({
+  const recruiterRole = await prisma.recruiterRole.upsert({
+    where: { code: 'OWNER' },
+    update: { name: 'Company Owner' },
+    create: {
+      code: 'OWNER',
+      name: 'Company Owner',
+      description: 'Default company owner role for local development.',
+    },
+  });
+
+  const recruiter = await prisma.recruiterAccount.upsert({
     where: { email: 'recruiter@upnext.dev' },
     update: {},
     create: {
       email: 'recruiter@upnext.dev',
-      fullName: 'Demo Recruiter',
       passwordHash,
-      role: UserRole.RECRUITER,
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { email: 'candidate@upnext.dev' },
-    update: {},
-    create: {
-      email: 'candidate@upnext.dev',
-      fullName: 'Demo Candidate',
-      passwordHash,
-      role: UserRole.CANDIDATE,
-    },
-  });
-
-  const company = await prisma.company.upsert({
-    where: { slug: 'upnext-labs' },
-    update: {},
-    create: {
-      name: 'UpNext Labs',
-      slug: 'upnext-labs',
-      description: 'A sample IT company used for local development.',
-      website: 'https://upnext.dev',
-      members: {
+      recruiterRoleId: recruiterRole.id,
+      profile: {
         create: {
-          userId: recruiter.id,
-          role: 'OWNER',
-          title: 'Talent Lead',
+          fullName: 'Demo Recruiter',
         },
       },
     },
   });
 
-  await prisma.companyMember.upsert({
-    where: { userId_companyId: { userId: admin.id, companyId: company.id } },
+  const company = await prisma.company.upsert({
+    where: { taxCode: 'UPNEXT-LOCAL-001' },
     update: {},
     create: {
-      userId: admin.id,
+      name: 'UpNext Labs',
+      taxCode: 'UPNEXT-LOCAL-001',
+      description: 'A sample IT company used for local development.',
+      website: 'https://upnext.dev',
+    },
+  });
+
+  await prisma.recruiterAccount.update({
+    where: { id: recruiter.id },
+    data: {
       companyId: company.id,
-      role: 'ADMIN',
-      title: 'Platform Admin',
+      recruiterRoleId: recruiterRole.id,
+    },
+  });
+
+  await prisma.companyMember.upsert({
+    where: {
+      recruiterAccountId_companyId: {
+        recruiterAccountId: recruiter.id,
+        companyId: company.id,
+      },
+    },
+    update: {},
+    create: {
+      recruiterAccountId: recruiter.id,
+      companyId: company.id,
+      roleId: recruiterRole.id,
     },
   });
 
@@ -84,22 +101,36 @@ async function main() {
     ),
   );
 
-  const job = await prisma.job.upsert({
-    where: { companyId_slug: { companyId: company.id, slug: 'backend-nestjs-engineer' } },
+  const employmentType = await prisma.employmentType.upsert({
+    where: { name: 'Full-time' },
+    update: {},
+    create: { name: 'Full-time' },
+  });
+
+  const experienceLevel = await prisma.experienceLevel.upsert({
+    where: { code: 'junior' },
+    update: { name: 'Junior' },
+    create: {
+      code: 'junior',
+      name: 'Junior',
+    },
+  });
+
+  const job = await prisma.jobPost.upsert({
+    where: { slug: 'backend-nestjs-engineer' },
     update: {},
     create: {
+      createdByRecruiterId: recruiter.id,
       companyId: company.id,
       title: 'Backend NestJS Engineer',
       slug: 'backend-nestjs-engineer',
       description: 'Build scalable APIs for IT recruitment workflows.',
       requirements: 'Strong TypeScript, NestJS, PostgreSQL and REST API experience.',
       benefits: 'Flexible work, learning budget and modern engineering process.',
-      location: 'Ho Chi Minh City',
-      isRemote: true,
-      employmentType: EmploymentType.FULL_TIME,
-      experienceLevel: ExperienceLevel.JUNIOR,
-      minSalary: 15000000,
-      maxSalary: 30000000,
+      employmentTypeId: employmentType.id,
+      experienceLevelId: experienceLevel.id,
+      salaryMin: 15000000,
+      salaryMax: 30000000,
       status: JobStatus.PUBLISHED,
       publishedAt: new Date(),
     },
@@ -107,10 +138,14 @@ async function main() {
 
   await Promise.all(
     skills.map((skill: (typeof skills)[number]) =>
-      prisma.jobSkill.upsert({
-        where: { jobId_skillId: { jobId: job.id, skillId: skill.id } },
+      prisma.jobPostSkill.upsert({
+        where: { jobPostId_skillId: { jobPostId: job.id, skillId: skill.id } },
         update: {},
-        create: { jobId: job.id, skillId: skill.id, required: true },
+        create: {
+          jobPostId: job.id,
+          skillId: skill.id,
+          priority: SkillPriority.REQUIRED,
+        },
       }),
     ),
   );

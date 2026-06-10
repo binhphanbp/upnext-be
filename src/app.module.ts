@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from './common/config/env.validation';
+import { CompaniesModule } from './modules/companies/companies.module';
+import { CompanyMembersModule } from './modules/company-members/company-members.module';
+import { RecruiterRolesModule } from './modules/recruiter-roles/recruiter-roles.module';
+import { RecruitersModule } from './modules/recruiters/recruiters.module';
 
 @Module({
   imports: [
@@ -8,7 +12,10 @@ import { validateEnv } from './common/config/env.validation';
       isGlobal: true,
       validate: validateEnv,
     }),
-    CandidateAccountsModule,
+    CompaniesModule,
+    RecruitersModule,
+    CompanyMembersModule,
+    RecruiterRolesModule,
   ],
 })
 export class AppModule {}
