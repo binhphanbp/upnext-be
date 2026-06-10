@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "nest build",
-    "start": "node dist/main",
+    "start": "node dist/src/main.js",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "lint": "eslint .",
@@ -40,8 +40,9 @@
     "@nestjs/passport": "latest",
     "@nestjs/platform-express": "latest",
     "@nestjs/swagger": "latest",
-    "@prisma/client": "latest",
     "@prisma/adapter-pg": "latest",
+    "@prisma/client": "latest",
+    "@scalar/nestjs-api-reference": "^1.1.20",
     "bcryptjs": "latest",
     "class-transformer": "latest",
     "class-validator": "latest",
@@ -50,6 +51,7 @@
     "passport": "latest",
     "passport-jwt": "latest",
     "pg": "latest",
+    "prisma": "latest",
     "reflect-metadata": "latest",
     "rxjs": "latest",
     "zod": "latest"
@@ -75,7 +77,6 @@
     "jest": "latest",
     "lint-staged": "latest",
     "prettier": "latest",
-    "prisma": "latest",
     "source-map-support": "latest",
     "supertest": "latest",
     "ts-jest": "latest",
@@ -93,5 +94,6 @@
     "*.ts": [
       "eslint --fix"
     ]
-  }
+  },
+  "packageManager": "pnpm@10.11.0+sha512.6540583f41cc5f628eb3d9773ecee802f4f9ef9923cc45b69890fb47991d4b092964694ec3a4f738a420c918a333062c8b925d312f42e4f0c263eb603551f977"
 }

@@ -2,73 +2,77 @@
 
 Backend API for an IT recruitment platform, built with NestJS, PostgreSQL, Prisma and pnpm.
 
-## Features
+## Status
 
-- NestJS modular architecture
-- PostgreSQL data model with Prisma
-- JWT authentication and role-based access control
-- Core recruitment modules: users, companies, jobs and applications
-- Swagger API docs at `/docs`
-- Docker Compose for local PostgreSQL and API runtime
-- CI with GitHub Actions: format, lint, typecheck and build
-- Husky, lint-staged, ESLint and Prettier
+This repository is being rebuilt around a smaller baseline architecture. The current codebase keeps the application shell, environment validation, Prisma schema, shared decorators, common DTOs and utilities. Feature modules should be added under `src/modules` as they are rebuilt.
 
 ## Requirements
 
-- Node.js 24+
-- pnpm 11+
+- Node.js 22+
+- pnpm 10.11.0 via Corepack
 - Docker Desktop
 
 ## Local Development
 
 ```bash
-pnpm install
+corepack enable
+corepack pnpm install
 cp .env.example .env
 docker compose up -d postgres
-pnpm prisma:migrate --name init
-pnpm prisma:seed
-pnpm start:dev
+corepack pnpm prisma:generate
+corepack pnpm prisma:migrate --name init
+corepack pnpm start:dev
 ```
 
 API: `http://localhost:3000/api/v1`
 
-Swagger: `http://localhost:3000/docs`
+API docs: `http://localhost:3000/docs`
 
-Demo accounts after seeding:
+## Docker
 
-- `admin@upnext.dev` / `Password123!`
-- `recruiter@upnext.dev` / `Password123!`
-- `candidate@upnext.dev` / `Password123!`
+```bash
+docker compose up --build
+```
+
+API in Docker: `http://localhost:3636/api/v1`
+
+API docs in Docker: `http://localhost:3636/docs`
 
 ## Useful Commands
 
 ```bash
-pnpm lint
-pnpm format:check
-pnpm typecheck
-pnpm build
-pnpm prisma:studio
-docker compose up --build
+corepack pnpm lint
+corepack pnpm format:check
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
+corepack pnpm prisma:studio
 ```
 
 ## Project Structure
 
 ```text
 src/
-  modules/
-    applications/
-    auth/
-    companies/
-    health/
-    jobs/
-    prisma/
-    users/
-  shared/
+  common/
     config/
     decorators/
     dto/
     utils/
+  modules/
+    # Feature modules go here as they are rebuilt.
 prisma/
   schema.prisma
   seed.ts
+```
+
+## Team Baseline
+
+Before opening a pull request, run:
+
+```bash
+corepack pnpm format:check
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
 ```
