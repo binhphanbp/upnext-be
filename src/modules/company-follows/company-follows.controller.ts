@@ -30,7 +30,7 @@ export class CompanyFollowsController {
     return this.companyFollowsService.unfollowCompany(candidateAccountId, companyId);
   }
 
-  @ApiTags('company-follows')
+  @ApiTags('companies')
   @ApiOperation({ summary: 'List Following Companies' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @Get('company-follows/me')

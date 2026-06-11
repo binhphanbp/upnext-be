@@ -1,54 +1,81 @@
-import { Controller, Get, Post, Patch, Delete, Param, ParseUUIDPipe, Body, HttpCode, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CompanyReviewsService } from './company-reviews.service';
 import { CreateCompanyReviewDto } from './dto/create-company-review.dto';
 import { UpdateCompanyReviewDto } from './dto/update-company-review.dto';
 
-@ApiBearerAuth()
-@Controller()
+// ─── POST & GET reviews scoped under /companies/:id ──────────────────────────
+@ApiTags('company-reviews')
+@Controller('companies')
 export class CompanyReviewsController {
   constructor(private readonly companyReviewsService: CompanyReviewsService) {}
 
-  @ApiTags('companies')
-  @ApiOperation({ summary: 'Create Company Review' })
+  @ApiOperation({ summary: 'Create company review' })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
-  @Post('companies/:id/reviews')
+  @ApiBearerAuth()
+  @Post(':id/reviews')
   createReview(
-    @Param('id', ParseUUIDPipe) companyId: string,
-    @Body() dto: CreateCompanyReviewDto,
+    @Param('id', new ParseUUIDPipe()) companyId: string,
     @Query('candidateAccountId', new ParseUUIDPipe()) candidateAccountId: string,
+    @Body() dto: CreateCompanyReviewDto,
   ) {
     return this.companyReviewsService.createReview(candidateAccountId, companyId, dto);
   }
 
-  @ApiTags('companies')
-  @ApiOperation({ summary: 'List Company Reviews' })
-  @Get('companies/:id/reviews')
-  listReviews(@Param('id', ParseUUIDPipe) companyId: string) {
+  @ApiOperation({ summary: 'List company reviews' })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @Get(':id/reviews')
+  listReviews(@Param('id', new ParseUUIDPipe()) companyId: string) {
     return this.companyReviewsService.listReviews(companyId);
   }
+}
 
-  @ApiTags('company-reviews')
-  @ApiOperation({ summary: 'Update Company Review' })
+// ─── PATCH & DELETE scoped under /company-reviews ────────────────────────────
+@ApiTags('company-reviews')
+@ApiBearerAuth()
+@Controller('company-reviews')
+export class CompanyReviewsMutationController {
+  constructor(private readonly companyReviewsService: CompanyReviewsService) {}
+
+  @ApiOperation({ summary: 'Update company review' })
+  @ApiParam({ name: 'id', description: 'Company review UUID' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
-  @Patch('company-reviews/:id')
+  @Patch(':id')
   updateReview(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateCompanyReviewDto,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Query('candidateAccountId', new ParseUUIDPipe()) candidateAccountId: string,
+    @Body() dto: UpdateCompanyReviewDto,
   ) {
     return this.companyReviewsService.updateReview(id, candidateAccountId, dto);
   }
 
-  @ApiTags('company-reviews')
-  @ApiOperation({ summary: 'Delete Company Review' })
+  @ApiOperation({ summary: 'Delete company review' })
+  @ApiParam({ name: 'id', description: 'Company review UUID' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
-  @Delete('company-reviews/:id')
+  @Delete(':id')
   @HttpCode(204)
-  deleteReview(
-    @Param('id', ParseUUIDPipe) id: string,
+  async deleteReview(
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Query('candidateAccountId', new ParseUUIDPipe()) candidateAccountId: string,
   ) {
-    return this.companyReviewsService.deleteReview(id, candidateAccountId);
+    await this.companyReviewsService.deleteReview(id, candidateAccountId);
   }
 }
