@@ -178,6 +178,36 @@ export class JobPostsService {
     });
   }
 
+  async recordView(jobId: string, ipAddress?: string, userAgent?: string, candidateAccountId?: string) {
+    let profileId: string | undefined = undefined;
+
+    if (candidateAccountId) {
+      const profile = await this.prisma.candidateProfile.findUnique({
+        where: { candidateAccountId },
+      });
+      if (profile) {
+        profileId = profile.id;
+      }
+    }
+
+    return this.prisma.jobView.create({
+      data: {
+        jobPostId: jobId,
+        ipAddress,
+        userAgent,
+        candidateProfileId: profileId,
+      },
+    });
+  }
+
+  async getViewStats(jobId: string, recruiterId: string) {
+    await this.verifyJobOwner(jobId, recruiterId);
+    const views = await this.prisma.jobView.count({
+      where: { jobPostId: jobId },
+    });
+    return { views };
+  }
+
   private async verifyJobOwner(jobId: string, recruiterId: string) {
     const job = await this.prisma.jobPost.findUnique({ where: { id: jobId } });
     if (!job) throw new NotFoundException('Job post not found');

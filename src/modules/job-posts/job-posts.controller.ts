@@ -9,7 +9,9 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JobStatus } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -182,6 +184,36 @@ export class JobPostsController {
     @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
   ) {
     await this.jobPostsService.removeSpecializationFromJob(id, specializationId, recruiterId);
+  }
+
+  // ─── Views ───────────────────────────────────────────────────────────────
+
+  @ApiOperation({ summary: 'Record Job View' })
+  @ApiParam({ name: 'id', description: 'Job post UUID' })
+  @ApiQuery({ name: 'candidateId', required: false, description: 'Optional candidate UUID' })
+  @Post(':id/views')
+  recordView(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: Request,
+    @Query('candidateId') candidateId?: string,
+  ) {
+    return this.jobPostsService.recordView(
+      id,
+      req.ip,
+      req.headers['user-agent'],
+      candidateId,
+    );
+  }
+
+  @ApiOperation({ summary: 'Get Job View Stats' })
+  @ApiParam({ name: 'id', description: 'Job post UUID' })
+  @ApiQuery({ name: 'recruiterId', required: true })
+  @Get(':id/views/stats')
+  getViewStats(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
+  ) {
+    return this.jobPostsService.getViewStats(id, recruiterId);
   }
 }
 
