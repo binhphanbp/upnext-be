@@ -5,6 +5,8 @@ import { CompaniesModule } from './modules/companies/companies.module';
 import { CompanyMembersModule } from './modules/company-members/company-members.module';
 import { RecruiterRolesModule } from './modules/recruiter-roles/recruiter-roles.module';
 import { RecruitersModule } from './modules/recruiters/recruiters.module';
+import { CandidateAccountModule } from './modules/candidate-account/candidate-account.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { RecruitersModule } from './modules/recruiters/recruiters.module';
     RecruitersModule,
     CompanyMembersModule,
     RecruiterRolesModule,
+    PrismaModule,
+    CandidateAccountModule,
   ],
 })
 export class AppModule {}

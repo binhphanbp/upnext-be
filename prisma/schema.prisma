@@ -12,7 +12,7 @@ datasource db {
 // =========================
 
 enum AuthProvider {
-    LOCAL    @map("local")
+    DEFAULT    @map("default")
     GOOGLE   @map("google")
     GITHUB   @map("github")
     LINKEDIN @map("linkedin")
@@ -277,7 +277,7 @@ model CandidateAccount {
     fullName               String        @map("full_name") @db.VarChar(150)
     email                  String        @unique @db.VarChar(255)
     passwordHash           String?       @map("password_hash") @db.VarChar(255)
-    authProvider           AuthProvider  @default(LOCAL) @map("auth_provider")
+    authProvider           AuthProvider  @default(DEFAULT) @map("auth_provider")
     providerUserId         String?       @map("provider_user_id") @db.VarChar(255)
     candidateAccountStatus AccountStatus @default(ACTIVE) @map("candidate_account_status")
     emailVerifiedAt        DateTime?     @map("email_verified_at")
