@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
+import { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
@@ -12,20 +13,23 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
-  app.use(
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/docs')) {
+      return next();
+    }
     helmet({
       contentSecurityPolicy: {
         directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://cdn.scalar.com'],
-          styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://cdn.scalar.com'],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          fontSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", 'https://cdn.scalar.com', 'https://api.scalar.com'],
+          'default-src': ["'self'"],
+          'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://cdn.scalar.com'],
+          'style-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://cdn.scalar.com'],
+          'img-src': ["'self'", 'data:', 'https:'],
+          'font-src': ["'self'", 'data:', 'https:'],
+          'connect-src': ["'self'", 'https://cdn.scalar.com', 'https://api.scalar.com', 'https://cdn.jsdelivr.net'],
         },
       },
-    }),
-  );
+    })(req, res, next);
+  });
   app.enableCors({
     origin: config.getOrThrow<string[]>('corsOrigins'),
     credentials: true,
@@ -52,7 +56,6 @@ async function bootstrap() {
       content: openApiDocument,
     }),
   );
-
   await app.listen(config.getOrThrow<number>('port'));
 }
 

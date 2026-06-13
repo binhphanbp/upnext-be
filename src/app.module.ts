@@ -5,6 +5,8 @@ import { CompaniesModule } from './modules/companies/companies.module';
 import { CompanyMembersModule } from './modules/company-members/company-members.module';
 import { RecruiterRolesModule } from './modules/recruiter-roles/recruiter-roles.module';
 import { RecruitersModule } from './modules/recruiters/recruiters.module';
+import { CandidateAccountModule } from './modules/candidate-account/candidate-account.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { JobPostsModule } from './modules/job-posts/job-posts.module';
 import { SavedJobsModule } from './modules/saved-jobs/saved-jobs.module';
 import { CompanyFollowsModule } from './modules/company-follows/company-follows.module';
@@ -28,6 +30,8 @@ import { HomeModule } from './modules/home/home.module';
     RecruitersModule,
     CompanyMembersModule,
     RecruiterRolesModule,
+    PrismaModule,
+    CandidateAccountModule,
     JobPostsModule,
     SavedJobsModule,
     CompanyFollowsModule,
