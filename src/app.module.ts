@@ -20,6 +20,7 @@ import { JobLocationsModule } from './modules/job-locations/job-locations.module
 import { SkillsModule } from './modules/skills/skills.module';
 import { HomeModule } from './modules/home/home.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
+import { CvsModule } from './modules/cvs/cvs.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { ApplicationsModule } from './modules/applications/applications.module';
     SkillsModule,
     HomeModule,
     ApplicationsModule,
+    CvsModule,
   ],
 })
 export class AppModule {}
