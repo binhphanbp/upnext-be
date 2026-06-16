@@ -20,7 +20,7 @@ export class CreateCandidateAccountDto {
   @MaxLength(72)
   password?: string;
 
-  @ApiPropertyOptional({ enum: AuthProvider, default: AuthProvider.LOCAL })
+  @ApiPropertyOptional({ enum: AuthProvider, default: AuthProvider.DEFAULT })
   @IsOptional()
   @IsEnum(AuthProvider)
   authProvider?: AuthProvider;

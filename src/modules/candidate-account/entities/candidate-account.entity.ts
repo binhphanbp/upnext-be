@@ -11,7 +11,7 @@ export class CandidateAccount {
   @ApiProperty({ example: 'aphan@gmail.com' })
   email: string;
 
-  @ApiProperty({ enum: AuthProvider, example: AuthProvider.LOCAL })
+  @ApiProperty({ enum: AuthProvider, example: AuthProvider.DEFAULT })
   authProvider: AuthProvider;
 
   @ApiPropertyOptional({ example: 'google-oauth2|1234567890', nullable: true })
