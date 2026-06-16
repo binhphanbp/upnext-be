@@ -33,7 +33,7 @@ export class CompanyMembersController {
 
   @ApiOperation({
     summary: 'List company members',
-    description: 'Xem danh sach thanh vien cua mot cong ty.',
+    description: 'Xem danh sách thành viên của một công ty.',
   })
   @ApiParam({ name: 'companyId', description: 'Company UUID' })
   @ApiOkResponse({
@@ -63,7 +63,7 @@ export class CompanyMembersController {
 
   @ApiOperation({
     summary: 'Invite company member',
-    description: 'Moi recruiter vao cong ty bang email.',
+    description: 'Mời recruiter vào công ty bằng email.',
   })
   @ApiParam({ name: 'companyId', description: 'Company UUID' })
   @ApiCreatedResponse({
@@ -93,7 +93,7 @@ export class CompanyMembersController {
 
   @ApiOperation({
     summary: 'Accept company invitation',
-    description: 'Recruiter chap nhan loi moi tham gia cong ty.',
+    description: 'Recruiter chấp nhận lời mời tham gia công ty.',
   })
   @ApiParam({ name: 'id', description: 'Company member (invitation) UUID' })
   @ApiOkResponse({
@@ -115,7 +115,7 @@ export class CompanyMembersController {
 
   @ApiOperation({
     summary: 'Update member role',
-    description: 'Doi vai tro cua thanh vien trong cong ty.',
+    description: 'Đổi vai trò của thành viên trong công ty.',
   })
   @ApiParam({ name: 'id', description: 'Company member UUID' })
   @ApiOkResponse({
@@ -140,7 +140,7 @@ export class CompanyMembersController {
 
   @ApiOperation({
     summary: 'Remove company member',
-    description: 'Xoa thanh vien khoi cong ty.',
+    description: 'Xóa thành viên khỏi công ty.',
   })
   @ApiParam({ name: 'id', description: 'Company member UUID' })
   @ApiNoContentResponse({ description: 'Member removed successfully' })

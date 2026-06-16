@@ -28,7 +28,7 @@ export class RecruiterAccountsController {
 
   @ApiOperation({
     summary: 'List recruiter accounts',
-    description: 'Admin xem danh sach tai khoan recruiter, co ho tro tim kiem va filter.',
+    description: 'Admin xem danh sách tài khoản recruiter, có hỗ trợ tìm kiếm và filter.',
   })
   @ApiOkResponse({
     description: 'Recruiter accounts fetched successfully',
@@ -56,7 +56,7 @@ export class RecruiterAccountsController {
 
   @ApiOperation({
     summary: 'Get recruiter account detail',
-    description: 'Xem chi tiet tai khoan recruiter theo id.',
+    description: 'Xem chi tiết tài khoản recruiter theo id.',
   })
   @ApiParam({ name: 'id', description: 'Recruiter account UUID' })
   @ApiOkResponse({
@@ -81,7 +81,7 @@ export class RecruiterAccountsController {
 
   @ApiOperation({
     summary: 'Update recruiter account',
-    description: 'Cap nhat thong tin tai khoan recruiter (email, role, company, status).',
+    description: 'Cập nhật thông tin tài khoản recruiter (email, role, company, status).',
   })
   @ApiParam({ name: 'id', description: 'Recruiter account UUID' })
   @ApiOkResponse({
@@ -107,7 +107,7 @@ export class RecruiterAccountsController {
 
   @ApiOperation({
     summary: 'Deactivate recruiter account',
-    description: 'Khoa tai khoan recruiter (dat status thanh BANNED).',
+    description: 'Khóa tài khoản recruiter (đặt status thành BANNED).',
   })
   @ApiParam({ name: 'id', description: 'Recruiter account UUID' })
   @ApiNoContentResponse({ description: 'Recruiter account deactivated successfully' })
