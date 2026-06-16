@@ -19,6 +19,7 @@ import { SpecializationsModule } from './modules/specializations/specializations
 import { JobLocationsModule } from './modules/job-locations/job-locations.module';
 import { SkillsModule } from './modules/skills/skills.module';
 import { HomeModule } from './modules/home/home.module';
+import { ApplicationsModule } from './modules/applications/applications.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { HomeModule } from './modules/home/home.module';
     JobLocationsModule,
     SkillsModule,
     HomeModule,
+    ApplicationsModule,
   ],
 })
 export class AppModule {}
