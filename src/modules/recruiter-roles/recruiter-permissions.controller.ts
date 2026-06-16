@@ -29,7 +29,7 @@ import { RecruiterRolesService } from './recruiter-roles.service';
 export class RecruiterPermissionsController {
   constructor(private readonly recruiterRolesService: RecruiterRolesService) {}
 
-  @ApiOperation({ summary: 'List recruiter permissions', description: 'Lay danh sach tat ca quyen recruiter.' })
+  @ApiOperation({ summary: 'List recruiter permissions', description: 'Lấy danh sách tất cả quyền recruiter.' })
   @ApiOkResponse({
     description: 'Permissions fetched successfully',
     schema: {
@@ -44,7 +44,7 @@ export class RecruiterPermissionsController {
     return this.recruiterRolesService.findAllPermissions();
   }
 
-  @ApiOperation({ summary: 'Get recruiter permission detail', description: 'Xem chi tiet mot quyen theo id.' })
+  @ApiOperation({ summary: 'Get recruiter permission detail', description: 'Xem chi tiết một quyền theo id.' })
   @ApiParam({ name: 'id', description: 'Recruiter permission UUID' })
   @ApiOkResponse({ description: 'Permission fetched successfully' })
   @ApiNotFoundResponse({ description: 'Permission not found' })
@@ -53,7 +53,7 @@ export class RecruiterPermissionsController {
     return this.recruiterRolesService.findOnePermission(id);
   }
 
-  @ApiOperation({ summary: 'Create recruiter permission', description: 'Tao moi mot quyen recruiter.' })
+  @ApiOperation({ summary: 'Create recruiter permission', description: 'Tạo mới một quyền recruiter.' })
   @ApiCreatedResponse({
     description: 'Permission created successfully',
     schema: {
@@ -74,7 +74,7 @@ export class RecruiterPermissionsController {
     return this.recruiterRolesService.createPermission(dto);
   }
 
-  @ApiOperation({ summary: 'Update recruiter permission', description: 'Cap nhat thong tin quyen.' })
+  @ApiOperation({ summary: 'Update recruiter permission', description: 'Cập nhật thông tin quyền.' })
   @ApiParam({ name: 'id', description: 'Recruiter permission UUID' })
   @ApiOkResponse({ description: 'Permission updated successfully' })
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
@@ -88,7 +88,7 @@ export class RecruiterPermissionsController {
     return this.recruiterRolesService.updatePermission(id, dto);
   }
 
-  @ApiOperation({ summary: 'Delete recruiter permission', description: 'Xoa mot quyen recruiter.' })
+  @ApiOperation({ summary: 'Delete recruiter permission', description: 'Xóa một quyền recruiter.' })
   @ApiParam({ name: 'id', description: 'Recruiter permission UUID' })
   @ApiNoContentResponse({ description: 'Permission deleted successfully' })
   @ApiNotFoundResponse({ description: 'Permission not found' })

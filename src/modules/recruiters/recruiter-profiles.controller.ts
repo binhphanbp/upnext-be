@@ -33,7 +33,7 @@ export class RecruiterProfilesController {
 
   @ApiOperation({
     summary: 'Create recruiter profile',
-    description: 'Tao ho so recruiter gan voi mot tai khoan recruiter.',
+    description: 'Tạo hồ sơ recruiter gắn với một tài khoản recruiter.',
   })
   @ApiCreatedResponse({
     description: 'Recruiter profile created successfully',
@@ -60,7 +60,7 @@ export class RecruiterProfilesController {
 
   @ApiOperation({
     summary: 'Get my recruiter profile',
-    description: 'Recruiter xem ho so cua chinh minh theo account id.',
+    description: 'Recruiter xem hồ sơ của chính mình theo account id.',
   })
   @ApiQuery({ name: 'accountId', description: 'Recruiter account UUID', required: true })
   @ApiOkResponse({
@@ -89,7 +89,7 @@ export class RecruiterProfilesController {
 
   @ApiOperation({
     summary: 'Get recruiter profile detail',
-    description: 'Xem chi tiet ho so recruiter theo profile id.',
+    description: 'Xem chi tiết hồ sơ recruiter theo profile id.',
   })
   @ApiParam({ name: 'id', description: 'Recruiter profile UUID' })
   @ApiOkResponse({
@@ -117,7 +117,7 @@ export class RecruiterProfilesController {
 
   @ApiOperation({
     summary: 'Update recruiter profile',
-    description: 'Cap nhat chuc danh, so dien thoai, avatar cua recruiter.',
+    description: 'Cập nhật chức danh, số điện thoại, avatar của recruiter.',
   })
   @ApiParam({ name: 'id', description: 'Recruiter profile UUID' })
   @ApiOkResponse({
@@ -143,7 +143,7 @@ export class RecruiterProfilesController {
 
   @ApiOperation({
     summary: 'Delete recruiter profile',
-    description: 'Xoa ho so recruiter theo profile id.',
+    description: 'Xóa hồ sơ recruiter theo profile id.',
   })
   @ApiParam({ name: 'id', description: 'Recruiter profile UUID' })
   @ApiNoContentResponse({ description: 'Recruiter profile deleted successfully' })

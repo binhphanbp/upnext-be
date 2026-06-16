@@ -44,7 +44,7 @@ export class CompaniesController {
 
   @ApiOperation({
     summary: 'Create company',
-    description: 'Tao moi mot cong ty voi thong tin co ban.',
+    description: 'Tạo mới một công ty với thông tin cơ bản.',
   })
   @ApiCreatedResponse({
     description: 'Company created successfully',
@@ -76,7 +76,7 @@ export class CompaniesController {
 
   @ApiOperation({
     summary: 'List companies',
-    description: 'Lay danh sach cong ty, co ho tro tim kiem, filter va pagination.',
+    description: 'Lấy danh sách công ty, có hỗ trợ tìm kiếm, filter và pagination.',
   })
   @ApiOkResponse({
     description: 'Companies fetched successfully',
@@ -111,7 +111,7 @@ export class CompaniesController {
 
   @ApiOperation({
     summary: 'Get company detail',
-    description: 'Lay chi tiet ho so cong ty kem recruiter, member va job gan day.',
+    description: 'Lấy chi tiết hồ sơ công ty kèm recruiter, member và job gần đây.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiOkResponse({
@@ -136,7 +136,7 @@ export class CompaniesController {
 
   @ApiOperation({
     summary: 'Get company jobs',
-    description: 'Lay danh sach job dang thuoc mot cong ty.',
+    description: 'Lấy danh sách job đang thuộc một công ty.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiOkResponse({
@@ -171,7 +171,7 @@ export class CompaniesController {
 
   @ApiOperation({
     summary: 'Update company',
-    description: 'Cap nhat thong tin cong ty theo company id.',
+    description: 'Cập nhật thông tin công ty theo company id.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiOkResponse({
@@ -197,7 +197,7 @@ export class CompaniesController {
 
   @ApiOperation({
     summary: 'Upload company logo',
-    description: 'Upload logo cong ty bang multipart/form-data voi field `file`.',
+    description: 'Upload logo công ty bằng multipart/form-data với field `file`.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiConsumes('multipart/form-data')
@@ -238,7 +238,7 @@ export class CompaniesController {
 
   @ApiOperation({
     summary: 'Upload company cover',
-    description: 'Upload anh bia cong ty bang multipart/form-data voi field `file`.',
+    description: 'Upload ảnh bìa công ty bằng multipart/form-data với field `file`.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiConsumes('multipart/form-data')
@@ -279,7 +279,7 @@ export class CompaniesController {
 
   @ApiOperation({
     summary: 'Delete company',
-    description: 'Xoa mot cong ty theo company id.',
+    description: 'Xóa một công ty theo company id.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiNoContentResponse({ description: 'Company deleted successfully' })
