@@ -21,7 +21,7 @@ import { ListRecruiterAccountsQueryDto } from './dto/recruiter-accounts/list-rec
 import { UpdateRecruiterAccountDto } from './dto/recruiter-accounts/update-recruiter-account.dto';
 import { RecruitersService } from './recruiters.service';
 
-@ApiTags('recruiter-accounts')
+@ApiTags('Recruiter - Account')
 @Controller('recruiter-accounts')
 export class RecruiterAccountsController {
   constructor(private readonly recruitersService: RecruitersService) {}

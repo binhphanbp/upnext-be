@@ -6,6 +6,16 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   JWT_ACCESS_SECRET: z.string().min(16),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+  APP_FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  MAIL_FROM: z.string().optional(),
   CORS_ORIGIN: z.string().default('http://localhost:5173,http://localhost:3000'),
 });
 
@@ -15,6 +25,13 @@ export type AppConfig = {
   databaseUrl: string;
   jwtAccessSecret: string;
   jwtAccessExpiresIn: string;
+  appFrontendUrl: string;
+  smtpHost?: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUser?: string;
+  smtpPass?: string;
+  mailFrom?: string;
   corsOrigins: string[];
 };
 
@@ -27,6 +44,13 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     databaseUrl: parsed.DATABASE_URL,
     jwtAccessSecret: parsed.JWT_ACCESS_SECRET,
     jwtAccessExpiresIn: parsed.JWT_ACCESS_EXPIRES_IN,
+    appFrontendUrl: parsed.APP_FRONTEND_URL,
+    smtpHost: parsed.SMTP_HOST,
+    smtpPort: parsed.SMTP_PORT,
+    smtpSecure: parsed.SMTP_SECURE,
+    smtpUser: parsed.SMTP_USER,
+    smtpPass: parsed.SMTP_PASS,
+    mailFrom: parsed.MAIL_FROM,
     corsOrigins: parsed.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
   };
 }

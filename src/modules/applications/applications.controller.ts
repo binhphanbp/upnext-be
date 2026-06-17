@@ -7,8 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -20,6 +22,14 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { ActorType } from '@prisma/client';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+} from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { ApplicationsService } from './applications.service';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { ApplicationEntity, CheckAppliedJobResponse } from './entities/application.entity';
@@ -31,7 +41,9 @@ export class ApplicationsController {
 
   @Post('applications')
   @ApiOperation({ summary: 'Apply for a job post' })
-  @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.CANDIDATE)
   @ApiCreatedResponse({
     type: ApplicationEntity,
     description: 'Application submitted successfully.',
@@ -40,12 +52,13 @@ export class ApplicationsController {
     description: 'Invalid payload or CV version does not belong to candidate.',
   })
   @ApiNotFoundResponse({ description: 'Candidate profile, job post, or CV version not found.' })
+  @ApiForbiddenResponse({ description: 'Candidate email is not verified.' })
   @ApiConflictResponse({ description: 'Candidate has already applied to this job.' })
   applyJob(
     @Body() dto: ApplyJobDto,
-    @Query('candidateAccountId', new ParseUUIDPipe()) candidateAccountId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.applicationsService.applyJob(candidateAccountId, dto);
+    return this.applicationsService.applyJob(user.id, dto);
   }
 
   @Patch('applications/:id/withdraw')

@@ -48,6 +48,16 @@ async function bootstrap() {
     .setDescription('Backend API for the UpNext IT recruitment platform.')
     .setVersion('1.0')
     .addBearerAuth()
+    .addTag('Candidate - Auth', 'Đăng ký và đăng nhập ứng viên')
+    .addTag('Candidate - Account', 'Email, password và trạng thái tài khoản ứng viên')
+    .addTag('Candidate - Profile', 'Thông tin hồ sơ ứng viên')
+    .addTag('Recruiter - Auth', 'Đăng nhập recruiter')
+    .addTag('Recruiter - Account', 'Quản lý tài khoản recruiter')
+    .addTag('Recruiter - Profile', 'Thông tin hồ sơ recruiter')
+    .addTag('Recruiter - Shortlist', 'Danh sách candidate recruiter quan tâm')
+    .addTag('Recruiter - Roles', 'Role của recruiter')
+    .addTag('Recruiter - Permissions', 'Permission của recruiter')
+    .addTag('Admin - Auth', 'Đăng nhập admin')
     .build();
   const openApiDocument = SwaggerModule.createDocument(app, openApiConfig);
   app.use(

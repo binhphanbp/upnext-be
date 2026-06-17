@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { RecruiterShortlistsService } from './recruiter-shortlists.service';
 import { CreateShortlistDto } from './dto/create-shortlist.dto';
 
-@ApiTags('recruiter-shortlists')
+@ApiTags('Recruiter - Shortlist')
 @ApiBearerAuth()
 @Controller('recruiter/shortlists')
 export class RecruiterShortlistsController {

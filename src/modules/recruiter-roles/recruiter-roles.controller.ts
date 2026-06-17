@@ -25,7 +25,7 @@ import { CreateRecruiterRoleDto } from './dto/create-recruiter-role.dto';
 import { UpdateRecruiterRoleDto } from './dto/update-recruiter-role.dto';
 import { RecruiterRolesService } from './recruiter-roles.service';
 
-@ApiTags('recruiter-roles')
+@ApiTags('Recruiter - Roles')
 @Controller('recruiter-roles')
 export class RecruiterRolesController {
   constructor(private readonly recruiterRolesService: RecruiterRolesService) {}
