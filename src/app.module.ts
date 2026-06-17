@@ -23,6 +23,7 @@ import { HomeModule } from './modules/home/home.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
+import { CvsModule } from './modules/cvs/cvs.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { AdminUsersModule } from './modules/admin-users/admin-users.module';
     SkillsModule,
     HomeModule,
     ApplicationsModule,
+    CvsModule,
   ],
 })
 export class AppModule {}
