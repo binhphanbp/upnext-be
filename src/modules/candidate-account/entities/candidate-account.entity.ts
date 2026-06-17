@@ -5,10 +5,10 @@ export class CandidateAccount {
   @ApiProperty({ example: 'clx4q8z1j0000u8p4e1o9v6m2' })
   id: string;
 
-  @ApiProperty({ example: 'Phan Van A' })
+  @ApiProperty({ example: 'Phan Đức Toàn' })
   fullName: string;
 
-  @ApiProperty({ example: 'aphan@gmail.com' })
+  @ApiProperty({ example: 'pductoandev@gmail.com' })
   email: string;
 
   @ApiProperty({ enum: AuthProvider, example: AuthProvider.DEFAULT })

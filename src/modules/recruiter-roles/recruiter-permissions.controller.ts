@@ -24,7 +24,7 @@ import { CreateRecruiterPermissionDto } from './dto/create-recruiter-permission.
 import { UpdateRecruiterPermissionDto } from './dto/update-recruiter-permission.dto';
 import { RecruiterRolesService } from './recruiter-roles.service';
 
-@ApiTags('recruiter-permissions')
+@ApiTags('Recruiter - Permissions')
 @Controller('recruiter-permissions')
 export class RecruiterPermissionsController {
   constructor(private readonly recruiterRolesService: RecruiterRolesService) {}

@@ -3,30 +3,12 @@ import { Prisma } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { PaginationQueryDto, toPagination } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateCandidateAccountDto } from './dto/create-candidate-account.dto';
-import { UpdateCandidateAccountDto } from './dto/update-candidate-account.dto';
+import { UpdateCandidateAccountStatusDto } from './dto/update-candidate-account-status.dto';
+import { UpdateMyCandidateAccountDto } from './dto/update-my-candidate-account.dto';
 
 @Injectable()
 export class CandidateAccountService {
   constructor(private readonly prisma: PrismaService) { }
-
-  async create(createCandidateAccountDto: CreateCandidateAccountDto) {
-    const { password, ...data } = createCandidateAccountDto;
-
-    try {
-      return await this.prisma.candidateAccount.create({
-        data: {
-          ...data,
-          email: data.email.toLowerCase(),
-          passwordHash: password ? await hash(password, 10) : undefined,
-        },
-        select: this.defaultSelect,
-      });
-    } catch (error) {
-      this.handleKnownError(error);
-      throw error;
-    }
-  }
 
   async findAll(query: PaginationQueryDto) {
     const where: Prisma.CandidateAccountWhereInput = query.q
@@ -72,18 +54,14 @@ export class CandidateAccountService {
     return candidateAccount;
   }
 
-  async update(id: string, updateCandidateAccountDto: UpdateCandidateAccountDto) {
+  async updateMe(id: string, dto: UpdateMyCandidateAccountDto) {
     await this.findOne(id);
-
-    const { password, ...data } = updateCandidateAccountDto;
 
     try {
       return await this.prisma.candidateAccount.update({
         where: { id },
         data: {
-          ...data,
-          email: data.email?.toLowerCase(),
-          passwordHash: password ? await hash(password, 10) : undefined,
+          passwordHash: dto.password ? await hash(dto.password, 10) : undefined,
         },
         select: this.defaultSelect,
       });
@@ -93,11 +71,14 @@ export class CandidateAccountService {
     }
   }
 
-  async remove(id: string) {
+  async updateStatus(id: string, dto: UpdateCandidateAccountStatusDto) {
     await this.findOne(id);
 
-    return this.prisma.candidateAccount.delete({
+    return this.prisma.candidateAccount.update({
       where: { id },
+      data: {
+        candidateAccountStatus: dto.candidateAccountStatus,
+      },
       select: this.defaultSelect,
     });
   }

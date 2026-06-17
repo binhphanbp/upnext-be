@@ -5,6 +5,9 @@ export type AuthenticatedUser = {
   id: string;
   email: string;
   role: ActorType;
+  companyId?: string | null;
+  recruiterRoleId?: string | null;
+  adminRoleId?: string | null;
 };
 
 export const CurrentUser = createParamDecorator(

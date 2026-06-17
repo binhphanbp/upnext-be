@@ -23,6 +23,12 @@ import {
 import { CompanyMembersService } from './company-members.service';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
+import {
+  CompanyMember,
+  CompanyMemberInvitation,
+  CompanyMemberInvitationStatus,
+  CompanyMemberRoleUpdate,
+} from './entities/company-member.entity';
 
 @ApiTags('company-members')
 @Controller()
@@ -38,22 +44,7 @@ export class CompanyMembersController {
   @ApiParam({ name: 'companyId', description: 'Company UUID' })
   @ApiOkResponse({
     description: 'Company members fetched successfully',
-    schema: {
-      example: [
-        {
-          id: 'm1...',
-          status: 'ACTIVE',
-          joinedAt: '2026-06-09T08:00:00.000Z',
-          recruiterAccount: {
-            id: 'r1...',
-            email: 'recruiter@company.com',
-            status: 'ACTIVE',
-            profile: { fullName: 'Nguyen Van A', avatarUrl: null },
-          },
-          role: { id: 'role1...', code: 'hr_manager', name: 'HR Manager' },
-        },
-      ],
-    },
+    type: [CompanyMember],
   })
   @ApiNotFoundResponse({ description: 'Company not found' })
   @Get('companies/:companyId/members')
@@ -68,15 +59,7 @@ export class CompanyMembersController {
   @ApiParam({ name: 'companyId', description: 'Company UUID' })
   @ApiCreatedResponse({
     description: 'Invitation sent successfully',
-    schema: {
-      example: {
-        id: 'm1...',
-        status: 'INVITED',
-        joinedAt: '2026-06-09T08:00:00.000Z',
-        recruiterAccount: { id: 'r1...', email: 'recruiter@company.com' },
-        role: null,
-      },
-    },
+    type: CompanyMemberInvitation,
   })
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiConflictResponse({ description: 'Recruiter is already a member' })
@@ -98,13 +81,7 @@ export class CompanyMembersController {
   @ApiParam({ name: 'id', description: 'Company member (invitation) UUID' })
   @ApiOkResponse({
     description: 'Invitation accepted successfully',
-    schema: {
-      example: {
-        id: 'm1...',
-        status: 'ACTIVE',
-        updatedAt: '2026-06-09T09:00:00.000Z',
-      },
-    },
+    type: CompanyMemberInvitationStatus,
   })
   @ApiConflictResponse({ description: 'Invitation is not in INVITED status' })
   @ApiNotFoundResponse({ description: 'Invitation not found' })
@@ -120,13 +97,7 @@ export class CompanyMembersController {
   @ApiParam({ name: 'id', description: 'Company member UUID' })
   @ApiOkResponse({
     description: 'Member role updated successfully',
-    schema: {
-      example: {
-        id: 'm1...',
-        roleId: 'role1...',
-        role: { id: 'role1...', code: 'hr_manager', name: 'HR Manager' },
-      },
-    },
+    type: CompanyMemberRoleUpdate,
   })
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiNotFoundResponse({ description: 'Member or role not found' })

@@ -6,6 +6,7 @@ import { CompanyMembersModule } from './modules/company-members/company-members.
 import { RecruiterRolesModule } from './modules/recruiter-roles/recruiter-roles.module';
 import { RecruitersModule } from './modules/recruiters/recruiters.module';
 import { CandidateAccountModule } from './modules/candidate-account/candidate-account.module';
+import { CandidateProfileModule } from './modules/candidate-profile/candidate-profile.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { JobPostsModule } from './modules/job-posts/job-posts.module';
 import { SavedJobsModule } from './modules/saved-jobs/saved-jobs.module';
@@ -19,7 +20,9 @@ import { SpecializationsModule } from './modules/specializations/specializations
 import { JobLocationsModule } from './modules/job-locations/job-locations.module';
 import { SkillsModule } from './modules/skills/skills.module';
 import { HomeModule } from './modules/home/home.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
+import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { CvsModule } from './modules/cvs/cvs.module';
 
 @Module({
@@ -28,12 +31,15 @@ import { CvsModule } from './modules/cvs/cvs.module';
       isGlobal: true,
       validate: validateEnv,
     }),
+    AuthModule,
+    AdminUsersModule,
     CompaniesModule,
     RecruitersModule,
     CompanyMembersModule,
     RecruiterRolesModule,
     PrismaModule,
     CandidateAccountModule,
+    CandidateProfileModule,
     JobPostsModule,
     SavedJobsModule,
     CompanyFollowsModule,

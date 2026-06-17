@@ -14,9 +14,24 @@ export class ApplicationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async applyJob(candidateAccountId: string, dto: ApplyJobDto) {
-    const profile = await this.prisma.candidateProfile.findUnique({
-      where: { candidateAccountId },
+    const candidateAccount = await this.prisma.candidateAccount.findUnique({
+      where: { id: candidateAccountId },
+      select: {
+        emailVerifiedAt: true,
+        profile: true,
+      },
     });
+
+    if (!candidateAccount?.profile) {
+      throw new NotFoundException('Candidate profile not found');
+    }
+
+    if (!candidateAccount.emailVerifiedAt) {
+      throw new ForbiddenException('Please verify your email before applying to jobs');
+    }
+
+    const profile = candidateAccount.profile;
+
     if (!profile) {
       throw new NotFoundException('Candidate profile not found');
     }
