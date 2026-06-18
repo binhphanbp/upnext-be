@@ -19,7 +19,7 @@ export class RecruiterAuthController {
 
   @Public()
   @Post('login')
-  @ApiOperation({ summary: 'Recruiter login and receive JWT access token' })
+  @ApiOperation({ summary: 'Đăng nhập nhà tuyển dụng và nhận token truy cập JWT' })
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({ description: 'Login successful', type: LoginResponse })
   @ApiBadRequestResponse({ description: 'Payload không hợp lệ' })

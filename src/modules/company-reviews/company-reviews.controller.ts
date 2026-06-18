@@ -22,12 +22,12 @@ import { CreateCompanyReviewDto } from './dto/create-company-review.dto';
 import { UpdateCompanyReviewDto } from './dto/update-company-review.dto';
 
 // ─── POST & GET reviews scoped under /companies/:id ──────────────────────────
-@ApiTags('company-reviews')
+@ApiTags('Company - Reviews')
 @Controller('companies')
 export class CompanyReviewsController {
   constructor(private readonly companyReviewsService: CompanyReviewsService) {}
 
-  @ApiOperation({ summary: 'Create company review' })
+  @ApiOperation({ summary: 'Tạo đánh giá công ty' })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @ApiBearerAuth()
@@ -40,7 +40,7 @@ export class CompanyReviewsController {
     return this.companyReviewsService.createReview(candidateAccountId, companyId, dto);
   }
 
-  @ApiOperation({ summary: 'List company reviews' })
+  @ApiOperation({ summary: 'Danh sách đánh giá công ty' })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @Get(':id/reviews')
   listReviews(@Param('id', new ParseUUIDPipe()) companyId: string) {
@@ -49,13 +49,13 @@ export class CompanyReviewsController {
 }
 
 // ─── PATCH & DELETE scoped under /company-reviews ────────────────────────────
-@ApiTags('company-reviews')
+@ApiTags('Company - Reviews')
 @ApiBearerAuth()
 @Controller('company-reviews')
 export class CompanyReviewsMutationController {
   constructor(private readonly companyReviewsService: CompanyReviewsService) {}
 
-  @ApiOperation({ summary: 'Update company review' })
+  @ApiOperation({ summary: 'Cập nhật đánh giá công ty' })
   @ApiParam({ name: 'id', description: 'Company review UUID' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @Patch(':id')
@@ -67,7 +67,7 @@ export class CompanyReviewsMutationController {
     return this.companyReviewsService.updateReview(id, candidateAccountId, dto);
   }
 
-  @ApiOperation({ summary: 'Delete company review' })
+  @ApiOperation({ summary: 'Xóa đánh giá công ty' })
   @ApiParam({ name: 'id', description: 'Company review UUID' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @Delete(':id')

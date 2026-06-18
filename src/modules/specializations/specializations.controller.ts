@@ -4,38 +4,38 @@ import { SpecializationsService } from './specializations.service';
 import { CreateSpecializationDto } from './dto/create-specialization.dto';
 import { UpdateSpecializationDto } from './dto/update-specialization.dto';
 
-@ApiTags('specializations')
+@ApiTags('Specializations')
 @Controller('specializations')
 export class SpecializationsController {
   constructor(private readonly specializationsService: SpecializationsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create Specialization' })
+  @ApiOperation({ summary: 'Tạo chuyên ngành' })
   create(@Body() dto: CreateSpecializationDto) {
     return this.specializationsService.create(dto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'List Specializations' })
+  @ApiOperation({ summary: 'Danh sách chuyên ngành' })
   findAll() {
     return this.specializationsService.findAll();
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get Specialization' })
+  @ApiOperation({ summary: 'Chi tiết chuyên ngành' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.specializationsService.findOne(id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update Specialization' })
+  @ApiOperation({ summary: 'Cập nhật chuyên ngành' })
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateSpecializationDto) {
     return this.specializationsService.update(id, dto);
   }
 
   @Delete(':id')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Delete Specialization' })
+  @ApiOperation({ summary: 'Xóa chuyên ngành' })
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.specializationsService.remove(id);
   }

@@ -30,7 +30,7 @@ import {
   CompanyMemberRoleUpdate,
 } from './entities/company-member.entity';
 
-@ApiTags('company-members')
+@ApiTags('Company - Members')
 @Controller()
 export class CompanyMembersController {
   constructor(private readonly companyMembersService: CompanyMembersService) {}
@@ -38,7 +38,7 @@ export class CompanyMembersController {
   // ─── Scoped under /companies/:companyId ──────────────────────────────────
 
   @ApiOperation({
-    summary: 'List company members',
+    summary: 'Danh sách thành viên công ty',
     description: 'Xem danh sách thành viên của một công ty.',
   })
   @ApiParam({ name: 'companyId', description: 'Company UUID' })
@@ -53,7 +53,7 @@ export class CompanyMembersController {
   }
 
   @ApiOperation({
-    summary: 'Invite company member',
+    summary: 'Mời thành viên vào công ty',
     description: 'Mời recruiter vào công ty bằng email.',
   })
   @ApiParam({ name: 'companyId', description: 'Company UUID' })
@@ -75,7 +75,7 @@ export class CompanyMembersController {
   // ─── Scoped under /company-members ───────────────────────────────────────
 
   @ApiOperation({
-    summary: 'Accept company invitation',
+    summary: 'Chấp nhận lời mời vào công ty',
     description: 'Recruiter chấp nhận lời mời tham gia công ty.',
   })
   @ApiParam({ name: 'id', description: 'Company member (invitation) UUID' })
@@ -91,7 +91,7 @@ export class CompanyMembersController {
   }
 
   @ApiOperation({
-    summary: 'Update member role',
+    summary: 'Cập nhật vai trò thành viên',
     description: 'Đổi vai trò của thành viên trong công ty.',
   })
   @ApiParam({ name: 'id', description: 'Company member UUID' })
@@ -110,7 +110,7 @@ export class CompanyMembersController {
   }
 
   @ApiOperation({
-    summary: 'Remove company member',
+    summary: 'Xóa thành viên khỏi công ty',
     description: 'Xóa thành viên khỏi công ty.',
   })
   @ApiParam({ name: 'id', description: 'Company member UUID' })

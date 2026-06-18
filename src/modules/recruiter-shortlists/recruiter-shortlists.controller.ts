@@ -10,7 +10,7 @@ export class RecruiterShortlistsController {
   constructor(private readonly recruiterShortlistsService: RecruiterShortlistsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Add Candidate To Shortlist' })
+  @ApiOperation({ summary: 'Thêm ứng viên vào danh sách rút gọn' })
   @ApiQuery({ name: 'recruiterAccountId', required: true, description: 'Recruiter account UUID' })
   addToShortlist(
     @Body() dto: CreateShortlistDto,
@@ -21,7 +21,7 @@ export class RecruiterShortlistsController {
 
   @Delete(':id')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Remove Candidate From Shortlist' })
+  @ApiOperation({ summary: 'Xóa ứng viên khỏi danh sách rút gọn' })
   @ApiQuery({ name: 'recruiterAccountId', required: true, description: 'Recruiter account UUID' })
   removeFromShortlist(
     @Param('id', ParseUUIDPipe) id: string,
@@ -31,7 +31,7 @@ export class RecruiterShortlistsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List My Shortlisted Candidates' })
+  @ApiOperation({ summary: 'Danh sách ứng viên rút gọn của tôi' })
   @ApiQuery({ name: 'recruiterAccountId', required: true, description: 'Recruiter account UUID' })
   listShortlist(
     @Query('recruiterAccountId', new ParseUUIDPipe()) recruiterAccountId: string,

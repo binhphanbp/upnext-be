@@ -30,7 +30,7 @@ export class CandidateProfileController {
   constructor(private readonly candidateProfileService: CandidateProfileService) { }
 
   @Get('me')
-  @ApiOperation({ summary: 'Lấy thông tin hồ sơ ứng viên ' })
+  @ApiOperation({ summary: 'Candidate get own profile' })
   @ApiOkResponse({ type: CandidateProfile })
   @ApiUnauthorizedResponse({ description: 'Thiếu hoặc mã thông báo Bearer không hợp lệ.' })
   @ApiForbiddenResponse({ description: 'Chỉ ứng viên mới có thể gọi endpoint này.' })
@@ -40,7 +40,7 @@ export class CandidateProfileController {
   }
 
   @Patch('me')
-  @ApiOperation({ summary: 'Cập nhật hồ sơ ứng viên' })
+  @ApiOperation({ summary: 'Candidate update own profile' })
   @ApiOkResponse({ type: CandidateProfile })
   @ApiBadRequestResponse({ description: 'Dữ liệu yêu cầu không hợp lệ.' })
   @ApiUnauthorizedResponse({ description: 'Thiếu hoặc mã thông báo Bearer không hợp lệ.' })

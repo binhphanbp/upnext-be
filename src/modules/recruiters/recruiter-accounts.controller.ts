@@ -27,7 +27,7 @@ export class RecruiterAccountsController {
   constructor(private readonly recruitersService: RecruitersService) {}
 
   @ApiOperation({
-    summary: 'List recruiter accounts',
+    summary: 'Danh sách tài khoản nhà tuyển dụng',
     description: 'Admin xem danh sách tài khoản recruiter, có hỗ trợ tìm kiếm và filter.',
   })
   @ApiOkResponse({
@@ -55,7 +55,7 @@ export class RecruiterAccountsController {
   }
 
   @ApiOperation({
-    summary: 'Get recruiter account detail',
+    summary: 'Chi tiết tài khoản nhà tuyển dụng',
     description: 'Xem chi tiết tài khoản recruiter theo id.',
   })
   @ApiParam({ name: 'id', description: 'Recruiter account UUID' })
@@ -80,7 +80,7 @@ export class RecruiterAccountsController {
   }
 
   @ApiOperation({
-    summary: 'Update recruiter account',
+    summary: 'Cập nhật tài khoản nhà tuyển dụng',
     description: 'Cập nhật thông tin tài khoản recruiter (email, role, company, status).',
   })
   @ApiParam({ name: 'id', description: 'Recruiter account UUID' })
@@ -106,7 +106,7 @@ export class RecruiterAccountsController {
   }
 
   @ApiOperation({
-    summary: 'Deactivate recruiter account',
+    summary: 'Vô hiệu hóa tài khoản nhà tuyển dụng',
     description: 'Khóa tài khoản recruiter (đặt status thành BANNED).',
   })
   @ApiParam({ name: 'id', description: 'Recruiter account UUID' })

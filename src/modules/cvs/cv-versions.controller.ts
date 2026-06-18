@@ -39,7 +39,7 @@ type UploadedFile = {
   size: number;
 };
 
-@ApiTags('Phiên bản CV')
+@ApiTags('Cv - Versions')
 @Controller()
 export class CvVersionsController {
   constructor(private readonly cvVersionsService: CvVersionsService) {}

@@ -30,7 +30,7 @@ import { RecruiterRolesService } from './recruiter-roles.service';
 export class RecruiterRolesController {
   constructor(private readonly recruiterRolesService: RecruiterRolesService) {}
 
-  @ApiOperation({ summary: 'List recruiter roles', description: 'Lấy danh sách tất cả role recruiter kèm danh sách permission.' })
+  @ApiOperation({ summary: 'Danh sách vai trò nhà tuyển dụng', description: 'Lấy danh sách tất cả role recruiter kèm danh sách permission.' })
   @ApiOkResponse({
     description: 'Roles fetched successfully',
     schema: {
@@ -52,7 +52,7 @@ export class RecruiterRolesController {
     return this.recruiterRolesService.findAllRoles();
   }
 
-  @ApiOperation({ summary: 'Get recruiter role detail', description: 'Xem chi tiết một role theo id.' })
+  @ApiOperation({ summary: 'Chi tiết vai trò nhà tuyển dụng', description: 'Xem chi tiết một role theo id.' })
   @ApiParam({ name: 'id', description: 'Recruiter role UUID' })
   @ApiOkResponse({ description: 'Role fetched successfully' })
   @ApiNotFoundResponse({ description: 'Role not found' })
@@ -61,7 +61,7 @@ export class RecruiterRolesController {
     return this.recruiterRolesService.findOneRole(id);
   }
 
-  @ApiOperation({ summary: 'Create recruiter role', description: 'Tạo mới một role cho recruiter.' })
+  @ApiOperation({ summary: 'Tạo vai trò nhà tuyển dụng', description: 'Tạo mới một role cho recruiter.' })
   @ApiCreatedResponse({
     description: 'Role created successfully',
     schema: {
@@ -81,7 +81,7 @@ export class RecruiterRolesController {
     return this.recruiterRolesService.createRole(dto);
   }
 
-  @ApiOperation({ summary: 'Update recruiter role', description: 'Cập nhật thông tin role.' })
+  @ApiOperation({ summary: 'Cập nhật vai trò nhà tuyển dụng', description: 'Cập nhật thông tin role.' })
   @ApiParam({ name: 'id', description: 'Recruiter role UUID' })
   @ApiOkResponse({ description: 'Role updated successfully' })
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
@@ -95,7 +95,7 @@ export class RecruiterRolesController {
     return this.recruiterRolesService.updateRole(id, dto);
   }
 
-  @ApiOperation({ summary: 'Delete recruiter role', description: 'Xóa một role recruiter.' })
+  @ApiOperation({ summary: 'Xóa vai trò nhà tuyển dụng', description: 'Xóa một role recruiter.' })
   @ApiParam({ name: 'id', description: 'Recruiter role UUID' })
   @ApiNoContentResponse({ description: 'Role deleted successfully' })
   @ApiNotFoundResponse({ description: 'Role not found' })
@@ -106,7 +106,7 @@ export class RecruiterRolesController {
   }
 
   @ApiOperation({
-    summary: 'Assign permissions to role',
+    summary: 'Gán quyền cho vai trò',
     description: 'Gắn danh sách permission vào một role. Các permission đã tồn tại sẽ được bỏ qua.',
   })
   @ApiParam({ name: 'roleId', description: 'Recruiter role UUID' })

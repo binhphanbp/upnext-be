@@ -51,7 +51,7 @@ type CompanyUploadFile = {
   size: number;
 };
 
-@ApiTags('companies')
+@ApiTags('Companies')
 @Controller('companies')
 export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) { }
@@ -62,7 +62,7 @@ export class CompaniesController {
    * @returns Thông tin công ty vừa được tạo thành công
    */
   @ApiOperation({
-    summary: 'Create company',
+    summary: 'Tạo công ty',
     description: 'Tạo mới một công ty với thông tin cơ bản.',
   })
   @ApiCreatedResponse({
@@ -84,7 +84,7 @@ export class CompaniesController {
    * @returns Danh sách các công ty thỏa mãn điều kiện tìm kiếm kèm metadata phân trang
    */
   @ApiOperation({
-    summary: 'List companies',
+    summary: 'Danh sách công ty',
     description: 'Lấy danh sách công ty, có hỗ trợ tìm kiếm, filter và pagination.',
   })
   @ApiOkResponse({
@@ -102,7 +102,7 @@ export class CompaniesController {
    * @returns Toàn bộ thông tin chi tiết về công ty, bao gồm cả recruiter và jobs liên quan
    */
   @ApiOperation({
-    summary: 'Get company detail',
+    summary: 'Chi tiết công ty',
     description: 'Lấy chi tiết hồ sơ công ty kèm recruiter, member và job gần đây.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
@@ -122,7 +122,7 @@ export class CompaniesController {
    * @returns Danh sách các công việc do công ty đó đăng tuyển
    */
   @ApiOperation({
-    summary: 'Get company jobs',
+    summary: 'Danh sách việc làm của công ty',
     description: 'Lấy danh sách job đang thuộc một công ty.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
@@ -143,7 +143,7 @@ export class CompaniesController {
    * @returns Dữ liệu của công ty sau khi đã được cập nhật thành công
    */
   @ApiOperation({
-    summary: 'Update company',
+    summary: 'Cập nhật công ty',
     description: 'Cập nhật thông tin công ty theo company id.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
@@ -168,7 +168,7 @@ export class CompaniesController {
    * @returns Trả về kết quả upload, thường là URL của logo sau khi lưu thành công
    */
   @ApiOperation({
-    summary: 'Upload company logo',
+    summary: 'Tải lên logo công ty',
     description: 'Upload logo công ty.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
@@ -207,7 +207,7 @@ export class CompaniesController {
    * @returns Trả về kết quả upload, chứa thông tin hoặc URL của ảnh bìa
    */
   @ApiOperation({
-    summary: 'Upload company cover',
+    summary: 'Tải lên ảnh bìa công ty',
     description: 'Upload ảnh bìa công ty.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
@@ -244,7 +244,7 @@ export class CompaniesController {
    * @param id ID (UUID) của công ty cần xóa
    */
   @ApiOperation({
-    summary: 'Delete company',
+    summary: 'Xóa công ty',
     description: 'Xóa một công ty theo company id.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
