@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CandidateEmailVerificationRequest {
-  @ApiProperty({ example: 'candidate@upnext.dev' })
+  @ApiProperty({ example: 'pductoandev@gmail.com' })
   email: string;
 
   @ApiProperty({ example: false })
@@ -15,7 +15,7 @@ export class CandidateEmailVerificationRequest {
 }
 
 export class CandidateEmailVerificationResult {
-  @ApiProperty({ example: 'candidate@upnext.dev' })
+  @ApiProperty({ example: 'pductoandev@gmail.com' })
   email: string;
 
   @ApiProperty({ example: true })

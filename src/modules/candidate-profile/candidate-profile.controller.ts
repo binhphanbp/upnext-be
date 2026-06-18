@@ -27,25 +27,25 @@ import { CandidateProfile } from './entities/candidate-profile.entity';
 @Roles(ActorType.CANDIDATE)
 @Controller('candidate-profiles')
 export class CandidateProfileController {
-  constructor(private readonly candidateProfileService: CandidateProfileService) {}
+  constructor(private readonly candidateProfileService: CandidateProfileService) { }
 
   @Get('me')
-  @ApiOperation({ summary: 'Candidate get own profile' })
+  @ApiOperation({ summary: 'Lấy thông tin hồ sơ ứng viên ' })
   @ApiOkResponse({ type: CandidateProfile })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid Bearer token.' })
-  @ApiForbiddenResponse({ description: 'Only candidate can call this endpoint.' })
-  @ApiNotFoundResponse({ description: 'Candidate profile not found.' })
+  @ApiUnauthorizedResponse({ description: 'Thiếu hoặc mã thông báo Bearer không hợp lệ.' })
+  @ApiForbiddenResponse({ description: 'Chỉ ứng viên mới có thể gọi endpoint này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy hồ sơ ứng viên.' })
   findMe(@CurrentUser() user: AuthenticatedUser) {
     return this.candidateProfileService.findMe(user.id);
   }
 
   @Patch('me')
-  @ApiOperation({ summary: 'Candidate update own profile' })
+  @ApiOperation({ summary: 'Cập nhật hồ sơ ứng viên' })
   @ApiOkResponse({ type: CandidateProfile })
-  @ApiBadRequestResponse({ description: 'Invalid request payload.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid Bearer token.' })
-  @ApiForbiddenResponse({ description: 'Only candidate can call this endpoint.' })
-  @ApiNotFoundResponse({ description: 'Candidate profile not found.' })
+  @ApiBadRequestResponse({ description: 'Dữ liệu yêu cầu không hợp lệ.' })
+  @ApiUnauthorizedResponse({ description: 'Thiếu hoặc mã thông báo Bearer không hợp lệ.' })
+  @ApiForbiddenResponse({ description: 'Chỉ ứng viên mới có thể gọi endpoint này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy hồ sơ ứng viên.' })
   updateMe(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateCandidateProfileDto,

@@ -87,6 +87,7 @@ export class CandidateAccountAuthService {
       where: { id: candidateAccountId },
       select: {
         id: true,
+        fullName: true,
         email: true,
         emailVerifiedAt: true,
       },
@@ -105,6 +106,7 @@ export class CandidateAccountAuthService {
     if (!account.emailVerifiedAt) {
       await this.emailService.sendCandidateEmailVerification({
         to: account.email,
+        candidateName: account.fullName,
         verificationLink,
       });
     }

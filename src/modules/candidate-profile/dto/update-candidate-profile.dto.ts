@@ -9,7 +9,7 @@ import {
 } from 'class-validator';
 
 export class UpdateCandidateProfileDto {
-  @ApiPropertyOptional({ example: '+84-912-345-678', maxLength: 30 })
+  @ApiPropertyOptional({ example: '0916110241', maxLength: 30 })
   @IsOptional()
   @IsString()
   @MaxLength(30)
@@ -20,7 +20,7 @@ export class UpdateCandidateProfileDto {
   @IsEnum(Gender)
   gender?: Gender;
 
-  @ApiPropertyOptional({ example: 'Ho Chi Minh City, Vietnam', maxLength: 255 })
+  @ApiPropertyOptional({ example: '688 Quang trung, Phường thông tây hội, Thành phố Hồ Chí Minh', maxLength: 255 })
   @IsOptional()
   @IsString()
   @MaxLength(255)
@@ -31,7 +31,7 @@ export class UpdateCandidateProfileDto {
   @IsDateString()
   birthdate?: string;
 
-  @ApiPropertyOptional({ example: 'Backend developer focused on NestJS and PostgreSQL.' })
+  @ApiPropertyOptional({ example: 'Tôi là một developer.' })
   @IsOptional()
   @IsString()
   description?: string;

@@ -8,7 +8,7 @@ export class CandidateProfileAccount {
   @ApiProperty({ example: 'Phan Van A' })
   fullName: string;
 
-  @ApiProperty({ example: 'candidate@upnext.dev' })
+  @ApiProperty({ example: 'pductoandev@gmail.com' })
   email: string;
 }
 

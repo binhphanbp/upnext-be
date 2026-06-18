@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import nodemailer, { Transporter } from 'nodemailer';
+import Mail from 'nodemailer/lib/mailer';
 
 @Injectable()
 export class EmailService {
@@ -28,17 +31,31 @@ export class EmailService {
 
   async sendCandidateEmailVerification(params: {
     to: string;
+    candidateName?: string | null;
     verificationLink: string;
   }) {
+    const html = this.renderTemplate('candidate-email-verification.html', {
+      candidateName: params.candidateName?.trim() || params.to,
+      verificationLink: params.verificationLink,
+    });
+
     await this.sendMail({
       to: params.to,
       subject: 'Xác thực email UpNext',
       text: `Nhấn vào link để xác thực email: ${params.verificationLink}`,
-      html: `
-        <p>Nhấn vào link bên dưới để xác thực email UpNext:</p>
-        <p><a href="${params.verificationLink}">${params.verificationLink}</a></p>
-        <p>Link sẽ hết hạn sau 24 giờ.</p>
-      `,
+      html,
+      attachments: [
+        {
+          filename: 'upnext-logo.png',
+          path: this.resolveEmailAssetPath('upnext-logo.png'),
+          cid: 'upnext-logo',
+        },
+        {
+          filename: 'hero-banner.png',
+          path: this.resolveEmailAssetPath('hero-banner.png'),
+          cid: 'hero-banner',
+        },
+      ],
       fallbackLog: `Candidate email verification link for ${params.to}: ${params.verificationLink}`,
     });
   }
@@ -87,6 +104,7 @@ export class EmailService {
     subject: string;
     text: string;
     html: string;
+    attachments?: Mail.Attachment[];
     fallbackLog: string;
   }) {
     if (!this.transporter) {
@@ -95,14 +113,49 @@ export class EmailService {
       return;
     }
 
-    await this.transporter.sendMail({
-      from:
-        this.configService.get<string>('mailFrom') ??
-        this.configService.get<string>('smtpUser'),
-      to: params.to,
-      subject: params.subject,
-      text: params.text,
-      html: params.html,
-    });
+    try {
+      await this.transporter.sendMail({
+        from:
+          this.configService.get<string>('mailFrom') ??
+          this.configService.get<string>('smtpUser'),
+        to: params.to,
+        subject: params.subject,
+        text: params.text,
+        html: params.html,
+        attachments: params.attachments,
+      });
+    } catch (error) {
+      if (this.configService.get<string>('nodeEnv') === 'production') {
+        throw error;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`SMTP send failed. Falling back to server log. ${message}`);
+      this.logger.log(params.fallbackLog);
+    }
+  }
+
+  private renderTemplate(templateName: string, variables: Record<string, string>) {
+    const templatePath = join(__dirname, 'templates', templateName);
+    let html = readFileSync(templatePath, 'utf8');
+
+    for (const [key, value] of Object.entries(variables)) {
+      html = html.replaceAll(`{{${key}}}`, this.escapeHtml(value));
+    }
+
+    return html;
+  }
+
+  private resolveEmailAssetPath(fileName: string) {
+    return join(__dirname, 'assets', fileName);
+  }
+
+  private escapeHtml(value: string) {
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
   }
 }

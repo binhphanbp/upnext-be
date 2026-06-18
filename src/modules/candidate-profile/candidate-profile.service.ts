@@ -21,7 +21,7 @@ export class CandidateProfileService {
     });
 
     if (!profile) {
-      throw new NotFoundException('Candidate profile not found');
+      throw new NotFoundException('Không tìm thấy hồ sơ ứng viên');
     }
 
     return profile;
