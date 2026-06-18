@@ -788,7 +788,8 @@ model RecruiterProfile {
 
 model CompanyMember {
     id                 String              @id @default(uuid()) @db.Uuid
-    recruiterAccountId String              @map("recruiter_account_id") @db.Uuid
+    recruiterAccountId String?             @map("recruiter_account_id") @db.Uuid
+    invitedEmail       String?             @map("invited_email") @db.VarChar(255)
     companyId          String              @map("company_id") @db.Uuid
     roleId             String?             @map("role_id") @db.Uuid
     status             CompanyMemberStatus @default(ACTIVE)
@@ -796,11 +797,12 @@ model CompanyMember {
     createdAt          DateTime            @default(now()) @map("created_at")
     updatedAt          DateTime            @updatedAt @map("updated_at")
 
-    recruiterAccount RecruiterAccount @relation(fields: [recruiterAccountId], references: [id], onDelete: Cascade)
+    recruiterAccount RecruiterAccount? @relation(fields: [recruiterAccountId], references: [id], onDelete: SetNull)
     company          Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
     role             RecruiterRole?   @relation(fields: [roleId], references: [id], onDelete: SetNull)
 
     @@unique([recruiterAccountId, companyId])
+    @@unique([invitedEmail, companyId])
     @@index([companyId])
     @@index([roleId])
     @@map("company_members")

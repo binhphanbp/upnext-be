@@ -6,8 +6,12 @@ export class InviteMemberDto {
   @IsEmail()
   email!: string;
 
-  @ApiPropertyOptional({ example: 'b11eaeff-087f-4677-b8bd-c29ac7e59693' })
+  @ApiPropertyOptional({
+    nullable: true,
+    example: null,
+    description: 'Existing recruiter role UUID. Omit to invite without a role.',
+  })
   @IsOptional()
   @IsUUID()
-  roleId?: string;
+  roleId?: string | null;
 }

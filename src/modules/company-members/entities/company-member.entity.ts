@@ -44,8 +44,11 @@ export class CompanyMember {
   @ApiProperty({ example: '2026-06-09T08:00:00.000Z' })
   joinedAt!: Date;
 
-  @ApiProperty({ type: CompanyMemberRecruiterAccount })
-  recruiterAccount!: CompanyMemberRecruiterAccount;
+  @ApiPropertyOptional({ example: 'recruiter@company.com', nullable: true })
+  invitedEmail?: string | null;
+
+  @ApiPropertyOptional({ type: CompanyMemberRecruiterAccount, nullable: true })
+  recruiterAccount?: CompanyMemberRecruiterAccount | null;
 
   @ApiPropertyOptional({ type: CompanyMemberRole, nullable: true })
   role?: CompanyMemberRole | null;
@@ -61,8 +64,11 @@ export class CompanyMemberInvitation {
   @ApiProperty({ example: '2026-06-09T08:00:00.000Z' })
   joinedAt!: Date;
 
-  @ApiProperty({ type: CompanyMemberRecruiterAccount })
-  recruiterAccount!: CompanyMemberRecruiterAccount;
+  @ApiProperty({ example: 'recruiter@company.com' })
+  invitedEmail!: string;
+
+  @ApiPropertyOptional({ type: CompanyMemberRecruiterAccount, nullable: true })
+  recruiterAccount?: CompanyMemberRecruiterAccount | null;
 
   @ApiPropertyOptional({ type: CompanyMemberRole, nullable: true })
   role?: CompanyMemberRole | null;

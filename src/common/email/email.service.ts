@@ -61,6 +61,27 @@ export class EmailService {
     });
   }
 
+  async sendCompanyInvitation(params: {
+    to: string;
+    companyName: string;
+    invitationLink: string;
+    roleName?: string | null;
+  }) {
+    const roleText = params.roleName ? ` với vai trò ${params.roleName}` : '';
+
+    await this.sendMail({
+      to: params.to,
+      subject: `Lời mời tham gia ${params.companyName} trên UpNext`,
+      text: `Bạn được mời tham gia ${params.companyName}${roleText}. Nhấn vào link để xem lời mời: ${params.invitationLink}`,
+      html: `
+        <p>Bạn được mời tham gia <strong>${params.companyName}</strong>${roleText} trên UpNext.</p>
+        <p>Nhấn vào link bên dưới để xem và chấp nhận lời mời:</p>
+        <p><a href="${params.invitationLink}">${params.invitationLink}</a></p>
+      `,
+      fallbackLog: `Company invitation for ${params.to}: ${params.invitationLink}`,
+    });
+  }
+
   private async sendMail(params: {
     to: string;
     subject: string;
