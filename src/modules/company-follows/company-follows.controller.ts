@@ -7,8 +7,8 @@ import { CompanyFollowsService } from './company-follows.service';
 export class CompanyFollowsController {
   constructor(private readonly companyFollowsService: CompanyFollowsService) {}
 
-  @ApiTags('companies')
-  @ApiOperation({ summary: 'Follow Company' })
+  @ApiTags('Companies')
+  @ApiOperation({ summary: 'Theo dõi công ty' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @Post('companies/:id/follow')
   followCompany(
@@ -18,8 +18,8 @@ export class CompanyFollowsController {
     return this.companyFollowsService.followCompany(candidateAccountId, companyId);
   }
 
-  @ApiTags('companies')
-  @ApiOperation({ summary: 'Unfollow Company' })
+  @ApiTags('Companies')
+  @ApiOperation({ summary: 'Bỏ theo dõi công ty' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @Delete('companies/:id/follow')
   @HttpCode(204)
@@ -30,8 +30,8 @@ export class CompanyFollowsController {
     return this.companyFollowsService.unfollowCompany(candidateAccountId, companyId);
   }
 
-  @ApiTags('companies')
-  @ApiOperation({ summary: 'List Following Companies' })
+  @ApiTags('Companies')
+  @ApiOperation({ summary: 'Danh sách công ty đang theo dõi' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @Get('company-follows/me')
   listFollowingCompanies(

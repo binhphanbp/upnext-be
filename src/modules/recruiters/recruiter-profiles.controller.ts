@@ -32,7 +32,7 @@ export class RecruiterProfilesController {
   constructor(private readonly recruitersService: RecruitersService) {}
 
   @ApiOperation({
-    summary: 'Create recruiter profile',
+    summary: 'Tạo hồ sơ nhà tuyển dụng',
     description: 'Tạo hồ sơ recruiter gắn với một tài khoản recruiter.',
   })
   @ApiCreatedResponse({
@@ -59,7 +59,7 @@ export class RecruiterProfilesController {
   }
 
   @ApiOperation({
-    summary: 'Get my recruiter profile',
+    summary: 'Lấy hồ sơ nhà tuyển dụng của tôi',
     description: 'Recruiter xem hồ sơ của chính mình theo account id.',
   })
   @ApiQuery({ name: 'accountId', description: 'Recruiter account UUID', required: true })
@@ -88,7 +88,7 @@ export class RecruiterProfilesController {
   }
 
   @ApiOperation({
-    summary: 'Get recruiter profile detail',
+    summary: 'Lấy chi tiết hồ sơ nhà tuyển dụng',
     description: 'Xem chi tiết hồ sơ recruiter theo profile id.',
   })
   @ApiParam({ name: 'id', description: 'Recruiter profile UUID' })
@@ -116,7 +116,7 @@ export class RecruiterProfilesController {
   }
 
   @ApiOperation({
-    summary: 'Update recruiter profile',
+    summary: 'Cập nhật hồ sơ nhà tuyển dụng',
     description: 'Cập nhật chức danh, số điện thoại, avatar của recruiter.',
   })
   @ApiParam({ name: 'id', description: 'Recruiter profile UUID' })
@@ -142,7 +142,7 @@ export class RecruiterProfilesController {
   }
 
   @ApiOperation({
-    summary: 'Delete recruiter profile',
+    summary: 'Xóa hồ sơ nhà tuyển dụng',
     description: 'Xóa hồ sơ recruiter theo profile id.',
   })
   @ApiParam({ name: 'id', description: 'Recruiter profile UUID' })

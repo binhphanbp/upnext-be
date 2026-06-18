@@ -34,13 +34,13 @@ import { ApplicationsService } from './applications.service';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { ApplicationEntity, CheckAppliedJobResponse } from './entities/application.entity';
 
-@ApiTags('applications')
+@ApiTags('Applications')
 @Controller()
 export class ApplicationsController {
   constructor(private readonly applicationsService: ApplicationsService) {}
 
   @Post('applications')
-  @ApiOperation({ summary: 'Apply for a job post' })
+  @ApiOperation({ summary: 'Nộp hồ sơ ứng tuyển' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.CANDIDATE)
@@ -62,7 +62,7 @@ export class ApplicationsController {
   }
 
   @Patch('applications/:id/withdraw')
-  @ApiOperation({ summary: 'Withdraw a job application' })
+  @ApiOperation({ summary: 'Rút hồ sơ ứng tuyển' })
   @ApiParam({ name: 'id', description: 'Application UUID' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @ApiOkResponse({ type: ApplicationEntity, description: 'Application withdrawn successfully.' })
@@ -77,7 +77,7 @@ export class ApplicationsController {
   }
 
   @Get('applications/me')
-  @ApiOperation({ summary: 'Get current candidate applications' })
+  @ApiOperation({ summary: 'Lấy danh sách hồ sơ ứng tuyển của ứng viên hiện tại' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @ApiOkResponse({ type: [ApplicationEntity], description: 'List of candidate applications.' })
   @ApiNotFoundResponse({ description: 'Candidate profile not found.' })
@@ -86,7 +86,7 @@ export class ApplicationsController {
   }
 
   @Get('applications/:id')
-  @ApiOperation({ summary: 'Get application details' })
+  @ApiOperation({ summary: 'Lấy chi tiết hồ sơ ứng tuyển' })
   @ApiParam({ name: 'id', description: 'Application UUID' })
   @ApiQuery({
     name: 'candidateAccountId',
@@ -110,7 +110,7 @@ export class ApplicationsController {
   }
 
   @Get('job-posts/:jobId/applications')
-  @ApiOperation({ summary: 'Get applicants of a job post (Recruiter only)' })
+  @ApiOperation({ summary: 'Lấy danh sách ứng viên của tin tuyển dụng (Chỉ dành cho nhà tuyển dụng)' })
   @ApiParam({ name: 'jobId', description: 'Job post UUID' })
   @ApiQuery({ name: 'recruiterId', required: true, description: 'Recruiter account UUID' })
   @ApiOkResponse({ type: [ApplicationEntity], description: 'List of job applications.' })
@@ -124,7 +124,7 @@ export class ApplicationsController {
   }
 
   @Get('job-posts/:jobId/applications/me')
-  @ApiOperation({ summary: 'Check if candidate has applied to a job post' })
+  @ApiOperation({ summary: 'Kiểm tra xem ứng viên đã nộp hồ sơ vào tin tuyển dụng chưa' })
   @ApiParam({ name: 'jobId', description: 'Job post UUID' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @ApiOkResponse({

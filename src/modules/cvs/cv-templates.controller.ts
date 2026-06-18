@@ -15,7 +15,7 @@ import { ListCvTemplatesQueryDto } from './dto/list-cv-templates-query.dto';
 import { UpdateCvTemplateDto } from './dto/update-cv-template.dto';
 import { CvTemplateEntity, CvTemplateList } from './entities/cv-template.entity';
 
-@ApiTags('Mẫu CV')
+@ApiTags('Cv - Templates')
 @Controller('cv-templates')
 export class CvTemplatesController {
   constructor(private readonly cvTemplatesService: CvTemplatesService) {}

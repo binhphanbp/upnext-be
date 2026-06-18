@@ -24,32 +24,32 @@ import {
 } from './dto/job-post-relations.dto';
 import { JobPostsService } from './job-posts.service';
 
-@ApiTags('job-posts')
+@ApiTags('Job - Posts')
 @Controller('job-posts')
 export class JobPostsController {
   constructor(private readonly jobPostsService: JobPostsService) {}
 
-  @ApiOperation({ summary: 'Create job post' })
+  @ApiOperation({ summary: 'Tạo tin tuyển dụng' })
   @Post()
   create(@Body() dto: CreateJobPostWithContextDto) {
     const { recruiterId, companyId, ...rest } = dto;
     return this.jobPostsService.create(recruiterId, companyId, rest);
   }
 
-  @ApiOperation({ summary: 'List published job posts' })
+  @ApiOperation({ summary: 'Danh sách tin tuyển dụng đã xuất bản' })
   @Get()
   findAll() {
     return this.jobPostsService.findAll();
   }
 
-  @ApiOperation({ summary: 'Get job post detail' })
+  @ApiOperation({ summary: 'Chi tiết tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.jobPostsService.findOne(id);
   }
 
-  @ApiOperation({ summary: 'Update job post' })
+  @ApiOperation({ summary: 'Cập nhật tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID (owner)', required: true })
   @Patch(':id')
@@ -61,7 +61,7 @@ export class JobPostsController {
     return this.jobPostsService.update(id, recruiterId, dto);
   }
 
-  @ApiOperation({ summary: 'Delete job post' })
+  @ApiOperation({ summary: 'Xóa tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID (owner)', required: true })
   @Delete(':id')
@@ -73,7 +73,7 @@ export class JobPostsController {
     await this.jobPostsService.remove(id, recruiterId);
   }
 
-  @ApiOperation({ summary: 'Publish job post' })
+  @ApiOperation({ summary: 'Xuất bản tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID (owner)', required: true })
   @Patch(':id/publish')
@@ -84,7 +84,7 @@ export class JobPostsController {
     return this.jobPostsService.updateStatus(id, recruiterId, JobStatus.PUBLISHED);
   }
 
-  @ApiOperation({ summary: 'Close job post' })
+  @ApiOperation({ summary: 'Đóng tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID (owner)', required: true })
   @Patch(':id/close')
@@ -95,7 +95,7 @@ export class JobPostsController {
     return this.jobPostsService.updateStatus(id, recruiterId, JobStatus.CLOSED);
   }
 
-  @ApiOperation({ summary: 'Reopen job post' })
+  @ApiOperation({ summary: 'Mở lại tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID (owner)', required: true })
   @Patch(':id/reopen')
@@ -108,7 +108,7 @@ export class JobPostsController {
 
   // ─── Relations ────────────────────────────────────────────────────────────
 
-  @ApiOperation({ summary: 'Add skill to job post' })
+  @ApiOperation({ summary: 'Thêm kỹ năng vào tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiQuery({ name: 'recruiterId', required: true })
   @Post(':id/skills')
@@ -120,7 +120,7 @@ export class JobPostsController {
     return this.jobPostsService.addSkillToJob(id, recruiterId, dto);
   }
 
-  @ApiOperation({ summary: 'Remove skill from job post' })
+  @ApiOperation({ summary: 'Xóa kỹ năng khỏi tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiParam({ name: 'skillId', description: 'Skill UUID' })
   @ApiQuery({ name: 'recruiterId', required: true })
@@ -134,7 +134,7 @@ export class JobPostsController {
     await this.jobPostsService.removeSkillFromJob(id, skillId, recruiterId);
   }
 
-  @ApiOperation({ summary: 'Add location to job post' })
+  @ApiOperation({ summary: 'Thêm địa điểm vào tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiQuery({ name: 'recruiterId', required: true })
   @Post(':id/locations')
@@ -146,7 +146,7 @@ export class JobPostsController {
     return this.jobPostsService.addLocationToJob(id, recruiterId, dto);
   }
 
-  @ApiOperation({ summary: 'Remove location from job post' })
+  @ApiOperation({ summary: 'Xóa địa điểm khỏi tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiParam({ name: 'locationId', description: 'Job location UUID' })
   @ApiQuery({ name: 'recruiterId', required: true })
@@ -160,7 +160,7 @@ export class JobPostsController {
     await this.jobPostsService.removeLocationFromJob(id, locationId, recruiterId);
   }
 
-  @ApiOperation({ summary: 'Add specialization to job post' })
+  @ApiOperation({ summary: 'Thêm chuyên ngành vào tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiQuery({ name: 'recruiterId', required: true })
   @Post(':id/specializations')
@@ -172,7 +172,7 @@ export class JobPostsController {
     return this.jobPostsService.addSpecializationToJob(id, recruiterId, dto);
   }
 
-  @ApiOperation({ summary: 'Remove specialization from job post' })
+  @ApiOperation({ summary: 'Xóa chuyên ngành khỏi tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiParam({ name: 'specializationId', description: 'Specialization UUID' })
   @ApiQuery({ name: 'recruiterId', required: true })
@@ -188,7 +188,7 @@ export class JobPostsController {
 
   // ─── Views ───────────────────────────────────────────────────────────────
 
-  @ApiOperation({ summary: 'Record Job View' })
+  @ApiOperation({ summary: 'Ghi nhận lượt xem tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiQuery({ name: 'candidateId', required: false, description: 'Optional candidate UUID' })
   @Post(':id/views')
@@ -205,7 +205,7 @@ export class JobPostsController {
     );
   }
 
-  @ApiOperation({ summary: 'Get Job View Stats' })
+  @ApiOperation({ summary: 'Lấy thống kê lượt xem tin tuyển dụng' })
   @ApiParam({ name: 'id', description: 'Job post UUID' })
   @ApiQuery({ name: 'recruiterId', required: true })
   @Get(':id/views/stats')
@@ -217,12 +217,12 @@ export class JobPostsController {
   }
 }
 
-@ApiTags('job-posts')
+@ApiTags('Job - Posts')
 @Controller('recruiter/job-posts')
 export class RecruiterJobPostsController {
   constructor(private readonly jobPostsService: JobPostsService) {}
 
-  @ApiOperation({ summary: 'Get my job posts' })
+  @ApiOperation({ summary: 'Danh sách tin tuyển dụng của tôi' })
   @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID', required: true })
   @Get()
   getMyJobPosts(@Query('recruiterId', new ParseUUIDPipe()) recruiterId: string) {

@@ -3,14 +3,14 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { SavedJobsService } from './saved-jobs.service';
 import { SaveJobDto } from './dto/save-job.dto';
 
-@ApiTags('saved-jobs')
+@ApiTags('Saved - Jobs')
 @Controller('saved-jobs')
 @ApiBearerAuth()
 export class SavedJobsController {
   constructor(private readonly savedJobsService: SavedJobsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Save Job' })
+  @ApiOperation({ summary: 'Lưu việc làm' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   saveJob(
     @Body() dto: SaveJobDto,
@@ -20,7 +20,7 @@ export class SavedJobsController {
   }
 
   @Delete(':jobPostId')
-  @ApiOperation({ summary: 'Unsave Job' })
+  @ApiOperation({ summary: 'Hủy lưu việc làm' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   unsaveJob(
     @Param('jobPostId', ParseUUIDPipe) jobPostId: string,
@@ -30,7 +30,7 @@ export class SavedJobsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List Saved Jobs' })
+  @ApiOperation({ summary: 'Danh sách việc làm đã lưu' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   listSavedJobs(
     @Query('candidateAccountId', new ParseUUIDPipe()) candidateAccountId: string,

@@ -19,7 +19,7 @@ export class AdminAuthController {
 
   @Public()
   @Post('login')
-  @ApiOperation({ summary: 'Admin login and receive JWT access token' })
+  @ApiOperation({ summary: 'Đăng nhập Admin và nhận token truy cập JWT' })
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({ description: 'Login successful', type: LoginResponse })
   @ApiBadRequestResponse({ description: 'Payload không hợp lệ' })
