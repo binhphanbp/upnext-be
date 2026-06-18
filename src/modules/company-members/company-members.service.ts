@@ -3,14 +3,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CompanyMemberStatus } from '@prisma/client';
+import { EmailService } from '../../common/email/email.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 
 @Injectable()
 export class CompanyMembersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+    private readonly configService: ConfigService,
+  ) {}
 
   // ─── Members ─────────────────────────────────────────────────────────────
 
@@ -35,38 +41,45 @@ export class CompanyMembersService {
   }
 
   async inviteMember(companyId: string, dto: InviteMemberDto) {
-    await this.ensureCompanyExists(companyId);
+    const company = await this.ensureCompanyExists(companyId);
+    const invitedEmail = dto.email.toLowerCase();
 
-    // Find recruiter account by email
     const recruiterAccount = await this.prisma.recruiterAccount.findUnique({
-      where: { email: dto.email },
+      where: { email: invitedEmail },
+      select: { id: true, email: true },
     });
 
-    if (!recruiterAccount) {
-      throw new NotFoundException(
-        `Recruiter account with email ${dto.email} not found`,
-      );
-    }
-
-    // Check if already a member
-    const existing = await this.prisma.companyMember.findUnique({
+    const existing = await this.prisma.companyMember.findFirst({
       where: {
-        recruiterAccountId_companyId: {
-          recruiterAccountId: recruiterAccount.id,
-          companyId,
-        },
+        companyId,
+        OR: [
+          { invitedEmail },
+          ...(recruiterAccount ? [{ recruiterAccountId: recruiterAccount.id }] : []),
+        ],
       },
     });
 
     if (existing) {
       throw new ConflictException(
-        `Recruiter ${dto.email} is already a member of this company`,
+        `Email ${invitedEmail} is already invited or a member of this company`,
       );
     }
 
-    return this.prisma.companyMember.create({
+    if (dto.roleId) {
+      const role = await this.prisma.recruiterRole.findUnique({
+        where: { id: dto.roleId },
+        select: { id: true },
+      });
+
+      if (!role) {
+        throw new NotFoundException(`Recruiter role ${dto.roleId} not found`);
+      }
+    }
+
+    const invitation = await this.prisma.companyMember.create({
       data: {
-        recruiterAccountId: recruiterAccount.id,
+        recruiterAccountId: recruiterAccount?.id ?? null,
+        invitedEmail,
         companyId,
         roleId: dto.roleId ?? null,
         status: CompanyMemberStatus.INVITED,
@@ -78,6 +91,15 @@ export class CompanyMembersService {
         role: { select: { id: true, code: true, name: true } },
       },
     });
+
+    await this.emailService.sendCompanyInvitation({
+      to: invitation.invitedEmail ?? invitation.recruiterAccount?.email ?? invitedEmail,
+      companyName: company.name,
+      roleName: invitation.role?.name,
+      invitationLink: this.buildInvitationLink(invitation.id),
+    });
+
+    return invitation;
   }
 
   async acceptInvitation(memberId: string) {
@@ -141,5 +163,11 @@ export class CompanyMembersService {
       throw new NotFoundException(`Company member ${id} not found`);
     }
     return member;
+  }
+
+  private buildInvitationLink(invitationId: string) {
+    const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
+    const url = new URL(`/recruiter/company-invitations/${invitationId}`, frontendUrl);
+    return url.toString();
   }
 }
