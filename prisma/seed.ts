@@ -14,9 +14,11 @@ import {
   WorkingModel,
 } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { hash } from 'bcryptjs';
 import 'dotenv/config';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 const adapter = new PrismaPg({
   connectionString:
@@ -78,9 +80,18 @@ async function cleanHomeSeedData() {
 
   const jobPosts = await prisma.jobPost.findMany({
     where: {
-      slug: {
-        startsWith: SEED_KEY,
-      },
+      OR: [
+        {
+          slug: {
+            startsWith: SEED_KEY,
+          },
+        },
+        {
+          createdByRecruiterId: {
+            in: recruiterIds,
+          },
+        },
+      ],
     },
     select: {
       id: true,
@@ -241,6 +252,7 @@ async function cleanHomeSeedData() {
 
 async function main() {
   await cleanHomeSeedData();
+  await cleanImportedData();
 
   const passwordHash = await hash('Password123!', 12);
 
@@ -996,7 +1008,290 @@ async function main() {
     data: jobViews,
   });
 
+  await importItviecData(passwordHash, recruiterRole, employmentTypes, experienceLevels);
   console.log(`Home seed complete: ${companies.length} companies, ${jobs.length} jobs, ${applications.length} applications.`);
+}
+
+async function cleanImportedData() {
+  console.log('Cleaning up previously imported ITviec seed data...');
+
+  await prisma.company.deleteMany({
+    where: {
+      taxCode: {
+        startsWith: 'IMPORT_',
+      },
+    },
+  });
+
+  await prisma.recruiterAccount.deleteMany({
+    where: {
+      email: {
+        endsWith: '@imported.upnext.dev',
+      },
+    },
+  });
+
+  await prisma.jobLocation.deleteMany({
+    where: {
+      address: {
+        startsWith: '[IMPORTED_ITVIEC]',
+      },
+    },
+  });
+
+  await prisma.fileAsset.deleteMany({
+    where: {
+      storageKey: {
+        startsWith: 'imported/',
+      },
+    },
+  });
+}
+
+async function importItviecData(
+  passwordHash: string,
+  recruiterRole: any,
+  employmentTypes: any,
+  experienceLevels: any
+) {
+  console.log('Loading ITviec data files...');
+  const jobsPath = path.join(__dirname, 'data/itviec-jobs-backend.json');
+  const companiesPath = path.join(__dirname, 'data/companies_detailed.json');
+
+  if (!fs.existsSync(jobsPath) || !fs.existsSync(companiesPath)) {
+    console.warn('ITviec data files not found. Skipping import.');
+    return;
+  }
+
+  const jobsData = JSON.parse(fs.readFileSync(jobsPath, 'utf-8'));
+  const companiesData = JSON.parse(fs.readFileSync(companiesPath, 'utf-8'));
+
+  console.log(`Loaded ${companiesData.length} companies and ${jobsData.jobs.length} jobs.`);
+
+  const companyTypesBySlug = new Map<string, string>();
+  const companySizesBySlug = new Map<string, string>();
+
+  for (const job of jobsData.jobs) {
+    if (job.company?.slug) {
+      if (job.company.type) companyTypesBySlug.set(job.company.slug, job.company.type);
+      if (job.company.companySize) companySizesBySlug.set(job.company.slug, job.company.companySize);
+    }
+  }
+
+  console.log('Importing companies...');
+  const companySlugToDetails = new Map<string, { companyId: string; recruiterId: string }>();
+
+  for (const item of companiesData) {
+    if (!item.Slug || !item.Name) continue;
+
+    const logoFileId = randomUUID();
+    await prisma.fileAsset.create({
+      data: {
+        id: logoFileId,
+        ownerType: 'company',
+        purpose: FilePurpose.COMPANY_LOGO,
+        visibility: FileVisibility.PUBLIC,
+        storageKey: `imported/logos/${item.Slug}`,
+        originalName: `${item.Slug}-logo`,
+        mimeType: 'image/png',
+        sizeBytes: BigInt(0),
+        publicUrl: item.Logo || null,
+      },
+    });
+
+    // Map company type
+    let companyType = CompanyType.OTHER;
+    const jsonType = companyTypesBySlug.get(item.Slug) || item.Type;
+    if (jsonType) {
+      const t = jsonType.toUpperCase();
+      if (t.includes('PRODUCT')) companyType = CompanyType.PRODUCT;
+      else if (t.includes('OUTSOURCING') || t.includes('SERVICE')) companyType = CompanyType.OUTSOURCING;
+      else if (t.includes('STARTUP')) companyType = CompanyType.STARTUP;
+      else if (t.includes('AGENCY')) companyType = CompanyType.AGENCY;
+    }
+
+    let companySize = companySizesBySlug.get(item.Slug) || item['General Information'] || null;
+    if (companySize && companySize.length > 75) {
+      companySize = companySize.substring(0, 72) + '...';
+    }
+
+    let address = item.Location || null;
+    if (address && address.length > 250) {
+      address = address.substring(0, 247) + '...';
+    }
+
+    const hashSlug = createHash('md5').update(item.Slug).digest('hex').substring(0, 30);
+
+    const companyId = randomUUID();
+    await prisma.company.create({
+      data: {
+        id: companyId,
+        name: item.Name,
+        logoFileId: logoFileId,
+        type: companyType,
+        taxCode: `IMPORT_${hashSlug.toUpperCase()}`,
+        address: address,
+        description: item.Description || item['Company Overview'] || null,
+        companySize: companySize,
+        verificationStatus: CompanyVerificationStatus.VERIFIED,
+        status: CompanyStatus.ACTIVE,
+      },
+    });
+
+    const recruiterId = randomUUID();
+    const recruiterProfileId = randomUUID();
+    let email = `recruiter.${item.Slug}@imported.upnext.dev`;
+    if (item.Slug === 'mb-bank') {
+      email = 'recruiter.max@imported.upnext.dev';
+    }
+
+    await prisma.recruiterAccount.create({
+      data: {
+        id: recruiterId,
+        companyId: companyId,
+        recruiterRoleId: recruiterRole.id,
+        email: email,
+        passwordHash: passwordHash,
+        status: 'ACTIVE',
+        emailVerifiedAt: new Date(),
+      },
+    });
+
+    await prisma.recruiterProfile.create({
+      data: {
+        id: recruiterProfileId,
+        recruiterAccountId: recruiterId,
+        fullName: `${item.Name} Recruiter`,
+        avatarUrl: item.Logo || null,
+      },
+    });
+
+    await prisma.companyMember.create({
+      data: {
+        recruiterAccountId: recruiterId,
+        companyId: companyId,
+        roleId: recruiterRole.id,
+        status: 'ACTIVE',
+      },
+    });
+
+    companySlugToDetails.set(item.Slug, { companyId, recruiterId });
+  }
+
+  console.log(`Successfully imported ${companySlugToDetails.size} companies.`);
+
+  console.log('Importing jobs...');
+  let importedJobsCount = 0;
+  const futureDeadline = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000);
+
+  for (const job of jobsData.jobs) {
+    if (!job.company?.slug || !job.jobPost?.title) continue;
+
+    const details = companySlugToDetails.get(job.company.slug);
+    if (!details) continue;
+
+    let jobCategoryId: string | null = null;
+    if (job.jobPost.jobCategoryName) {
+      const category = await prisma.jobCategory.upsert({
+        where: { name: job.jobPost.jobCategoryName },
+        update: {},
+        create: { name: job.jobPost.jobCategoryName },
+      });
+      jobCategoryId = category.id;
+    }
+
+    let experienceLevelId: string | null = null;
+    const lvlCode = job.jobPost.experienceLevelCode;
+    if (lvlCode === 'junior') experienceLevelId = experienceLevels.junior.id;
+    else if (lvlCode === 'mid') experienceLevelId = experienceLevels.mid.id;
+    else if (lvlCode === 'senior') experienceLevelId = experienceLevels.senior.id;
+
+    const urlParts = job.source.url.split('/');
+    const jobSlug = urlParts[urlParts.length - 1];
+
+    const jobPostId = randomUUID();
+    await prisma.jobPost.create({
+      data: {
+        id: jobPostId,
+        createdByRecruiterId: details.recruiterId,
+        companyId: details.companyId,
+        jobCategoryId: jobCategoryId,
+        experienceLevelId: experienceLevelId,
+        employmentTypeId: employmentTypes.fullTime.id,
+        title: job.jobPost.title,
+        slug: jobSlug,
+        description: job.jobPost.description || '',
+        requirements: job.jobPost.requirements || null,
+        benefits: job.jobPost.benefits || null,
+        salaryMin: job.jobPost.salaryMin != null ? job.jobPost.salaryMin : null,
+        salaryMax: job.jobPost.salaryMax != null ? job.jobPost.salaryMax : null,
+        salaryCurrency: job.jobPost.salaryCurrency || 'VND',
+        salaryPeriod: SalaryPeriod.MONTH,
+        salaryIsNegotiable: job.jobPost.salaryIsNegotiable || false,
+        salaryIsVisible: job.jobPost.salaryIsVisible || true,
+        vacanciesCount: job.jobPost.vacanciesCount || 1,
+        status: JobStatus.PUBLISHED,
+        moderationStatus: 'APPROVED',
+        publishedAt: new Date(),
+        expiredAt: futureDeadline,
+      },
+    });
+
+    if (job.locations && Array.isArray(job.locations)) {
+      for (const location of job.locations) {
+        let workingModel = WorkingModel.ONSITE;
+        if (location.workingModel === 'REMOTE') workingModel = WorkingModel.REMOTE;
+        else if (location.workingModel === 'HYBRID') workingModel = WorkingModel.HYBRID;
+
+        const locationId = randomUUID();
+        await prisma.jobLocation.create({
+          data: {
+            id: locationId,
+            country: location.country || 'Vietnam',
+            workingModel: workingModel,
+            city: location.city || null,
+            address: `[IMPORTED_ITVIEC] ${location.city || ''}`,
+          },
+        });
+
+        await prisma.jobPostLocation.create({
+          data: {
+            jobPostId: jobPostId,
+            jobLocationId: locationId,
+          },
+        });
+      }
+    }
+
+    if (job.skills && Array.isArray(job.skills)) {
+      const addedSkillIds = new Set<string>();
+      for (const skillItem of job.skills) {
+        if (!skillItem.name) continue;
+
+        const skill = await prisma.skill.upsert({
+          where: { name: skillItem.name },
+          update: {},
+          create: { name: skillItem.name },
+        });
+
+        if (addedSkillIds.has(skill.id)) continue;
+        addedSkillIds.add(skill.id);
+
+        await prisma.jobPostSkill.create({
+          data: {
+            jobPostId: jobPostId,
+            skillId: skill.id,
+            minYearsExperience: skillItem.minYearsExperience != null ? skillItem.minYearsExperience : null,
+            priority: SkillPriority.REQUIRED,
+          },
+        });
+      }
+    }
+
+    importedJobsCount++;
+  }
+
+  console.log(`Successfully imported ${importedJobsCount} jobs.`);
 }
 
 main()
