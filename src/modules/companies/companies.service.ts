@@ -9,25 +9,19 @@ import {
   FileVisibility,
   Prisma,
 } from '@prisma/client';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { CloudinaryService, UploadedFile } from '../../common/cloudinary/cloudinary.service';
 import { toPagination } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 
-type UploadedFile = {
-  buffer: Buffer;
-  mimetype: string;
-  originalname: string;
-  size: number;
-};
-
 @Injectable()
 export class CompaniesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   create(createCompanyDto: CreateCompanyDto) {
     return this.prisma.company.create({
@@ -148,6 +142,7 @@ export class CompaniesService {
         originalName: file.originalname,
         mimeType: file.mimetype,
         sizeBytes: BigInt(file.size),
+        publicUrl: savedFile.publicUrl,
       },
     });
 
@@ -166,6 +161,7 @@ export class CompaniesService {
         mimeType: asset.mimeType,
         sizeBytes: asset.sizeBytes.toString(),
         storageKey: asset.storageKey,
+        publicUrl: asset.publicUrl,
       },
     };
   }
@@ -184,6 +180,7 @@ export class CompaniesService {
         originalName: file.originalname,
         mimeType: file.mimetype,
         sizeBytes: BigInt(file.size),
+        publicUrl: savedFile.publicUrl,
       },
     });
 
@@ -195,6 +192,7 @@ export class CompaniesService {
         mimeType: asset.mimeType,
         sizeBytes: asset.sizeBytes.toString(),
         storageKey: asset.storageKey,
+        publicUrl: asset.publicUrl,
       },
     };
   }
@@ -221,17 +219,10 @@ export class CompaniesService {
       throw new BadRequestException('File is required');
     }
 
-    const extension = extname(file.originalname) || '';
-    const fileName = `${kind}-${randomUUID()}${extension}`;
-    const relativeDirectory = join('uploads', 'companies', id);
-    const absoluteDirectory = join(process.cwd(), relativeDirectory);
-    const absolutePath = join(absoluteDirectory, fileName);
-
-    await mkdir(absoluteDirectory, { recursive: true });
-    await writeFile(absolutePath, file.buffer);
-
-    return {
-      storageKey: join(relativeDirectory, fileName).replaceAll('\\', '/'),
-    };
+    return this.cloudinaryService.uploadBuffer(file, {
+      folder: `companies/${id}`,
+      fileNamePrefix: kind,
+      resourceType: 'image',
+    });
   }
 }

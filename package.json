@@ -46,6 +46,7 @@
     "bcryptjs": "latest",
     "class-transformer": "latest",
     "class-validator": "latest",
+    "cloudinary": "^2.10.0",
     "dotenv": "latest",
     "helmet": "latest",
     "nodemailer": "^9.0.0",

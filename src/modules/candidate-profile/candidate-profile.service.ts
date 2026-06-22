@@ -17,6 +17,21 @@ export class CandidateProfileService {
             email: true,
           },
         },
+        educations: {
+          orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
+        },
+        projects: {
+          orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
+        },
+        certifications: {
+          orderBy: [{ sortOrder: 'asc' }, { issuedDate: 'desc' }, { createdAt: 'desc' }],
+        },
+        languages: {
+          orderBy: [{ language: 'asc' }],
+        },
+        links: {
+          orderBy: [{ type: 'asc' }, { createdAt: 'desc' }],
+        },
       },
     });
 
@@ -43,6 +58,21 @@ export class CandidateProfileService {
             fullName: true,
             email: true,
           },
+        },
+        educations: {
+          orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
+        },
+        projects: {
+          orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
+        },
+        certifications: {
+          orderBy: [{ sortOrder: 'asc' }, { issuedDate: 'desc' }, { createdAt: 'desc' }],
+        },
+        languages: {
+          orderBy: [{ language: 'asc' }],
+        },
+        links: {
+          orderBy: [{ type: 'asc' }, { createdAt: 'desc' }],
         },
       },
     });

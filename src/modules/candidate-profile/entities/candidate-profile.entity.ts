@@ -1,5 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender, JobSearchStatus, ProfileVisibility } from '@prisma/client';
+import { CandidateCertification } from '../../candidate-certifications/entities/candidate-certification.entity';
+import { CandidateEducation } from '../../candidate-educations/entities/candidate-education.entity';
+import { CandidateLanguage } from '../../candidate-languages/entities/candidate-language.entity';
+import { CandidateLink } from '../../candidate-links/entities/candidate-link.entity';
+import { CandidateProject } from '../../candidate-projects/entities/candidate-project.entity';
 
 export class CandidateProfileAccount {
   @ApiProperty({ example: '1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf' })
@@ -48,4 +53,19 @@ export class CandidateProfile {
 
   @ApiPropertyOptional({ type: CandidateProfileAccount })
   account?: CandidateProfileAccount;
+
+  @ApiPropertyOptional({ type: CandidateEducation, isArray: true })
+  educations?: CandidateEducation[];
+
+  @ApiPropertyOptional({ type: CandidateProject, isArray: true })
+  projects?: CandidateProject[];
+
+  @ApiPropertyOptional({ type: CandidateCertification, isArray: true })
+  certifications?: CandidateCertification[];
+
+  @ApiPropertyOptional({ type: CandidateLanguage, isArray: true })
+  languages?: CandidateLanguage[];
+
+  @ApiPropertyOptional({ type: CandidateLink, isArray: true })
+  links?: CandidateLink[];
 }
