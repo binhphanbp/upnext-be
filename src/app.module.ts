@@ -1,12 +1,18 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { validateEnv } from './common/config/env.validation';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { CompanyMembersModule } from './modules/company-members/company-members.module';
 import { RecruiterRolesModule } from './modules/recruiter-roles/recruiter-roles.module';
 import { RecruitersModule } from './modules/recruiters/recruiters.module';
 import { CandidateAccountModule } from './modules/candidate-account/candidate-account.module';
+import { CandidateCertificationsModule } from './modules/candidate-certifications/candidate-certifications.module';
+import { CandidateEducationsModule } from './modules/candidate-educations/candidate-educations.module';
+import { CandidateLanguagesModule } from './modules/candidate-languages/candidate-languages.module';
+import { CandidateLinksModule } from './modules/candidate-links/candidate-links.module';
 import { CandidateProfileModule } from './modules/candidate-profile/candidate-profile.module';
+import { CandidateProjectsModule } from './modules/candidate-projects/candidate-projects.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { JobPostsModule } from './modules/job-posts/job-posts.module';
 import { SavedJobsModule } from './modules/saved-jobs/saved-jobs.module';
@@ -16,6 +22,7 @@ import { RecruiterShortlistsModule } from './modules/recruiter-shortlists/recrui
 import { JobCategoriesModule } from './modules/job-categories/job-categories.module';
 import { EmploymentTypesModule } from './modules/employment-types/employment-types.module';
 import { ExperienceLevelsModule } from './modules/experience-levels/experience-levels.module';
+import { FilesModule } from './modules/files/files.module';
 import { SpecializationsModule } from './modules/specializations/specializations.module';
 import { JobLocationsModule } from './modules/job-locations/job-locations.module';
 import { SkillsModule } from './modules/skills/skills.module';
@@ -31,6 +38,7 @@ import { CvsModule } from './modules/cvs/cvs.module';
       isGlobal: true,
       validate: validateEnv,
     }),
+    CloudinaryModule,
     AuthModule,
     AdminUsersModule,
     CompaniesModule,
@@ -40,6 +48,11 @@ import { CvsModule } from './modules/cvs/cvs.module';
     PrismaModule,
     CandidateAccountModule,
     CandidateProfileModule,
+    CandidateEducationsModule,
+    CandidateCertificationsModule,
+    CandidateLanguagesModule,
+    CandidateLinksModule,
+    CandidateProjectsModule,
     JobPostsModule,
     SavedJobsModule,
     CompanyFollowsModule,
@@ -48,6 +61,7 @@ import { CvsModule } from './modules/cvs/cvs.module';
     JobCategoriesModule,
     EmploymentTypesModule,
     ExperienceLevelsModule,
+    FilesModule,
     SpecializationsModule,
     JobLocationsModule,
     SkillsModule,

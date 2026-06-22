@@ -16,6 +16,10 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   MAIL_FROM: z.string().optional(),
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+  CLOUDINARY_FOLDER: z.string().default('upnext'),
   CORS_ORIGIN: z.string().default('http://localhost:5173,http://localhost:3000'),
 });
 
@@ -32,6 +36,10 @@ export type AppConfig = {
   smtpUser?: string;
   smtpPass?: string;
   mailFrom?: string;
+  cloudinaryCloudName?: string;
+  cloudinaryApiKey?: string;
+  cloudinaryApiSecret?: string;
+  cloudinaryFolder: string;
   corsOrigins: string[];
 };
 
@@ -51,6 +59,10 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     smtpUser: parsed.SMTP_USER,
     smtpPass: parsed.SMTP_PASS,
     mailFrom: parsed.MAIL_FROM,
+    cloudinaryCloudName: parsed.CLOUDINARY_CLOUD_NAME,
+    cloudinaryApiKey: parsed.CLOUDINARY_API_KEY,
+    cloudinaryApiSecret: parsed.CLOUDINARY_API_SECRET,
+    cloudinaryFolder: parsed.CLOUDINARY_FOLDER,
     corsOrigins: parsed.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
   };
 }

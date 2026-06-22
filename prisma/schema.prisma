@@ -424,7 +424,6 @@ model CandidateProject {
 model CandidateCertification {
     id                 String    @id @default(uuid()) @db.Uuid
     candidateProfileId String    @map("candidate_profile_id") @db.Uuid
-    certificateFileId  String?   @map("certificate_file_id") @db.Uuid
     name               String    @db.VarChar(200)
     organization       String?   @db.VarChar(200)
     issuedDate         DateTime? @map("issued_date") @db.Date
@@ -435,7 +434,6 @@ model CandidateCertification {
     updatedAt          DateTime  @updatedAt @map("updated_at")
 
     candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
-    certificateFile  FileAsset?       @relation("CertificationFile", fields: [certificateFileId], references: [id], onDelete: SetNull)
 
     @@index([candidateProfileId, sortOrder])
     @@map("candidate_certifications")
@@ -509,7 +507,6 @@ model FileAsset {
     updatedAt    DateTime       @updatedAt @map("updated_at")
 
     cvVersions              CVVersion[]              @relation("CVVersionSourceFile")
-    certifications          CandidateCertification[] @relation("CertificationFile")
     companyLogos            Company[]                @relation("CompanyLogoFile")
     companyBusinessLicenses Company[]                @relation("CompanyBusinessLicenseFile")
     postThumbnails          Post[]                   @relation("PostThumbnailFile")

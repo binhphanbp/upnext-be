@@ -65,15 +65,19 @@ export class EmailService {
     resetLink: string;
     actor: 'candidate' | 'recruiter';
   }) {
+    const html = this.renderTemplate('password-reset.html', {
+      resetLink: params.resetLink,
+      sentDate: this.formatSentDate(),
+      privacyLink: this.resolveFrontendLink('/privacy'),
+      unsubscribeLink: this.resolveFrontendLink('/unsubscribe'),
+      termsLink: this.resolveFrontendLink('/terms'),
+    });
+
     await this.sendMail({
       to: params.to,
       subject: 'Đặt lại mật khẩu UpNext',
       text: `Nhấn vào link để đặt lại mật khẩu: ${params.resetLink}`,
-      html: `
-        <p>Nhấn vào link bên dưới để đặt lại mật khẩu UpNext:</p>
-        <p><a href="${params.resetLink}">${params.resetLink}</a></p>
-        <p>Link sẽ hết hạn sau 15 phút.</p>
-      `,
+      html,
       fallbackLog: `${params.actor} password reset link for ${params.to}: ${params.resetLink}`,
     });
   }
@@ -148,6 +152,19 @@ export class EmailService {
 
   private resolveEmailAssetPath(fileName: string) {
     return join(__dirname, 'assets', fileName);
+  }
+
+  private resolveFrontendLink(path: string) {
+    const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
+    return new URL(path, frontendUrl).toString();
+  }
+
+  private formatSentDate() {
+    return new Intl.DateTimeFormat('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(new Date());
   }
 
   private escapeHtml(value: string) {
