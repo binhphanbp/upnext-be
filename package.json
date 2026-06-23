@@ -74,6 +74,7 @@
     "@typescript-eslint/parser": "latest",
     "eslint": "latest",
     "eslint-config-prettier": "latest",
+    "exceljs": "^4.4.0",
     "globals": "latest",
     "husky": "latest",
     "jest": "latest",
@@ -88,7 +89,8 @@
     "tsconfig-paths": "latest",
     "tsx": "latest",
     "typescript": "latest",
-    "typescript-eslint": "latest"
+    "typescript-eslint": "latest",
+    "xlsx": "^0.18.5"
   },
   "lint-staged": {
     "*.{ts,js,mjs,cjs,json,md,yml,yaml}": [

@@ -31,6 +31,10 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { CvsModule } from './modules/cvs/cvs.module';
+import { SubscriptionPlansModule } from './modules/subscription-plans/subscription-plans.module';
+import { CompanySubscriptionsModule } from './modules/company-subscriptions/company-subscriptions.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
+import { InterviewsModule } from './modules/interviews/interviews.module';
 
 @Module({
   imports: [
@@ -68,6 +72,10 @@ import { CvsModule } from './modules/cvs/cvs.module';
     HomeModule,
     ApplicationsModule,
     CvsModule,
+    SubscriptionPlansModule,
+    CompanySubscriptionsModule,
+    InvoicesModule,
+    InterviewsModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }

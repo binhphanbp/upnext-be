@@ -35,6 +35,8 @@ import { CompaniesService } from './companies.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { VerifyCompanyDto } from './dto/verify-company.dto';
 import {
   Company,
   CompanyDetail,
@@ -257,5 +259,116 @@ export class CompaniesController {
   @HttpCode(204)
   async remove(@Param('id', new ParseUUIDPipe()) id: string) {
     await this.companiesService.remove(id);
+  }
+
+  /**
+   * Tải lên giấy đăng ký kinh doanh của công ty (Recruiter / Admin).
+   * @param id ID (UUID) của công ty
+   * @param file File giấy phép đăng ký kinh doanh
+   * @param user Thông tin user đang đăng nhập
+   */
+  @ApiOperation({
+    summary: 'Tải lên giấy đăng ký kinh doanh',
+    description: 'Tải lên giấy phép kinh doanh của công ty. Chỉ cho phép Recruiter thuộc công ty đó hoặc Admin.',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiOkResponse({
+    description: 'Tải lên giấy phép đăng ký kinh doanh thành công.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @Post(':id/business-license')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadBusinessLicense(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @UploadedFile() file: CompanyUploadFile,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.uploadBusinessLicense(id, file, user);
+  }
+
+  /**
+   * Lấy Signed URL để xem giấy phép đăng ký kinh doanh (Recruiter / Admin).
+   * @param id ID (UUID) của công ty
+   * @param user Thông tin user đang đăng nhập
+   */
+  @ApiOperation({
+    summary: 'Lấy URL xem giấy đăng ký kinh doanh',
+    description: 'Lấy Signed URL có thời hạn để xem giấy phép đăng ký kinh doanh bảo mật. Chỉ cho phép Recruiter thuộc công ty hoặc Admin.',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiOkResponse({
+    description: 'Lấy URL thành công.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @Get(':id/business-license/url')
+  getBusinessLicenseUrl(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.getBusinessLicenseUrl(id, user);
+  }
+
+  /**
+   * Phê duyệt hoặc từ chối yêu cầu xác thực doanh nghiệp (Chỉ Admin).
+   * @param id ID (UUID) của công ty cần xác thực
+   * @param dto Dữ liệu cập nhật trạng thái xác thực và lý do
+   * @param user Thông tin Admin thực hiện
+   */
+  @ApiOperation({
+    summary: 'Xác thực doanh nghiệp',
+    description: 'Phê duyệt hoặc từ chối trạng thái xác thực của công ty. Chỉ dành cho Admin.',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiOkResponse({
+    description: 'Xác thực doanh nghiệp thành công.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN)
+  @Post(':id/verify')
+  verifyCompany(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: VerifyCompanyDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.verifyCompany(id, dto, user);
+  }
+
+  /**
+   * Xem lịch sử biến động điểm uy tín của công ty.
+   * @param id ID (UUID) của công ty
+   * @param user Thông tin user đang đăng nhập
+   */
+  @ApiOperation({
+    summary: 'Xem lịch sử điểm uy tín',
+    description: 'Lấy danh sách lịch sử thay đổi điểm uy tín của doanh nghiệp. Chỉ cho phép Recruiter thuộc công ty đó hoặc Admin.',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiOkResponse({
+    description: 'Lấy lịch sử thành công.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @Get(':id/reputation-activities')
+  getReputationActivities(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.getReputationActivities(id, user);
   }
 }
