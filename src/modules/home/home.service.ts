@@ -610,17 +610,13 @@ export class HomeService {
     return 'over-50';
   }
 
-  private formatLocation(
-    location?:
-      | {
-          country: string;
-          city: string | null;
-          district: string | null;
-          address: string | null;
-          workingModel: WorkingModel;
-        }
-      | undefined,
-  ) {
+  private formatLocation(location?: {
+    country: string;
+    city: string | null;
+    district: string | null;
+    address: string | null;
+    workingModel: WorkingModel;
+  }) {
     if (!location) {
       return '';
     }

@@ -49,7 +49,7 @@ export class CompanyFollowsService {
           },
         },
       });
-    } catch (error) {
+    } catch {
       throw new NotFoundException('Follow record not found');
     }
   }

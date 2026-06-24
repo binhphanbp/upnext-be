@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().default(3000),
+  PORT: z.coerce.number().int().positive().default(4000),
   DATABASE_URL: z.string().url(),
   JWT_ACCESS_SECRET: z.string().min(16),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
@@ -20,7 +20,9 @@ const envSchema = z.object({
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
   CLOUDINARY_FOLDER: z.string().default('upnext'),
-  CORS_ORIGIN: z.string().default('http://localhost:5173,http://localhost:3000'),
+  CORS_ORIGIN: z
+    .string()
+    .default('https://upnext.works,https://staging.upnext.works,http://localhost:5173,http://localhost:3000'),
 });
 
 export type AppConfig = {
@@ -63,6 +65,8 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     cloudinaryApiKey: parsed.CLOUDINARY_API_KEY,
     cloudinaryApiSecret: parsed.CLOUDINARY_API_SECRET,
     cloudinaryFolder: parsed.CLOUDINARY_FOLDER,
-    corsOrigins: parsed.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
+    corsOrigins: parsed.CORS_ORIGIN.split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
   };
 }

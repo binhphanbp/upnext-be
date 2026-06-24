@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsDecimal, IsEnum, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
+import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
 import { ProficiencyLevel, SkillPriority } from '@prisma/client';
 
 export class AddSkillToJobDto {
