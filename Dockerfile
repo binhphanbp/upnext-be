@@ -1,37 +1,33 @@
-FROM node:24-alpine AS base
+FROM node:22-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 WORKDIR /app
 
 FROM base AS deps
-COPY package.json pnpm-lock.yaml* ./
-# Install dependencies but skip running package build scripts here to avoid
-# interactive approval prompts inside Docker. Build scripts are executed
-# later in the build stage where we can run them non-interactively.
-RUN pnpm install --frozen-lockfile=false --ignore-scripts
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm prisma:generate
+ARG PRISMA_GENERATE_DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public"
+RUN DATABASE_URL="$PRISMA_GENERATE_DATABASE_URL" pnpm prisma:generate
 RUN pnpm build
-## Remove `prepare` script from package.json to avoid invoking husky
-## during prune when devDependencies are not present.
 RUN node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));if(p.scripts&&p.scripts.prepare){delete p.scripts.prepare;fs.writeFileSync('package.json',JSON.stringify(p,null,2));}"
-
 RUN pnpm prune --prod
 
-FROM node:24-alpine AS runner
+FROM node:22-alpine AS runner
 ENV NODE_ENV=production
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+ENV PORT=4000
 WORKDIR /app
 COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts
-EXPOSE 3636
-CMD ["sh", "-c", "pnpm prisma:deploy && node dist/src/main.js"]
+USER node
+EXPOSE 4000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD wget -qO- "http://127.0.0.1:${PORT}/health" || exit 1
+CMD ["node", "dist/src/main.js"]

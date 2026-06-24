@@ -71,7 +71,7 @@ export class InterviewsService {
       const interview = await tx.interview.create({
         data: {
           applicationId: dto.applicationId,
-          recruiterProfileId: recruiterProfileId!,
+          recruiterProfileId: recruiterProfileId,
           interviewRound: dto.interviewRound ?? 1,
           type: dto.type ?? 'ONLINE',
           scheduledStartAt: new Date(dto.scheduledStartAt),

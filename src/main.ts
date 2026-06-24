@@ -1,4 +1,4 @@
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { RequestMethod, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -7,16 +7,21 @@ import { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
-(BigInt.prototype as any).toJSON = function () {
-  return this.toString();
-};
+Object.defineProperty(BigInt.prototype, 'toJSON', {
+  value: function (this: bigint): string {
+    return this.toString();
+  },
+});
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: [{ path: 'health', method: RequestMethod.GET }],
+  });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+  app.enableShutdownHooks();
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith('/docs')) {
       return next();
@@ -77,7 +82,7 @@ async function bootstrap() {
       content: openApiDocument,
     }),
   );
-  await app.listen(config.getOrThrow<number>('port'));
+  await app.listen(config.getOrThrow<number>('port'), '0.0.0.0');
 }
 
 void bootstrap();

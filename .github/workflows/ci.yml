@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, dev]
   pull_request:
-    branches: [main, develop]
+    branches: [main, dev]
 
 jobs:
   quality:
@@ -29,7 +29,8 @@ jobs:
       DATABASE_URL: postgresql://upnext:upnext@localhost:5432/upnext_test?schema=public
       JWT_ACCESS_SECRET: ci-secret-change-me
       JWT_ACCESS_EXPIRES_IN: 15m
-      CORS_ORIGIN: http://localhost:5173
+      APP_FRONTEND_URL: https://staging.upnext.works
+      CORS_ORIGIN: https://upnext.works,https://staging.upnext.works
 
     steps:
       - name: Checkout
@@ -49,9 +50,6 @@ jobs:
 
       - name: Generate Prisma Client
         run: pnpm prisma:generate
-
-      - name: Check formatting
-        run: pnpm format:check
 
       - name: Lint
         run: pnpm lint

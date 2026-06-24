@@ -4,6 +4,14 @@ coverage
 .git
 .github
 .env
+.env.*
+!.env.example
 *.log
 Dockerfile
 docker-compose.yml
+README.md
+.qodo
+.history
+.pnpm-store
+tmp
+uploads
