@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { v2 as cloudinary, UploadApiOptions, UploadApiResponse } from 'cloudinary';
+import { v2 as cloudinary, UploadApiOptions, UploadApiResponse, UploadApiErrorResponse } from 'cloudinary';
 import { extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -48,7 +48,7 @@ export class CloudinaryService {
           overwrite: false,
           ...(extension ? { format: extension } : {}),
         },
-        (error, response) => {
+        (error: UploadApiErrorResponse | undefined, response: UploadApiResponse | undefined) => {
           if (error) {
             reject(error);
             return;
