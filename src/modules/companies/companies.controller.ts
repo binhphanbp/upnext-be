@@ -242,6 +242,66 @@ export class CompaniesController {
   }
 
   /**
+   * Tải lên ảnh công ty (gallery).
+   * @param id ID (UUID) của công ty
+   * @param file File ảnh được upload lên
+   */
+  @ApiOperation({
+    summary: 'Tải lên ảnh hoạt động/văn phòng công ty',
+    description: 'Upload ảnh hoạt động hoặc văn phòng công ty.',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiOkResponse({
+    description: 'Upload ảnh công ty thành công.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @Post(':id/photos')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadPhoto(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @UploadedFile() file: CompanyUploadFile,
+  ) {
+    return this.companiesService.uploadPhoto(id, file);
+  }
+
+  /**
+   * Xóa ảnh công ty theo photo id.
+   * @param id ID (UUID) của công ty
+   * @param photoId ID (UUID) của ảnh cần xóa
+   */
+  @ApiOperation({
+    summary: 'Xóa ảnh công ty',
+    description: 'Xóa ảnh công ty theo photo id.',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiParam({ name: 'photoId', description: 'Photo UUID' })
+  @ApiOkResponse({
+    description: 'Xóa ảnh công ty thành công.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @Delete(':id/photos/:photoId')
+  deletePhoto(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('photoId', new ParseUUIDPipe()) photoId: string,
+  ) {
+    return this.companiesService.deletePhoto(id, photoId);
+  }
+
+  /**
    * Xóa một công ty theo company id (Xóa vĩnh viễn hoặc soft delete tùy logic service).
    * @param id ID (UUID) của công ty cần xóa
    */

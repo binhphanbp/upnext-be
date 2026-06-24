@@ -1,6 +1,6 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AccountStatus, ActorType } from '@prisma/client';
+import { AccountStatus, ActorType, Prisma } from '@prisma/client';
 import { EmailService } from '../../common/email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
@@ -12,6 +12,7 @@ import {
   PasswordResetRequestResponse,
   PasswordResetResponse,
 } from '../auth/entities/password-reset.entity';
+import { RegisterRecruiterDto } from './dto/register-recruiter.dto';
 
 @Injectable()
 export class RecruiterAuthService {
@@ -21,6 +22,38 @@ export class RecruiterAuthService {
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
   ) {}
+
+  async register(dto: RegisterRecruiterDto): Promise<LoginResponse> {
+    try {
+      const account = await this.prisma.recruiterAccount.create({
+        data: {
+          email: dto.email.toLowerCase(),
+          passwordHash: await this.authService.hashPassword(dto.password),
+          status: AccountStatus.ACTIVE,
+        },
+        select: {
+          id: true,
+          email: true,
+          companyId: true,
+          recruiterRoleId: true,
+        },
+      });
+
+      return this.authService.signAccessToken({
+        id: account.id,
+        email: account.email,
+        role: ActorType.RECRUITER,
+        companyId: account.companyId,
+        recruiterRoleId: account.recruiterRoleId,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Tài khoản nhà tuyển dụng đã tồn tại');
+      }
+
+      throw error;
+    }
+  }
 
   async login(dto: LoginDto): Promise<LoginResponse> {
     const account = await this.prisma.recruiterAccount.findFirst({
@@ -52,9 +85,7 @@ export class RecruiterAuthService {
     });
   }
 
-  async requestPasswordReset(
-    dto: RequestPasswordResetDto,
-  ): Promise<PasswordResetRequestResponse> {
+  async requestPasswordReset(dto: RequestPasswordResetDto): Promise<PasswordResetRequestResponse> {
     const account = await this.prisma.recruiterAccount.findFirst({
       where: {
         email: dto.email.toLowerCase(),
@@ -86,10 +117,7 @@ export class RecruiterAuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<PasswordResetResponse> {
-    const payload = await this.authService.verifyPasswordResetToken(
-      dto.token,
-      ActorType.RECRUITER,
-    );
+    const payload = await this.authService.verifyPasswordResetToken(dto.token, ActorType.RECRUITER);
 
     const account = await this.prisma.recruiterAccount.findFirst({
       where: {
@@ -116,7 +144,7 @@ export class RecruiterAuthService {
 
   private buildPasswordResetLink(actor: 'recruiter', token: string) {
     const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
-    const url = new URL(`/${actor}/reset-password`, frontendUrl);
+    const url = new URL(`/vi/${actor}/reset-password`, frontendUrl);
     url.searchParams.set('token', token);
     return url.toString();
   }
