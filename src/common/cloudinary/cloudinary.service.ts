@@ -84,12 +84,24 @@ export class CloudinaryService {
   ) {
     this.ensureConfigured();
 
+    const deliveryType = options?.deliveryType ?? 'authenticated';
+    const resourceType = options?.resourceType ?? 'image';
+    const expiresAt = options?.expiresAt ?? Math.floor(Date.now() / 1000) + 5 * 60;
+
+    if (deliveryType === 'authenticated' || deliveryType === 'private') {
+      return cloudinary.utils.private_download_url(storageKey, '', {
+        resource_type: resourceType,
+        type: deliveryType,
+        expires_at: expiresAt,
+      });
+    }
+
     return cloudinary.url(storageKey, {
-      resource_type: options?.resourceType ?? 'auto',
-      type: options?.deliveryType ?? 'authenticated',
+      resource_type: resourceType,
+      type: deliveryType,
       secure: true,
       sign_url: true,
-      expires_at: options?.expiresAt ?? Math.floor(Date.now() / 1000) + 5 * 60,
+      expires_at: expiresAt,
     });
   }
 

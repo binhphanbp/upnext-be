@@ -1,9 +1,11 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { compare, hash } from 'bcryptjs';
 import { toPagination } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ListRecruiterAccountsQueryDto } from './dto/recruiter-accounts/list-recruiter-accounts-query.dto';
 import { UpdateRecruiterAccountDto } from './dto/recruiter-accounts/update-recruiter-account.dto';
+import { ChangePasswordDto } from './dto/recruiter-accounts/change-password.dto';
 import { CreateRecruiterProfileDto } from './dto/recruiter-profiles/create-recruiter-profile.dto';
 import { UpdateRecruiterProfileDto } from './dto/recruiter-profiles/update-recruiter-profile.dto';
 
@@ -15,9 +17,7 @@ export class RecruitersService {
 
   async findAllAccounts(query: ListRecruiterAccountsQueryDto) {
     const where: Prisma.RecruiterAccountWhereInput = {
-      ...(query.q
-        ? { email: { contains: query.q, mode: 'insensitive' } }
-        : {}),
+      ...(query.q ? { email: { contains: query.q, mode: 'insensitive' } } : {}),
       ...(query.status ? { status: query.status } : {}),
     };
 
@@ -52,7 +52,15 @@ export class RecruitersService {
       include: {
         profile: true,
         recruiterRole: true,
-        company: { select: { id: true, name: true, status: true } },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            verificationStatus: true,
+            businessLicenseFileId: true,
+          },
+        },
         companyMembers: true,
       },
     });
@@ -112,7 +120,12 @@ export class RecruitersService {
       where: { recruiterAccountId: accountId },
       include: {
         recruiterAccount: {
-          select: { id: true, email: true, status: true, company: { select: { id: true, name: true } } },
+          select: {
+            id: true,
+            email: true,
+            status: true,
+            company: { select: { id: true, name: true } },
+          },
         },
       },
     });
@@ -129,7 +142,12 @@ export class RecruitersService {
       where: { id },
       include: {
         recruiterAccount: {
-          select: { id: true, email: true, status: true, company: { select: { id: true, name: true } } },
+          select: {
+            id: true,
+            email: true,
+            status: true,
+            company: { select: { id: true, name: true } },
+          },
         },
       },
     });
@@ -153,6 +171,56 @@ export class RecruitersService {
   async removeProfile(id: string) {
     await this.ensureProfileExists(id);
     await this.prisma.recruiterProfile.delete({ where: { id } });
+  }
+
+  async getDashboardStats(recruiterId: string) {
+    await this.ensureAccountExists(recruiterId);
+
+    const [totalJobPosts, totalCandidates] = await Promise.all([
+      this.prisma.jobPost.count({
+        where: {
+          createdByRecruiterId: recruiterId,
+          deletedAt: null,
+        },
+      }),
+      this.prisma.application.count({
+        where: {
+          jobPost: {
+            createdByRecruiterId: recruiterId,
+            deletedAt: null,
+          },
+        },
+      }),
+    ]);
+
+    return {
+      totalJobPosts,
+      totalCandidates,
+    };
+  }
+
+  async changePassword(id: string, dto: ChangePasswordDto) {
+    const account = await this.prisma.recruiterAccount.findUnique({
+      where: { id },
+      select: { id: true, passwordHash: true },
+    });
+
+    if (!account) {
+      throw new NotFoundException(`Recruiter account ${id} not found`);
+    }
+
+    const isPasswordValid = await compare(dto.currentPassword, account.passwordHash);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Mật khẩu hiện tại không chính xác');
+    }
+
+    const newPasswordHash = await hash(dto.newPassword, 10);
+    await this.prisma.recruiterAccount.update({
+      where: { id },
+      data: { passwordHash: newPasswordHash },
+    });
+
+    return { message: 'Đổi mật khẩu thành công' };
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────

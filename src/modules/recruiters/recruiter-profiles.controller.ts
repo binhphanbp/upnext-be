@@ -9,9 +9,11 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
@@ -22,11 +24,18 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { ActorType } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateRecruiterProfileDto } from './dto/recruiter-profiles/create-recruiter-profile.dto';
 import { UpdateRecruiterProfileDto } from './dto/recruiter-profiles/update-recruiter-profile.dto';
 import { RecruitersService } from './recruiters.service';
 
 @ApiTags('Recruiter - Profile')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(ActorType.RECRUITER, ActorType.ADMIN)
 @Controller('recruiter-profiles')
 export class RecruiterProfilesController {
   constructor(private readonly recruitersService: RecruitersService) {}
@@ -148,6 +157,7 @@ export class RecruiterProfilesController {
   @ApiParam({ name: 'id', description: 'Recruiter profile UUID' })
   @ApiNoContentResponse({ description: 'Recruiter profile deleted successfully' })
   @ApiNotFoundResponse({ description: 'Recruiter profile not found' })
+  @Roles(ActorType.ADMIN)
   @Delete(':id')
   @HttpCode(204)
   async remove(@Param('id', new ParseUUIDPipe()) id: string) {
