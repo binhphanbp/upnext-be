@@ -13,6 +13,7 @@ import {
   AddSkillToJobDto,
   AddSpecializationToJobDto,
 } from './dto/job-post-relations.dto';
+import { ListAdminJobPostsQueryDto } from './dto/list-admin-job-posts-query.dto';
 import { UpdateJobPostDto } from './dto/update-job-post.dto';
 
 @Injectable()
@@ -112,6 +113,63 @@ export class JobPostsService {
       include: this.ownerJobPostInclude(),
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async findAllForAdmin(query: ListAdminJobPostsQueryDto) {
+    const where: Prisma.JobPostWhereInput = {
+      deletedAt: null,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.moderationStatus ? { moderationStatus: query.moderationStatus } : {}),
+      ...(query.companyId ? { companyId: query.companyId } : {}),
+      ...(query.q
+        ? {
+            OR: [
+              { title: { contains: query.q, mode: 'insensitive' } },
+              { description: { contains: query.q, mode: 'insensitive' } },
+              { company: { is: { name: { contains: query.q, mode: 'insensitive' } } } },
+              {
+                createdByRecruiter: {
+                  is: { email: { contains: query.q, mode: 'insensitive' } },
+                },
+              },
+              {
+                createdByRecruiter: {
+                  is: {
+                    profile: {
+                      is: { fullName: { contains: query.q, mode: 'insensitive' } },
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+    const skip = (query.page - 1) * query.limit;
+    const totalPages = (total: number) => Math.ceil(total / query.limit);
+
+    const [items, total] = await Promise.all([
+      this.prisma.jobPost.findMany({
+        where,
+        skip,
+        take: query.limit,
+        orderBy: { createdAt: 'desc' },
+        include: this.adminJobPostInclude(),
+      }),
+      this.prisma.jobPost.count({ where }),
+    ]);
+
+    return {
+      items,
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: totalPages(total),
+        hasNextPage: query.page < totalPages(total),
+        hasPrevPage: query.page > 1,
+      },
+    };
   }
 
   async addSkillToJob(jobId: string, recruiterId: string, dto: AddSkillToJobDto) {
@@ -320,6 +378,50 @@ export class JobPostsService {
         select: {
           applications: true,
           views: true,
+        },
+      },
+    } satisfies Prisma.JobPostInclude;
+  }
+
+  private adminJobPostInclude() {
+    return {
+      company: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          verificationStatus: true,
+        },
+      },
+      createdByRecruiter: {
+        select: {
+          id: true,
+          email: true,
+          status: true,
+          profile: {
+            select: {
+              id: true,
+              fullName: true,
+              phoneNumber: true,
+            },
+          },
+          recruiterRole: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+            },
+          },
+        },
+      },
+      jobCategory: true,
+      employmentType: true,
+      experienceLevel: true,
+      _count: {
+        select: {
+          applications: true,
+          views: true,
+          savedJobs: true,
         },
       },
     } satisfies Prisma.JobPostInclude;
