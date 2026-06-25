@@ -2,7 +2,9 @@ name: Docker Publish Backend
 
 on:
   push:
-    branches: [main, dev]
+    branches:
+      - main
+      - dev
   workflow_dispatch:
 
 permissions:
@@ -27,22 +29,27 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set image tag
+      - name: Set image tags
         id: vars
+        shell: bash
         run: |
+          SHORT_SHA="${GITHUB_SHA::12}"
+
           if [ "${GITHUB_REF_NAME}" = "main" ]; then
-            echo "tag=production" >> "$GITHUB_OUTPUT"
+            echo "main_tag=production" >> "$GITHUB_OUTPUT"
           elif [ "${GITHUB_REF_NAME}" = "dev" ]; then
-            echo "tag=dev" >> "$GITHUB_OUTPUT"
+            echo "main_tag=dev" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "main_tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build and push
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.tag }}
-            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.main_tag }}
+            ${{ env.IMAGE_NAME }}:sha-${{ steps.vars.outputs.short_sha }}
