@@ -575,66 +575,6 @@ async function main() {
     },
   });
 
-  // Clean up deprecated HR_MANAGER role if it exists
-  const hrManagerRole = await prisma.recruiterRole.findUnique({
-    where: { code: 'HR_MANAGER' },
-  });
-
-  if (hrManagerRole) {
-    let adminRoleRecord = await prisma.recruiterRole.findUnique({
-      where: { code: 'ADMIN' },
-    });
-    if (!adminRoleRecord) {
-      adminRoleRecord = await prisma.recruiterRole.create({
-        data: {
-          code: 'ADMIN',
-          name: 'Admin',
-          description: 'Manage recruiting operations',
-        },
-      });
-    }
-
-    await prisma.recruiterAccount.updateMany({
-      where: { recruiterRoleId: hrManagerRole.id },
-      data: { recruiterRoleId: adminRoleRecord.id },
-    });
-
-    await prisma.companyMember.updateMany({
-      where: { roleId: hrManagerRole.id },
-      data: { roleId: adminRoleRecord.id },
-    });
-
-    await prisma.recruiterRole.delete({
-      where: { id: hrManagerRole.id },
-    });
-  }
-
-  // Also clean up any other roles that are not part of OWNER, ADMIN, RECRUITER, INTERVIEWER
-  const validRoleCodes = ['OWNER', 'ADMIN', 'RECRUITER', 'INTERVIEWER'];
-  const invalidRoles = await prisma.recruiterRole.findMany({
-    where: {
-      code: {
-        notIn: validRoleCodes,
-      },
-    },
-  });
-
-  for (const role of invalidRoles) {
-    const ownerRole = await prisma.recruiterRole.findUnique({ where: { code: 'OWNER' } });
-    const fallbackRoleId = ownerRole?.id;
-    if (fallbackRoleId) {
-      await prisma.recruiterAccount.updateMany({
-        where: { recruiterRoleId: role.id },
-        data: { recruiterRoleId: fallbackRoleId },
-      });
-      await prisma.companyMember.updateMany({
-        where: { roleId: role.id },
-        data: { roleId: fallbackRoleId },
-      });
-    }
-    await prisma.recruiterRole.delete({ where: { id: role.id } });
-  }
-
   const seededPermissions: Record<string, string> = {};
   for (const perm of permissionsList) {
     const record = await prisma.recruiterPermission.upsert({
@@ -657,9 +597,9 @@ async function main() {
       permissionCodes: permissionsList.map((p) => p.code),
     },
     {
-      code: 'ADMIN',
-      name: 'Admin',
-      description: 'Manage recruiting operations',
+      code: 'HR',
+      name: 'HR',
+      description: 'Manage recruiting operations, jobs, and candidates',
       permissionCodes: [
         'jobs:manage',
         'applications:manage',
@@ -667,23 +607,12 @@ async function main() {
         'interviews:manage',
         'interviews:review_assigned',
         'company:manage',
+        'members:manage',
       ],
     },
     {
-      code: 'RECRUITER',
-      name: 'Recruiter',
-      description: 'Manage jobs, candidates, and interviews',
-      permissionCodes: [
-        'jobs:manage',
-        'applications:manage',
-        'applications:review_assigned',
-        'interviews:manage',
-        'interviews:review_assigned',
-      ],
-    },
-    {
-      code: 'INTERVIEWER',
-      name: 'Interviewer',
+      code: 'INTERVIEW',
+      name: 'Interview',
       description: 'Review assigned interviews and candidates',
       permissionCodes: ['applications:review_assigned', 'interviews:review_assigned'],
     },
@@ -715,6 +644,39 @@ async function main() {
         recruiterPermissionId: seededPermissions[code],
       })),
     });
+  }
+
+  // Clean up and migrate deprecated roles (like ADMIN, RECRUITER, INTERVIEWER, HR_MANAGER)
+  const validRoleCodes = ['OWNER', 'HR', 'INTERVIEW'];
+  const invalidRoles = await prisma.recruiterRole.findMany({
+    where: {
+      code: {
+        notIn: validRoleCodes,
+      },
+    },
+  });
+
+  for (const role of invalidRoles) {
+    // Map deprecated roles to new roles
+    let targetCode = 'HR';
+    if (role.code === 'INTERVIEWER') {
+      targetCode = 'INTERVIEW';
+    } else if (role.code === 'OWNER') {
+      targetCode = 'OWNER'; // Safety check
+    }
+
+    const targetRole = seededRoles[targetCode];
+    if (targetRole) {
+      await prisma.recruiterAccount.updateMany({
+        where: { recruiterRoleId: role.id },
+        data: { recruiterRoleId: targetRole.id },
+      });
+      await prisma.companyMember.updateMany({
+        where: { roleId: role.id },
+        data: { roleId: targetRole.id },
+      });
+    }
+    await prisma.recruiterRole.delete({ where: { id: role.id } });
   }
 
   const recruiterRole = seededRoles['OWNER'];
@@ -1098,21 +1060,15 @@ async function main() {
     },
     {
       companyIndex: 0,
-      roleCode: 'ADMIN',
-      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.admin@upnext.dev`,
-      fullName: `Alpha Admin`,
+      roleCode: 'HR',
+      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.hr@upnext.dev`,
+      fullName: `Alpha HR`,
     },
     {
       companyIndex: 0,
-      roleCode: 'RECRUITER',
-      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.recruiter@upnext.dev`,
-      fullName: `Alpha Recruiter`,
-    },
-    {
-      companyIndex: 0,
-      roleCode: 'INTERVIEWER',
-      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.interviewer@upnext.dev`,
-      fullName: `Alpha Interviewer`,
+      roleCode: 'INTERVIEW',
+      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.interview@upnext.dev`,
+      fullName: `Alpha Interview`,
     },
     {
       companyIndex: 1,
@@ -1180,7 +1136,7 @@ async function main() {
     })),
   });
 
-  const candidates = Array.from({ length: 12 }, (_, index) => {
+  const candidates = Array.from({ length: 60 }, (_, index) => {
     const n = index + 1;
     const accountId = randomUUID();
     const profileId = randomUUID();
@@ -1195,7 +1151,7 @@ async function main() {
       cvVersionId,
       email: `${SEED_EMAIL_PREFIX}candidate.${n}@upnext.dev`,
       fullName: `Seed Candidate ${n}`,
-      createdAt: addDays(lastMonthStart, n),
+      createdAt: addDays(lastMonthStart, n % 25),
     };
   });
 
@@ -1214,14 +1170,16 @@ async function main() {
   await prisma.candidateProfile.createMany({
     data: candidates.map((candidate) => {
       const idx = candidate.index;
+      const roleIdx = idx % 8;
       let roleDesc = "Software Engineer";
-      if (idx === 0 || idx === 11) roleDesc = "Intern Backend Developer eager to learn Node.js and Databases";
-      else if (idx === 1 || idx === 10) roleDesc = "Fresher Frontend Developer skilled in React and UI/UX design";
-      else if (idx === 2 || idx === 7) roleDesc = "Junior Fullstack Developer with hands-on experience in TypeScript and React";
-      else if (idx === 3 || idx === 8) roleDesc = "Mid-level DevOps Engineer experienced in AWS, Docker, and CI/CD";
-      else if (idx === 4 || idx === 9) roleDesc = "Senior AI & Data Engineer specializing in LLMs, Machine Learning, and Python";
-      else if (idx === 5) roleDesc = "Technical Lead with strong leadership skills and cloud infrastructure design experience";
-      else if (idx === 6) roleDesc = "Engineering Manager with 8+ years of experience leading agile product engineering teams";
+      if (roleIdx === 0) roleDesc = "Intern Backend Developer eager to learn Node.js and Databases";
+      else if (roleIdx === 1) roleDesc = "Fresher Frontend Developer skilled in React and UI/UX design";
+      else if (roleIdx === 2) roleDesc = "Junior Fullstack Developer with hands-on experience in TypeScript and React";
+      else if (roleIdx === 3) roleDesc = "Mid-level DevOps Engineer experienced in AWS, Docker, and CI/CD";
+      else if (roleIdx === 4) roleDesc = "Senior AI & Data Engineer specializing in LLMs, Machine Learning, and Python";
+      else if (roleIdx === 5) roleDesc = "Technical Lead with strong leadership skills and cloud infrastructure design experience";
+      else if (roleIdx === 6) roleDesc = "Engineering Manager with 8+ years of experience leading agile product engineering teams";
+      else if (roleIdx === 7) roleDesc = "QA / Testing Specialist with manual and automated testing experience";
 
       return {
         id: candidate.profileId,
@@ -1266,47 +1224,54 @@ async function main() {
       let workingModel: WorkingModel = WorkingModel.HYBRID;
 
       const idx = candidate.index;
-      if (idx === 0 || idx === 11) {
+      const roleIdx = idx % 8;
+      if (roleIdx === 0) {
         desiredLevelId = experienceLevels.intern.id;
         desiredPosition = 'Intern Backend Engineer';
         minSalary = 3000000;
         maxSalary = 6000000;
         workingModel = WorkingModel.ONSITE;
-      } else if (idx === 1 || idx === 10) {
+      } else if (roleIdx === 1) {
         desiredLevelId = experienceLevels.fresher.id;
         desiredPosition = 'Fresher Frontend Developer';
         minSalary = 8000000;
         maxSalary = 12000000;
         workingModel = WorkingModel.ONSITE;
-      } else if (idx === 2 || idx === 7) {
+      } else if (roleIdx === 2) {
         desiredLevelId = experienceLevels.junior.id;
         desiredPosition = 'Junior Fullstack Developer';
         minSalary = 12000000;
         maxSalary = 18000000;
         workingModel = WorkingModel.HYBRID;
-      } else if (idx === 3 || idx === 8) {
+      } else if (roleIdx === 3) {
         desiredLevelId = experienceLevels.mid.id;
         desiredPosition = 'Mid-level DevOps Engineer';
         minSalary = 20000000;
         maxSalary = 32000000;
         workingModel = WorkingModel.REMOTE;
-      } else if (idx === 4 || idx === 9) {
+      } else if (roleIdx === 4) {
         desiredLevelId = experienceLevels.senior.id;
         desiredPosition = 'Senior AI & Data Engineer';
         minSalary = 35000000;
         maxSalary = 55000000;
         workingModel = WorkingModel.HYBRID;
-      } else if (idx === 5) {
+      } else if (roleIdx === 5) {
         desiredLevelId = experienceLevels.lead.id;
         desiredPosition = 'Technical Lead (Java/AWS)';
         minSalary = 45000000;
         maxSalary = 70000000;
         workingModel = WorkingModel.REMOTE;
-      } else if (idx === 6) {
+      } else if (roleIdx === 6) {
         desiredLevelId = experienceLevels.manager.id;
         desiredPosition = 'Engineering Manager';
         minSalary = 60000000;
         maxSalary = 90000000;
+        workingModel = WorkingModel.HYBRID;
+      } else if (roleIdx === 7) {
+        desiredLevelId = experienceLevels.mid.id;
+        desiredPosition = 'QA Engineer';
+        minSalary = 15000000;
+        maxSalary = 22000000;
         workingModel = WorkingModel.HYBRID;
       }
 
@@ -1340,6 +1305,7 @@ async function main() {
     const idx = candidate.index;
     const profileId = candidate.profileId;
     const baseDate = candidate.createdAt;
+    const roleIdx = idx % 8;
 
     // 1. Languages
     languagesToCreate.push({
@@ -1351,17 +1317,17 @@ async function main() {
       updatedAt: baseDate,
     });
 
-    if (idx !== 7 && idx !== 11) {
+    if (roleIdx !== 7 && roleIdx !== 1) {
       languagesToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
         language: 'English',
-        proficiency: idx === 5 || idx === 6 ? 'Fluent' : idx === 4 || idx === 9 ? 'IELTS 7.5' : 'Intermediate',
+        proficiency: roleIdx === 5 || roleIdx === 6 ? 'Fluent' : roleIdx === 4 ? 'IELTS 7.5' : 'Intermediate',
         createdAt: baseDate,
         updatedAt: baseDate,
       });
     }
-    if (idx === 3 || idx === 8) {
+    if (roleIdx === 3) {
       languagesToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -1381,7 +1347,7 @@ async function main() {
       createdAt: baseDate,
       updatedAt: baseDate,
     });
-    if (idx !== 6) {
+    if (roleIdx !== 6) {
       linksToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -1391,7 +1357,7 @@ async function main() {
         updatedAt: baseDate,
       });
     }
-    if (idx === 1 || idx === 10) {
+    if (roleIdx === 1) {
       linksToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -1403,7 +1369,7 @@ async function main() {
     }
 
     // 3. Education
-    if (idx === 0 || idx === 11) {
+    if (roleIdx === 0) {
       educationsToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -1418,7 +1384,7 @@ async function main() {
         createdAt: baseDate,
         updatedAt: baseDate,
       });
-    } else if (idx === 1 || idx === 10) {
+    } else if (roleIdx === 1) {
       educationsToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -1448,7 +1414,7 @@ async function main() {
         createdAt: baseDate,
         updatedAt: baseDate,
       });
-      if (idx === 4 || idx === 9) {
+      if (roleIdx === 4) {
         educationsToCreate.push({
           id: randomUUID(),
           candidateProfileId: profileId,
@@ -1468,16 +1434,18 @@ async function main() {
 
     // 4. Skills & Experiences & Projects
     const candidateSkills: string[] = [];
-    if (idx === 0 || idx === 11) {
+    if (roleIdx === 0) {
       candidateSkills.push('TypeScript', 'NestJS');
-    } else if (idx === 1 || idx === 10) {
+    } else if (roleIdx === 1) {
       candidateSkills.push('React', 'TypeScript', 'Figma');
-    } else if (idx === 2 || idx === 7) {
+    } else if (roleIdx === 2) {
       candidateSkills.push('TypeScript', 'React', 'Prisma');
-    } else if (idx === 3 || idx === 8) {
+    } else if (roleIdx === 3) {
       candidateSkills.push('AWS', 'QA', 'TypeScript');
-    } else if (idx === 4 || idx === 9) {
+    } else if (roleIdx === 4) {
       candidateSkills.push('AI', 'AWS', 'TypeScript');
+    } else if (roleIdx === 7) {
+      candidateSkills.push('QA', 'TypeScript');
     } else {
       candidateSkills.push('TypeScript', 'React', 'NestJS', 'AWS', 'Prisma', 'QA');
     }
@@ -1489,8 +1457,8 @@ async function main() {
           id: randomUUID(),
           candidateProfileId: profileId,
           skillId: skillRecord.id,
-          proficiencyLevel: idx >= 5 ? 'EXPERT' : idx >= 4 ? 'ADVANCED' : 'INTERMEDIATE',
-          yearsOfExperience: new Prisma.Decimal(idx === 0 || idx === 11 ? 0.5 : idx === 1 || idx === 10 ? 1 : idx * 1.5),
+          proficiencyLevel: roleIdx >= 5 ? 'EXPERT' : roleIdx >= 4 ? 'ADVANCED' : 'INTERMEDIATE',
+          yearsOfExperience: new Prisma.Decimal(roleIdx === 0 ? 0.5 : roleIdx === 1 ? 1 : roleIdx * 1.5),
           sortOrder: sIdx,
           createdAt: baseDate,
           updatedAt: baseDate,
@@ -1498,10 +1466,10 @@ async function main() {
       }
     });
 
-    if (idx !== 0 && idx !== 1 && idx !== 10 && idx !== 11) {
+    if (roleIdx !== 0 && roleIdx !== 1) {
       const expId = randomUUID();
-      const companyName = idx === 6 ? 'Axon Active' : idx === 5 ? 'VNG Corporation' : idx === 4 || idx === 9 ? 'VinAI' : 'ABC Tech';
-      const positionTitle = idx === 6 ? 'Engineering Manager' : idx === 5 ? 'Technical Lead' : idx === 4 || idx === 9 ? 'Senior AI Engineer' : 'Junior Developer';
+      const companyName = roleIdx === 6 ? 'Axon Active' : roleIdx === 5 ? 'VNG Corporation' : roleIdx === 4 ? 'VinAI' : 'ABC Tech';
+      const positionTitle = roleIdx === 6 ? 'Engineering Manager' : roleIdx === 5 ? 'Technical Lead' : roleIdx === 4 ? 'Senior AI Engineer' : 'Junior Developer';
       
       experiencesToCreate.push({
         id: expId,
@@ -1530,10 +1498,10 @@ async function main() {
         }
       });
 
-      if (idx >= 5) {
+      if (roleIdx >= 5) {
         const oldExpId = randomUUID();
-        const oldCompanyName = idx === 6 ? 'KMS Technology' : 'Viettel Group';
-        const oldPositionTitle = idx === 6 ? 'Technical Lead' : 'Senior Software Engineer';
+        const oldCompanyName = roleIdx === 6 ? 'KMS Technology' : 'Viettel Group';
+        const oldPositionTitle = roleIdx === 6 ? 'Technical Lead' : 'Senior Software Engineer';
         experiencesToCreate.push({
           id: oldExpId,
           candidateProfileId: profileId,
@@ -1564,7 +1532,7 @@ async function main() {
     }
 
     // 5. Projects
-    if (idx === 0 || idx === 11) {
+    if (roleIdx === 0) {
       projectsToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -1580,7 +1548,7 @@ async function main() {
         createdAt: baseDate,
         updatedAt: baseDate,
       });
-    } else if (idx === 1 || idx === 10) {
+    } else if (roleIdx === 1) {
       projectsToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -1615,7 +1583,7 @@ async function main() {
     }
 
     // 6. Certifications
-    if (idx === 3 || idx === 8) {
+    if (roleIdx === 3) {
       certificationsToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -1628,7 +1596,7 @@ async function main() {
         createdAt: baseDate,
         updatedAt: baseDate,
       });
-    } else if (idx === 4 || idx === 9) {
+    } else if (roleIdx === 4) {
       certificationsToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -1641,7 +1609,7 @@ async function main() {
         createdAt: baseDate,
         updatedAt: baseDate,
       });
-    } else if (idx === 5) {
+    } else if (roleIdx === 5) {
       certificationsToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -1654,7 +1622,7 @@ async function main() {
         createdAt: baseDate,
         updatedAt: baseDate,
       });
-    } else if (idx === 6) {
+    } else if (roleIdx === 6) {
       certificationsToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -2091,363 +2059,335 @@ async function main() {
     ),
   });
 
-  const statusDistribution = [
-    ApplicationStatus.SUBMITTED,    // 0
-    ApplicationStatus.VIEWED,       // 1
-    ApplicationStatus.SHORTLISTED,  // 2
-    ApplicationStatus.INTERVIEWING, // 3
-    ApplicationStatus.OFFERED,      // 4
-    ApplicationStatus.HIRED,        // 5
-    ApplicationStatus.REJECTED,     // 6
-    ApplicationStatus.WITHDRAWN,    // 7
-    ApplicationStatus.SUBMITTED,    // 8
-    ApplicationStatus.VIEWED,       // 9
-    ApplicationStatus.SHORTLISTED,  // 10
-    ApplicationStatus.INTERVIEWING, // 11
-    ApplicationStatus.SUBMITTED,    // 12
-    ApplicationStatus.VIEWED,       // 13
-    ApplicationStatus.SHORTLISTED,  // 14
-    ApplicationStatus.INTERVIEWING, // 15
-    ApplicationStatus.SUBMITTED,    // 16
-    ApplicationStatus.VIEWED,       // 17
-    ApplicationStatus.SHORTLISTED,  // 18
-    ApplicationStatus.INTERVIEWING, // 19
-    ApplicationStatus.SUBMITTED,    // 20
-    ApplicationStatus.VIEWED,       // 21
-    ApplicationStatus.OFFERED,      // 22
-    ApplicationStatus.HIRED,        // 23
-    ApplicationStatus.SUBMITTED,    // 24
-    ApplicationStatus.SUBMITTED,    // 25
-    ApplicationStatus.SUBMITTED,    // 26
+  console.log('Seeding views, applications, status logs, saved jobs dynamically...');
+
+  // 1. Get all jobs in database (both hardcoded and imported)
+  const allDbJobs = await prisma.jobPost.findMany({
+    include: {
+      createdByRecruiter: true
+    }
+  });
+
+  const viewsToCreate: Prisma.JobViewCreateManyInput[] = [];
+  const applicationsToCreate: any[] = [];
+  const savedJobsToCreate: Prisma.SavedJobCreateManyInput[] = [];
+
+  const candidateProfiles = candidates.map(c => ({
+    profileId: c.profileId,
+    accountId: c.accountId,
+    fullName: c.fullName
+  }));
+
+  // Helper for random choices
+  const randomBetween = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+  const pickRandom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+  const pickMultipleRandom = <T>(arr: T[], count: number): T[] => {
+    const shuffled = [...arr].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+  };
+
+  const statusList = [
+    ApplicationStatus.SUBMITTED,    
+    ApplicationStatus.VIEWED,       
+    ApplicationStatus.SHORTLISTED,  
+    ApplicationStatus.INTERVIEWING, 
+    ApplicationStatus.OFFERED,      
+    ApplicationStatus.HIRED,        
+    ApplicationStatus.REJECTED,     
+    ApplicationStatus.WITHDRAWN,    
   ];
 
-  const applications = jobs.flatMap((job) =>
-    job.applications.map((candidateIndex, index) => {
-      const candidate = candidates[candidateIndex];
+  for (const job of allDbJobs) {
+    const jobCreatedAt = job.createdAt;
+    
+    // Seed views
+    const viewsCount = randomBetween(80, 250);
+    const jobViewsForCurrentJob: Prisma.JobViewCreateManyInput[] = [];
 
-      return {
+    for (let i = 0; i < viewsCount; i++) {
+      const isCandidate = Math.random() < 0.35; // 35% viewed by logged-in candidates
+      const candidateProfile = isCandidate ? pickRandom(candidateProfiles) : null;
+      const viewedAt = addDays(jobCreatedAt, randomBetween(1, 20) + Math.random());
+
+      jobViewsForCurrentJob.push({
+        id: randomUUID(),
+        candidateProfileId: candidateProfile ? candidateProfile.profileId : null,
+        jobPostId: job.id,
+        visitorKey: `${SEED_KEY}-visitor-${job.id.substring(0, 8)}-${i}`,
+        ipAddress: `192.168.${randomBetween(1, 254)}.${randomBetween(1, 254)}`,
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        viewedAt: viewedAt < now ? viewedAt : now,
+      });
+    }
+    viewsToCreate.push(...jobViewsForCurrentJob);
+
+    // Seed applications
+    // Conversion rate: 6% to 15% of views convert to applications
+    const appsCount = Math.round(viewsCount * (randomBetween(6, 15) / 100));
+    const appCandidates = pickMultipleRandom(candidateProfiles, appsCount);
+
+    appCandidates.forEach((candidate, index) => {
+      const rand = Math.random();
+      let status: ApplicationStatus = ApplicationStatus.SUBMITTED;
+      if (rand < 0.40) status = ApplicationStatus.SUBMITTED;
+      else if (rand < 0.65) status = ApplicationStatus.VIEWED;
+      else if (rand < 0.80) status = ApplicationStatus.SHORTLISTED;
+      else if (rand < 0.90) status = ApplicationStatus.INTERVIEWING;
+      else if (rand < 0.94) status = ApplicationStatus.OFFERED;
+      else if (rand < 0.96) status = ApplicationStatus.HIRED;
+      else if (rand < 0.98) status = ApplicationStatus.REJECTED;
+      else status = ApplicationStatus.WITHDRAWN;
+
+      const submittedAt = addDays(jobCreatedAt, randomBetween(1, 10) + Math.random());
+
+      applicationsToCreate.push({
         id: randomUUID(),
         jobPostId: job.id,
         candidateProfileId: candidate.profileId,
         candidateAccountId: candidate.accountId,
-        recruiterAccountId: job.recruiterId,
-        cvVersionId: candidate.cvVersionId,
-        coverLetter: `${candidate.fullName} applied for ${job.title}`,
-        submittedAt: addDays(job.createdAt, index + 1),
-        createdAt: addDays(job.createdAt, index + 1),
-      };
-    }),
-  );
-
-  if (applications.length > 0) {
-    await prisma.application.createMany({
-      data: applications.map((application, idx) => ({
-        id: application.id,
-        jobPostId: application.jobPostId,
-        candidateProfileId: application.candidateProfileId,
-        cvVersionId: application.cvVersionId,
-        coverLetter: application.coverLetter,
-        status: statusDistribution[idx] ?? ApplicationStatus.SUBMITTED,
-        submittedAt: application.submittedAt,
-        createdAt: application.createdAt,
-        updatedAt: application.createdAt,
-      })),
+        recruiterAccountId: job.createdByRecruiterId,
+        cvVersionId: pickRandom(candidates).cvVersionId,
+        coverLetter: `${candidate.fullName} applied for ${job.title}. Eager to join and contribute.`,
+        status,
+        submittedAt: submittedAt < now ? submittedAt : now,
+        createdAt: submittedAt < now ? submittedAt : now,
+        updatedAt: submittedAt < now ? submittedAt : now,
+      });
     });
 
-    const statusLogsData: any[] = [];
-    applications.forEach((app, idx) => {
-      const targetStatus = statusDistribution[idx] ?? ApplicationStatus.SUBMITTED;
-      const baseTime = app.submittedAt;
-      const candidateAccountId = app.candidateAccountId;
-      const recruiterAccountId = app.recruiterAccountId;
-
-      const addHours = (d: Date, h: number) => new Date(d.getTime() + h * 60 * 60 * 1000);
-
-      // 1. Initial submission log
-      statusLogsData.push({
-        id: randomUUID(),
-        applicationId: app.id,
-        actorType: ActorType.CANDIDATE,
-        actorId: candidateAccountId,
-        oldStatus: null,
-        newStatus: ApplicationStatus.SUBMITTED,
-        note: 'Candidate submitted application',
-        changedAt: baseTime,
+    // Seed saved jobs
+    const savesCount = randomBetween(5, 20);
+    const saveCandidates = pickMultipleRandom(candidateProfiles, savesCount);
+    saveCandidates.forEach((candidate) => {
+      savedJobsToCreate.push({
+        candidateProfileId: candidate.profileId,
+        jobPostId: job.id,
+        createdAt: addDays(jobCreatedAt, randomBetween(1, 5)),
       });
+    });
+  }
 
-      if (targetStatus === ApplicationStatus.SUBMITTED) return;
+  if (viewsToCreate.length > 0) {
+    await prisma.jobView.createMany({ data: viewsToCreate });
+  }
 
-      // 2. Viewed log
-      if (targetStatus !== ApplicationStatus.WITHDRAWN) {
-        statusLogsData.push({
-          id: randomUUID(),
-          applicationId: app.id,
-          actorType: ActorType.RECRUITER,
-          actorId: recruiterAccountId,
-          oldStatus: ApplicationStatus.SUBMITTED,
-          newStatus: ApplicationStatus.VIEWED,
-          note: 'Recruiter viewed application details',
-          changedAt: addHours(baseTime, 2),
-        });
-      }
+  if (applicationsToCreate.length > 0) {
+    await prisma.application.createMany({
+      data: applicationsToCreate.map(app => ({
+        id: app.id,
+        jobPostId: app.jobPostId,
+        candidateProfileId: app.candidateProfileId,
+        cvVersionId: app.cvVersionId,
+        coverLetter: app.coverLetter,
+        status: app.status,
+        submittedAt: app.submittedAt,
+        createdAt: app.createdAt,
+        updatedAt: app.updatedAt,
+      }))
+    });
+  }
 
-      if (targetStatus === ApplicationStatus.VIEWED) return;
+  if (savedJobsToCreate.length > 0) {
+    await prisma.savedJob.createMany({ data: savedJobsToCreate });
+  }
 
-      // 3. Withdrawn log
-      if (targetStatus === ApplicationStatus.WITHDRAWN) {
-        statusLogsData.push({
-          id: randomUUID(),
-          applicationId: app.id,
-          actorType: ActorType.CANDIDATE,
-          actorId: candidateAccountId,
-          oldStatus: ApplicationStatus.SUBMITTED,
-          newStatus: ApplicationStatus.WITHDRAWN,
-          reason: 'Found another job opportunity',
-          note: 'Candidate withdrew application',
-          changedAt: addDays(baseTime, 1),
-        });
-        return;
-      }
+  // 2. Seed Application Status Logs & Interviews
+  const statusLogsData: any[] = [];
+  const interviewsData: any[] = [];
+  const interviewLogsData: any[] = [];
 
-      // 4. Shortlisted log
+  const addHours = (d: Date, h: number) => new Date(d.getTime() + h * 60 * 60 * 1000);
+
+  for (const app of applicationsToCreate) {
+    const baseTime = app.submittedAt;
+    const targetStatus = app.status;
+    const candidateAccountId = app.candidateAccountId;
+    const recruiterAccountId = app.recruiterAccountId;
+
+    const recruiter = recruiters.find(r => r.id === recruiterAccountId);
+    const recruiterProfileId = recruiter ? recruiter.profileId : null;
+
+    statusLogsData.push({
+      id: randomUUID(),
+      applicationId: app.id,
+      actorType: ActorType.CANDIDATE,
+      actorId: candidateAccountId,
+      oldStatus: null,
+      newStatus: ApplicationStatus.SUBMITTED,
+      note: 'Candidate submitted application',
+      changedAt: baseTime,
+    });
+
+    if (targetStatus === ApplicationStatus.SUBMITTED) continue;
+
+    if (targetStatus !== ApplicationStatus.WITHDRAWN) {
       statusLogsData.push({
         id: randomUUID(),
         applicationId: app.id,
         actorType: ActorType.RECRUITER,
         actorId: recruiterAccountId,
-        oldStatus: ApplicationStatus.VIEWED,
-        newStatus: ApplicationStatus.SHORTLISTED,
-        note: 'Candidate added to shortlist',
+        oldStatus: ApplicationStatus.SUBMITTED,
+        newStatus: ApplicationStatus.VIEWED,
+        note: 'Recruiter viewed application details',
+        changedAt: addHours(baseTime, 2),
+      });
+    }
+
+    if (targetStatus === ApplicationStatus.VIEWED) continue;
+
+    if (targetStatus === ApplicationStatus.WITHDRAWN) {
+      statusLogsData.push({
+        id: randomUUID(),
+        applicationId: app.id,
+        actorType: ActorType.CANDIDATE,
+        actorId: candidateAccountId,
+        oldStatus: ApplicationStatus.SUBMITTED,
+        newStatus: ApplicationStatus.WITHDRAWN,
+        reason: 'Found another job opportunity',
+        note: 'Candidate withdrew application',
         changedAt: addDays(baseTime, 1),
       });
+      continue;
+    }
 
-      if (targetStatus === ApplicationStatus.SHORTLISTED) return;
+    statusLogsData.push({
+      id: randomUUID(),
+      applicationId: app.id,
+      actorType: ActorType.RECRUITER,
+      actorId: recruiterAccountId,
+      oldStatus: ApplicationStatus.VIEWED,
+      newStatus: ApplicationStatus.SHORTLISTED,
+      note: 'Candidate added to shortlist',
+      changedAt: addDays(baseTime, 1),
+    });
 
-      // 5. Rejected log
-      if (targetStatus === ApplicationStatus.REJECTED) {
-        statusLogsData.push({
-          id: randomUUID(),
-          applicationId: app.id,
-          actorType: ActorType.RECRUITER,
-          actorId: recruiterAccountId,
-          oldStatus: ApplicationStatus.SHORTLISTED,
-          newStatus: ApplicationStatus.REJECTED,
-          reason: 'Qualifications do not match position requirements',
-          note: 'Application rejected by recruiter',
-          changedAt: addDays(baseTime, 2),
-        });
-        return;
-      }
+    if (targetStatus === ApplicationStatus.SHORTLISTED) continue;
 
-      // 6. Interviewing log
+    if (targetStatus === ApplicationStatus.REJECTED) {
       statusLogsData.push({
         id: randomUUID(),
         applicationId: app.id,
         actorType: ActorType.RECRUITER,
         actorId: recruiterAccountId,
         oldStatus: ApplicationStatus.SHORTLISTED,
-        newStatus: ApplicationStatus.INTERVIEWING,
-        note: 'Interview round scheduled with recruiter',
+        newStatus: ApplicationStatus.REJECTED,
+        reason: 'Qualifications do not match position requirements',
+        note: 'Application rejected by recruiter',
         changedAt: addDays(baseTime, 2),
       });
-
-      if (targetStatus === ApplicationStatus.INTERVIEWING) return;
-
-      // 7. Offered log
-      statusLogsData.push({
-        id: randomUUID(),
-        applicationId: app.id,
-        actorType: ActorType.RECRUITER,
-        actorId: recruiterAccountId,
-        oldStatus: ApplicationStatus.INTERVIEWING,
-        newStatus: ApplicationStatus.OFFERED,
-        note: 'Salary & benefits offer sent to candidate',
-        changedAt: addDays(baseTime, 5),
-      });
-
-      if (targetStatus === ApplicationStatus.OFFERED) return;
-
-      // 8. Hired log
-      statusLogsData.push({
-        id: randomUUID(),
-        applicationId: app.id,
-        actorType: ActorType.RECRUITER,
-        actorId: recruiterAccountId,
-        oldStatus: ApplicationStatus.OFFERED,
-        newStatus: ApplicationStatus.HIRED,
-        note: 'Candidate accepted offer. Hiring processed.',
-        changedAt: addDays(baseTime, 7),
-      });
-    });
-
-    if (statusLogsData.length > 0) {
-      await prisma.applicationStatusLog.createMany({
-        data: statusLogsData,
-      });
+      continue;
     }
 
-    // Lọc các hồ sơ đủ điều kiện phỏng vấn (SHORTLISTED, INTERVIEWING, OFFERED)
-    const allowedStatuses: ApplicationStatus[] = [
-      ApplicationStatus.SHORTLISTED,
-      ApplicationStatus.INTERVIEWING,
-      ApplicationStatus.OFFERED,
-    ];
-    const interviewableApps = applications.filter((app, idx) => {
-      const status = statusDistribution[idx] ?? ApplicationStatus.SUBMITTED;
-      return allowedStatuses.includes(status);
+    statusLogsData.push({
+      id: randomUUID(),
+      applicationId: app.id,
+      actorType: ActorType.RECRUITER,
+      actorId: recruiterAccountId,
+      oldStatus: ApplicationStatus.SHORTLISTED,
+      newStatus: ApplicationStatus.INTERVIEWING,
+      note: 'Interview round scheduled with recruiter',
+      changedAt: addDays(baseTime, 2),
     });
 
-    const interviewsData: any[] = [];
-    const interviewLogsData: any[] = [];
+    if (recruiterProfileId) {
+      const interviewId = randomUUID();
+      const interviewDate = addDays(baseTime, 4);
+      const startAt = new Date(interviewDate.setHours(10, 0, 0, 0));
+      const endAt = new Date(interviewDate.setHours(11, 0, 0, 0));
 
-    const interviewScenarios = [
-      // App 0 (SHORTLISTED)
-      { round: 1, type: 'ONLINE' as const, status: InterviewStatus.COMPLETED, result: InterviewResult.PASSED, daysOffset: -3 },
-      { round: 2, type: 'ONSITE' as const, status: InterviewStatus.SCHEDULED, result: InterviewResult.PENDING, daysOffset: 2 }, // Upcoming
-      // App 1 (INTERVIEWING)
-      { round: 1, type: 'ONLINE' as const, status: InterviewStatus.COMPLETED, result: InterviewResult.PENDING, daysOffset: -1 }, // Needs Review (past, pending result)
-      // App 2 (OFFERED)
-      { round: 1, type: 'ONLINE' as const, status: InterviewStatus.COMPLETED, result: InterviewResult.PASSED, daysOffset: -5 },
-      { round: 2, type: 'ONSITE' as const, status: InterviewStatus.COMPLETED, result: InterviewResult.PASSED, daysOffset: -2 },
-      // App 3 (SHORTLISTED)
-      { round: 1, type: 'ONLINE' as const, status: InterviewStatus.CANCELLED, result: InterviewResult.PENDING, daysOffset: -4 },
-      { round: 1, type: 'ONLINE' as const, status: InterviewStatus.SCHEDULED, result: InterviewResult.PENDING, daysOffset: 3 }, // Rescheduled / New scheduled
-      // App 4 (INTERVIEWING)
-      { round: 1, type: 'ONLINE' as const, status: InterviewStatus.COMPLETED, result: InterviewResult.PASSED, daysOffset: -6 },
-      { round: 2, type: 'ONLINE' as const, status: InterviewStatus.COMPLETED, result: InterviewResult.PENDING, daysOffset: -0.1 }, // Needs Review (today)
-      // App 5 (SHORTLISTED)
-      { round: 1, type: 'ONSITE' as const, status: InterviewStatus.NO_SHOW, result: InterviewResult.PENDING, daysOffset: -1 },
-      // App 6 (INTERVIEWING)
-      { round: 1, type: 'ONLINE' as const, status: InterviewStatus.SCHEDULED, result: InterviewResult.PENDING, daysOffset: 1 }, // Upcoming
-      // App 7 (SHORTLISTED)
-      { round: 1, type: 'ONLINE' as const, status: InterviewStatus.SCHEDULED, result: InterviewResult.PENDING, daysOffset: 4 }, // Upcoming
-      // App 8 (INTERVIEWING)
-      { round: 1, type: 'ONLINE' as const, status: InterviewStatus.COMPLETED, result: InterviewResult.PASSED, daysOffset: -5 },
-      { round: 2, type: 'ONSITE' as const, status: InterviewStatus.SCHEDULED, result: InterviewResult.PENDING, daysOffset: 3 }, // Upcoming
-      // App 9 (OFFERED)
-      { round: 1, type: 'ONLINE' as const, status: InterviewStatus.COMPLETED, result: InterviewResult.PASSED, daysOffset: -8 },
-      { round: 2, type: 'ONSITE' as const, status: InterviewStatus.COMPLETED, result: InterviewResult.PASSED, daysOffset: -5 },
-    ];
+      const isCompleted = [ApplicationStatus.OFFERED, ApplicationStatus.HIRED].includes(targetStatus) || (targetStatus === ApplicationStatus.INTERVIEWING && Math.random() < 0.5);
 
-    let scenarioIdx = 0;
-    for (let i = 0; i < interviewableApps.length; i++) {
-      const app = interviewableApps[i];
-      const recruiter = recruiters.find((r) => r.id === app.recruiterAccountId);
-      if (!recruiter) continue;
-      const recruiterProfileId = recruiter.profileId;
+      interviewsData.push({
+        id: interviewId,
+        recruiterProfileId,
+        applicationId: app.id,
+        interviewRound: 1,
+        type: 'ONLINE',
+        scheduledStartAt: startAt,
+        scheduledEndAt: endAt,
+        meetingUrl: 'https://zoom.us/j/upnext-mock-meeting',
+        location: null,
+        status: isCompleted ? InterviewStatus.COMPLETED : InterviewStatus.SCHEDULED,
+        result: isCompleted ? InterviewResult.PASSED : InterviewResult.PENDING,
+        recruiterNote: 'Candidate showed good communications and technical depth.',
+        rescheduleCount: 0,
+      });
 
-      const appScenarios: typeof interviewScenarios = [];
-      if (scenarioIdx < interviewScenarios.length) {
-        appScenarios.push(interviewScenarios[scenarioIdx++]);
-      }
-      // Gán thêm vòng 2 cho một số app để đạt đủ số lượng
-      if ([0, 2, 3, 4, 8, 9].includes(i) && scenarioIdx < interviewScenarios.length) {
-        appScenarios.push(interviewScenarios[scenarioIdx++]);
-      }
+      interviewLogsData.push({
+        id: randomUUID(),
+        interviewId,
+        oldStatus: null,
+        newStatus: InterviewStatus.SCHEDULED,
+        actorType: ActorType.RECRUITER,
+        actorId: recruiterAccountId,
+        note: 'Recruiter scheduled the interview',
+        createdAt: addDays(baseTime, 2),
+      });
 
-      for (const sc of appScenarios) {
-        const interviewId = randomUUID();
-        const baseDate = new Date(now.getTime() + sc.daysOffset * 24 * 60 * 60 * 1000);
-        const startAt = new Date(baseDate.setHours(10, 0, 0, 0));
-        const endAt = new Date(baseDate.setHours(11, 0, 0, 0));
-
-        interviewsData.push({
-          id: interviewId,
-          recruiterProfileId: recruiterProfileId,
-          applicationId: app.id,
-          interviewRound: sc.round,
-          type: sc.type,
-          scheduledStartAt: startAt,
-          scheduledEndAt: endAt,
-          meetingUrl: sc.type === 'ONLINE' ? 'https://zoom.us/j/upnext-mock-meeting' : null,
-          location: sc.type === 'ONSITE' ? 'UpNext Office, Landmark 81' : null,
-          status: sc.status,
-          result: sc.result,
-          recruiterNote: `Seeded note for Round ${sc.round} interview.`,
-          rescheduleCount: 0,
-        });
-
-        // Sinh logs tương ứng
-        // Log 1: Khởi tạo SCHEDULED
+      if (isCompleted) {
         interviewLogsData.push({
           id: randomUUID(),
-          interviewId: interviewId,
-          oldStatus: null,
-          newStatus: InterviewStatus.SCHEDULED,
+          interviewId,
+          oldStatus: InterviewStatus.SCHEDULED,
+          newStatus: InterviewStatus.COMPLETED,
           actorType: ActorType.RECRUITER,
-          actorId: app.recruiterAccountId,
-          note: 'Recruiter scheduled the interview',
-          createdAt: new Date(startAt.getTime() - 2 * 24 * 60 * 60 * 1000), // Lên lịch trước đó 2 ngày
+          actorId: recruiterAccountId,
+          note: 'Interview status changed to COMPLETED',
+          createdAt: endAt,
         });
-
-        // Log 2: Nếu trạng thái kết thúc không phải là SCHEDULED
-        if (sc.status !== InterviewStatus.SCHEDULED) {
-          interviewLogsData.push({
-            id: randomUUID(),
-            interviewId: interviewId,
-            oldStatus: InterviewStatus.SCHEDULED,
-            newStatus: sc.status,
-            actorType: ActorType.RECRUITER,
-            actorId: app.recruiterAccountId,
-            note: `Interview status changed to ${sc.status}`,
-            createdAt: endAt,
-          });
-        }
       }
     }
 
-    if (interviewsData.length > 0) {
-      await prisma.interview.createMany({ data: interviewsData });
-    }
-    if (interviewLogsData.length > 0) {
-      await prisma.interviewLog.createMany({ data: interviewLogsData });
-    }
+    if (targetStatus === ApplicationStatus.INTERVIEWING) continue;
+
+    statusLogsData.push({
+      id: randomUUID(),
+      applicationId: app.id,
+      actorType: ActorType.RECRUITER,
+      actorId: recruiterAccountId,
+      oldStatus: ApplicationStatus.INTERVIEWING,
+      newStatus: ApplicationStatus.OFFERED,
+      note: 'Salary & benefits offer sent to candidate',
+      changedAt: addDays(baseTime, 5),
+    });
+
+    if (targetStatus === ApplicationStatus.OFFERED) continue;
+
+    statusLogsData.push({
+      id: randomUUID(),
+      applicationId: app.id,
+      actorType: ActorType.RECRUITER,
+      actorId: recruiterAccountId,
+      oldStatus: ApplicationStatus.OFFERED,
+      newStatus: ApplicationStatus.HIRED,
+      note: 'Candidate accepted offer. Hiring processed.',
+      changedAt: addDays(baseTime, 7),
+    });
   }
 
-  const savedJobs = [
-    [0, 0],
-    [1, 0],
-    [2, 4],
-    [3, 4],
-    [4, 8],
-    [5, 12],
-    [6, 14],
-  ].map(([candidateIndex, jobIndex]) => ({
-    candidateProfileId: candidates[candidateIndex].profileId,
-    jobPostId: jobs[jobIndex].id,
-    createdAt: addDays(jobs[jobIndex].createdAt, 2),
-  }));
-
-  await prisma.savedJob.createMany({
-    data: savedJobs,
-  });
-
-  const jobViews = jobs.flatMap((job, jobIndex) =>
-    Array.from({ length: Math.max(2, 8 - Math.floor(jobIndex / 2)) }, (_, index) => ({
-      id: randomUUID(),
-      candidateProfileId: index < candidates.length && index % 2 === 0 ? candidates[index].profileId : null,
-      jobPostId: job.id,
-      visitorKey: `${SEED_KEY}-visitor-${jobIndex}-${index}`,
-      ipAddress: `10.0.${jobIndex}.${index + 1}`,
-      userAgent: 'SeedHomeTestAgent/1.0',
-      viewedAt: addDays(job.createdAt, index + 1),
-    })),
-  );
-
-  await prisma.jobView.createMany({
-    data: jobViews,
-  });
+  if (statusLogsData.length > 0) {
+    await prisma.applicationStatusLog.createMany({ data: statusLogsData });
+  }
+  if (interviewsData.length > 0) {
+    await prisma.interview.createMany({ data: interviewsData });
+  }
+  if (interviewLogsData.length > 0) {
+    await prisma.interviewLog.createMany({ data: interviewLogsData });
+  }
 
   const alphaCompany = companies[0];
   const betaCompany = companies[1];
   const gammaCompany = companies[2];
   const deltaCompany = companies[3];
 
-  // Seed CompanyReview to match the reputation activity log and cover diverse business scenarios
-  const hiredAlphaApp = applications.find(
-    (app, idx) =>
-      statusDistribution[idx] === ApplicationStatus.HIRED &&
-      jobs.find((j) => j.id === app.jobPostId)?.companyId === alphaCompany.id
+  const allInsertedApps = await prisma.application.findMany({
+    include: {
+      jobPost: true
+    }
+  });
+
+  const hiredAlphaApp = allInsertedApps.find(
+    (app) => app.status === ApplicationStatus.HIRED && app.jobPost.companyId === alphaCompany.id
   );
 
   if (hiredAlphaApp) {
@@ -2474,11 +2414,8 @@ async function main() {
     });
   }
 
-  // 2. Pending Review for Beta
-  const pendingBetaApp = applications.find(
-    (app, idx) =>
-      statusDistribution[idx] === ApplicationStatus.SHORTLISTED &&
-      jobs.find((j) => j.id === app.jobPostId)?.companyId === betaCompany.id
+  const pendingBetaApp = allInsertedApps.find(
+    (app) => app.status === ApplicationStatus.SHORTLISTED && app.jobPost.companyId === betaCompany.id
   );
   if (pendingBetaApp) {
     await prisma.companyReview.create({
@@ -2504,11 +2441,8 @@ async function main() {
     });
   }
 
-  // 3. Approved Review for Gamma (Average)
-  const approvedGammaApp = applications.find(
-    (app, idx) =>
-      statusDistribution[idx] === ApplicationStatus.INTERVIEWING &&
-      jobs.find((j) => j.id === app.jobPostId)?.companyId === gammaCompany.id
+  const approvedGammaApp = allInsertedApps.find(
+    (app) => app.status === ApplicationStatus.INTERVIEWING && app.jobPost.companyId === gammaCompany.id
   );
   if (approvedGammaApp) {
     await prisma.companyReview.create({
@@ -2534,11 +2468,8 @@ async function main() {
     });
   }
 
-  // 4. Approved Review for Delta (Low Rating)
-  const hiredDeltaApp = applications.find(
-    (app, idx) =>
-      statusDistribution[idx] === ApplicationStatus.HIRED &&
-      jobs.find((j) => j.id === app.jobPostId)?.companyId === deltaCompany.id
+  const hiredDeltaApp = allInsertedApps.find(
+    (app) => app.status === ApplicationStatus.HIRED && app.jobPost.companyId === deltaCompany.id
   );
   if (hiredDeltaApp) {
     await prisma.companyReview.create({
@@ -2564,11 +2495,8 @@ async function main() {
     });
   }
 
-  // 5. Rejected Review for Delta (Spam / Guideline Violation)
-  const submittedDeltaApp = applications.find(
-    (app, idx) =>
-      statusDistribution[idx] === ApplicationStatus.SUBMITTED &&
-      jobs.find((j) => j.id === app.jobPostId)?.companyId === deltaCompany.id
+  const submittedDeltaApp = allInsertedApps.find(
+    (app) => app.status === ApplicationStatus.SUBMITTED && app.jobPost.companyId === deltaCompany.id
   );
   if (submittedDeltaApp) {
     await prisma.companyReview.create({
@@ -2594,11 +2522,8 @@ async function main() {
     });
   }
 
-  // 6. Hidden Review for Alpha
-  const rejectedAlphaApp = applications.find(
-    (app, idx) =>
-      statusDistribution[idx] === ApplicationStatus.REJECTED &&
-      jobs.find((j) => j.id === app.jobPostId)?.companyId === alphaCompany.id
+  const rejectedAlphaApp = allInsertedApps.find(
+    (app) => app.status === ApplicationStatus.REJECTED && app.jobPost.companyId === alphaCompany.id
   );
   if (rejectedAlphaApp) {
     await prisma.companyReview.create({
@@ -2978,7 +2903,7 @@ async function main() {
   });
 
   await importItviecData(passwordHash, recruiterRole as { id: string }, employmentTypes, experienceLevels, categories, specializations);
-  console.log(`Home seed complete: ${companies.length} companies, ${jobs.length} jobs, ${applications.length} applications.`);
+  console.log(`Home seed complete: ${companies.length} companies, ${jobs.length} jobs, ${applicationsToCreate.length} applications.`);
 }
 
 async function cleanImportedData() {

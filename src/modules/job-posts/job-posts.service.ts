@@ -106,6 +106,12 @@ export class JobPostsService {
         jobCategory: true,
         employmentType: true,
         experienceLevel: true,
+        _count: {
+          select: {
+            applications: true,
+            views: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
