@@ -21,7 +21,7 @@ export class FilesService {
     const visibility = dto.visibility ?? FileVisibility.PRIVATE;
     const owner = this.resolveOwner(dto, user);
     const upload = await this.cloudinaryService.uploadBuffer(file, {
-      folder: `files/${purpose.toLowerCase()}`,
+      folder: purpose.toLowerCase(),
       fileNamePrefix: purpose.toLowerCase(),
       resourceType: 'auto',
       deliveryType: visibility === FileVisibility.PRIVATE ? 'authenticated' : 'upload',

@@ -10,18 +10,35 @@ import {
   Post,
   Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
+import { ActorType, JobStatus } from '@prisma/client';
 import { Request } from 'express';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { JobStatus } from '@prisma/client';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { CreateJobPostWithContextDto } from './dto/create-job-post-with-context.dto';
-import { UpdateJobPostDto } from './dto/update-job-post.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { CreateJobPostDto } from './dto/create-job-post.dto';
 import {
   AddLocationToJobDto,
   AddSkillToJobDto,
   AddSpecializationToJobDto,
 } from './dto/job-post-relations.dto';
+import { ListAdminJobPostsQueryDto } from './dto/list-admin-job-posts-query.dto';
+import { UpdateJobPostDto } from './dto/update-job-post.dto';
 import { JobPostsService } from './job-posts.service';
 
 @ApiTags('Job - Posts')
@@ -29,191 +46,317 @@ import { JobPostsService } from './job-posts.service';
 export class JobPostsController {
   constructor(private readonly jobPostsService: JobPostsService) {}
 
-  @ApiOperation({ summary: 'Tạo tin tuyển dụng' })
+  @ApiOperation({
+    summary: 'Tạo bản nháp tin tuyển dụng',
+    description:
+      'Recruiter tạo tin tuyển dụng dạng nháp cho công ty đang gắn với tài khoản của mình.',
+  })
+  @ApiCreatedResponse({ description: 'Tạo bản nháp tin tuyển dụng thành công.' })
+  @ApiBadRequestResponse({
+    description: 'Payload không hợp lệ hoặc công ty chưa có giấy phép kinh doanh.',
+  })
+  @ApiForbiddenResponse({ description: 'Chỉ tài khoản recruiter mới có thể tạo tin tuyển dụng.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Post()
-  create(@Body() dto: CreateJobPostWithContextDto) {
-    const { recruiterId, companyId, ...rest } = dto;
-    return this.jobPostsService.create(recruiterId, companyId, rest);
+  create(@Body() dto: CreateJobPostDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobPostsService.create(user, dto);
   }
 
-  @ApiOperation({ summary: 'Danh sách tin tuyển dụng đã xuất bản' })
+  @ApiOperation({
+    summary: 'Danh sách tin tuyển dụng đã đăng',
+    description: 'Lấy danh sách các tin tuyển dụng đang public cho candidate xem.',
+  })
+  @ApiOkResponse({ description: 'Lấy danh sách tin tuyển dụng thành công.' })
   @Get()
   findAll() {
     return this.jobPostsService.findAll();
   }
 
-  @ApiOperation({ summary: 'Chi tiết tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
+  @ApiOperation({
+    summary: 'Chi tiết tin tuyển dụng',
+    description: 'Lấy chi tiết một tin tuyển dụng đã được đăng.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiOkResponse({ description: 'Lấy chi tiết tin tuyển dụng thành công.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.jobPostsService.findOne(id);
   }
 
-  @ApiOperation({ summary: 'Cập nhật tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID (owner)', required: true })
+  @ApiOperation({
+    summary: 'Cập nhật tin tuyển dụng của tôi',
+    description: 'Recruiter cập nhật tin tuyển dụng do chính mình tạo.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiOkResponse({ description: 'Cập nhật tin tuyển dụng thành công.' })
+  @ApiBadRequestResponse({ description: 'Payload hoặc UUID không hợp lệ.' })
+  @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Patch(':id')
   update(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
     @Body() dto: UpdateJobPostDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.jobPostsService.update(id, recruiterId, dto);
+    return this.jobPostsService.update(id, user.id, dto);
   }
 
-  @ApiOperation({ summary: 'Xóa tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID (owner)', required: true })
+  @ApiOperation({
+    summary: 'Xóa tin tuyển dụng của tôi',
+    description: 'Recruiter xóa mềm tin tuyển dụng do chính mình tạo.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiNoContentResponse({ description: 'Xóa tin tuyển dụng thành công.' })
+  @ApiForbiddenResponse({ description: 'Recruiter không có quyền xóa tin tuyển dụng này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Delete(':id')
   @HttpCode(204)
   async remove(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    await this.jobPostsService.remove(id, recruiterId);
+    await this.jobPostsService.remove(id, user.id);
   }
 
-  @ApiOperation({ summary: 'Xuất bản tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID (owner)', required: true })
+  @ApiOperation({
+    summary: 'Đăng tin tuyển dụng',
+    description:
+      'Chuyển tin tuyển dụng của recruiter sang trạng thái đã đăng. Công ty phải có giấy phép kinh doanh và đã được xác thực.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiOkResponse({ description: 'Đăng tin tuyển dụng thành công.' })
+  @ApiBadRequestResponse({ description: 'Công ty chưa có giấy phép kinh doanh.' })
+  @ApiForbiddenResponse({
+    description: 'Recruiter không có quyền hoặc công ty chưa được xác thực.',
+  })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Patch(':id/publish')
-  publish(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
-  ) {
-    return this.jobPostsService.updateStatus(id, recruiterId, JobStatus.PUBLISHED);
+  publish(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobPostsService.updateStatus(id, user.id, JobStatus.PUBLISHED);
   }
 
-  @ApiOperation({ summary: 'Đóng tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID (owner)', required: true })
+  @ApiOperation({
+    summary: 'Đóng tin tuyển dụng',
+    description: 'Recruiter chuyển tin tuyển dụng của mình sang trạng thái đã đóng.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiOkResponse({ description: 'Đóng tin tuyển dụng thành công.' })
+  @ApiForbiddenResponse({ description: 'Recruiter không có quyền đóng tin tuyển dụng này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Patch(':id/close')
-  close(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
-  ) {
-    return this.jobPostsService.updateStatus(id, recruiterId, JobStatus.CLOSED);
+  close(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobPostsService.updateStatus(id, user.id, JobStatus.CLOSED);
   }
 
-  @ApiOperation({ summary: 'Mở lại tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID (owner)', required: true })
+  @ApiOperation({
+    summary: 'Mở lại tin tuyển dụng',
+    description:
+      'Recruiter mở lại tin tuyển dụng đã đóng. Công ty phải đủ điều kiện đăng tin.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiOkResponse({ description: 'Mở lại tin tuyển dụng thành công.' })
+  @ApiBadRequestResponse({ description: 'Công ty chưa có giấy phép kinh doanh.' })
+  @ApiForbiddenResponse({
+    description: 'Recruiter không có quyền hoặc công ty chưa được xác thực.',
+  })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Patch(':id/reopen')
-  reopen(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
-  ) {
-    return this.jobPostsService.updateStatus(id, recruiterId, JobStatus.PUBLISHED);
+  reopen(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.jobPostsService.updateStatus(id, user.id, JobStatus.PUBLISHED);
   }
 
-  // ─── Relations ────────────────────────────────────────────────────────────
-
-  @ApiOperation({ summary: 'Thêm kỹ năng vào tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiQuery({ name: 'recruiterId', required: true })
+  @ApiOperation({
+    summary: 'Thêm kỹ năng vào tin tuyển dụng',
+    description: 'Recruiter gắn một kỹ năng vào tin tuyển dụng do chính mình tạo.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiCreatedResponse({ description: 'Thêm kỹ năng vào tin tuyển dụng thành công.' })
+  @ApiBadRequestResponse({ description: 'Payload hoặc UUID không hợp lệ.' })
+  @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Post(':id/skills')
   addSkill(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
     @Body() dto: AddSkillToJobDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.jobPostsService.addSkillToJob(id, recruiterId, dto);
+    return this.jobPostsService.addSkillToJob(id, user.id, dto);
   }
 
-  @ApiOperation({ summary: 'Xóa kỹ năng khỏi tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiParam({ name: 'skillId', description: 'Skill UUID' })
-  @ApiQuery({ name: 'recruiterId', required: true })
+  @ApiOperation({
+    summary: 'Xóa kỹ năng khỏi tin tuyển dụng',
+    description: 'Recruiter gỡ một kỹ năng khỏi tin tuyển dụng do chính mình tạo.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiParam({ name: 'skillId', description: 'UUID của kỹ năng' })
+  @ApiNoContentResponse({ description: 'Xóa kỹ năng khỏi tin tuyển dụng thành công.' })
+  @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng hoặc kỹ năng liên kết.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Delete(':id/skills/:skillId')
   @HttpCode(204)
   async removeSkill(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Param('skillId', new ParseUUIDPipe()) skillId: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    await this.jobPostsService.removeSkillFromJob(id, skillId, recruiterId);
+    await this.jobPostsService.removeSkillFromJob(id, skillId, user.id);
   }
 
-  @ApiOperation({ summary: 'Thêm địa điểm vào tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiQuery({ name: 'recruiterId', required: true })
+  @ApiOperation({
+    summary: 'Thêm địa điểm làm việc vào tin tuyển dụng',
+    description: 'Recruiter gắn địa điểm làm việc vào tin tuyển dụng do chính mình tạo.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiCreatedResponse({ description: 'Thêm địa điểm vào tin tuyển dụng thành công.' })
+  @ApiBadRequestResponse({ description: 'Payload hoặc UUID không hợp lệ.' })
+  @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Post(':id/locations')
   addLocation(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
     @Body() dto: AddLocationToJobDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.jobPostsService.addLocationToJob(id, recruiterId, dto);
+    return this.jobPostsService.addLocationToJob(id, user.id, dto);
   }
 
-  @ApiOperation({ summary: 'Xóa địa điểm khỏi tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiParam({ name: 'locationId', description: 'Job location UUID' })
-  @ApiQuery({ name: 'recruiterId', required: true })
+  @ApiOperation({
+    summary: 'Xóa địa điểm làm việc khỏi tin tuyển dụng',
+    description: 'Recruiter gỡ địa điểm làm việc khỏi tin tuyển dụng do chính mình tạo.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiParam({ name: 'locationId', description: 'UUID của địa điểm làm việc' })
+  @ApiNoContentResponse({ description: 'Xóa địa điểm khỏi tin tuyển dụng thành công.' })
+  @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng hoặc địa điểm liên kết.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Delete(':id/locations/:locationId')
   @HttpCode(204)
   async removeLocation(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Param('locationId', new ParseUUIDPipe()) locationId: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    await this.jobPostsService.removeLocationFromJob(id, locationId, recruiterId);
+    await this.jobPostsService.removeLocationFromJob(id, locationId, user.id);
   }
 
-  @ApiOperation({ summary: 'Thêm chuyên ngành vào tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiQuery({ name: 'recruiterId', required: true })
+  @ApiOperation({
+    summary: 'Thêm chuyên ngành vào tin tuyển dụng',
+    description: 'Recruiter gắn chuyên ngành vào tin tuyển dụng do chính mình tạo.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiCreatedResponse({ description: 'Thêm chuyên ngành vào tin tuyển dụng thành công.' })
+  @ApiBadRequestResponse({ description: 'Payload hoặc UUID không hợp lệ.' })
+  @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Post(':id/specializations')
   addSpecialization(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
     @Body() dto: AddSpecializationToJobDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.jobPostsService.addSpecializationToJob(id, recruiterId, dto);
+    return this.jobPostsService.addSpecializationToJob(id, user.id, dto);
   }
 
-  @ApiOperation({ summary: 'Xóa chuyên ngành khỏi tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiParam({ name: 'specializationId', description: 'Specialization UUID' })
-  @ApiQuery({ name: 'recruiterId', required: true })
+  @ApiOperation({
+    summary: 'Xóa chuyên ngành khỏi tin tuyển dụng',
+    description: 'Recruiter gỡ chuyên ngành khỏi tin tuyển dụng do chính mình tạo.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiParam({ name: 'specializationId', description: 'UUID của chuyên ngành' })
+  @ApiNoContentResponse({ description: 'Xóa chuyên ngành khỏi tin tuyển dụng thành công.' })
+  @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng hoặc chuyên ngành liên kết.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Delete(':id/specializations/:specializationId')
   @HttpCode(204)
   async removeSpecialization(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Param('specializationId', new ParseUUIDPipe()) specializationId: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    await this.jobPostsService.removeSpecializationFromJob(id, specializationId, recruiterId);
+    await this.jobPostsService.removeSpecializationFromJob(id, specializationId, user.id);
   }
 
-  // ─── Views ───────────────────────────────────────────────────────────────
-
-  @ApiOperation({ summary: 'Ghi nhận lượt xem tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiQuery({ name: 'candidateId', required: false, description: 'Optional candidate UUID' })
+  @ApiOperation({
+    summary: 'Ghi nhận lượt xem tin tuyển dụng',
+    description: 'Ghi nhận một lượt xem cho tin tuyển dụng đang public.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiQuery({
+    name: 'candidateId',
+    required: false,
+    description: 'UUID tài khoản candidate nếu người xem đã đăng nhập.',
+  })
+  @ApiCreatedResponse({ description: 'Ghi nhận lượt xem thành công.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
   @Post(':id/views')
   recordView(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: Request,
     @Query('candidateId') candidateId?: string,
   ) {
-    return this.jobPostsService.recordView(
-      id,
-      req.ip,
-      req.headers['user-agent'],
-      candidateId,
-    );
+    return this.jobPostsService.recordView(id, req.ip, req.headers['user-agent'], candidateId);
   }
 
-  @ApiOperation({ summary: 'Lấy thống kê lượt xem tin tuyển dụng' })
-  @ApiParam({ name: 'id', description: 'Job post UUID' })
-  @ApiQuery({ name: 'recruiterId', required: true })
+  @ApiOperation({
+    summary: 'Thống kê lượt xem tin tuyển dụng',
+    description: 'Recruiter xem tổng số lượt xem của tin tuyển dụng do chính mình tạo.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiOkResponse({
+    description: 'Lấy thống kê lượt xem thành công.',
+    schema: {
+      example: {
+        views: 128,
+      },
+    },
+  })
+  @ApiForbiddenResponse({ description: 'Recruiter không có quyền xem thống kê tin này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Get(':id/views/stats')
   getViewStats(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.jobPostsService.getViewStats(id, recruiterId);
+    return this.jobPostsService.getViewStats(id, user.id);
   }
 }
 
@@ -222,10 +365,80 @@ export class JobPostsController {
 export class RecruiterJobPostsController {
   constructor(private readonly jobPostsService: JobPostsService) {}
 
-  @ApiOperation({ summary: 'Danh sách tin tuyển dụng của tôi' })
-  @ApiQuery({ name: 'recruiterId', description: 'Recruiter account UUID', required: true })
+  @ApiOperation({
+    summary: 'Danh sách tin tuyển dụng của tôi',
+    description: 'Recruiter lấy danh sách tất cả tin tuyển dụng do chính mình tạo.',
+  })
+  @ApiOkResponse({ description: 'Lấy danh sách tin tuyển dụng của recruiter thành công.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @Get()
-  getMyJobPosts(@Query('recruiterId', new ParseUUIDPipe()) recruiterId: string) {
-    return this.jobPostsService.getMyJobPosts(recruiterId);
+  getMyJobPosts(@CurrentUser() user: AuthenticatedUser) {
+    return this.jobPostsService.getMyJobPosts(user.id);
+  }
+}
+
+@ApiTags('Admin - Job Posts')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(ActorType.ADMIN)
+@Controller('admin/job-posts')
+export class AdminJobPostsController {
+  constructor(private readonly jobPostsService: JobPostsService) {}
+
+  @ApiOperation({
+    summary: 'Danh sach tin tuyen dung cho admin',
+    description:
+      'Admin lay danh sach tin tuyen dung, ho tro phan trang, tim kiem theo tieu de/cong ty/recruiter va filter trang thai.',
+  })
+  @ApiOkResponse({
+    description: 'Lay danh sach tin tuyen dung thanh cong.',
+    schema: {
+      example: {
+        items: [
+          {
+            id: '1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf',
+            title: 'Senior Backend Developer',
+            status: 'PUBLISHED',
+            moderationStatus: 'APPROVED',
+            company: {
+              id: '8e10280c-ae2d-4579-a048-c25279447a3e',
+              name: 'UpNext Labs',
+              status: 'ACTIVE',
+              verificationStatus: 'VERIFIED',
+            },
+            createdByRecruiter: {
+              id: '5a5bf82c-02c0-41b1-b41c-95f29aa3dfd7',
+              email: 'recruiter@upnext.dev',
+              profile: {
+                id: '6f30df7d-1d53-4d6d-8df9-5c28925f14ed',
+                fullName: 'Nguyen Van A',
+              },
+            },
+            _count: {
+              applications: 12,
+              views: 128,
+              savedJobs: 5,
+            },
+            createdAt: '2026-06-25T08:00:00.000Z',
+          },
+        ],
+        meta: {
+          page: 1,
+          limit: 20,
+          total: 1,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+      },
+    },
+  })
+  @ApiBadRequestResponse({ description: 'Tham so truy van khong hop le.' })
+  @ApiForbiddenResponse({ description: 'Chi admin moi co the goi endpoint nay.' })
+  @Get()
+  findAll(@Query() query: ListAdminJobPostsQueryDto) {
+    return this.jobPostsService.findAllForAdmin(query);
   }
 }

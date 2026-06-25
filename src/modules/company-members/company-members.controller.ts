@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -22,6 +23,11 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import { ActorType } from '@prisma/client';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CompanyMembersService } from './company-members.service';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
@@ -79,6 +85,9 @@ export class CompanyMembersController {
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiConflictResponse({ description: 'Recruiter is already a member' })
   @ApiNotFoundResponse({ description: 'Company or recruiter account not found' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post('companies/:companyId/members/invite')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)

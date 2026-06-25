@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -62,10 +63,22 @@ export class CompanyMembersService {
     const company = await this.ensureCompanyExists(companyId);
     const invitedEmail = dto.email.toLowerCase();
 
+    if (user.role !== ActorType.ADMIN && user.companyId !== companyId) {
+      throw new ForbiddenException('You do not have permission to invite members to this company');
+    }
+
+    if (invitedEmail === user.email.toLowerCase()) {
+      throw new BadRequestException('You cannot invite your own email address');
+    }
+
     const recruiterAccount = await this.prisma.recruiterAccount.findUnique({
       where: { email: invitedEmail },
-      select: { id: true, email: true },
+      select: { id: true, email: true, companyId: true },
     });
+
+    if (recruiterAccount?.companyId === companyId) {
+      throw new ConflictException(`Email ${invitedEmail} is already a member of this company`);
+    }
 
     const existing = await this.prisma.companyMember.findFirst({
       where: {

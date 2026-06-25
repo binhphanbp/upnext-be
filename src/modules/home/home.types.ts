@@ -1,5 +1,3 @@
-import { HomeJobTab } from './dto/home-query.dto';
-
 export type HomeApiResponse<T> = {
   success: true;
   data: T;

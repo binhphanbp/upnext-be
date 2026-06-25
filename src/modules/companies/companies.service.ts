@@ -29,14 +29,16 @@ export class CompaniesService {
   ) {}
 
   create(createCompanyDto: CreateCompanyDto) {
-    return this.prisma.company.create({
-      data: createCompanyDto,
-    }).catch((e: unknown) => {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new ConflictException('A company with this tax code already exists');
-      }
-      throw e;
-    });
+    return this.prisma.company
+      .create({
+        data: createCompanyDto,
+      })
+      .catch((e: unknown) => {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new ConflictException('A company with this tax code already exists');
+        }
+        throw e;
+      });
   }
 
   async findAll(query: ListCompaniesQueryDto) {
@@ -51,9 +53,7 @@ export class CompaniesService {
           }
         : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.verificationStatus
-        ? { verificationStatus: query.verificationStatus }
-        : {}),
+      ...(query.verificationStatus ? { verificationStatus: query.verificationStatus } : {}),
       ...(query.type ? { type: query.type } : {}),
     };
 
@@ -78,37 +78,62 @@ export class CompaniesService {
   }
 
   async findOne(id: string) {
-    const company = await this.prisma.company.findUnique({
-      where: { id },
-      include: {
-        recruiterAccounts: {
-          include: {
-            profile: true,
-            recruiterRole: true,
-          },
-        },
-        members: {
-          include: {
-            recruiterAccount: {
-              include: {
-                profile: true,
-              },
+    const [company, coverFile, photos] = await Promise.all([
+      this.prisma.company.findUnique({
+        where: { id },
+        include: {
+          logoFile: true,
+          recruiterAccounts: {
+            include: {
+              profile: true,
+              recruiterRole: true,
             },
-            role: true,
+          },
+          members: {
+            include: {
+              recruiterAccount: {
+                include: {
+                  profile: true,
+                },
+              },
+              role: true,
+            },
+          },
+          jobPosts: {
+            orderBy: { createdAt: 'desc' },
+            take: 10,
           },
         },
-        jobPosts: {
-          orderBy: { createdAt: 'desc' },
-          take: 10,
+      }),
+      this.prisma.fileAsset.findFirst({
+        where: {
+          ownerType: 'company_cover',
+          ownerId: id,
         },
-      },
-    });
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+      this.prisma.fileAsset.findMany({
+        where: {
+          ownerType: 'company_photo',
+          ownerId: id,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+    ]);
 
     if (!company) {
       throw new NotFoundException(`Company ${id} not found`);
     }
 
-    return company;
+    return {
+      ...company,
+      coverFile,
+      photos,
+    };
   }
 
   async findJobs(id: string) {
@@ -202,14 +227,67 @@ export class CompaniesService {
     };
   }
 
+  async uploadPhoto(id: string, file: UploadedFile) {
+    await this.ensureCompanyExists(id);
+    const savedFile = await this.saveCompanyFile(id, 'photo', file);
+
+    const asset = await this.prisma.fileAsset.create({
+      data: {
+        ownerType: 'company_photo',
+        ownerId: id,
+        purpose: FilePurpose.OTHER,
+        visibility: FileVisibility.PUBLIC,
+        storageKey: savedFile.storageKey,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        sizeBytes: BigInt(file.size),
+        publicUrl: savedFile.publicUrl,
+      },
+    });
+
+    return {
+      message: 'Company photo uploaded successfully',
+      file: {
+        id: asset.id,
+        originalName: asset.originalName,
+        mimeType: asset.mimeType,
+        sizeBytes: asset.sizeBytes.toString(),
+        storageKey: asset.storageKey,
+        publicUrl: asset.publicUrl,
+      },
+    };
+  }
+
+  async deletePhoto(companyId: string, photoId: string) {
+    await this.ensureCompanyExists(companyId);
+
+    const asset = await this.prisma.fileAsset.findFirst({
+      where: {
+        id: photoId,
+        ownerType: 'company_photo',
+        ownerId: companyId,
+      },
+    });
+
+    if (!asset) {
+      throw new NotFoundException(`Photo ${photoId} not found`);
+    }
+
+    await this.prisma.fileAsset.delete({
+      where: { id: photoId },
+    });
+
+    return { message: 'Photo deleted successfully' };
+  }
+
   async remove(id: string) {
     await this.ensureCompanyExists(id);
     await this.prisma.company.delete({ where: { id } });
   }
 
   async uploadBusinessLicense(id: string, file: UploadedFile, user: AuthenticatedUser) {
-    const company = await this.ensureCompanyExists(id);
-    this.checkCompanyPermission(id, user);
+    await this.ensureCompanyExists(id);
+    await this.checkCompanyPermission(id, user);
 
     const savedFile = await this.cloudinaryService.uploadBuffer(file, {
       folder: `companies/${id}`,
@@ -240,7 +318,9 @@ export class CompaniesService {
       },
     });
 
-    const signedUrl = this.cloudinaryService.createSignedUrl(asset.storageKey);
+    const signedUrl = this.cloudinaryService.createSignedUrl(asset.storageKey, {
+      resourceType: savedFile.resourceType,
+    });
 
     return {
       message: 'Business license uploaded successfully. Verification status is now PENDING.',
@@ -263,6 +343,7 @@ export class CompaniesService {
         businessLicenseFile: {
           select: {
             storageKey: true,
+            mimeType: true,
           },
         },
       },
@@ -272,13 +353,24 @@ export class CompaniesService {
       throw new NotFoundException(`Company ${id} not found`);
     }
 
-    this.checkCompanyPermission(id, user);
+    await this.checkCompanyPermission(id, user);
 
     if (!company.businessLicenseFileId || !company.businessLicenseFile) {
       throw new BadRequestException('This company has not uploaded a business license yet');
     }
 
-    const signedUrl = this.cloudinaryService.createSignedUrl(company.businessLicenseFile.storageKey);
+    const mimeType = company.businessLicenseFile.mimeType;
+    let resourceType: 'image' | 'raw' | 'video' = 'raw';
+    if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
+      resourceType = 'image';
+    } else if (mimeType.startsWith('video/') || mimeType.startsWith('audio/')) {
+      resourceType = 'video';
+    }
+
+    const signedUrl = this.cloudinaryService.createSignedUrl(
+      company.businessLicenseFile.storageKey,
+      { resourceType },
+    );
 
     return {
       url: signedUrl,
@@ -289,10 +381,10 @@ export class CompaniesService {
     const company = await this.ensureCompanyExists(id);
 
     const isVerified = dto.status === 'VERIFIED';
-    const scoreChange = isVerified ? 50.00 : -5.00;
+    const scoreChange = isVerified ? 50.0 : -5.0;
     const actionType = isVerified ? 'BUSINESS_LICENSE_VERIFIED' : 'REJECTED_VERIFICATION';
-    const defaultReason = isVerified 
-      ? 'Giấy phép đăng ký kinh doanh được phê duyệt' 
+    const defaultReason = isVerified
+      ? 'Giấy phép đăng ký kinh doanh được phê duyệt'
       : 'Yêu cầu xác thực doanh nghiệp bị từ chối';
     const reason = dto.reason ?? defaultReason;
 
@@ -330,7 +422,7 @@ export class CompaniesService {
 
   async getReputationActivities(id: string, user: AuthenticatedUser) {
     await this.ensureCompanyExists(id);
-    this.checkCompanyPermission(id, user);
+    await this.checkCompanyPermission(id, user);
 
     return this.prisma.companyReputationActivity.findMany({
       where: { companyId: id },
@@ -347,10 +439,26 @@ export class CompaniesService {
     });
   }
 
-  private checkCompanyPermission(companyId: string, user: AuthenticatedUser) {
-    if (user.role !== ActorType.ADMIN && user.companyId !== companyId) {
-      throw new ForbiddenException('You do not have permission to manage this company');
+  private async checkCompanyPermission(companyId: string, user: AuthenticatedUser) {
+    if (user.role === ActorType.ADMIN || user.companyId === companyId) {
+      return;
     }
+
+    if (user.role === ActorType.RECRUITER) {
+      const account = await this.prisma.recruiterAccount.findFirst({
+        where: {
+          id: user.id,
+          companyId,
+        },
+        select: { id: true },
+      });
+
+      if (account) {
+        return;
+      }
+    }
+
+    throw new ForbiddenException('You do not have permission to manage this company');
   }
 
   private async ensureCompanyExists(id: string) {
@@ -365,7 +473,7 @@ export class CompaniesService {
     return company;
   }
 
-  private async saveCompanyFile(id: string, kind: 'logo' | 'cover', file?: UploadedFile) {
+  private async saveCompanyFile(id: string, kind: 'logo' | 'cover' | 'photo', file?: UploadedFile) {
     if (!file) {
       throw new BadRequestException('File is required');
     }

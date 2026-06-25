@@ -42,7 +42,7 @@ export class SavedJobsService {
           },
         },
       });
-    } catch (error) {
+    } catch {
       throw new NotFoundException('Saved job not found');
     }
   }

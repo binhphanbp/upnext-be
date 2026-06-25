@@ -24,9 +24,24 @@ import 'dotenv/config';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+type ImportedItviecSkill = {
+  name?: string;
+  minYearsExperience?: number | null;
+};
+
+type ImportedItviecJob = {
+  skills?: ImportedItviecSkill[];
+  [key: string]: any;
+};
+
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required to run Prisma seed.');
+}
+
 const adapter = new PrismaPg({
-  connectionString:
-    process.env.DATABASE_URL ?? 'postgresql://upnext:upnext@localhost:5432/upnext?schema=public',
+  connectionString: databaseUrl,
 });
 const prisma = new PrismaClient({ adapter });
 
@@ -1949,12 +1964,12 @@ async function main() {
     const company = companyByKey[definition.companyKey];
     const recruiter = recruiterByCompanyId[company.id];
     
-    const employmentType = employmentTypes[definition.employmentTypeKey as keyof typeof employmentTypes];
+    const employmentType = employmentTypes[definition.employmentTypeKey];
     if (!employmentType) {
       throw new Error(`Employment type key "${definition.employmentTypeKey}" not found in seeded employmentTypes.`);
     }
     
-    const experienceLevel = experienceLevels[definition.experienceLevelKey as keyof typeof experienceLevels];
+    const experienceLevel = experienceLevels[definition.experienceLevelKey];
     if (!experienceLevel) {
       throw new Error(`Experience level key "${definition.experienceLevelKey}" not found in seeded experienceLevels.`);
     }
@@ -2961,7 +2976,7 @@ async function importItviecData(
     return;
   }
 
-  const jobsData = JSON.parse(fs.readFileSync(jobsPath, 'utf-8')) as { jobs: any[] };
+  const jobsData = JSON.parse(fs.readFileSync(jobsPath, 'utf-8')) as { jobs: ImportedItviecJob[] };
   const companiesData = JSON.parse(fs.readFileSync(companiesPath, 'utf-8')) as any[];
 
   console.log(`Loaded ${companiesData.length} companies and ${jobsData.jobs.length} jobs.`);
