@@ -52,15 +52,7 @@ export class RecruitersService {
       include: {
         profile: true,
         recruiterRole: true,
-        company: {
-          select: {
-            id: true,
-            name: true,
-            status: true,
-            verificationStatus: true,
-            businessLicenseFileId: true,
-          },
-        },
+        company: { select: { id: true, name: true, status: true, verificationStatus: true, businessLicenseFileId: true } },
         companyMembers: true,
       },
     });
@@ -243,5 +235,25 @@ export class RecruitersService {
     }
 
     return profile;
+  }
+
+  async getDashboardStats(recruiterId: string) {
+    const [totalJobPosts, totalCandidates] = await Promise.all([
+      this.prisma.jobPost.count({
+        where: { createdByRecruiterId: recruiterId },
+      }),
+      this.prisma.application.count({
+        where: {
+          jobPost: {
+            createdByRecruiterId: recruiterId,
+          },
+        },
+      }),
+    ]);
+
+    return {
+      totalJobPosts,
+      totalCandidates,
+    };
   }
 }

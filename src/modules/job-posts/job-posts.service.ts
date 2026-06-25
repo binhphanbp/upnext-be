@@ -106,9 +106,17 @@ export class JobPostsService {
 
   async getMyJobPosts(recruiterId: string) {
     return this.prisma.jobPost.findMany({
-      where: {
-        createdByRecruiterId: recruiterId,
-        deletedAt: null,
+      where: { createdByRecruiterId: recruiterId },
+      include: {
+        jobCategory: true,
+        employmentType: true,
+        experienceLevel: true,
+        _count: {
+          select: {
+            applications: true,
+            views: true,
+          },
+        },
       },
       include: this.ownerJobPostInclude(),
       orderBy: { createdAt: 'desc' },
