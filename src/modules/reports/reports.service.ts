@@ -54,7 +54,11 @@ export class ReportsService {
         reporterCandidate: {
           select: {
             id: true,
-            fullName: true,
+            account: {
+              select: {
+                fullName: true,
+              },
+            },
           },
         },
         reporterRecruiter: {
@@ -112,7 +116,11 @@ export class ReportsService {
           reporterCandidate: {
             select: {
               id: true,
-              fullName: true,
+              account: {
+                select: {
+                  fullName: true,
+                },
+              },
             },
           },
           reporterRecruiter: {
@@ -172,7 +180,11 @@ export class ReportsService {
         reporterCandidate: {
           select: {
             id: true,
-            fullName: true,
+            account: {
+              select: {
+                fullName: true,
+              },
+            },
           },
         },
         reporterRecruiter: {
@@ -223,7 +235,11 @@ export class ReportsService {
         reporterCandidate: {
           select: {
             id: true,
-            fullName: true,
+            account: {
+              select: {
+                fullName: true,
+              },
+            },
           },
         },
         reporterRecruiter: {
