@@ -288,3 +288,48 @@ axios.interceptors.response.use(
   }
 );
 ```
+
+---
+
+## 5. Quy trình cấu hình và kích hoạt Quyền mới (Ví dụ: Sửa bài viết)
+
+Để một quyền hạn mới tạo có hiệu lực và tác động trực tiếp ngay lập tức trên hệ thống phân quyền động, bạn hãy làm theo các bước chuẩn dưới đây:
+
+### Bước 1: Gán mã quyền vào API Endpoint của Module ở Backend
+Ở controller của module muốn bảo vệ (ví dụ: `AdminPostsController`), bạn gắn Decorator `@AdminPermissions('mã_quyền_của_bạn')` và khai báo `AdminPermissionsGuard`:
+```typescript
+@UseGuards(JwtAuthGuard, RolesGuard, AdminPermissionsGuard)
+@Controller('admin/posts')
+export class AdminPostsController {
+  @Patch(':id')
+  @AdminPermissions('posts:write') // Yêu cầu mã quyền này
+  update(...) { ... }
+}
+```
+
+### Bước 2: Đăng ký Quyền trong Database (Qua API hoặc Giao diện Admin)
+Khi quản trị viên tối cao (Super Admin) tạo mới quyền qua giao diện hoặc gọi API:
+- Gửi yêu cầu tới `POST /admin/permissions`:
+  ```json
+  {
+    "permissionName": "Sửa bài viết",
+    "permissionCode": "posts:write", // Trùng khớp với mã khai báo ở decorator Backend
+    "module": "posts",
+    "description": "Cho phép sửa nội dung bài viết"
+  }
+  ```
+  *(Hệ thống sẽ ghi nhận và tạo ID cho quyền này, ví dụ: `perm-uuid-123`)*
+
+### Bước 3: Liên kết Quyền với Vai trò (Roles)
+- Gửi yêu cầu gán danh sách quyền tới `POST /admin/roles/{roleId}/permissions` bao gồm cả ID của quyền mới tạo để liên kết vào vai trò:
+  ```json
+  {
+    "permissionIds": [
+      "perm-uuid-123"
+    ]
+  }
+  ```
+
+### Bước 4: Tác dụng ngay lập tức
+- Vì `AdminPermissionsGuard` tại BE kiểm tra trực tiếp qua cơ sở dữ liệu trên mỗi request API, ngay khi việc gán quyền ở **Bước 3** hoàn thành, các Admin thuộc vai trò đó khi gửi request tới API `PATCH /admin/posts/:id` sẽ được hệ thống cho phép truy cập ngay lập tức mà không cần phải restart server hay đăng nhập lại.
+
