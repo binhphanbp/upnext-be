@@ -168,22 +168,4 @@ export class RecruiterAccountsController {
     await this.recruitersService.deactivateAccount(id);
   }
 
-  @ApiOperation({
-    summary: 'Thống kê dashboard nhà tuyển dụng',
-    description: 'Lấy số lượng tin tuyển dụng và ứng viên của nhà tuyển dụng.',
-  })
-  @ApiParam({ name: 'id', description: 'Recruiter account UUID' })
-  @ApiOkResponse({
-    description: 'Stats fetched successfully',
-    schema: {
-      example: {
-        totalJobPosts: 5,
-        totalCandidates: 12,
-      },
-    },
-  })
-  @Get(':id/dashboard-stats')
-  getDashboardStats(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.recruitersService.getDashboardStats(id);
-  }
 }

@@ -37,11 +37,7 @@ import {
   CompanyMemberInvitationStatus,
   CompanyMemberRoleUpdate,
 } from './entities/company-member.entity';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { ActorType } from '@prisma/client';
+
 
 @ApiTags('Company - Members')
 @Controller()

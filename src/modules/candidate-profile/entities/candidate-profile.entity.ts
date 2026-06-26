@@ -5,6 +5,8 @@ import { CandidateEducation } from '../../candidate-educations/entities/candidat
 import { CandidateLanguage } from '../../candidate-languages/entities/candidate-language.entity';
 import { CandidateLink } from '../../candidate-links/entities/candidate-link.entity';
 import { CandidateProject } from '../../candidate-projects/entities/candidate-project.entity';
+import { CandidateJobPreference } from '../../candidate-job-preferences/entities/candidate-job-preference.entity';
+import { CandidateSkill } from '../../candidate-skills/entities/candidate-skill.entity';
 
 export class CandidateProfileAccount {
   @ApiProperty({ example: '1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf' })
@@ -15,6 +17,38 @@ export class CandidateProfileAccount {
 
   @ApiProperty({ example: 'pductoandev@gmail.com' })
   email: string;
+}
+
+export class CandidateProfileExperience {
+  @ApiProperty({ example: '3f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf' })
+  id: string;
+
+  @ApiProperty({ example: 'ABC Tech' })
+  companyName: string;
+
+  @ApiProperty({ example: 'Backend Developer' })
+  positionTitle: string;
+
+  @ApiPropertyOptional({ example: 'Full-time', nullable: true })
+  employmentType: string | null;
+
+  @ApiPropertyOptional({ example: '2024-03-01T00:00:00.000Z', nullable: true })
+  startDate: Date | null;
+
+  @ApiPropertyOptional({ example: '2025-03-01T00:00:00.000Z', nullable: true })
+  endDate: Date | null;
+
+  @ApiProperty({ example: true })
+  isCurrent: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  description: string | null;
+
+  @ApiPropertyOptional({ example: 'Node.js, NestJS, PostgreSQL', nullable: true })
+  technologies: string | null;
+
+  @ApiProperty({ example: 0 })
+  sortOrder: number;
 }
 
 export class CandidateProfile {
@@ -57,6 +91,12 @@ export class CandidateProfile {
   @ApiPropertyOptional({ type: CandidateEducation, isArray: true })
   educations?: CandidateEducation[];
 
+  @ApiPropertyOptional({ type: CandidateProfileExperience, isArray: true })
+  experiences?: CandidateProfileExperience[];
+
+  @ApiPropertyOptional({ type: CandidateSkill, isArray: true })
+  skills?: CandidateSkill[];
+
   @ApiPropertyOptional({ type: CandidateProject, isArray: true })
   projects?: CandidateProject[];
 
@@ -68,4 +108,7 @@ export class CandidateProfile {
 
   @ApiPropertyOptional({ type: CandidateLink, isArray: true })
   links?: CandidateLink[];
+
+  @ApiPropertyOptional({ type: CandidateJobPreference, nullable: true })
+  jobPreference?: CandidateJobPreference | null;
 }

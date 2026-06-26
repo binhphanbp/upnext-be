@@ -15,7 +15,7 @@ import { CreateCvDto } from './dto/create-cv.dto';
 import { UpdateCvDto } from './dto/update-cv.dto';
 import { CvEntity, CvList } from './entities/cv.entity';
 
-@ApiTags('CVs')
+@ApiTags('Cvs')
 @Controller('cvs')
 export class CvsController {
   constructor(private readonly cvsService: CvsService) {}
