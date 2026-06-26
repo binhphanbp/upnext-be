@@ -40,6 +40,7 @@ import { CompanySubscriptionsModule } from './modules/company-subscriptions/comp
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { InterviewsModule } from './modules/interviews/interviews.module';
 import { HealthModule } from './modules/health/health.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SearchKeywordModule } from './modules/search-keyword/search-keyword.module';
@@ -92,6 +93,7 @@ import { SearchKeywordModule } from './modules/search-keyword/search-keyword.mod
     InterviewsModule,
     HealthModule,
     SearchKeywordModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}
