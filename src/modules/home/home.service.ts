@@ -27,11 +27,12 @@ export class HomeService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getHome(query: HomeQueryDto): Promise<HomeApiResponse<HomeData>> {
-    const [stats, jobsSection, topCompanies, marketInsight] = await Promise.all([
+    const [stats, jobsSection, topCompanies, marketInsight, companyLogos] = await Promise.all([
       this.getStatsOverview(),
       this.getJobsSection(query.jobPage, query.jobLimit),
       this.getTopCompanies(query.topCompaniesLimit),
       this.getMarketInsight(query.latestJobsLimit),
+      this.getCompanyLogos(5),
     ]);
 
     return {
@@ -41,6 +42,7 @@ export class HomeService {
         jobsSection,
         topCompanies,
         marketInsight,
+        companyLogos,
       },
     };
   }
@@ -122,6 +124,34 @@ export class HomeService {
       shortDescription: row.description ?? '',
       activeJobsCount: this.toNumber(row.active_jobs_count),
       applicationsCount: this.toNumber(row.applications_count),
+    }));
+  }
+
+  async getCompanyLogos(limit: number) {
+    const companies = await this.prisma.company.findMany({
+      where: {
+        logoFileId: { not: null },
+        status: CompanyStatus.ACTIVE,
+      },
+      take: limit,
+      select: {
+        id: true,
+        name: true,
+        logoFile: {
+          select: {
+            publicUrl: true,
+          },
+        },
+      },
+      orderBy: {
+        reputationScore: 'desc',
+      },
+    });
+
+    return companies.map((c) => ({
+      id: c.id,
+      name: c.name,
+      logo: c.logoFile?.publicUrl || '',
     }));
   }
 
