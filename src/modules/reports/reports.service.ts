@@ -248,7 +248,11 @@ export class ReportsService {
             where: { id: targetId },
             select: {
               id: true,
-              fullName: true,
+              account: {
+                select: {
+                  fullName: true,
+                },
+              },
             },
           });
         case 'POST':
