@@ -36,6 +36,7 @@ import { CompanySubscriptionsModule } from './modules/company-subscriptions/comp
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { InterviewsModule } from './modules/interviews/interviews.module';
 import { HealthModule } from './modules/health/health.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { HealthModule } from './modules/health/health.module';
     InvoicesModule,
     InterviewsModule,
     HealthModule,
+    NotificationsModule,
   ],
 })
 export class AppModule { }
