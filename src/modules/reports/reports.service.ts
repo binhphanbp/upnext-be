@@ -10,10 +10,10 @@ export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(user: AuthenticatedUser, dto: CreateReportDto) {
-    let reporterCandidateId: string | null = null;
-    let reporterRecruiterId: string | null = null;
+    if (user.role !== ActorType.CANDIDATE) {
+      throw new BadRequestException('Only Candidates can create reports.');
+    }
 
-    // Validate evidence file if provided
     if (dto.evidenceFileId) {
       const file = await this.prisma.fileAsset.findUnique({
         where: { id: dto.evidenceFileId },
@@ -23,21 +23,14 @@ export class ReportsService {
       }
     }
 
-    if (user.role === ActorType.CANDIDATE) {
-      // Find candidate profile ID from candidateAccountId
-      const candidateProfile = await this.prisma.candidateProfile.findUnique({
-        where: { candidateAccountId: user.id },
-      });
-      if (!candidateProfile) {
-        throw new NotFoundException('Candidate profile not found');
-      }
-      reporterCandidateId = candidateProfile.id;
-    } else if (user.role === ActorType.RECRUITER) {
-      // RecruiterAccountId is user.id directly
-      reporterRecruiterId = user.id;
-    } else {
-      throw new BadRequestException('Only Candidates and Recruiters can create reports.');
+    // Find candidate profile ID from candidateAccountId
+    const candidateProfile = await this.prisma.candidateProfile.findUnique({
+      where: { candidateAccountId: user.id },
+    });
+    if (!candidateProfile) {
+      throw new NotFoundException('Candidate profile not found');
     }
+    const reporterCandidateId = candidateProfile.id;
 
     return this.prisma.report.create({
       data: {
@@ -46,7 +39,6 @@ export class ReportsService {
         reason: dto.reason,
         evidenceFileId: dto.evidenceFileId ?? null,
         reporterCandidateId,
-        reporterRecruiterId,
         status: ReportStatus.PENDING,
       },
       include: {
@@ -61,17 +53,7 @@ export class ReportsService {
             },
           },
         },
-        reporterRecruiter: {
-          select: {
-            id: true,
-            email: true,
-            profile: {
-              select: {
-                fullName: true,
-              },
-            },
-          },
-        },
+
       },
     });
   }
@@ -123,17 +105,7 @@ export class ReportsService {
               },
             },
           },
-          reporterRecruiter: {
-            select: {
-              id: true,
-              email: true,
-              profile: {
-                select: {
-                  fullName: true,
-                },
-              },
-            },
-          },
+
           handledByAdmin: {
             select: {
               id: true,
@@ -187,17 +159,7 @@ export class ReportsService {
             },
           },
         },
-        reporterRecruiter: {
-          select: {
-            id: true,
-            email: true,
-            profile: {
-              select: {
-                fullName: true,
-              },
-            },
-          },
-        },
+
         handledByAdmin: {
           select: {
             id: true,
@@ -242,17 +204,7 @@ export class ReportsService {
             },
           },
         },
-        reporterRecruiter: {
-          select: {
-            id: true,
-            email: true,
-            profile: {
-              select: {
-                fullName: true,
-              },
-            },
-          },
-        },
+
         handledByAdmin: {
           select: {
             id: true,

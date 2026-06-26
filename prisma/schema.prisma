@@ -761,7 +761,6 @@ model RecruiterAccount {
     shortlists     RecruiterCandidateShortlist[]
     jobBoosts      JobBoost[]                    @relation("JobBoostCreatedByRecruiter")
     appeals        Appeal[]
-    reportedReports Report[]                     @relation("ReportedByRecruiter")
 
     @@index([companyId])
     @@index([recruiterRoleId])
@@ -1303,7 +1302,6 @@ model Report {
     id                  String       @id @default(uuid()) @db.Uuid
     evidenceFileId      String?      @map("evidence_file_id") @db.Uuid
     reporterCandidateId String?      @map("reporter_candidate_id") @db.Uuid
-    reporterRecruiterId String?      @map("reporter_recruiter_id") @db.Uuid
     handledByAdminId    String?      @map("handled_by_admin_id") @db.Uuid
     targetType          String       @map("target_type") @db.VarChar(80)
     targetId            String       @map("target_id") @db.Uuid
@@ -1314,7 +1312,6 @@ model Report {
 
     evidenceFile      FileAsset?        @relation("ReportEvidenceFile", fields: [evidenceFileId], references: [id], onDelete: SetNull)
     reporterCandidate CandidateProfile? @relation(fields: [reporterCandidateId], references: [id], onDelete: SetNull)
-    reporterRecruiter RecruiterAccount? @relation("ReportedByRecruiter", fields: [reporterRecruiterId], references: [id], onDelete: SetNull)
     handledByAdmin    AdminUser?        @relation("ReportHandledByAdmin", fields: [handledByAdminId], references: [id], onDelete: SetNull)
 
     @@index([targetType, targetId])

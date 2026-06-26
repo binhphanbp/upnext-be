@@ -16,8 +16,8 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Post()
-  @Roles(ActorType.CANDIDATE, ActorType.RECRUITER)
-  @ApiOperation({ summary: 'Tạo báo cáo vi phạm mới (Ứng viên & Nhà tuyển dụng)' })
+  @Roles(ActorType.CANDIDATE)
+  @ApiOperation({ summary: 'Tạo báo cáo vi phạm mới (Ứng viên)' })
   @ApiCreatedResponse({ description: 'Báo cáo vi phạm đã được tạo thành công.' })
   create(@Body() dto: CreateReportDto, @CurrentUser() user: AuthenticatedUser) {
     return this.reportsService.create(user, dto);
