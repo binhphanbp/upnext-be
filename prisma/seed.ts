@@ -2989,6 +2989,65 @@ async function main() {
     ],
   });
 
+  // --- Seed Reports ---
+  console.log('Seeding reports dynamically...');
+  const dbCandidateProfiles = await prisma.candidateProfile.findMany({
+    take: 5,
+  });
+  const dbJobPosts = await prisma.jobPost.findMany({
+    take: 5,
+  });
+  const dbCompanies = await prisma.company.findMany({
+    take: 5,
+  });
+
+  if (dbCandidateProfiles.length > 0) {
+    // Report 1: Pending Job Post Report
+    await prisma.report.create({
+      data: {
+        reporterCandidateId: dbCandidateProfiles[0].id,
+        targetType: 'JOB_POST',
+        targetId: dbJobPosts[0]?.id || '00000000-0000-0000-0000-000000000000',
+        reason: 'This job post contains misleading salary information and scam links.',
+        status: 'PENDING',
+      },
+    });
+
+    // Report 2: Resolved Company Report
+    await prisma.report.create({
+      data: {
+        reporterCandidateId: dbCandidateProfiles[1 % dbCandidateProfiles.length].id,
+        targetType: 'COMPANY',
+        targetId: dbCompanies[0]?.id || '00000000-0000-0000-0000-000000000000',
+        reason: 'The company is posting spam messages and copying logos from other brands.',
+        status: 'RESOLVED',
+        handledByAdminId: adminUser.id,
+      },
+    });
+
+    // Report 3: Reviewing Candidate Profile Report
+    await prisma.report.create({
+      data: {
+        reporterCandidateId: dbCandidateProfiles[2 % dbCandidateProfiles.length].id,
+        targetType: 'CANDIDATE',
+        targetId: dbCandidateProfiles[3 % dbCandidateProfiles.length]?.id || '00000000-0000-0000-0000-000000000000',
+        reason: 'This profile contains highly inappropriate language and fake certificates.',
+        status: 'REVIEWING',
+      },
+    });
+
+    // Report 4: Pending Post/Blog Report
+    await prisma.report.create({
+      data: {
+        reporterCandidateId: dbCandidateProfiles[0].id,
+        targetType: 'POST',
+        targetId: post1.id,
+        reason: 'This article is plagiarized directly from another blog post.',
+        status: 'PENDING',
+      },
+    });
+  }
+
   await importItviecData(passwordHash, recruiterRole as { id: string }, employmentTypes, experienceLevels, categories, specializations);
   console.log(`Home seed complete: ${companies.length} companies, ${jobs.length} jobs, ${applicationsToCreate.length} applications.`);
 }
