@@ -1568,6 +1568,27 @@ model InterviewScoreDimension {
     @@map("interview_score_dimensions")
 }
 
+model SearchKeywordLog {
+  id                BigInt   @id @default(autoincrement())
+  keyword           String   @db.VarChar(255)
+  normalizedKeyword String   @map("normalized_keyword") @db.VarChar(255)
+  canonicalKeyword  String   @default("") @map("canonical_keyword") @db.VarChar(255)
+
+  userId            String?  @map("user_id") @db.VarChar(191)
+  sessionId         String?  @map("session_id") @db.VarChar(255)
+  ipAddress         String?  @map("ip_address") @db.VarChar(64)
+
+  source            String?  @db.VarChar(50)
+  resultCount       Int?     @map("result_count")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([normalizedKeyword])
+  @@index([createdAt])
+  @@index([normalizedKeyword, createdAt])
+  @@index([canonicalKeyword])
+  @@index([canonicalKeyword, createdAt])
+  @@map("search_keyword_logs")
 // =========================
 // Notifications module
 // =========================

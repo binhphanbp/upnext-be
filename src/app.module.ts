@@ -43,6 +43,7 @@ import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { SearchKeywordModule } from './modules/search-keyword/search-keyword.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     InvoicesModule,
     InterviewsModule,
     HealthModule,
+    SearchKeywordModule,
     NotificationsModule,
   ],
 })
