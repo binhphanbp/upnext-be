@@ -54,15 +54,7 @@ async function bootstrap() {
 
   const openApiConfig = new DocumentBuilder()
     .setTitle('UpNext API')
-    .setDescription(
-      'Backend API for the UpNext IT recruitment platform.\n\n' +
-        '### 🔐 Hướng dẫn Phân Quyền Động Admin (Dynamic RBAC Check)\n' +
-        'Để một quyền mới tạo (ví dụ: `posts:write` - Sửa bài viết) có tác dụng bảo vệ API ngay lập tức:\n' +
-        '1. **Khai báo ở Code (Backend)**: Đóng dấu route trong Controller bằng `@AdminPermissions(\'posts:write\')` và đăng ký `@UseGuards(AdminPermissionsGuard)`.\n' +
-        '2. **Tạo Quyền trong Database**: Gọi API `POST /api/v1/admin/permissions` với `permissionCode: "posts:write"` để định nghĩa quyền.\n' +
-        '3. **Gán Quyền cho Vai trò (Role)**: Gọi API `POST /api/v1/admin/roles/{roleId}/permissions` gửi lên ID của quyền vừa tạo để liên kết nó vào vai trò.\n' +
-        '4. **Tác dụng ngay**: BE kiểm tra động ở DB trên từng request. Quyền mới sẽ có tác dụng kiểm tra bảo mật API ngay lập tức cho các Admin thuộc vai trò đó mà không cần khởi động lại server.',
-    )
+    .setDescription('Backend API for the UpNext IT recruitment platform.')
     .setVersion('1.0')
     .addBearerAuth()
     .addTag('Candidate - Auth', 'Đăng ký và đăng nhập ứng viên')
