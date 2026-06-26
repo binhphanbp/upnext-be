@@ -40,6 +40,7 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { InterviewsModule } from './modules/interviews/interviews.module';
 import { HealthModule } from './modules/health/health.module';
 import { PostsModule } from './modules/posts/posts.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { PostsModule } from './modules/posts/posts.module';
     AuthModule,
     AdminUsersModule,
     PostsModule,
+    ReportsModule,
     CompaniesModule,
     RecruitersModule,
     CompanyMembersModule,
