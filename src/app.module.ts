@@ -41,6 +41,7 @@ import { InterviewsModule } from './modules/interviews/interviews.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PostsModule } from './modules/posts/posts.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { PostsModule } from './modules/posts/posts.module';
     AuthModule,
     AdminUsersModule,
     PostsModule,
+    ReportsModule,
     CompaniesModule,
     RecruitersModule,
     CompanyMembersModule,
