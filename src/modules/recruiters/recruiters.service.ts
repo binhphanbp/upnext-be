@@ -237,23 +237,4 @@ export class RecruitersService {
     return profile;
   }
 
-  async getDashboardStats(recruiterId: string) {
-    const [totalJobPosts, totalCandidates] = await Promise.all([
-      this.prisma.jobPost.count({
-        where: { createdByRecruiterId: recruiterId },
-      }),
-      this.prisma.application.count({
-        where: {
-          jobPost: {
-            createdByRecruiterId: recruiterId,
-          },
-        },
-      }),
-    ]);
-
-    return {
-      totalJobPosts,
-      totalCandidates,
-    };
-  }
 }

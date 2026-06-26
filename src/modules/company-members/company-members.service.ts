@@ -63,11 +63,11 @@ export class CompanyMembersService {
     const company = await this.ensureCompanyExists(companyId);
     const invitedEmail = dto.email.toLowerCase();
 
-    if (user.role !== ActorType.ADMIN && user.companyId !== companyId) {
+    if (currentUser.role !== ActorType.ADMIN && currentUser.companyId !== companyId) {
       throw new ForbiddenException('You do not have permission to invite members to this company');
     }
 
-    if (invitedEmail === user.email.toLowerCase()) {
+    if (invitedEmail === currentUser.email.toLowerCase()) {
       throw new BadRequestException('You cannot invite your own email address');
     }
 
