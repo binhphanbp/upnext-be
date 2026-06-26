@@ -669,6 +669,7 @@ model Company {
     businessLicenseFileId String?                   @map("business_license_file_id") @db.Uuid
     type                  CompanyType               @default(OTHER)
     name                  String                    @db.VarChar(200)
+    slug                  String                    @unique @db.VarChar(200)
     taxCode               String?                   @unique @map("tax_code") @db.VarChar(50)
     address               String?                   @db.VarChar(255)
     email                 String?                   @db.VarChar(255)

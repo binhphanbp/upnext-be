@@ -1217,6 +1217,9 @@ async function main() {
       coverFileId,
       businessLicenseFileId,
       taxCode: `${SEED_TAX_CODE_PREFIX}${definition.key.toUpperCase()}`,
+      email: `${definition.key}@seed-home-test.upnext.dev`,
+      website: `https://${definition.key}.seed-home-test.upnext.dev`,
+      slug: toSlug(definition.name),
       email: definition.key === 'alpha' ? 'hr@northstar.dev' : definition.key === 'beta' ? 'contact@bluewave.com' : definition.key === 'gamma' ? 'jobs@orbitai.vn' : 'support@vertex.tech',
       website: definition.key === 'alpha' ? 'https://northstar.dev' : definition.key === 'beta' ? 'https://bluewave.com' : definition.key === 'gamma' ? 'https://orbitai.vn' : 'https://vertex.tech',
     };
@@ -1292,6 +1295,7 @@ async function main() {
 
       return {
         id: company.id,
+        slug: company.slug,
         logoFileId: company.logoFileId,
         businessLicenseFileId: company.businessLicenseFileId,
         type: company.type,
@@ -3659,6 +3663,7 @@ async function importItviecData(
       data: {
         id: companyId,
         name: item.Name,
+        slug: item.Slug,
         logoFileId: logoFileId,
         type: companyType,
         taxCode: `IMPORT_${hashSlug.toUpperCase()}`,

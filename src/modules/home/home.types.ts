@@ -96,6 +96,11 @@ export type HomeData = {
     }>;
     latestJobs: HomeLatestJobCard[];
   };
+  companyLogos: Array<{
+    slug: string;
+    name: string;
+    logo: string;
+  }>;
 };
 
 export type HomeJobsSectionTab = {
