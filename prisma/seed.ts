@@ -948,6 +948,7 @@ async function main() {
       taxCode: `${SEED_TAX_CODE_PREFIX}${definition.key.toUpperCase()}`,
       email: `${definition.key}@seed-home-test.upnext.dev`,
       website: `https://${definition.key}.seed-home-test.upnext.dev`,
+      slug: toSlug(definition.name),
     };
   });
 
@@ -1021,6 +1022,7 @@ async function main() {
 
       return {
         id: company.id,
+        slug: company.slug,
         logoFileId: company.logoFileId,
         businessLicenseFileId: company.businessLicenseFileId,
         type: company.type,
@@ -3215,6 +3217,7 @@ async function importItviecData(
       data: {
         id: companyId,
         name: item.Name,
+        slug: item.Slug,
         logoFileId: logoFileId,
         type: companyType,
         taxCode: `IMPORT_${hashSlug.toUpperCase()}`,

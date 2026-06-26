@@ -135,7 +135,7 @@ export class HomeService {
       },
       take: limit,
       select: {
-        id: true,
+        slug: true,
         name: true,
         logoFile: {
           select: {
@@ -149,7 +149,7 @@ export class HomeService {
     });
 
     return companies.map((c) => ({
-      id: c.id,
+      slug: c.slug,
       name: c.name,
       logo: c.logoFile?.publicUrl || '',
     }));

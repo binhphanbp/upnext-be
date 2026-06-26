@@ -107,15 +107,15 @@ export class CompaniesController {
     summary: 'Chi tiết công ty',
     description: 'Lấy chi tiết hồ sơ công ty kèm recruiter, member và job gần đây.',
   })
-  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiParam({ name: 'idOrSlug', description: 'Company UUID or string slug' })
   @ApiOkResponse({
     description: 'Lấy chi tiết công ty thành công.',
     type: CompanyDetail,
   })
   @ApiNotFoundResponse({ description: 'Không tìm thấy công ty' })
-  @Get(':id')
-  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.companiesService.findOne(id);
+  @Get(':idOrSlug')
+  findOne(@Param('idOrSlug') idOrSlug: string) {
+    return this.companiesService.findOne(idOrSlug);
   }
 
   /**

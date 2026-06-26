@@ -20,6 +20,7 @@ import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { VerifyCompanyDto } from './dto/verify-company.dto';
+import { slugify } from '../../common/utils/slugify';
 
 @Injectable()
 export class CompaniesService {
@@ -28,10 +29,20 @@ export class CompaniesService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  create(createCompanyDto: CreateCompanyDto) {
+  async create(createCompanyDto: CreateCompanyDto) {
+    let slug = slugify(createCompanyDto.name);
+    const existing = await this.prisma.company.findUnique({ where: { slug } });
+    if (existing) {
+      const uniqueSuffix = Math.random().toString(36).substring(2, 7);
+      slug = `${slug}-${uniqueSuffix}`;
+    }
+
     return this.prisma.company
       .create({
-        data: createCompanyDto,
+        data: {
+          ...createCompanyDto,
+          slug,
+        },
       })
       .catch((e: unknown) => {
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -77,38 +88,46 @@ export class CompaniesService {
     };
   }
 
-  async findOne(id: string) {
-    const [company, coverFile, photos] = await Promise.all([
-      this.prisma.company.findUnique({
-        where: { id },
-        include: {
-          logoFile: true,
-          recruiterAccounts: {
-            include: {
-              profile: true,
-              recruiterRole: true,
-            },
-          },
-          members: {
-            include: {
-              recruiterAccount: {
-                include: {
-                  profile: true,
-                },
-              },
-              role: true,
-            },
-          },
-          jobPosts: {
-            orderBy: { createdAt: 'desc' },
-            take: 10,
+  async findOne(idOrSlug: string) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+    const whereCondition = isUuid ? { id: idOrSlug } : { slug: idOrSlug };
+
+    const company = await this.prisma.company.findUnique({
+      where: whereCondition,
+      include: {
+        logoFile: true,
+        recruiterAccounts: {
+          include: {
+            profile: true,
+            recruiterRole: true,
           },
         },
-      }),
+        members: {
+          include: {
+            recruiterAccount: {
+              include: {
+                profile: true,
+              },
+            },
+            role: true,
+          },
+        },
+        jobPosts: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
+      },
+    });
+
+    if (!company) {
+      throw new NotFoundException(`Company ${idOrSlug} not found`);
+    }
+
+    const [coverFile, photos] = await Promise.all([
       this.prisma.fileAsset.findFirst({
         where: {
           ownerType: 'company_cover',
-          ownerId: id,
+          ownerId: company.id,
         },
         orderBy: {
           createdAt: 'desc',
@@ -117,17 +136,13 @@ export class CompaniesService {
       this.prisma.fileAsset.findMany({
         where: {
           ownerType: 'company_photo',
-          ownerId: id,
+          ownerId: company.id,
         },
         orderBy: {
           createdAt: 'desc',
         },
       }),
     ]);
-
-    if (!company) {
-      throw new NotFoundException(`Company ${id} not found`);
-    }
 
     return {
       ...company,
