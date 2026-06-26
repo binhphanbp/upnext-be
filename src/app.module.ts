@@ -33,6 +33,7 @@ import { HomeModule } from './modules/home/home.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
+import { AdminRolesModule } from './modules/admin-roles/admin-roles.module';
 import { CvsModule } from './modules/cvs/cvs.module';
 import { SubscriptionPlansModule } from './modules/subscription-plans/subscription-plans.module';
 import { CompanySubscriptionsModule } from './modules/company-subscriptions/company-subscriptions.module';
@@ -51,6 +52,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     CloudinaryModule,
     AuthModule,
     AdminUsersModule,
+    AdminRolesModule,
     PostsModule,
     ReportsModule,
     CompaniesModule,

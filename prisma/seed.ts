@@ -458,18 +458,62 @@ async function main() {
 
   const passwordHash = await hash('Password123!', 12);
 
+  const adminPermissionsToSeed = [
+    { permissionName: 'Xem vai trò', permissionCode: 'roles:read', module: 'roles', description: 'Cho phép xem các vai trò admin' },
+    { permissionName: 'Quản lý vai trò', permissionCode: 'roles:write', module: 'roles', description: 'Cho phép tạo, sửa, xóa, gán quyền vai trò admin' },
+    { permissionName: 'Xem quyền hạn', permissionCode: 'permissions:read', module: 'permissions', description: 'Cho phép xem danh sách các quyền hạn admin' },
+    { permissionName: 'Quản lý quyền hạn', permissionCode: 'permissions:write', module: 'permissions', description: 'Cho phép tạo, sửa, xóa các quyền hạn admin' },
+    { permissionName: 'Xem bài viết', permissionCode: 'posts:read', module: 'posts', description: 'Cho phép xem các bài viết blog/news' },
+    { permissionName: 'Quản lý bài viết', permissionCode: 'posts:write', module: 'posts', description: 'Cho phép tạo, sửa, xóa bài viết blog/news' },
+    { permissionName: 'Xem báo cáo', permissionCode: 'reports:read', module: 'reports', description: 'Cho phép xem báo cáo vi phạm' },
+    { permissionName: 'Xử lý báo cáo', permissionCode: 'reports:write', module: 'reports', description: 'Cho phép duyệt/xử lý báo cáo vi phạm' },
+  ];
+
+  const seededAdminPermissions = [];
+  for (const perm of adminPermissionsToSeed) {
+    const record = await prisma.adminPermission.upsert({
+      where: { permissionCode: perm.permissionCode },
+      update: {
+        permissionName: perm.permissionName,
+        module: perm.module,
+        description: perm.description,
+      },
+      create: perm,
+    });
+    seededAdminPermissions.push(record);
+  }
+
   const adminRole = await prisma.adminRole.upsert({
-    where: { roleName: 'Platform Admin' },
+    where: { roleName: 'super_admin' },
     update: {},
     create: {
-      roleName: 'Platform Admin',
-      description: 'Default administrator role for local development.',
+      roleName: 'super_admin',
+      description: 'Default administrator role with full access bypass.',
     },
   });
 
+  // Link all default permissions to super_admin role
+  for (const perm of seededAdminPermissions) {
+    await prisma.adminRolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: adminRole.id,
+          permissionId: perm.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: adminRole.id,
+        permissionId: perm.id,
+      },
+    });
+  }
+
   const adminUser = await prisma.adminUser.upsert({
     where: { email: 'admin@upnext.dev' },
-    update: {},
+    update: {
+      roleId: adminRole.id,
+    },
     create: {
       email: 'admin@upnext.dev',
       fullName: 'UpNext Admin',
