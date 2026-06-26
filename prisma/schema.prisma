@@ -285,6 +285,7 @@ model CandidateAccount {
     updatedAt              DateTime      @updatedAt @map("updated_at")
 
     profile CandidateProfile?
+    notificationTokens NotificationToken[]
 
     @@unique([authProvider, providerUserId])
     @@map("candidate_accounts")
@@ -761,6 +762,7 @@ model RecruiterAccount {
     shortlists     RecruiterCandidateShortlist[]
     jobBoosts      JobBoost[]                    @relation("JobBoostCreatedByRecruiter")
     appeals        Appeal[]
+    notificationTokens NotificationToken[]
 
     @@index([companyId])
     @@index([recruiterRoleId])
@@ -1232,6 +1234,7 @@ model AdminUser {
     handledAppeals       Appeal[]                    @relation("AppealHandledByAdmin")
     subscriptionPlans    SubscriptionPlan[]          @relation("SubscriptionPlanCreatedByAdmin")
     reputationActivities CompanyReputationActivity[]
+    notificationTokens NotificationToken[]
 
     @@index([roleId])
     @@map("admin")
@@ -1562,4 +1565,28 @@ model InterviewScoreDimension {
 
     @@unique([mockInterviewId, dimensionCode])
     @@map("interview_score_dimensions")
+}
+
+// =========================
+// Notifications module
+// =========================
+
+model NotificationToken {
+    id                 String            @id @default(uuid()) @db.Uuid
+    token              String            @unique
+    deviceType         String?           @map("device_type") @db.VarChar(50)
+    candidateAccountId String?           @map("candidate_account_id") @db.Uuid
+    recruiterAccountId String?           @map("recruiter_account_id") @db.Uuid
+    adminUserId        String?           @map("admin_user_id") @db.Uuid
+    createdAt          DateTime          @default(now()) @map("created_at")
+    updatedAt          DateTime          @updatedAt @map("updated_at")
+
+    candidateAccount   CandidateAccount? @relation(fields: [candidateAccountId], references: [id], onDelete: Cascade)
+    recruiterAccount   RecruiterAccount? @relation(fields: [recruiterAccountId], references: [id], onDelete: Cascade)
+    adminUser          AdminUser?        @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+    @@index([candidateAccountId])
+    @@index([recruiterAccountId])
+    @@index([adminUserId])
+    @@map("notification_tokens")
 }
