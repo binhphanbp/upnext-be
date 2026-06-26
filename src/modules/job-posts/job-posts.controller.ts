@@ -388,12 +388,12 @@ export class AdminJobPostsController {
   constructor(private readonly jobPostsService: JobPostsService) {}
 
   @ApiOperation({
-    summary: 'Danh sach tin tuyen dung cho admin',
+    summary: 'Danh sách tin tuyển dụng cho admin',
     description:
-      'Admin lay danh sach tin tuyen dung, ho tro phan trang, tim kiem theo tieu de/cong ty/recruiter va filter trang thai.',
+      'Admin lấy danh sách tin tuyển dụng, hỗ trợ phân trang, tìm kiếm theo tiêu đề/công ty/recruiter và filter trạng thái.',
   })
   @ApiOkResponse({
-    description: 'Lay danh sach tin tuyen dung thanh cong.',
+    description: 'Lấy danh sách tin tuyển dụng thành công.',
     schema: {
       example: {
         items: [
@@ -435,8 +435,8 @@ export class AdminJobPostsController {
       },
     },
   })
-  @ApiBadRequestResponse({ description: 'Tham so truy van khong hop le.' })
-  @ApiForbiddenResponse({ description: 'Chi admin moi co the goi endpoint nay.' })
+  @ApiBadRequestResponse({ description: 'Tham số truy vấn không hợp lệ.' })
+  @ApiForbiddenResponse({ description: 'Chỉ admin mới có thể gọi endpoint này.' })
   @Get()
   findAll(@Query() query: ListAdminJobPostsQueryDto) {
     return this.jobPostsService.findAllForAdmin(query);

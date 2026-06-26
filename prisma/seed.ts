@@ -2856,6 +2856,7 @@ async function main() {
       metaTitle: 'Top 5 CV Writing Tips for IT Candidates | UpNext',
       metaDescription: 'Learn how to write a standout resume for software engineering roles with our top 5 CV writing tips.',
       metaKeywords: 'cv writing, resume tips, software engineer resume, it resume',
+      createdAt: addDays(now, -5),
     },
   });
 
@@ -2871,6 +2872,7 @@ async function main() {
       metaTitle: 'How AI is Revolutionizing Developer Hiring | UpNext News',
       metaDescription: 'Discover the latest trends in tech recruitment and how AI is helping recruiters find top developer talent.',
       metaKeywords: 'ai recruiting, developer hiring, recruitment automation',
+      createdAt: addDays(now, -3),
     },
   });
 
@@ -2886,6 +2888,7 @@ async function main() {
       metaTitle: 'Salary Negotiation Guide for Software Developers | UpNext',
       metaDescription: 'A step-by-step guide to help software developers negotiate salary, benefits, and equity packages.',
       metaKeywords: 'salary negotiation, developer salary, compensation package',
+      createdAt: addDays(now, -2),
     },
   });
 
@@ -2901,6 +2904,71 @@ async function main() {
       metaTitle: 'Why NestJS is the Best Node.js Framework | UpNext',
       metaDescription: 'Explore the key features of NestJS that make it the industry standard for backend development.',
       metaKeywords: 'nestjs, nodejs, backend framework, web architecture',
+      createdAt: addDays(now, -1),
+    },
+  });
+
+  const post5 = await prisma.post.create({
+    data: {
+      title: 'Draft: Getting Started with TypeScript 5.x',
+      slug: `${SEED_KEY}-getting-started-typescript-5`,
+      content: '<p>TypeScript 5.x brings a ton of performance improvements and new features like decorators. Here is how you can start using it today.</p>',
+      status: 'DRAFT',
+      type: 'BLOG',
+      categoryId: techCategory.id,
+      adminId: adminUser.id,
+      metaTitle: 'Getting Started with TypeScript 5.x | UpNext',
+      metaDescription: 'A beginner-friendly guide to setting up and starting with TypeScript 5.x.',
+      metaKeywords: 'typescript, ts, javascript development, typed js',
+      createdAt: addDays(now, -10),
+    },
+  });
+
+  const post6 = await prisma.post.create({
+    data: {
+      title: 'Archived: Legacy Coding Standards in 2024',
+      slug: `${SEED_KEY}-legacy-coding-standards-2024`,
+      content: '<p>This document details the older guidelines and conventions used for JavaScript development prior to the modern ES2026 upgrade.</p>',
+      status: 'ARCHIVED',
+      type: 'BLOG',
+      categoryId: techCategory.id,
+      adminId: adminUser.id,
+      metaTitle: 'Legacy Coding Standards in 2024 | UpNext',
+      metaDescription: 'Archived coding practices and standards for Node.js projects.',
+      metaKeywords: 'legacy code, coding standards, javascript guidelines',
+      createdAt: addDays(now, -30),
+    },
+  });
+
+  const post7 = await prisma.post.create({
+    data: {
+      title: 'FAQ: How to apply for jobs on UpNext',
+      slug: `${SEED_KEY}-faq-how-to-apply`,
+      content: '<p>Applying for jobs on UpNext is very straightforward. Create your profile, upload your CV, and click the Apply button on any active job post.</p>',
+      status: 'PUBLISHED',
+      type: 'FAQ',
+      categoryId: careerCategory.id,
+      adminId: adminUser.id,
+      metaTitle: 'FAQ: How to apply for jobs on UpNext | Help Center',
+      metaDescription: 'Frequently asked questions about applying for software engineering jobs on UpNext.',
+      metaKeywords: 'faq, job application, candidate guide, support',
+      createdAt: addDays(now, -8),
+    },
+  });
+
+  const post8 = await prisma.post.create({
+    data: {
+      title: 'Draft: Understanding Web3 and Smart Contracts',
+      slug: `${SEED_KEY}-understanding-web3`,
+      content: '<p>A deep dive into decentralization, smart contracts, Solidity development, and what the future of blockchain technology holds for developers.</p>',
+      status: 'DRAFT',
+      type: 'NEWS',
+      categoryId: hiringCategory.id,
+      adminId: adminUser.id,
+      metaTitle: 'Understanding Web3 and Smart Contracts | UpNext',
+      metaDescription: 'Learn the fundamentals of Web3 and how smart contracts work on Ethereum.',
+      metaKeywords: 'web3, blockchain, smart contract, solidity, ethereum',
+      createdAt: addDays(now, -15),
     },
   });
 
@@ -2914,6 +2982,10 @@ async function main() {
       { postId: post3.id, tagId: salaryTag.id },
       { postId: post3.id, tagId: interviewTag.id },
       { postId: post4.id, tagId: aiTag.id },
+      { postId: post5.id, tagId: aiTag.id },
+      { postId: post6.id, tagId: aiTag.id },
+      { postId: post7.id, tagId: interviewTag.id },
+      { postId: post8.id, tagId: brandingTag.id },
     ],
   });
 
