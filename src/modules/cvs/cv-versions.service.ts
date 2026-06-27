@@ -163,14 +163,14 @@ export class CvVersionsService {
           throw new Error('Cloudinary download failed');
         }
 
-        const nodeStream = Readable.fromWeb(response.body as any);
+        const nodeStream = Readable.fromWeb(response.body as unknown as Parameters<typeof Readable.fromWeb>[0]);
 
         return {
           stream: nodeStream,
           fileName: version.sourceFile.originalName,
           mimeType: version.sourceFile.mimeType,
         };
-      } catch (error) {
+      } catch {
         throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ đám mây');
       }
     }
