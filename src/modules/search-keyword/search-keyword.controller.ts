@@ -12,11 +12,7 @@ export class SearchKeywordController {
 
   @ApiOperation({ summary: 'Lưu lại từ khóa người dùng tìm kiếm' })
   @Post('log')
-  async log(
-    @Body() dto: LogSearchKeywordDto,
-    @Req() req: Request,
-    @Ip() ipAddress: string,
-  ) {
+  async log(@Body() dto: LogSearchKeywordDto, @Req() req: Request, @Ip() ipAddress: string) {
     const authHeader = req.headers.authorization;
     await this.searchKeywordService.logSearchKeyword(dto, authHeader, ipAddress);
     return { success: true };
@@ -28,4 +24,3 @@ export class SearchKeywordController {
     return this.searchKeywordService.getTopSearchKeywords(query);
   }
 }
-

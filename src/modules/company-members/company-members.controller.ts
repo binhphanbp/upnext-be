@@ -38,7 +38,6 @@ import {
   CompanyMemberRoleUpdate,
 } from './entities/company-member.entity';
 
-
 @ApiTags('Company - Members')
 @Controller()
 export class CompanyMembersController {

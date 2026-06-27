@@ -18,14 +18,13 @@ export class CompanySubscriptionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.ADMIN, ActorType.RECRUITER)
   @Post()
-  subscribe(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: SubscribeCompanyDto,
-  ) {
+  subscribe(@CurrentUser() user: AuthenticatedUser, @Body() dto: SubscribeCompanyDto) {
     return this.subscriptionsService.subscribe(user, dto);
   }
 
-  @ApiOperation({ summary: 'Lấy thông tin gói đang hoạt động của công ty hiện tại (Dành cho Recruiter)' })
+  @ApiOperation({
+    summary: 'Lấy thông tin gói đang hoạt động của công ty hiện tại (Dành cho Recruiter)',
+  })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.RECRUITER)
@@ -37,7 +36,9 @@ export class CompanySubscriptionsController {
     return this.subscriptionsService.getActiveSubscription(user.companyId);
   }
 
-  @ApiOperation({ summary: 'Xem lịch sử đăng ký gói dịch vụ (Admin xem tất cả, Recruiter xem của công ty mình)' })
+  @ApiOperation({
+    summary: 'Xem lịch sử đăng ký gói dịch vụ (Admin xem tất cả, Recruiter xem của công ty mình)',
+  })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.ADMIN, ActorType.RECRUITER)

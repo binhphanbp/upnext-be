@@ -1,12 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender, JobSearchStatus, ProfileVisibility } from '@prisma/client';
-import {
-  IsDateString,
-  IsEnum,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateCandidateProfileDto {
   @ApiPropertyOptional({ example: '0916110241', maxLength: 30 })
@@ -20,7 +14,10 @@ export class UpdateCandidateProfileDto {
   @IsEnum(Gender)
   gender?: Gender;
 
-  @ApiPropertyOptional({ example: '688 Quang trung, Phường thông tây hội, Thành phố Hồ Chí Minh', maxLength: 255 })
+  @ApiPropertyOptional({
+    example: '688 Quang trung, Phường thông tây hội, Thành phố Hồ Chí Minh',
+    maxLength: 255,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(255)

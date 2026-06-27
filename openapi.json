@@ -34,9 +34,7 @@
           }
         },
         "summary": "Đăng nhập Admin và nhận token truy cập JWT",
-        "tags": [
-          "Admin - Auth"
-        ]
+        "tags": ["Admin - Auth"]
       }
     },
     "/companies": {
@@ -75,9 +73,7 @@
           }
         ],
         "summary": "Tạo công ty",
-        "tags": [
-          "Companies"
-        ]
+        "tags": ["Companies"]
       },
       "get": {
         "description": "Lấy danh sách công ty, có hỗ trợ tìm kiếm, filter và pagination.",
@@ -127,10 +123,7 @@
             "schema": {
               "example": "ACTIVE",
               "type": "string",
-              "enum": [
-                "ACTIVE",
-                "LOCKED"
-              ]
+              "enum": ["ACTIVE", "LOCKED"]
             }
           },
           {
@@ -140,12 +133,7 @@
             "schema": {
               "example": "VERIFIED",
               "type": "string",
-              "enum": [
-                "UNVERIFIED",
-                "PENDING",
-                "VERIFIED",
-                "REJECTED"
-              ]
+              "enum": ["UNVERIFIED", "PENDING", "VERIFIED", "REJECTED"]
             }
           },
           {
@@ -155,13 +143,7 @@
             "schema": {
               "example": "PRODUCT",
               "type": "string",
-              "enum": [
-                "PRODUCT",
-                "OUTSOURCING",
-                "STARTUP",
-                "AGENCY",
-                "OTHER"
-              ]
+              "enum": ["PRODUCT", "OUTSOURCING", "STARTUP", "AGENCY", "OTHER"]
             }
           }
         ],
@@ -178,9 +160,7 @@
           }
         },
         "summary": "Danh sách công ty",
-        "tags": [
-          "Companies"
-        ]
+        "tags": ["Companies"]
       }
     },
     "/companies/{id}": {
@@ -214,9 +194,7 @@
           }
         },
         "summary": "Chi tiết công ty",
-        "tags": [
-          "Companies"
-        ]
+        "tags": ["Companies"]
       },
       "patch": {
         "description": "Cập nhật thông tin công ty theo company id.",
@@ -266,9 +244,7 @@
           }
         ],
         "summary": "Cập nhật công ty",
-        "tags": [
-          "Companies"
-        ]
+        "tags": ["Companies"]
       },
       "delete": {
         "description": "Xóa một công ty theo company id.",
@@ -298,9 +274,7 @@
           }
         ],
         "summary": "Xóa công ty",
-        "tags": [
-          "Companies"
-        ]
+        "tags": ["Companies"]
       }
     },
     "/companies/{id}/jobs": {
@@ -337,9 +311,7 @@
           }
         },
         "summary": "Danh sách việc làm của công ty",
-        "tags": [
-          "Companies"
-        ]
+        "tags": ["Companies"]
       }
     },
     "/companies/{id}/logo": {
@@ -369,9 +341,7 @@
                     "format": "binary"
                   }
                 },
-                "required": [
-                  "file"
-                ]
+                "required": ["file"]
               }
             }
           }
@@ -400,9 +370,7 @@
           }
         ],
         "summary": "Tải lên logo công ty",
-        "tags": [
-          "Companies"
-        ]
+        "tags": ["Companies"]
       }
     },
     "/companies/{id}/cover": {
@@ -432,9 +400,7 @@
                     "format": "binary"
                   }
                 },
-                "required": [
-                  "file"
-                ]
+                "required": ["file"]
               }
             }
           }
@@ -463,9 +429,7 @@
           }
         ],
         "summary": "Tải lên ảnh bìa công ty",
-        "tags": [
-          "Companies"
-        ]
+        "tags": ["Companies"]
       }
     },
     "/recruiter/auth/login": {
@@ -501,9 +465,7 @@
           }
         },
         "summary": "Đăng nhập nhà tuyển dụng và nhận token truy cập JWT",
-        "tags": [
-          "Recruiter - Auth"
-        ]
+        "tags": ["Recruiter - Auth"]
       }
     },
     "/recruiter-accounts/password-reset/request": {
@@ -536,9 +498,7 @@
           }
         },
         "summary": "Gửi link đặt lại mật khẩu recruiter",
-        "tags": [
-          "Recruiter - Account"
-        ]
+        "tags": ["Recruiter - Account"]
       }
     },
     "/recruiter-accounts/password-reset/confirm": {
@@ -574,9 +534,7 @@
           }
         },
         "summary": "Đặt lại mật khẩu recruiter bằng token",
-        "tags": [
-          "Recruiter - Account"
-        ]
+        "tags": ["Recruiter - Account"]
       }
     },
     "/recruiter-accounts": {
@@ -628,11 +586,7 @@
             "schema": {
               "example": "ACTIVE",
               "type": "string",
-              "enum": [
-                "ACTIVE",
-                "BANNED",
-                "PENDING_VERIFICATION"
-              ]
+              "enum": ["ACTIVE", "BANNED", "PENDING_VERIFICATION"]
             }
           }
         ],
@@ -677,9 +631,7 @@
           }
         },
         "summary": "Danh sách tài khoản nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Account"
-        ]
+        "tags": ["Recruiter - Account"]
       }
     },
     "/recruiter-accounts/{id}": {
@@ -733,9 +685,7 @@
           }
         },
         "summary": "Chi tiết tài khoản nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Account"
-        ]
+        "tags": ["Recruiter - Account"]
       },
       "patch": {
         "description": "Cập nhật thông tin tài khoản recruiter (email, role, company, status).",
@@ -785,9 +735,7 @@
           }
         },
         "summary": "Cập nhật tài khoản nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Account"
-        ]
+        "tags": ["Recruiter - Account"]
       }
     },
     "/recruiter-accounts/{id}/deactivate": {
@@ -814,9 +762,7 @@
           }
         },
         "summary": "Vô hiệu hóa tài khoản nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Account"
-        ]
+        "tags": ["Recruiter - Account"]
       }
     },
     "/recruiter-profiles": {
@@ -865,9 +811,7 @@
           }
         },
         "summary": "Tạo hồ sơ nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Profile"
-        ]
+        "tags": ["Recruiter - Profile"]
       }
     },
     "/recruiter-profiles/me": {
@@ -916,9 +860,7 @@
           }
         },
         "summary": "Lấy hồ sơ nhà tuyển dụng của tôi",
-        "tags": [
-          "Recruiter - Profile"
-        ]
+        "tags": ["Recruiter - Profile"]
       }
     },
     "/recruiter-profiles/{id}": {
@@ -963,9 +905,7 @@
           }
         },
         "summary": "Lấy chi tiết hồ sơ nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Profile"
-        ]
+        "tags": ["Recruiter - Profile"]
       },
       "patch": {
         "description": "Cập nhật chức danh, số điện thoại, avatar của recruiter.",
@@ -1015,9 +955,7 @@
           }
         },
         "summary": "Cập nhật hồ sơ nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Profile"
-        ]
+        "tags": ["Recruiter - Profile"]
       },
       "delete": {
         "description": "Xóa hồ sơ recruiter theo profile id.",
@@ -1042,9 +980,7 @@
           }
         },
         "summary": "Xóa hồ sơ nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Profile"
-        ]
+        "tags": ["Recruiter - Profile"]
       }
     },
     "/companies/{companyId}/members": {
@@ -1081,9 +1017,7 @@
           }
         },
         "summary": "Danh sách thành viên công ty",
-        "tags": [
-          "Company - Members"
-        ]
+        "tags": ["Company - Members"]
       }
     },
     "/companies/{companyId}/members/invite": {
@@ -1133,9 +1067,7 @@
           }
         },
         "summary": "Mời thành viên vào công ty",
-        "tags": [
-          "Company - Members"
-        ]
+        "tags": ["Company - Members"]
       }
     },
     "/company-members/invitations/{id}/accept": {
@@ -1172,9 +1104,7 @@
           }
         },
         "summary": "Chấp nhận lời mời vào công ty",
-        "tags": [
-          "Company - Members"
-        ]
+        "tags": ["Company - Members"]
       }
     },
     "/company-members/{id}/role": {
@@ -1221,9 +1151,7 @@
           }
         },
         "summary": "Cập nhật vai trò thành viên",
-        "tags": [
-          "Company - Members"
-        ]
+        "tags": ["Company - Members"]
       }
     },
     "/company-members/{id}": {
@@ -1250,9 +1178,7 @@
           }
         },
         "summary": "Xóa thành viên khỏi công ty",
-        "tags": [
-          "Company - Members"
-        ]
+        "tags": ["Company - Members"]
       }
     },
     "/recruiter-roles": {
@@ -1290,9 +1216,7 @@
           }
         },
         "summary": "Danh sách vai trò nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Roles"
-        ]
+        "tags": ["Recruiter - Roles"]
       },
       "post": {
         "description": "Tạo mới một role cho recruiter.",
@@ -1333,9 +1257,7 @@
           }
         },
         "summary": "Tạo vai trò nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Roles"
-        ]
+        "tags": ["Recruiter - Roles"]
       }
     },
     "/recruiter-roles/{id}": {
@@ -1362,9 +1284,7 @@
           }
         },
         "summary": "Chi tiết vai trò nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Roles"
-        ]
+        "tags": ["Recruiter - Roles"]
       },
       "patch": {
         "description": "Cập nhật thông tin role.",
@@ -1405,9 +1325,7 @@
           }
         },
         "summary": "Cập nhật vai trò nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Roles"
-        ]
+        "tags": ["Recruiter - Roles"]
       },
       "delete": {
         "description": "Xóa một role recruiter.",
@@ -1432,9 +1350,7 @@
           }
         },
         "summary": "Xóa vai trò nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Roles"
-        ]
+        "tags": ["Recruiter - Roles"]
       }
     },
     "/recruiter-roles/{roleId}/permissions": {
@@ -1503,9 +1419,7 @@
           }
         },
         "summary": "Gán quyền cho vai trò",
-        "tags": [
-          "Recruiter - Roles"
-        ]
+        "tags": ["Recruiter - Roles"]
       }
     },
     "/recruiter-permissions": {
@@ -1541,9 +1455,7 @@
           }
         },
         "summary": "Danh sách quyền nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Permissions"
-        ]
+        "tags": ["Recruiter - Permissions"]
       },
       "post": {
         "description": "Tạo mới một quyền recruiter.",
@@ -1585,9 +1497,7 @@
           }
         },
         "summary": "Tạo quyền nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Permissions"
-        ]
+        "tags": ["Recruiter - Permissions"]
       }
     },
     "/recruiter-permissions/{id}": {
@@ -1614,9 +1524,7 @@
           }
         },
         "summary": "Chi tiết quyền nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Permissions"
-        ]
+        "tags": ["Recruiter - Permissions"]
       },
       "patch": {
         "description": "Cập nhật thông tin quyền.",
@@ -1657,9 +1565,7 @@
           }
         },
         "summary": "Cập nhật quyền nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Permissions"
-        ]
+        "tags": ["Recruiter - Permissions"]
       },
       "delete": {
         "description": "Xóa một quyền recruiter.",
@@ -1684,9 +1590,7 @@
           }
         },
         "summary": "Xóa quyền nhà tuyển dụng",
-        "tags": [
-          "Recruiter - Permissions"
-        ]
+        "tags": ["Recruiter - Permissions"]
       }
     },
     "/candidate/auth/register": {
@@ -1722,9 +1626,7 @@
           }
         },
         "summary": "Đăng ký tài khoản ứng viên",
-        "tags": [
-          "Candidate - Auth"
-        ]
+        "tags": ["Candidate - Auth"]
       }
     },
     "/candidate/auth/login": {
@@ -1760,9 +1662,7 @@
           }
         },
         "summary": "Đăng nhập tài khoản ứng viên",
-        "tags": [
-          "Candidate - Auth"
-        ]
+        "tags": ["Candidate - Auth"]
       }
     },
     "/candidate-accounts/email-verification/request": {
@@ -1793,9 +1693,7 @@
           }
         ],
         "summary": "Gửi link xác thực email ứng viên",
-        "tags": [
-          "Candidate - Account"
-        ]
+        "tags": ["Candidate - Account"]
       }
     },
     "/candidate-accounts/email-verification/verify": {
@@ -1831,9 +1729,7 @@
           }
         },
         "summary": "Xác thực email ứng viên bằng token",
-        "tags": [
-          "Candidate - Account"
-        ]
+        "tags": ["Candidate - Account"]
       }
     },
     "/candidate-accounts/password-reset/request": {
@@ -1866,9 +1762,7 @@
           }
         },
         "summary": "Gửi link đặt lại mật khẩu ứng viên",
-        "tags": [
-          "Candidate - Account"
-        ]
+        "tags": ["Candidate - Account"]
       }
     },
     "/candidate-accounts/password-reset/confirm": {
@@ -1904,9 +1798,7 @@
           }
         },
         "summary": "Đặt lại mật khẩu ứng viên bằng token",
-        "tags": [
-          "Candidate - Account"
-        ]
+        "tags": ["Candidate - Account"]
       }
     },
     "/candidate-accounts/me": {
@@ -1940,9 +1832,7 @@
           }
         ],
         "summary": "Lấy thông tin tài khoản ứng viên",
-        "tags": [
-          "Candidate - Account"
-        ]
+        "tags": ["Candidate - Account"]
       },
       "patch": {
         "operationId": "CandidateAccountController_updateMe",
@@ -1987,9 +1877,7 @@
           }
         ],
         "summary": "Ứng viên đổi mật khẩu tài khoản",
-        "tags": [
-          "Candidate - Account"
-        ]
+        "tags": ["Candidate - Account"]
       }
     },
     "/candidate-accounts": {
@@ -2061,9 +1949,7 @@
           }
         ],
         "summary": "Lấy danh sách tài khoản ứng viên (ADMIN)",
-        "tags": [
-          "Candidate - Account"
-        ]
+        "tags": ["Candidate - Account"]
       }
     },
     "/candidate-accounts/{id}": {
@@ -2107,9 +1993,7 @@
           }
         ],
         "summary": "Lấy thông tin chi tiết tài khoản ứng viên (ADMIN)",
-        "tags": [
-          "Candidate - Account"
-        ]
+        "tags": ["Candidate - Account"]
       }
     },
     "/candidate-accounts/{id}/status": {
@@ -2166,9 +2050,7 @@
           }
         ],
         "summary": "Admin cập nhật trạng thái tài khoản ứng viên",
-        "tags": [
-          "Candidate - Account"
-        ]
+        "tags": ["Candidate - Account"]
       }
     },
     "/candidate-profiles/me": {
@@ -2202,9 +2084,7 @@
           }
         ],
         "summary": "Candidate get own profile",
-        "tags": [
-          "Candidate - Profile"
-        ]
+        "tags": ["Candidate - Profile"]
       },
       "patch": {
         "operationId": "CandidateProfileController_updateMe",
@@ -2249,9 +2129,7 @@
           }
         ],
         "summary": "Candidate update own profile",
-        "tags": [
-          "Candidate - Profile"
-        ]
+        "tags": ["Candidate - Profile"]
       }
     },
     "/candidate-profiles/me/educations": {
@@ -2279,9 +2157,7 @@
           }
         ],
         "summary": "Lấy danh sách học vấn",
-        "tags": [
-          "Candidate - Educations"
-        ]
+        "tags": ["Candidate - Educations"]
       },
       "post": {
         "operationId": "CandidateEducationsController_create",
@@ -2314,9 +2190,7 @@
           }
         ],
         "summary": "Thêm học vấn",
-        "tags": [
-          "Candidate - Educations"
-        ]
+        "tags": ["Candidate - Educations"]
       }
     },
     "/candidate-profiles/me/educations/{id}": {
@@ -2360,9 +2234,7 @@
           }
         ],
         "summary": "Cập nhật học vấn",
-        "tags": [
-          "Candidate - Educations"
-        ]
+        "tags": ["Candidate - Educations"]
       },
       "delete": {
         "operationId": "CandidateEducationsController_remove",
@@ -2387,9 +2259,7 @@
           }
         ],
         "summary": "Xóa học vấn",
-        "tags": [
-          "Candidate - Educations"
-        ]
+        "tags": ["Candidate - Educations"]
       }
     },
     "/candidate-profiles/me/certifications": {
@@ -2417,9 +2287,7 @@
           }
         ],
         "summary": "Lấy danh sách chứng chỉ",
-        "tags": [
-          "Candidate - Certifications"
-        ]
+        "tags": ["Candidate - Certifications"]
       },
       "post": {
         "operationId": "CandidateCertificationsController_create",
@@ -2452,9 +2320,7 @@
           }
         ],
         "summary": "Tạo chứng chỉ",
-        "tags": [
-          "Candidate - Certifications"
-        ]
+        "tags": ["Candidate - Certifications"]
       }
     },
     "/candidate-profiles/me/certifications/{id}": {
@@ -2498,9 +2364,7 @@
           }
         ],
         "summary": "Cập nhật chứng chỉ",
-        "tags": [
-          "Candidate - Certifications"
-        ]
+        "tags": ["Candidate - Certifications"]
       },
       "delete": {
         "operationId": "CandidateCertificationsController_remove",
@@ -2525,9 +2389,7 @@
           }
         ],
         "summary": "Xóa chứng chỉ",
-        "tags": [
-          "Candidate - Certifications"
-        ]
+        "tags": ["Candidate - Certifications"]
       }
     },
     "/candidate-profiles/me/languages": {
@@ -2555,9 +2417,7 @@
           }
         ],
         "summary": "Lấy danh sách ngoại ngữ",
-        "tags": [
-          "Candidate - Languages"
-        ]
+        "tags": ["Candidate - Languages"]
       },
       "post": {
         "operationId": "CandidateLanguagesController_create",
@@ -2593,9 +2453,7 @@
           }
         ],
         "summary": "Create my language",
-        "tags": [
-          "Candidate - Languages"
-        ]
+        "tags": ["Candidate - Languages"]
       }
     },
     "/candidate-profiles/me/languages/{id}": {
@@ -2642,9 +2500,7 @@
           }
         ],
         "summary": "Update my language",
-        "tags": [
-          "Candidate - Languages"
-        ]
+        "tags": ["Candidate - Languages"]
       },
       "delete": {
         "operationId": "CandidateLanguagesController_remove",
@@ -2669,9 +2525,7 @@
           }
         ],
         "summary": "Delete my language",
-        "tags": [
-          "Candidate - Languages"
-        ]
+        "tags": ["Candidate - Languages"]
       }
     },
     "/candidate-profiles/me/links": {
@@ -2699,9 +2553,7 @@
           }
         ],
         "summary": "Lấy danh sách liên kết",
-        "tags": [
-          "Candidate - Links"
-        ]
+        "tags": ["Candidate - Links"]
       },
       "post": {
         "operationId": "CandidateLinksController_create",
@@ -2737,9 +2589,7 @@
           }
         ],
         "summary": "Tạo liên kết",
-        "tags": [
-          "Candidate - Links"
-        ]
+        "tags": ["Candidate - Links"]
       }
     },
     "/candidate-profiles/me/links/{id}": {
@@ -2786,9 +2636,7 @@
           }
         ],
         "summary": "Cập nhật liên kết",
-        "tags": [
-          "Candidate - Links"
-        ]
+        "tags": ["Candidate - Links"]
       },
       "delete": {
         "operationId": "CandidateLinksController_remove",
@@ -2813,9 +2661,7 @@
           }
         ],
         "summary": "Xóa liên kết",
-        "tags": [
-          "Candidate - Links"
-        ]
+        "tags": ["Candidate - Links"]
       }
     },
     "/candidate-profiles/me/projects": {
@@ -2843,9 +2689,7 @@
           }
         ],
         "summary": "Lấy danh sách dự án",
-        "tags": [
-          "Candidate - Projects"
-        ]
+        "tags": ["Candidate - Projects"]
       },
       "post": {
         "operationId": "CandidateProjectsController_create",
@@ -2878,9 +2722,7 @@
           }
         ],
         "summary": "Tạo dự án",
-        "tags": [
-          "Candidate - Projects"
-        ]
+        "tags": ["Candidate - Projects"]
       }
     },
     "/candidate-profiles/me/projects/{id}": {
@@ -2924,9 +2766,7 @@
           }
         ],
         "summary": "Cập nhật dự án",
-        "tags": [
-          "Candidate - Projects"
-        ]
+        "tags": ["Candidate - Projects"]
       },
       "delete": {
         "operationId": "CandidateProjectsController_remove",
@@ -2951,9 +2791,7 @@
           }
         ],
         "summary": "Xoá dự án",
-        "tags": [
-          "Candidate - Projects"
-        ]
+        "tags": ["Candidate - Projects"]
       }
     },
     "/job-posts": {
@@ -2976,9 +2814,7 @@
           }
         },
         "summary": "Tạo tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       },
       "get": {
         "operationId": "JobPostsController_findAll",
@@ -2989,9 +2825,7 @@
           }
         },
         "summary": "Danh sách tin tuyển dụng đã xuất bản",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}": {
@@ -3014,9 +2848,7 @@
           }
         },
         "summary": "Chi tiết tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       },
       "patch": {
         "operationId": "JobPostsController_update",
@@ -3056,9 +2888,7 @@
           }
         },
         "summary": "Cập nhật tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       },
       "delete": {
         "operationId": "JobPostsController_remove",
@@ -3088,9 +2918,7 @@
           }
         },
         "summary": "Xóa tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}/publish": {
@@ -3122,9 +2950,7 @@
           }
         },
         "summary": "Xuất bản tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}/close": {
@@ -3156,9 +2982,7 @@
           }
         },
         "summary": "Đóng tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}/reopen": {
@@ -3190,9 +3014,7 @@
           }
         },
         "summary": "Mở lại tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}/skills": {
@@ -3233,9 +3055,7 @@
           }
         },
         "summary": "Thêm kỹ năng vào tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}/skills/{skillId}": {
@@ -3275,9 +3095,7 @@
           }
         },
         "summary": "Xóa kỹ năng khỏi tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}/locations": {
@@ -3318,9 +3136,7 @@
           }
         },
         "summary": "Thêm địa điểm vào tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}/locations/{locationId}": {
@@ -3360,9 +3176,7 @@
           }
         },
         "summary": "Xóa địa điểm khỏi tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}/specializations": {
@@ -3403,9 +3217,7 @@
           }
         },
         "summary": "Thêm chuyên ngành vào tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}/specializations/{specializationId}": {
@@ -3445,9 +3257,7 @@
           }
         },
         "summary": "Xóa chuyên ngành khỏi tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}/views": {
@@ -3479,9 +3289,7 @@
           }
         },
         "summary": "Ghi nhận lượt xem tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/job-posts/{id}/views/stats": {
@@ -3512,9 +3320,7 @@
           }
         },
         "summary": "Lấy thống kê lượt xem tin tuyển dụng",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/recruiter/job-posts": {
@@ -3537,9 +3343,7 @@
           }
         },
         "summary": "Danh sách tin tuyển dụng của tôi",
-        "tags": [
-          "Job - Posts"
-        ]
+        "tags": ["Job - Posts"]
       }
     },
     "/saved-jobs": {
@@ -3577,9 +3381,7 @@
           }
         ],
         "summary": "Lưu việc làm",
-        "tags": [
-          "Saved - Jobs"
-        ]
+        "tags": ["Saved - Jobs"]
       },
       "get": {
         "operationId": "SavedJobsController_listSavedJobs",
@@ -3605,9 +3407,7 @@
           }
         ],
         "summary": "Danh sách việc làm đã lưu",
-        "tags": [
-          "Saved - Jobs"
-        ]
+        "tags": ["Saved - Jobs"]
       }
     },
     "/saved-jobs/{jobPostId}": {
@@ -3643,9 +3443,7 @@
           }
         ],
         "summary": "Hủy lưu việc làm",
-        "tags": [
-          "Saved - Jobs"
-        ]
+        "tags": ["Saved - Jobs"]
       }
     },
     "/companies/{id}/follow": {
@@ -3681,10 +3479,7 @@
           }
         ],
         "summary": "Theo dõi công ty",
-        "tags": [
-          "CompanyFollows",
-          "Companies"
-        ]
+        "tags": ["CompanyFollows", "Companies"]
       },
       "delete": {
         "operationId": "CompanyFollowsController_unfollowCompany",
@@ -3718,10 +3513,7 @@
           }
         ],
         "summary": "Bỏ theo dõi công ty",
-        "tags": [
-          "CompanyFollows",
-          "Companies"
-        ]
+        "tags": ["CompanyFollows", "Companies"]
       }
     },
     "/company-follows/me": {
@@ -3749,10 +3541,7 @@
           }
         ],
         "summary": "Danh sách công ty đang theo dõi",
-        "tags": [
-          "CompanyFollows",
-          "Companies"
-        ]
+        "tags": ["CompanyFollows", "Companies"]
       }
     },
     "/companies/{id}/reviews": {
@@ -3799,9 +3588,7 @@
           }
         ],
         "summary": "Tạo đánh giá công ty",
-        "tags": [
-          "Company - Reviews"
-        ]
+        "tags": ["Company - Reviews"]
       },
       "get": {
         "operationId": "CompanyReviewsController_listReviews",
@@ -3822,9 +3609,7 @@
           }
         },
         "summary": "Danh sách đánh giá công ty",
-        "tags": [
-          "Company - Reviews"
-        ]
+        "tags": ["Company - Reviews"]
       }
     },
     "/company-reviews/{id}": {
@@ -3871,9 +3656,7 @@
           }
         ],
         "summary": "Cập nhật đánh giá công ty",
-        "tags": [
-          "Company - Reviews"
-        ]
+        "tags": ["Company - Reviews"]
       },
       "delete": {
         "operationId": "CompanyReviewsMutationController_deleteReview",
@@ -3908,9 +3691,7 @@
           }
         ],
         "summary": "Xóa đánh giá công ty",
-        "tags": [
-          "Company - Reviews"
-        ]
+        "tags": ["Company - Reviews"]
       }
     },
     "/recruiter/shortlists": {
@@ -3948,9 +3729,7 @@
           }
         ],
         "summary": "Thêm ứng viên vào danh sách rút gọn",
-        "tags": [
-          "Recruiter - Shortlist"
-        ]
+        "tags": ["Recruiter - Shortlist"]
       },
       "get": {
         "operationId": "RecruiterShortlistsController_listShortlist",
@@ -3976,9 +3755,7 @@
           }
         ],
         "summary": "Danh sách ứng viên rút gọn của tôi",
-        "tags": [
-          "Recruiter - Shortlist"
-        ]
+        "tags": ["Recruiter - Shortlist"]
       }
     },
     "/recruiter/shortlists/{id}": {
@@ -4014,9 +3791,7 @@
           }
         ],
         "summary": "Xóa ứng viên khỏi danh sách rút gọn",
-        "tags": [
-          "Recruiter - Shortlist"
-        ]
+        "tags": ["Recruiter - Shortlist"]
       }
     },
     "/job-categories": {
@@ -4039,9 +3814,7 @@
           }
         },
         "summary": "Tạo danh mục việc làm",
-        "tags": [
-          "Job - Categories"
-        ]
+        "tags": ["Job - Categories"]
       },
       "get": {
         "operationId": "JobCategoriesController_findAll",
@@ -4052,9 +3825,7 @@
           }
         },
         "summary": "Danh sách danh mục việc làm",
-        "tags": [
-          "Job - Categories"
-        ]
+        "tags": ["Job - Categories"]
       }
     },
     "/job-categories/{id}": {
@@ -4076,9 +3847,7 @@
           }
         },
         "summary": "Chi tiết danh mục việc làm",
-        "tags": [
-          "Job - Categories"
-        ]
+        "tags": ["Job - Categories"]
       },
       "patch": {
         "operationId": "JobCategoriesController_update",
@@ -4108,9 +3877,7 @@
           }
         },
         "summary": "Cập nhật danh mục việc làm",
-        "tags": [
-          "Job - Categories"
-        ]
+        "tags": ["Job - Categories"]
       },
       "delete": {
         "operationId": "JobCategoriesController_remove",
@@ -4130,9 +3897,7 @@
           }
         },
         "summary": "Xóa danh mục việc làm",
-        "tags": [
-          "Job - Categories"
-        ]
+        "tags": ["Job - Categories"]
       }
     },
     "/employment-types": {
@@ -4155,9 +3920,7 @@
           }
         },
         "summary": "Tạo loại hình công việc",
-        "tags": [
-          "Employment - Types"
-        ]
+        "tags": ["Employment - Types"]
       },
       "get": {
         "operationId": "EmploymentTypesController_findAll",
@@ -4168,9 +3931,7 @@
           }
         },
         "summary": "Danh sách loại hình công việc",
-        "tags": [
-          "Employment - Types"
-        ]
+        "tags": ["Employment - Types"]
       }
     },
     "/employment-types/{id}": {
@@ -4192,9 +3953,7 @@
           }
         },
         "summary": "Chi tiết loại hình công việc",
-        "tags": [
-          "Employment - Types"
-        ]
+        "tags": ["Employment - Types"]
       },
       "patch": {
         "operationId": "EmploymentTypesController_update",
@@ -4224,9 +3983,7 @@
           }
         },
         "summary": "Cập nhật loại hình công việc",
-        "tags": [
-          "Employment - Types"
-        ]
+        "tags": ["Employment - Types"]
       },
       "delete": {
         "operationId": "EmploymentTypesController_remove",
@@ -4246,9 +4003,7 @@
           }
         },
         "summary": "Xóa loại hình công việc",
-        "tags": [
-          "Employment - Types"
-        ]
+        "tags": ["Employment - Types"]
       }
     },
     "/experience-levels": {
@@ -4271,9 +4026,7 @@
           }
         },
         "summary": "Tạo cấp độ kinh nghiệm",
-        "tags": [
-          "Experience - Levels"
-        ]
+        "tags": ["Experience - Levels"]
       },
       "get": {
         "operationId": "ExperienceLevelsController_findAll",
@@ -4284,9 +4037,7 @@
           }
         },
         "summary": "Danh sách cấp độ kinh nghiệm",
-        "tags": [
-          "Experience - Levels"
-        ]
+        "tags": ["Experience - Levels"]
       }
     },
     "/experience-levels/{id}": {
@@ -4308,9 +4059,7 @@
           }
         },
         "summary": "Chi tiết cấp độ kinh nghiệm",
-        "tags": [
-          "Experience - Levels"
-        ]
+        "tags": ["Experience - Levels"]
       },
       "patch": {
         "operationId": "ExperienceLevelsController_update",
@@ -4340,9 +4089,7 @@
           }
         },
         "summary": "Cập nhật cấp độ kinh nghiệm",
-        "tags": [
-          "Experience - Levels"
-        ]
+        "tags": ["Experience - Levels"]
       },
       "delete": {
         "operationId": "ExperienceLevelsController_remove",
@@ -4362,9 +4109,7 @@
           }
         },
         "summary": "Xóa cấp độ kinh nghiệm",
-        "tags": [
-          "Experience - Levels"
-        ]
+        "tags": ["Experience - Levels"]
       }
     },
     "/files/upload": {
@@ -4399,9 +4144,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "file"
-                ]
+                "required": ["file"]
               }
             }
           }
@@ -4424,9 +4167,7 @@
           }
         ],
         "summary": "Upload file lên Cloudinary và lưu metadata",
-        "tags": [
-          "Files"
-        ]
+        "tags": ["Files"]
       }
     },
     "/files/upload-many": {
@@ -4464,9 +4205,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "files"
-                ]
+                "required": ["files"]
               }
             }
           }
@@ -4489,9 +4228,7 @@
           }
         ],
         "summary": "Upload nhiều file lên Cloudinary và lưu metadata",
-        "tags": [
-          "Files"
-        ]
+        "tags": ["Files"]
       }
     },
     "/specializations": {
@@ -4514,9 +4251,7 @@
           }
         },
         "summary": "Tạo chuyên ngành",
-        "tags": [
-          "Specializations"
-        ]
+        "tags": ["Specializations"]
       },
       "get": {
         "operationId": "SpecializationsController_findAll",
@@ -4527,9 +4262,7 @@
           }
         },
         "summary": "Danh sách chuyên ngành",
-        "tags": [
-          "Specializations"
-        ]
+        "tags": ["Specializations"]
       }
     },
     "/specializations/{id}": {
@@ -4551,9 +4284,7 @@
           }
         },
         "summary": "Chi tiết chuyên ngành",
-        "tags": [
-          "Specializations"
-        ]
+        "tags": ["Specializations"]
       },
       "patch": {
         "operationId": "SpecializationsController_update",
@@ -4583,9 +4314,7 @@
           }
         },
         "summary": "Cập nhật chuyên ngành",
-        "tags": [
-          "Specializations"
-        ]
+        "tags": ["Specializations"]
       },
       "delete": {
         "operationId": "SpecializationsController_remove",
@@ -4605,9 +4334,7 @@
           }
         },
         "summary": "Xóa chuyên ngành",
-        "tags": [
-          "Specializations"
-        ]
+        "tags": ["Specializations"]
       }
     },
     "/job-locations": {
@@ -4630,9 +4357,7 @@
           }
         },
         "summary": "Tạo địa điểm làm việc",
-        "tags": [
-          "Job - Locations"
-        ]
+        "tags": ["Job - Locations"]
       },
       "get": {
         "operationId": "JobLocationsController_findAll",
@@ -4643,9 +4368,7 @@
           }
         },
         "summary": "Danh sách địa điểm làm việc",
-        "tags": [
-          "Job - Locations"
-        ]
+        "tags": ["Job - Locations"]
       }
     },
     "/job-locations/{id}": {
@@ -4667,9 +4390,7 @@
           }
         },
         "summary": "Chi tiết địa điểm làm việc",
-        "tags": [
-          "Job - Locations"
-        ]
+        "tags": ["Job - Locations"]
       },
       "patch": {
         "operationId": "JobLocationsController_update",
@@ -4699,9 +4420,7 @@
           }
         },
         "summary": "Cập nhật địa điểm làm việc",
-        "tags": [
-          "Job - Locations"
-        ]
+        "tags": ["Job - Locations"]
       },
       "delete": {
         "operationId": "JobLocationsController_remove",
@@ -4721,9 +4440,7 @@
           }
         },
         "summary": "Xóa địa điểm làm việc",
-        "tags": [
-          "Job - Locations"
-        ]
+        "tags": ["Job - Locations"]
       }
     },
     "/skill-categories": {
@@ -4746,9 +4463,7 @@
           }
         },
         "summary": "Tạo danh mục kỹ năng",
-        "tags": [
-          "Skills"
-        ]
+        "tags": ["Skills"]
       },
       "get": {
         "operationId": "SkillsController_findAllCategories",
@@ -4759,9 +4474,7 @@
           }
         },
         "summary": "Danh sách danh mục kỹ năng",
-        "tags": [
-          "Skills"
-        ]
+        "tags": ["Skills"]
       }
     },
     "/skills": {
@@ -4784,9 +4497,7 @@
           }
         },
         "summary": "Tạo kỹ năng",
-        "tags": [
-          "Skills"
-        ]
+        "tags": ["Skills"]
       },
       "get": {
         "operationId": "SkillsController_findAll",
@@ -4806,9 +4517,7 @@
           }
         },
         "summary": "Danh sách kỹ năng",
-        "tags": [
-          "Skills"
-        ]
+        "tags": ["Skills"]
       }
     },
     "/skills/search": {
@@ -4830,9 +4539,7 @@
           }
         },
         "summary": "Tìm kiếm kỹ năng",
-        "tags": [
-          "Skills"
-        ]
+        "tags": ["Skills"]
       }
     },
     "/skills/{id}": {
@@ -4854,9 +4561,7 @@
           }
         },
         "summary": "Chi tiết kỹ năng",
-        "tags": [
-          "Skills"
-        ]
+        "tags": ["Skills"]
       },
       "patch": {
         "operationId": "SkillsController_update",
@@ -4886,9 +4591,7 @@
           }
         },
         "summary": "Cập nhật kỹ năng",
-        "tags": [
-          "Skills"
-        ]
+        "tags": ["Skills"]
       },
       "delete": {
         "operationId": "SkillsController_remove",
@@ -4908,9 +4611,7 @@
           }
         },
         "summary": "Xóa kỹ năng",
-        "tags": [
-          "Skills"
-        ]
+        "tags": ["Skills"]
       }
     },
     "/home": {
@@ -4983,9 +4684,7 @@
           }
         },
         "summary": "Lấy toàn bộ dữ liệu trang chủ",
-        "tags": [
-          "Home"
-        ]
+        "tags": ["Home"]
       }
     },
     "/applications": {
@@ -5032,9 +4731,7 @@
           }
         ],
         "summary": "Nộp hồ sơ ứng tuyển",
-        "tags": [
-          "Applications"
-        ]
+        "tags": ["Applications"]
       }
     },
     "/applications/{id}/withdraw": {
@@ -5082,9 +4779,7 @@
           }
         },
         "summary": "Rút hồ sơ ứng tuyển",
-        "tags": [
-          "Applications"
-        ]
+        "tags": ["Applications"]
       }
     },
     "/applications/me": {
@@ -5120,9 +4815,7 @@
           }
         },
         "summary": "Lấy danh sách hồ sơ ứng tuyển của ứng viên hiện tại",
-        "tags": [
-          "Applications"
-        ]
+        "tags": ["Applications"]
       }
     },
     "/applications/{id}": {
@@ -5176,9 +4869,7 @@
           }
         },
         "summary": "Lấy chi tiết hồ sơ ứng tuyển",
-        "tags": [
-          "Applications"
-        ]
+        "tags": ["Applications"]
       }
     },
     "/job-posts/{jobId}/applications": {
@@ -5226,9 +4917,7 @@
           }
         },
         "summary": "Lấy danh sách ứng viên của tin tuyển dụng (Chỉ dành cho nhà tuyển dụng)",
-        "tags": [
-          "Applications"
-        ]
+        "tags": ["Applications"]
       }
     },
     "/job-posts/{jobId}/applications/me": {
@@ -5270,9 +4959,7 @@
           }
         },
         "summary": "Kiểm tra xem ứng viên đã nộp hồ sơ vào tin tuyển dụng chưa",
-        "tags": [
-          "Applications"
-        ]
+        "tags": ["Applications"]
       }
     },
     "/cvs": {
@@ -5319,9 +5006,7 @@
           }
         },
         "summary": "Tạo CV",
-        "tags": [
-          "CVs"
-        ]
+        "tags": ["CVs"]
       }
     },
     "/cvs/me": {
@@ -5395,9 +5080,7 @@
           }
         },
         "summary": "Lấy danh sách CV của ứng viên hiện tại",
-        "tags": [
-          "CVs"
-        ]
+        "tags": ["CVs"]
       }
     },
     "/cvs/{id}": {
@@ -5433,9 +5116,7 @@
           }
         },
         "summary": "Xem chi tiết CV",
-        "tags": [
-          "CVs"
-        ]
+        "tags": ["CVs"]
       },
       "patch": {
         "operationId": "CvsController_update",
@@ -5479,9 +5160,7 @@
           }
         },
         "summary": "Cập nhật CV",
-        "tags": [
-          "CVs"
-        ]
+        "tags": ["CVs"]
       },
       "delete": {
         "operationId": "CvsController_remove",
@@ -5518,9 +5197,7 @@
           }
         },
         "summary": "Xóa CV",
-        "tags": [
-          "CVs"
-        ]
+        "tags": ["CVs"]
       }
     },
     "/cvs/{id}/default": {
@@ -5556,9 +5233,7 @@
           }
         },
         "summary": "Đặt CV mặc định",
-        "tags": [
-          "CVs"
-        ]
+        "tags": ["CVs"]
       }
     },
     "/cvs/{cvId}/versions": {
@@ -5604,9 +5279,7 @@
           }
         },
         "summary": "Tải lên phiên bản CV mới",
-        "tags": [
-          "Cv - Versions"
-        ]
+        "tags": ["Cv - Versions"]
       },
       "get": {
         "operationId": "CvVersionsController_findAll",
@@ -5677,9 +5350,7 @@
           }
         },
         "summary": "Lấy danh sách phiên bản của một CV",
-        "tags": [
-          "Cv - Versions"
-        ]
+        "tags": ["Cv - Versions"]
       }
     },
     "/cv-versions/{id}": {
@@ -5715,9 +5386,7 @@
           }
         },
         "summary": "Xem chi tiết phiên bản CV",
-        "tags": [
-          "Cv - Versions"
-        ]
+        "tags": ["Cv - Versions"]
       },
       "delete": {
         "operationId": "CvVersionsController_remove",
@@ -5754,9 +5423,7 @@
           }
         },
         "summary": "Xóa phiên bản CV",
-        "tags": [
-          "Cv - Versions"
-        ]
+        "tags": ["Cv - Versions"]
       }
     },
     "/cv-versions/{id}/download": {
@@ -5785,9 +5452,7 @@
           }
         },
         "summary": "Tải xuống phiên bản CV",
-        "tags": [
-          "Cv - Versions"
-        ]
+        "tags": ["Cv - Versions"]
       }
     },
     "/cv-versions/{id}/restore": {
@@ -5823,9 +5488,7 @@
           }
         },
         "summary": "Khôi phục phiên bản CV",
-        "tags": [
-          "Cv - Versions"
-        ]
+        "tags": ["Cv - Versions"]
       }
     },
     "/cv-templates": {
@@ -5861,9 +5524,7 @@
           }
         },
         "summary": "Tạo mẫu CV",
-        "tags": [
-          "Cv - Templates"
-        ]
+        "tags": ["Cv - Templates"]
       },
       "get": {
         "operationId": "CvTemplatesController_findAll",
@@ -5932,9 +5593,7 @@
           }
         },
         "summary": "Lấy danh sách mẫu CV",
-        "tags": [
-          "Cv - Templates"
-        ]
+        "tags": ["Cv - Templates"]
       }
     },
     "/cv-templates/{id}": {
@@ -5970,9 +5629,7 @@
           }
         },
         "summary": "Xem chi tiết mẫu CV",
-        "tags": [
-          "Cv - Templates"
-        ]
+        "tags": ["Cv - Templates"]
       },
       "patch": {
         "operationId": "CvTemplatesController_update",
@@ -6019,9 +5676,7 @@
           }
         },
         "summary": "Cập nhật mẫu CV",
-        "tags": [
-          "Cv - Templates"
-        ]
+        "tags": ["Cv - Templates"]
       },
       "delete": {
         "operationId": "CvTemplatesController_remove",
@@ -6058,9 +5713,7 @@
           }
         },
         "summary": "Xóa mẫu CV",
-        "tags": [
-          "Cv - Templates"
-        ]
+        "tags": ["Cv - Templates"]
       }
     },
     "/cv-templates/{id}/activate": {
@@ -6096,9 +5749,7 @@
           }
         },
         "summary": "Bật mẫu CV",
-        "tags": [
-          "Cv - Templates"
-        ]
+        "tags": ["Cv - Templates"]
       }
     },
     "/cv-templates/{id}/deactivate": {
@@ -6134,9 +5785,7 @@
           }
         },
         "summary": "Tắt mẫu CV",
-        "tags": [
-          "Cv - Templates"
-        ]
+        "tags": ["Cv - Templates"]
       }
     }
   },
@@ -6173,10 +5822,7 @@
             "writeOnly": true
           }
         },
-        "required": [
-          "email",
-          "password"
-        ]
+        "required": ["email", "password"]
       },
       "AuthUser": {
         "type": "object",
@@ -6191,20 +5837,11 @@
           },
           "role": {
             "type": "string",
-            "enum": [
-              "CANDIDATE",
-              "RECRUITER",
-              "ADMIN",
-              "SYSTEM"
-            ],
+            "enum": ["CANDIDATE", "RECRUITER", "ADMIN", "SYSTEM"],
             "example": "CANDIDATE"
           }
         },
-        "required": [
-          "id",
-          "email",
-          "role"
-        ]
+        "required": ["id", "email", "role"]
       },
       "LoginResponse": {
         "type": "object",
@@ -6221,11 +5858,7 @@
             "$ref": "#/components/schemas/AuthUser"
           }
         },
-        "required": [
-          "accessToken",
-          "tokenType",
-          "user"
-        ]
+        "required": ["accessToken", "tokenType", "user"]
       },
       "CreateCompanyDto": {
         "type": "object",
@@ -6237,13 +5870,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "PRODUCT",
-              "OUTSOURCING",
-              "STARTUP",
-              "AGENCY",
-              "OTHER"
-            ],
+            "enum": ["PRODUCT", "OUTSOURCING", "STARTUP", "AGENCY", "OTHER"],
             "default": "OTHER",
             "example": "STARTUP"
           },
@@ -6280,9 +5907,7 @@
             "example": "51-200 nhân sự"
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
       "Company": {
         "type": "object",
@@ -6297,13 +5922,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "PRODUCT",
-              "OUTSOURCING",
-              "STARTUP",
-              "AGENCY",
-              "OTHER"
-            ],
+            "enum": ["PRODUCT", "OUTSOURCING", "STARTUP", "AGENCY", "OTHER"],
             "example": "STARTUP"
           },
           "taxCode": {
@@ -6336,12 +5955,7 @@
           },
           "verificationStatus": {
             "type": "string",
-            "enum": [
-              "UNVERIFIED",
-              "PENDING",
-              "VERIFIED",
-              "REJECTED"
-            ],
+            "enum": ["UNVERIFIED", "PENDING", "VERIFIED", "REJECTED"],
             "example": "UNVERIFIED"
           },
           "reputationScore": {
@@ -6350,10 +5964,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "ACTIVE",
-              "LOCKED"
-            ],
+            "enum": ["ACTIVE", "LOCKED"],
             "example": "ACTIVE"
           },
           "createdAt": {
@@ -6395,13 +6006,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "PRODUCT",
-              "OUTSOURCING",
-              "STARTUP",
-              "AGENCY",
-              "OTHER"
-            ],
+            "enum": ["PRODUCT", "OUTSOURCING", "STARTUP", "AGENCY", "OTHER"],
             "example": "STARTUP"
           },
           "email": {
@@ -6414,20 +6019,12 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "ACTIVE",
-              "LOCKED"
-            ],
+            "enum": ["ACTIVE", "LOCKED"],
             "example": "ACTIVE"
           },
           "verificationStatus": {
             "type": "string",
-            "enum": [
-              "UNVERIFIED",
-              "PENDING",
-              "VERIFIED",
-              "REJECTED"
-            ],
+            "enum": ["UNVERIFIED", "PENDING", "VERIFIED", "REJECTED"],
             "example": "VERIFIED"
           },
           "createdAt": {
@@ -6441,15 +6038,7 @@
             "example": "2026-06-09T08:00:00.000Z"
           }
         },
-        "required": [
-          "id",
-          "name",
-          "type",
-          "status",
-          "verificationStatus",
-          "createdAt",
-          "updatedAt"
-        ]
+        "required": ["id", "name", "type", "status", "verificationStatus", "createdAt", "updatedAt"]
       },
       "CompanyListMeta": {
         "type": "object",
@@ -6471,12 +6060,7 @@
             "example": 1
           }
         },
-        "required": [
-          "page",
-          "limit",
-          "total",
-          "totalPages"
-        ]
+        "required": ["page", "limit", "total", "totalPages"]
       },
       "CompanyList": {
         "type": "object",
@@ -6491,10 +6075,7 @@
             "$ref": "#/components/schemas/CompanyListMeta"
           }
         },
-        "required": [
-          "items",
-          "meta"
-        ]
+        "required": ["items", "meta"]
       },
       "CompanyDetail": {
         "type": "object",
@@ -6509,13 +6090,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "PRODUCT",
-              "OUTSOURCING",
-              "STARTUP",
-              "AGENCY",
-              "OTHER"
-            ],
+            "enum": ["PRODUCT", "OUTSOURCING", "STARTUP", "AGENCY", "OTHER"],
             "example": "STARTUP"
           },
           "taxCode": {
@@ -6548,12 +6123,7 @@
           },
           "verificationStatus": {
             "type": "string",
-            "enum": [
-              "UNVERIFIED",
-              "PENDING",
-              "VERIFIED",
-              "REJECTED"
-            ],
+            "enum": ["UNVERIFIED", "PENDING", "VERIFIED", "REJECTED"],
             "example": "UNVERIFIED"
           },
           "reputationScore": {
@@ -6562,10 +6132,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "ACTIVE",
-              "LOCKED"
-            ],
+            "enum": ["ACTIVE", "LOCKED"],
             "example": "ACTIVE"
           },
           "createdAt": {
@@ -6627,10 +6194,7 @@
             "example": "junior"
           }
         },
-        "required": [
-          "id",
-          "name"
-        ]
+        "required": ["id", "name"]
       },
       "CompanyJob": {
         "type": "object",
@@ -6649,13 +6213,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "DRAFT",
-              "PUBLISHED",
-              "CLOSED",
-              "EXPIRED",
-              "HIDDEN"
-            ],
+            "enum": ["DRAFT", "PUBLISHED", "CLOSED", "EXPIRED", "HIDDEN"],
             "example": "PUBLISHED"
           },
           "salaryMin": {
@@ -6673,12 +6231,7 @@
             "$ref": "#/components/schemas/CompanyJobRelation"
           }
         },
-        "required": [
-          "id",
-          "title",
-          "slug",
-          "status"
-        ]
+        "required": ["id", "title", "slug", "status"]
       },
       "UpdateCompanyDto": {
         "type": "object",
@@ -6690,13 +6243,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "PRODUCT",
-              "OUTSOURCING",
-              "STARTUP",
-              "AGENCY",
-              "OTHER"
-            ],
+            "enum": ["PRODUCT", "OUTSOURCING", "STARTUP", "AGENCY", "OTHER"],
             "default": "OTHER",
             "example": "STARTUP"
           },
@@ -6755,11 +6302,7 @@
             "example": "2026-06-09T09:00:00.000Z"
           }
         },
-        "required": [
-          "id",
-          "name",
-          "updatedAt"
-        ]
+        "required": ["id", "name", "updatedAt"]
       },
       "CompanyUploadedFile": {
         "type": "object",
@@ -6785,13 +6328,7 @@
             "example": "uploads/companies/1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf/logo-uuid.png"
           }
         },
-        "required": [
-          "id",
-          "originalName",
-          "mimeType",
-          "sizeBytes",
-          "storageKey"
-        ]
+        "required": ["id", "originalName", "mimeType", "sizeBytes", "storageKey"]
       },
       "CompanyFileUploadResponse": {
         "type": "object",
@@ -6804,10 +6341,7 @@
             "$ref": "#/components/schemas/CompanyUploadedFile"
           }
         },
-        "required": [
-          "message",
-          "file"
-        ]
+        "required": ["message", "file"]
       },
       "RequestPasswordResetDto": {
         "type": "object",
@@ -6818,9 +6352,7 @@
             "maxLength": 255
           }
         },
-        "required": [
-          "email"
-        ]
+        "required": ["email"]
       },
       "PasswordResetRequestResponse": {
         "type": "object",
@@ -6830,9 +6362,7 @@
             "example": "Nếu email tồn tại, hệ thống đã gửi link đặt lại mật khẩu đến email của bạn."
           }
         },
-        "required": [
-          "message"
-        ]
+        "required": ["message"]
       },
       "ResetPasswordDto": {
         "type": "object",
@@ -6849,10 +6379,7 @@
             "writeOnly": true
           }
         },
-        "required": [
-          "token",
-          "password"
-        ]
+        "required": ["token", "password"]
       },
       "PasswordResetResponse": {
         "type": "object",
@@ -6862,9 +6389,7 @@
             "example": "Đặt lại mật khẩu thành công."
           }
         },
-        "required": [
-          "message"
-        ]
+        "required": ["message"]
       },
       "UpdateRecruiterAccountDto": {
         "type": "object",
@@ -6883,11 +6408,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "ACTIVE",
-              "BANNED",
-              "PENDING_VERIFICATION"
-            ],
+            "enum": ["ACTIVE", "BANNED", "PENDING_VERIFICATION"],
             "example": "ACTIVE"
           }
         }
@@ -6911,10 +6432,7 @@
           },
           "gender": {
             "type": "string",
-            "enum": [
-              "MALE",
-              "FEMALE"
-            ],
+            "enum": ["MALE", "FEMALE"],
             "example": "MALE"
           },
           "avatarUrl": {
@@ -6922,10 +6440,7 @@
             "example": "https://cdn.upnext.dev/avatars/abc.jpg"
           }
         },
-        "required": [
-          "fullName",
-          "recruiterAccountId"
-        ]
+        "required": ["fullName", "recruiterAccountId"]
       },
       "UpdateRecruiterProfileDto": {
         "type": "object",
@@ -6942,10 +6457,7 @@
           },
           "gender": {
             "type": "string",
-            "enum": [
-              "MALE",
-              "FEMALE"
-            ],
+            "enum": ["MALE", "FEMALE"],
             "example": "MALE"
           },
           "avatarUrl": {
@@ -6967,9 +6479,7 @@
             "example": null
           }
         },
-        "required": [
-          "fullName"
-        ]
+        "required": ["fullName"]
       },
       "CompanyMemberRecruiterAccount": {
         "type": "object",
@@ -6990,10 +6500,7 @@
             "$ref": "#/components/schemas/CompanyMemberProfile"
           }
         },
-        "required": [
-          "id",
-          "email"
-        ]
+        "required": ["id", "email"]
       },
       "CompanyMemberRole": {
         "type": "object",
@@ -7011,11 +6518,7 @@
             "example": "HR Manager"
           }
         },
-        "required": [
-          "id",
-          "code",
-          "name"
-        ]
+        "required": ["id", "code", "name"]
       },
       "CompanyMember": {
         "type": "object",
@@ -7026,11 +6529,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "ACTIVE",
-              "INVITED",
-              "REMOVED"
-            ],
+            "enum": ["ACTIVE", "INVITED", "REMOVED"],
             "example": "ACTIVE"
           },
           "joinedAt": {
@@ -7062,11 +6561,7 @@
             ]
           }
         },
-        "required": [
-          "id",
-          "status",
-          "joinedAt"
-        ]
+        "required": ["id", "status", "joinedAt"]
       },
       "InviteMemberDto": {
         "type": "object",
@@ -7082,9 +6577,7 @@
             "description": "Existing recruiter role UUID. Omit to invite without a role."
           }
         },
-        "required": [
-          "email"
-        ]
+        "required": ["email"]
       },
       "CompanyMemberInvitation": {
         "type": "object",
@@ -7095,11 +6588,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "ACTIVE",
-              "INVITED",
-              "REMOVED"
-            ],
+            "enum": ["ACTIVE", "INVITED", "REMOVED"],
             "example": "INVITED"
           },
           "joinedAt": {
@@ -7130,12 +6619,7 @@
             ]
           }
         },
-        "required": [
-          "id",
-          "status",
-          "joinedAt",
-          "invitedEmail"
-        ]
+        "required": ["id", "status", "joinedAt", "invitedEmail"]
       },
       "CompanyMemberInvitationStatus": {
         "type": "object",
@@ -7146,11 +6630,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "ACTIVE",
-              "INVITED",
-              "REMOVED"
-            ],
+            "enum": ["ACTIVE", "INVITED", "REMOVED"],
             "example": "ACTIVE"
           },
           "updatedAt": {
@@ -7159,11 +6639,7 @@
             "example": "2026-06-09T09:00:00.000Z"
           }
         },
-        "required": [
-          "id",
-          "status",
-          "updatedAt"
-        ]
+        "required": ["id", "status", "updatedAt"]
       },
       "UpdateMemberRoleDto": {
         "type": "object",
@@ -7173,9 +6649,7 @@
             "example": "b11eaeff-087f-4677-b8bd-c29ac7e59693"
           }
         },
-        "required": [
-          "roleId"
-        ]
+        "required": ["roleId"]
       },
       "CompanyMemberRoleUpdate": {
         "type": "object",
@@ -7192,11 +6666,7 @@
             "$ref": "#/components/schemas/CompanyMemberRole"
           }
         },
-        "required": [
-          "id",
-          "roleId",
-          "role"
-        ]
+        "required": ["id", "roleId", "role"]
       },
       "CreateRecruiterRoleDto": {
         "type": "object",
@@ -7216,10 +6686,7 @@
             "example": "Manages recruitment and HR operations"
           }
         },
-        "required": [
-          "code",
-          "name"
-        ]
+        "required": ["code", "name"]
       },
       "UpdateRecruiterRoleDto": {
         "type": "object",
@@ -7244,10 +6711,7 @@
         "type": "object",
         "properties": {
           "permissionIds": {
-            "example": [
-              "perm-uuid-1",
-              "perm-uuid-2"
-            ],
+            "example": ["perm-uuid-1", "perm-uuid-2"],
             "description": "List of permission UUIDs to assign to the role",
             "type": "array",
             "items": {
@@ -7255,9 +6719,7 @@
             }
           }
         },
-        "required": [
-          "permissionIds"
-        ]
+        "required": ["permissionIds"]
       },
       "CreateRecruiterPermissionDto": {
         "type": "object",
@@ -7282,11 +6744,7 @@
             "example": "Allows creating new job posts"
           }
         },
-        "required": [
-          "code",
-          "module",
-          "action"
-        ]
+        "required": ["code", "module", "action"]
       },
       "UpdateRecruiterPermissionDto": {
         "type": "object",
@@ -7333,11 +6791,7 @@
             "writeOnly": true
           }
         },
-        "required": [
-          "fullName",
-          "email",
-          "password"
-        ]
+        "required": ["fullName", "email", "password"]
       },
       "CandidateEmailVerificationRequest": {
         "type": "object",
@@ -7360,11 +6814,7 @@
             "example": "Nếu email chưa xác thực, hệ thống đã gửi link xác thực đến email của bạn."
           }
         },
-        "required": [
-          "email",
-          "emailVerified",
-          "message"
-        ]
+        "required": ["email", "emailVerified", "message"]
       },
       "VerifyCandidateEmailDto": {
         "type": "object",
@@ -7374,9 +6824,7 @@
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
           }
         },
-        "required": [
-          "token"
-        ]
+        "required": ["token"]
       },
       "CandidateEmailVerificationResult": {
         "type": "object",
@@ -7395,11 +6843,7 @@
             "example": "2026-06-16T15:30:00.000Z"
           }
         },
-        "required": [
-          "email",
-          "emailVerified",
-          "emailVerifiedAt"
-        ]
+        "required": ["email", "emailVerified", "emailVerifiedAt"]
       },
       "CandidateAccount": {
         "type": "object",
@@ -7418,12 +6862,7 @@
           },
           "authProvider": {
             "type": "string",
-            "enum": [
-              "DEFAULT",
-              "GOOGLE",
-              "GITHUB",
-              "LINKEDIN"
-            ],
+            "enum": ["DEFAULT", "GOOGLE", "GITHUB", "LINKEDIN"],
             "example": "DEFAULT"
           },
           "providerUserId": {
@@ -7433,11 +6872,7 @@
           },
           "candidateAccountStatus": {
             "type": "string",
-            "enum": [
-              "ACTIVE",
-              "BANNED",
-              "PENDING_VERIFICATION"
-            ],
+            "enum": ["ACTIVE", "BANNED", "PENDING_VERIFICATION"],
             "example": "ACTIVE"
           },
           "emailVerifiedAt": {
@@ -7497,12 +6932,7 @@
             "example": 3
           }
         },
-        "required": [
-          "page",
-          "limit",
-          "total",
-          "totalPages"
-        ]
+        "required": ["page", "limit", "total", "totalPages"]
       },
       "CandidateAccountList": {
         "type": "object",
@@ -7517,27 +6947,18 @@
             "$ref": "#/components/schemas/CandidateAccountListMeta"
           }
         },
-        "required": [
-          "items",
-          "meta"
-        ]
+        "required": ["items", "meta"]
       },
       "UpdateCandidateAccountStatusDto": {
         "type": "object",
         "properties": {
           "candidateAccountStatus": {
             "type": "string",
-            "enum": [
-              "ACTIVE",
-              "BANNED",
-              "PENDING_VERIFICATION"
-            ],
+            "enum": ["ACTIVE", "BANNED", "PENDING_VERIFICATION"],
             "example": "BANNED"
           }
         },
-        "required": [
-          "candidateAccountStatus"
-        ]
+        "required": ["candidateAccountStatus"]
       },
       "CandidateProfileAccount": {
         "type": "object",
@@ -7555,11 +6976,7 @@
             "example": "pductoandev@gmail.com"
           }
         },
-        "required": [
-          "id",
-          "fullName",
-          "email"
-        ]
+        "required": ["id", "fullName", "email"]
       },
       "CandidateEducation": {
         "type": "object",
@@ -7661,14 +7078,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "id",
-          "candidateProfileId",
-          "name",
-          "sortOrder",
-          "createdAt",
-          "updatedAt"
-        ]
+        "required": ["id", "candidateProfileId", "name", "sortOrder", "createdAt", "updatedAt"]
       },
       "CandidateCertification": {
         "type": "object",
@@ -7706,14 +7116,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "id",
-          "candidateProfileId",
-          "name",
-          "sortOrder",
-          "createdAt",
-          "updatedAt"
-        ]
+        "required": ["id", "candidateProfileId", "name", "sortOrder", "createdAt", "updatedAt"]
       },
       "CandidateLanguage": {
         "type": "object",
@@ -7772,14 +7175,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "id",
-          "candidateProfileId",
-          "type",
-          "url",
-          "createdAt",
-          "updatedAt"
-        ]
+        "required": ["id", "candidateProfileId", "type", "url", "createdAt", "updatedAt"]
       },
       "CandidateProfile": {
         "type": "object",
@@ -7799,10 +7195,7 @@
           },
           "gender": {
             "type": "string",
-            "enum": [
-              "MALE",
-              "FEMALE"
-            ],
+            "enum": ["MALE", "FEMALE"],
             "nullable": true
           },
           "address": {
@@ -7821,17 +7214,11 @@
           },
           "jobSearchStatus": {
             "type": "string",
-            "enum": [
-              "OPEN_TO_WORK",
-              "NOT_LOOKING"
-            ]
+            "enum": ["OPEN_TO_WORK", "NOT_LOOKING"]
           },
           "profileVisibility": {
             "type": "string",
-            "enum": [
-              "PUBLIC",
-              "PRIVATE"
-            ]
+            "enum": ["PUBLIC", "PRIVATE"]
           },
           "createdAt": {
             "format": "date-time",
@@ -7896,10 +7283,7 @@
           },
           "gender": {
             "type": "string",
-            "enum": [
-              "MALE",
-              "FEMALE"
-            ]
+            "enum": ["MALE", "FEMALE"]
           },
           "address": {
             "type": "string",
@@ -7916,17 +7300,11 @@
           },
           "jobSearchStatus": {
             "type": "string",
-            "enum": [
-              "OPEN_TO_WORK",
-              "NOT_LOOKING"
-            ]
+            "enum": ["OPEN_TO_WORK", "NOT_LOOKING"]
           },
           "profileVisibility": {
             "type": "string",
-            "enum": [
-              "PUBLIC",
-              "PRIVATE"
-            ]
+            "enum": ["PUBLIC", "PRIVATE"]
           }
         }
       },
@@ -7975,9 +7353,7 @@
             "default": 0
           }
         },
-        "required": [
-          "schoolName"
-        ]
+        "required": ["schoolName"]
       },
       "UpdateCandidateEducationDto": {
         "type": "object",
@@ -8055,9 +7431,7 @@
             "default": 0
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
       "UpdateCandidateCertificationDto": {
         "type": "object",
@@ -8104,10 +7478,7 @@
             "maxLength": 80
           }
         },
-        "required": [
-          "language",
-          "proficiency"
-        ]
+        "required": ["language", "proficiency"]
       },
       "UpdateCandidateLanguageDto": {
         "type": "object",
@@ -8138,10 +7509,7 @@
             "maxLength": 500
           }
         },
-        "required": [
-          "type",
-          "url"
-        ]
+        "required": ["type", "url"]
       },
       "UpdateCandidateLinkDto": {
         "type": "object",
@@ -8200,9 +7568,7 @@
             "default": 0
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
       "UpdateCandidateProjectDto": {
         "type": "object",
@@ -8274,12 +7640,7 @@
           },
           "salaryPeriod": {
             "type": "string",
-            "enum": [
-              "HOUR",
-              "DAY",
-              "MONTH",
-              "YEAR"
-            ],
+            "enum": ["HOUR", "DAY", "MONTH", "YEAR"],
             "default": "MONTH"
           },
           "salaryIsNegotiable": {
@@ -8314,12 +7675,7 @@
             "example": "8e10280c-ae2d-4579-a048-c25279447a3e"
           }
         },
-        "required": [
-          "title",
-          "description",
-          "recruiterId",
-          "companyId"
-        ]
+        "required": ["title", "description", "recruiterId", "companyId"]
       },
       "UpdateJobPostDto": {
         "type": "object",
@@ -8348,12 +7704,7 @@
           },
           "salaryPeriod": {
             "type": "string",
-            "enum": [
-              "HOUR",
-              "DAY",
-              "MONTH",
-              "YEAR"
-            ],
+            "enum": ["HOUR", "DAY", "MONTH", "YEAR"],
             "default": "MONTH"
           },
           "salaryIsNegotiable": {
@@ -8390,26 +7741,15 @@
           },
           "proficiencyLevel": {
             "type": "string",
-            "enum": [
-              "BEGINNER",
-              "INTERMEDIATE",
-              "ADVANCED",
-              "EXPERT"
-            ]
+            "enum": ["BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"]
           },
           "priority": {
             "type": "string",
-            "enum": [
-              "REQUIRED",
-              "NICE_TO_HAVE",
-              "BONUS"
-            ],
+            "enum": ["REQUIRED", "NICE_TO_HAVE", "BONUS"],
             "default": "REQUIRED"
           }
         },
-        "required": [
-          "skillId"
-        ]
+        "required": ["skillId"]
       },
       "AddLocationToJobDto": {
         "type": "object",
@@ -8418,9 +7758,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "jobLocationId"
-        ]
+        "required": ["jobLocationId"]
       },
       "AddSpecializationToJobDto": {
         "type": "object",
@@ -8433,9 +7771,7 @@
             "default": false
           }
         },
-        "required": [
-          "specializationId"
-        ]
+        "required": ["specializationId"]
       },
       "SaveJobDto": {
         "type": "object",
@@ -8444,9 +7780,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "jobPostId"
-        ]
+        "required": ["jobPostId"]
       },
       "CreateCompanyReviewDto": {
         "type": "object",
@@ -8489,10 +7823,7 @@
             "type": "number"
           }
         },
-        "required": [
-          "applicationId",
-          "overallRating"
-        ]
+        "required": ["applicationId", "overallRating"]
       },
       "UpdateCompanyReviewDto": {
         "type": "object",
@@ -8552,9 +7883,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "candidateProfileId"
-        ]
+        "required": ["candidateProfileId"]
       },
       "CreateJobCategoryDto": {
         "type": "object",
@@ -8574,9 +7903,7 @@
             "default": true
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
       "UpdateJobCategoryDto": {
         "type": "object",
@@ -8604,9 +7931,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
       "UpdateEmploymentTypeDto": {
         "type": "object",
@@ -8627,10 +7952,7 @@
             "description": "Unique code e.g. JUNIOR, SENIOR"
           }
         },
-        "required": [
-          "name",
-          "code"
-        ]
+        "required": ["name", "code"]
       },
       "UpdateExperienceLevelDto": {
         "type": "object",
@@ -8673,10 +7995,7 @@
           },
           "visibility": {
             "type": "string",
-            "enum": [
-              "PUBLIC",
-              "PRIVATE"
-            ]
+            "enum": ["PUBLIC", "PRIVATE"]
           },
           "storageKey": {
             "type": "string"
@@ -8725,10 +8044,7 @@
             "$ref": "#/components/schemas/FileAsset"
           }
         },
-        "required": [
-          "message",
-          "file"
-        ]
+        "required": ["message", "file"]
       },
       "MultipleFileUploadResponse": {
         "type": "object",
@@ -8744,10 +8060,7 @@
             }
           }
         },
-        "required": [
-          "message",
-          "files"
-        ]
+        "required": ["message", "files"]
       },
       "CreateSpecializationDto": {
         "type": "object",
@@ -8760,10 +8073,7 @@
             "description": "Unique slug e.g. backend-development"
           }
         },
-        "required": [
-          "name",
-          "slug"
-        ]
+        "required": ["name", "slug"]
       },
       "UpdateSpecializationDto": {
         "type": "object",
@@ -8786,11 +8096,7 @@
           },
           "workingModel": {
             "type": "string",
-            "enum": [
-              "ONSITE",
-              "REMOTE",
-              "HYBRID"
-            ]
+            "enum": ["ONSITE", "REMOTE", "HYBRID"]
           },
           "city": {
             "type": "string"
@@ -8808,9 +8114,7 @@
             "type": "number"
           }
         },
-        "required": [
-          "workingModel"
-        ]
+        "required": ["workingModel"]
       },
       "UpdateJobLocationDto": {
         "type": "object",
@@ -8821,11 +8125,7 @@
           },
           "workingModel": {
             "type": "string",
-            "enum": [
-              "ONSITE",
-              "REMOTE",
-              "HYBRID"
-            ]
+            "enum": ["ONSITE", "REMOTE", "HYBRID"]
           },
           "city": {
             "type": "string"
@@ -8862,9 +8162,7 @@
             "default": true
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
       "CreateSkillDto": {
         "type": "object",
@@ -8884,9 +8182,7 @@
             "default": true
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
       "UpdateSkillDto": {
         "type": "object",
@@ -8926,10 +8222,7 @@
             "description": "Optional cover letter text"
           }
         },
-        "required": [
-          "jobPostId",
-          "cvVersionId"
-        ]
+        "required": ["jobPostId", "cvVersionId"]
       },
       "ApplicationEntity": {
         "type": "object",
@@ -9037,9 +8330,7 @@
             "example": "SUBMITTED"
           }
         },
-        "required": [
-          "applied"
-        ]
+        "required": ["applied"]
       },
       "CreateCvDto": {
         "type": "object",
@@ -9052,20 +8343,13 @@
           },
           "source": {
             "type": "string",
-            "enum": [
-              "UPLOAD",
-              "BUILDER"
-            ],
+            "enum": ["UPLOAD", "BUILDER"],
             "default": "BUILDER",
             "description": "Nguồn tạo CV."
           },
           "status": {
             "type": "string",
-            "enum": [
-              "DRAFT",
-              "ACTIVE",
-              "ARCHIVED"
-            ],
+            "enum": ["DRAFT", "ACTIVE", "ARCHIVED"],
             "default": "ACTIVE",
             "description": "Trạng thái CV."
           },
@@ -9089,11 +8373,7 @@
             "type": "object",
             "example": {
               "summary": "Lập trình viên Backend NestJS có 3 năm kinh nghiệm.",
-              "skills": [
-                "NestJS",
-                "Prisma",
-                "PostgreSQL"
-              ]
+              "skills": ["NestJS", "Prisma", "PostgreSQL"]
             },
             "description": "Nội dung JSON từ trình tạo CV cho phiên bản CV đầu tiên."
           },
@@ -9103,9 +8383,7 @@
             "description": "Nội dung văn bản đã bóc tách hoặc nhập từ CV."
           }
         },
-        "required": [
-          "title"
-        ]
+        "required": ["title"]
       },
       "CvVersionFile": {
         "type": "object",
@@ -9132,11 +8410,7 @@
             "description": "URL công khai của file nếu có."
           }
         },
-        "required": [
-          "id",
-          "originalName",
-          "mimeType"
-        ]
+        "required": ["id", "originalName", "mimeType"]
       },
       "CvVersion": {
         "type": "object",
@@ -9172,11 +8446,7 @@
             "type": "object",
             "example": {
               "summary": "Lập trình viên Backend NestJS có 3 năm kinh nghiệm.",
-              "skills": [
-                "NestJS",
-                "Prisma",
-                "PostgreSQL"
-              ]
+              "skills": ["NestJS", "Prisma", "PostgreSQL"]
             },
             "nullable": true,
             "description": "Nội dung JSON của phiên bản CV."
@@ -9204,12 +8474,7 @@
             ]
           }
         },
-        "required": [
-          "id",
-          "cvId",
-          "versionNo",
-          "createdAt"
-        ]
+        "required": ["id", "cvId", "versionNo", "createdAt"]
       },
       "CvEntity": {
         "type": "object",
@@ -9231,20 +8496,13 @@
           },
           "source": {
             "type": "string",
-            "enum": [
-              "UPLOAD",
-              "BUILDER"
-            ],
+            "enum": ["UPLOAD", "BUILDER"],
             "example": "BUILDER",
             "description": "Nguồn tạo CV."
           },
           "status": {
             "type": "string",
-            "enum": [
-              "DRAFT",
-              "ACTIVE",
-              "ARCHIVED"
-            ],
+            "enum": ["DRAFT", "ACTIVE", "ARCHIVED"],
             "example": "ACTIVE",
             "description": "Trạng thái CV."
           },
@@ -9309,12 +8567,7 @@
             "description": "Tổng số trang."
           }
         },
-        "required": [
-          "page",
-          "limit",
-          "total",
-          "totalPages"
-        ]
+        "required": ["page", "limit", "total", "totalPages"]
       },
       "CvList": {
         "type": "object",
@@ -9335,10 +8588,7 @@
             ]
           }
         },
-        "required": [
-          "items",
-          "meta"
-        ]
+        "required": ["items", "meta"]
       },
       "UpdateCvDto": {
         "type": "object",
@@ -9351,19 +8601,12 @@
           },
           "source": {
             "type": "string",
-            "enum": [
-              "UPLOAD",
-              "BUILDER"
-            ],
+            "enum": ["UPLOAD", "BUILDER"],
             "description": "Nguồn tạo CV."
           },
           "status": {
             "type": "string",
-            "enum": [
-              "DRAFT",
-              "ACTIVE",
-              "ARCHIVED"
-            ],
+            "enum": ["DRAFT", "ACTIVE", "ARCHIVED"],
             "description": "Trạng thái CV."
           },
           "isDefault": {
@@ -9392,9 +8635,7 @@
             "description": "Nội dung văn bản đã bóc tách từ file CV."
           }
         },
-        "required": [
-          "file"
-        ]
+        "required": ["file"]
       },
       "CvVersionListMeta": {
         "type": "object",
@@ -9420,12 +8661,7 @@
             "description": "Tổng số trang."
           }
         },
-        "required": [
-          "page",
-          "limit",
-          "total",
-          "totalPages"
-        ]
+        "required": ["page", "limit", "total", "totalPages"]
       },
       "CvVersionList": {
         "type": "object",
@@ -9446,10 +8682,7 @@
             ]
           }
         },
-        "required": [
-          "items",
-          "meta"
-        ]
+        "required": ["items", "meta"]
       },
       "CreateCvTemplateDto": {
         "type": "object",
@@ -9484,10 +8717,7 @@
             "description": "Cho biết mẫu CV có đang được phép sử dụng hay không."
           }
         },
-        "required": [
-          "name",
-          "layoutKey"
-        ]
+        "required": ["name", "layoutKey"]
       },
       "CvTemplateEntity": {
         "type": "object",
@@ -9576,12 +8806,7 @@
             "description": "Tổng số trang."
           }
         },
-        "required": [
-          "page",
-          "limit",
-          "total",
-          "totalPages"
-        ]
+        "required": ["page", "limit", "total", "totalPages"]
       },
       "CvTemplateList": {
         "type": "object",
@@ -9602,10 +8827,7 @@
             ]
           }
         },
-        "required": [
-          "items",
-          "meta"
-        ]
+        "required": ["items", "meta"]
       },
       "UpdateCvTemplateDto": {
         "type": "object",

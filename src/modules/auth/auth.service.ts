@@ -3,11 +3,7 @@ import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ActorType } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
 import { LoginResponse } from './entities/auth.entity';
-import {
-  EmailVerificationTokenPayload,
-  JwtPayload,
-  PasswordResetTokenPayload,
-} from './auth.types';
+import { EmailVerificationTokenPayload, JwtPayload, PasswordResetTokenPayload } from './auth.types';
 
 @Injectable()
 export class AuthService {
@@ -55,10 +51,7 @@ export class AuthService {
     };
   }
 
-  async signEmailVerificationToken(user: {
-    id: string;
-    email: string;
-  }) {
+  async signEmailVerificationToken(user: { id: string; email: string }) {
     const payload: EmailVerificationTokenPayload = {
       sub: user.id,
       email: user.email,
@@ -75,10 +68,7 @@ export class AuthService {
     try {
       const payload = await this.jwtService.verifyAsync<EmailVerificationTokenPayload>(token);
 
-      if (
-        payload.role !== ActorType.CANDIDATE ||
-        payload.purpose !== 'email-verification'
-      ) {
+      if (payload.role !== ActorType.CANDIDATE || payload.purpose !== 'email-verification') {
         throw new UnauthorizedException('Token xác thực email không hợp lệ');
       }
 
@@ -88,11 +78,7 @@ export class AuthService {
     }
   }
 
-  async signPasswordResetToken(user: {
-    id: string;
-    email: string;
-    role: ActorType;
-  }) {
+  async signPasswordResetToken(user: { id: string; email: string; role: ActorType }) {
     const payload: PasswordResetTokenPayload = {
       sub: user.id,
       email: user.email,
@@ -109,10 +95,7 @@ export class AuthService {
     try {
       const payload = await this.jwtService.verifyAsync<PasswordResetTokenPayload>(token);
 
-      if (
-        payload.role !== expectedRole ||
-        payload.purpose !== 'password-reset'
-      ) {
+      if (payload.role !== expectedRole || payload.purpose !== 'password-reset') {
         throw new UnauthorizedException('Token đặt lại mật khẩu không hợp lệ');
       }
 

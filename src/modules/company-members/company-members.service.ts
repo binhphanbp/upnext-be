@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CompanyMemberStatus, ActorType } from '@prisma/client';
+import { CompanyMemberStatus, ActorType, CompanyVerificationStatus } from '@prisma/client';
 import { EmailService } from '../../common/email/email.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { InviteMemberDto } from './dto/invite-member.dto';
@@ -46,7 +46,7 @@ export class CompanyMembersService {
   async inviteMember(companyId: string, dto: InviteMemberDto, currentUser: AuthenticatedUser) {
     // 1. Check if current user belongs to the company they are inviting to (or is an Admin)
     if (currentUser.role !== ActorType.ADMIN && currentUser.companyId !== companyId) {
-      throw new ForbiddenException('You do not have permission to invite members to this company.');
+      throw new ForbiddenException('Bạn không có quyền mời thành viên tham gia công ty này.');
     }
 
     // 2. Check if current user has OWNER or HR role in the company
@@ -55,20 +55,38 @@ export class CompanyMembersService {
         where: { recruiterAccountId: currentUser.id, companyId },
         include: { role: true },
       });
-      if (!invitingMember || (invitingMember.role?.code !== 'OWNER' && invitingMember.role?.code !== 'HR')) {
-        throw new ForbiddenException('You do not have permission to invite members.');
+      if (
+        !invitingMember ||
+        (invitingMember.role?.code !== 'OWNER' && invitingMember.role?.code !== 'HR')
+      ) {
+        throw new ForbiddenException('Bạn không có quyền mời thành viên.');
       }
     }
 
     const company = await this.ensureCompanyExists(companyId);
+
+    // Check if company has basic info and is verified/approved (bypassed for Admin)
+    if (currentUser.role !== ActorType.ADMIN) {
+      if (!company.name || !company.taxCode || !company.address) {
+        throw new BadRequestException(
+          'Thông tin hồ sơ công ty chưa đầy đủ. Vui lòng hoàn tất hồ sơ công ty trước.',
+        );
+      }
+      if (company.verificationStatus !== CompanyVerificationStatus.VERIFIED) {
+        throw new ForbiddenException(
+          'Công ty chưa được duyệt. Vui lòng đợi quản trị viên phê duyệt trước khi mời thành viên.',
+        );
+      }
+    }
+
     const invitedEmail = dto.email.toLowerCase();
 
     if (currentUser.role !== ActorType.ADMIN && currentUser.companyId !== companyId) {
-      throw new ForbiddenException('You do not have permission to invite members to this company');
+      throw new ForbiddenException('Bạn không có quyền mời thành viên tham gia công ty này.');
     }
 
     if (invitedEmail === currentUser.email.toLowerCase()) {
-      throw new BadRequestException('You cannot invite your own email address');
+      throw new BadRequestException('Bạn không thể tự mời địa chỉ email của chính mình.');
     }
 
     const recruiterAccount = await this.prisma.recruiterAccount.findUnique({
@@ -77,7 +95,7 @@ export class CompanyMembersService {
     });
 
     if (recruiterAccount?.companyId === companyId) {
-      throw new ConflictException(`Email ${invitedEmail} is already a member of this company`);
+      throw new ConflictException(`Email ${invitedEmail} đã là thành viên của công ty này.`);
     }
 
     const existing = await this.prisma.companyMember.findFirst({
@@ -92,7 +110,7 @@ export class CompanyMembersService {
 
     if (existing) {
       throw new ConflictException(
-        `Email ${invitedEmail} is already invited or a member of this company`,
+        `Email ${invitedEmail} đã được mời hoặc đã là thành viên của công ty này.`,
       );
     }
 
@@ -115,7 +133,9 @@ export class CompanyMembersService {
           },
         });
         if (existingOwner) {
-          throw new ConflictException('Company already has an Owner. You cannot invite another Owner.');
+          throw new ConflictException(
+            'Company already has an Owner. You cannot invite another Owner.',
+          );
         }
       }
     }
@@ -164,7 +184,10 @@ export class CompanyMembersService {
       throw new ForbiddenException('This invitation is not for your account.');
     }
 
-    if (member.invitedEmail && member.invitedEmail.toLowerCase() !== currentUser.email.toLowerCase()) {
+    if (
+      member.invitedEmail &&
+      member.invitedEmail.toLowerCase() !== currentUser.email.toLowerCase()
+    ) {
       throw new ForbiddenException('This invitation is not for your email address.');
     }
 
@@ -192,7 +215,11 @@ export class CompanyMembersService {
     });
   }
 
-  async updateMemberRole(memberId: string, dto: UpdateMemberRoleDto, currentUser: AuthenticatedUser) {
+  async updateMemberRole(
+    memberId: string,
+    dto: UpdateMemberRoleDto,
+    currentUser: AuthenticatedUser,
+  ) {
     const targetMember = await this.prisma.companyMember.findUnique({
       where: { id: memberId },
       include: { role: true },
@@ -295,12 +322,17 @@ export class CompanyMembersService {
     // ─── If target role is NOT OWNER ────────────────────────────────────────
     // 1. Cannot demote the OWNER directly without transferring ownership
     if (targetMember.role?.code === 'OWNER') {
-      throw new ForbiddenException('Cannot demote the company Owner. Ownership must be transferred to another member first.');
+      throw new ForbiddenException(
+        'Cannot demote the company Owner. Ownership must be transferred to another member first.',
+      );
     }
 
     // 2. Check if current user has permission (must be OWNER or HR in the company)
     if (currentUser.role !== ActorType.ADMIN) {
-      if (!currentUserMember || (currentUserMember.role?.code !== 'OWNER' && currentUserMember.role?.code !== 'HR')) {
+      if (
+        !currentUserMember ||
+        (currentUserMember.role?.code !== 'OWNER' && currentUserMember.role?.code !== 'HR')
+      ) {
         throw new ForbiddenException('You do not have permission to manage member roles.');
       }
     }
@@ -337,7 +369,9 @@ export class CompanyMembersService {
 
     // 1. Cannot remove the owner of the company
     if (member.role?.code === 'OWNER') {
-      throw new ForbiddenException('Cannot remove the company Owner. Ownership must be transferred first.');
+      throw new ForbiddenException(
+        'Cannot remove the company Owner. Ownership must be transferred first.',
+      );
     }
 
     // 2. Check permission to remove member (must be OWNER or HR)
@@ -347,7 +381,10 @@ export class CompanyMembersService {
         include: { role: true },
       });
 
-      if (!currentUserMember || (currentUserMember.role?.code !== 'OWNER' && currentUserMember.role?.code !== 'HR')) {
+      if (
+        !currentUserMember ||
+        (currentUserMember.role?.code !== 'OWNER' && currentUserMember.role?.code !== 'HR')
+      ) {
         throw new ForbiddenException('You do not have permission to remove company members.');
       }
 

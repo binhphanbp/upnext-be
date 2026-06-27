@@ -8,16 +8,16 @@ import { UpdateMyCandidateAccountDto } from './dto/update-my-candidate-account.d
 
 @Injectable()
 export class CandidateAccountService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll(query: PaginationQueryDto) {
     const where: Prisma.CandidateAccountWhereInput = query.q
       ? {
-        OR: [
-          { fullName: { contains: query.q, mode: 'insensitive' } },
-          { email: { contains: query.q, mode: 'insensitive' } },
-        ],
-      }
+          OR: [
+            { fullName: { contains: query.q, mode: 'insensitive' } },
+            { email: { contains: query.q, mode: 'insensitive' } },
+          ],
+        }
       : {};
 
     const [items, total] = await this.prisma.$transaction([

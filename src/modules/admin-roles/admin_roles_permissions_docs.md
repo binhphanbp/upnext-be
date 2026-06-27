@@ -20,11 +20,13 @@ Tài liệu này cung cấp chi tiết về cách hoạt động, các Endpoint 
 ## 2. API Vai trò Admin (`/admin/roles`)
 
 ### 2.1. Lấy danh sách vai trò
-* **Endpoint**: `GET /admin/roles`
-* **Quyền yêu cầu**: `roles:read`
-* **Mô tả**: Trả về tất cả vai trò admin trong hệ thống kèm theo danh sách các quyền đã gán cho vai trò đó.
+
+- **Endpoint**: `GET /admin/roles`
+- **Quyền yêu cầu**: `roles:read`
+- **Mô tả**: Trả về tất cả vai trò admin trong hệ thống kèm theo danh sách các quyền đã gán cho vai trò đó.
 
 **Response Example (200 OK)**:
+
 ```json
 [
   {
@@ -55,11 +57,13 @@ Tài liệu này cung cấp chi tiết về cách hoạt động, các Endpoint 
 ---
 
 ### 2.2. Xem chi tiết vai trò
-* **Endpoint**: `GET /admin/roles/{id}`
-* **Quyền yêu cầu**: `roles:read`
-* **Mô tả**: Lấy thông tin chi tiết của một vai trò dựa trên UUID, kèm danh sách quyền hạn cụ thể.
+
+- **Endpoint**: `GET /admin/roles/{id}`
+- **Quyền yêu cầu**: `roles:read`
+- **Mô tả**: Lấy thông tin chi tiết của một vai trò dựa trên UUID, kèm danh sách quyền hạn cụ thể.
 
 **Response Example (200 OK)**:
+
 ```json
 {
   "id": "e6f8832c-3bb1-41e1-95ef-cb3e7f4b8cfd",
@@ -84,10 +88,12 @@ Tài liệu này cung cấp chi tiết về cách hoạt động, các Endpoint 
 ---
 
 ### 2.3. Tạo vai trò mới
-* **Endpoint**: `POST /admin/roles`
-* **Quyền yêu cầu**: `roles:write`
+
+- **Endpoint**: `POST /admin/roles`
+- **Quyền yêu cầu**: `roles:write`
 
 **Request Body**:
+
 ```json
 {
   "roleName": "content_creator",
@@ -97,6 +103,7 @@ Tài liệu này cung cấp chi tiết về cách hoạt động, các Endpoint 
 ```
 
 **Response Example (201 Created)**:
+
 ```json
 {
   "id": "782f9d50-59f7-4aeb-a02b-586b4129b015",
@@ -112,10 +119,12 @@ Tài liệu này cung cấp chi tiết về cách hoạt động, các Endpoint 
 ---
 
 ### 2.4. Cập nhật vai trò
-* **Endpoint**: `PATCH /admin/roles/{id}`
-* **Quyền yêu cầu**: `roles:write`
+
+- **Endpoint**: `PATCH /admin/roles/{id}`
+- **Quyền yêu cầu**: `roles:write`
 
 **Request Body (Truyền các trường cần cập nhật)**:
+
 ```json
 {
   "description": "Vai trò mới cho bộ phận Content",
@@ -124,6 +133,7 @@ Tài liệu này cung cấp chi tiết về cách hoạt động, các Endpoint 
 ```
 
 **Response Example (200 OK)**:
+
 ```json
 {
   "id": "782f9d50-59f7-4aeb-a02b-586b4129b015",
@@ -137,41 +147,43 @@ Tài liệu này cung cấp chi tiết về cách hoạt động, các Endpoint 
 ---
 
 ### 2.5. Xóa vai trò
-* **Endpoint**: `DELETE /admin/roles/{id}`
-* **Quyền yêu cầu**: `roles:write`
-* **Mô tả**: Xóa vai trò chỉ khi **không có** tài khoản admin nào đang được gán vai trò này.
-* **Response**: `204 No Content` (Thành công, không có body trả về).
+
+- **Endpoint**: `DELETE /admin/roles/{id}`
+- **Quyền yêu cầu**: `roles:write`
+- **Mô tả**: Xóa vai trò chỉ khi **không có** tài khoản admin nào đang được gán vai trò này.
+- **Response**: `204 No Content` (Thành công, không có body trả về).
 
 ---
 
 ### 2.6. Gán quyền hạn vào vai trò (Đồng bộ)
-* **Endpoint**: `POST /admin/roles/{id}/permissions`
-* **Quyền yêu cầu**: `roles:write`
-* **Mô tả**: Gửi lên danh sách các UUID của quyền hạn mà bạn muốn gán cho vai trò này. API sẽ tự động **xóa bỏ** các quyền cũ không được gửi lên và **thêm mới** các quyền được gửi lên.
+
+- **Endpoint**: `POST /admin/roles/{id}/permissions`
+- **Quyền yêu cầu**: `roles:write`
+- **Mô tả**: Gửi lên danh sách các UUID của quyền hạn mà bạn muốn gán cho vai trò này. API sẽ tự động **xóa bỏ** các quyền cũ không được gửi lên và **thêm mới** các quyền được gửi lên.
 
 **Request Body**:
+
 ```json
 {
-  "permissionIds": [
-    "a90df2fa-b054-47f9-813d-82d8d85f8cfb",
-    "f231e345-cb3e-4fb7-8821-2e656d05f340"
-  ]
+  "permissionIds": ["a90df2fa-b054-47f9-813d-82d8d85f8cfb", "f231e345-cb3e-4fb7-8821-2e656d05f340"]
 }
 ```
 
 **Response Example (200 OK)**:
-*Trả về thông tin vai trò cập nhật kèm toàn bộ danh sách các quyền hạn mới sau khi đồng bộ.*
+_Trả về thông tin vai trò cập nhật kèm toàn bộ danh sách các quyền hạn mới sau khi đồng bộ._
 
 ---
 
 ## 3. API Quyền hạn Admin (`/admin/permissions`)
 
 ### 3.1. Lấy danh sách tất cả quyền hạn
-* **Endpoint**: `GET /admin/permissions`
-* **Quyền yêu cầu**: `permissions:read`
-* **Mô tả**: Lấy toàn bộ danh sách quyền hạn hiện có trong hệ thống để phục vụ giao diện gán quyền dạng Checkbox hoặc Select.
+
+- **Endpoint**: `GET /admin/permissions`
+- **Quyền yêu cầu**: `permissions:read`
+- **Mô tả**: Lấy toàn bộ danh sách quyền hạn hiện có trong hệ thống để phục vụ giao diện gán quyền dạng Checkbox hoặc Select.
 
 **Response Example (200 OK)**:
+
 ```json
 [
   {
@@ -198,10 +210,12 @@ Tài liệu này cung cấp chi tiết về cách hoạt động, các Endpoint 
 ---
 
 ### 3.2. Tạo quyền hạn mới
-* **Endpoint**: `POST /admin/permissions`
-* **Quyền yêu cầu**: `permissions:write`
+
+- **Endpoint**: `POST /admin/permissions`
+- **Quyền yêu cầu**: `permissions:write`
 
 **Request Body**:
+
 ```json
 {
   "permissionName": "Xóa hoàn toàn người dùng",
@@ -216,27 +230,31 @@ Tài liệu này cung cấp chi tiết về cách hoạt động, các Endpoint 
 ## 4. Hướng dẫn Tích hợp phía Frontend (FE Integration)
 
 ### Bước 1: Lưu danh sách quyền của Admin sau khi Đăng nhập
+
 Khi người dùng đăng nhập thành công:
+
 1. Lấy ra `adminRoleId` của họ từ payload token JWT.
 2. Gọi API `GET /admin/roles/{adminRoleId}` để nhận thông tin chi tiết vai trò của họ.
 3. Trích xuất danh sách các `permissionCode` và lưu vào Context hoặc Global State (Redux / Pinia / React Context):
 
 ```javascript
 // Ví dụ xử lý JS
-const permissions = roleDetail.rolePermissions.map(rp => rp.permission.permissionCode);
+const permissions = roleDetail.rolePermissions.map((rp) => rp.permission.permissionCode);
 // Kết quả: ['roles:read', 'posts:read', 'posts:write']
 localStorage.setItem('admin_permissions', JSON.stringify(permissions));
 ```
 
 ### Bước 2: Tạo Component hoặc Hook kiểm tra quyền trên UI
+
 Tạo một helper function hoặc component bao bọc để hiển thị/ẩn các nút bấm tương ứng:
 
 **Ví dụ trong React**:
+
 ```jsx
 // Hook kiểm tra quyền
 export function usePermission() {
   const permissions = JSON.parse(localStorage.getItem('admin_permissions') || '[]');
-  
+
   const hasPermission = (code) => {
     // Nếu là super_admin (bỏ qua kiểm tra)
     const roleName = localStorage.getItem('admin_role_name');
@@ -257,23 +275,21 @@ function PostItem({ post }) {
   return (
     <div>
       <h3>{post.title}</h3>
-      
+
       {/* Chỉ hiện nút sửa khi có quyền 'posts:write' */}
-      {hasPermission('posts:write') && (
-        <button onClick={handleEdit}>Sửa bài viết</button>
-      )}
-      
+      {hasPermission('posts:write') && <button onClick={handleEdit}>Sửa bài viết</button>}
+
       {/* Chỉ hiện nút xóa khi có quyền 'posts:write' */}
-      {hasPermission('posts:write') && (
-        <button onClick={handleDelete}>Xóa bài viết</button>
-      )}
+      {hasPermission('posts:write') && <button onClick={handleDelete}>Xóa bài viết</button>}
     </div>
   );
 }
 ```
 
 ### Bước 3: Xử lý lỗi API bị từ chối (403 Forbidden)
+
 Khi gửi request API lên BE mà tài khoản đó vừa bị Admin khác thu hồi quyền:
+
 - BE sẽ trả về status `403 Forbidden`.
 - FE nên có một bộ lọc đánh chặn (Axios Interceptors) để phát hiện lỗi `403` và hiển thị thông báo Alert cảnh báo cho người dùng:
 
@@ -282,10 +298,12 @@ axios.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 403) {
-      toast.error("Bạn không có quyền thực hiện hành động này hoặc quyền hạn của bạn đã bị thay đổi!");
+      toast.error(
+        'Bạn không có quyền thực hiện hành động này hoặc quyền hạn của bạn đã bị thay đổi!',
+      );
     }
     return Promise.reject(error);
-  }
+  },
 );
 ```
 
@@ -296,7 +314,9 @@ axios.interceptors.response.use(
 Để một quyền hạn mới tạo có hiệu lực và tác động trực tiếp ngay lập tức trên hệ thống phân quyền động, bạn hãy làm theo các bước chuẩn dưới đây:
 
 ### Bước 1: Gán mã quyền vào API Endpoint của Module ở Backend
+
 Ở controller của module muốn bảo vệ (ví dụ: `AdminPostsController`), bạn gắn Decorator `@AdminPermissions('mã_quyền_của_bạn')` và khai báo `AdminPermissionsGuard`:
+
 ```typescript
 @UseGuards(JwtAuthGuard, RolesGuard, AdminPermissionsGuard)
 @Controller('admin/posts')
@@ -308,7 +328,9 @@ export class AdminPostsController {
 ```
 
 ### Bước 2: Đăng ký Quyền trong Database (Qua API hoặc Giao diện Admin)
+
 Khi quản trị viên tối cao (Super Admin) tạo mới quyền qua giao diện hoặc gọi API:
+
 - Gửi yêu cầu tới `POST /admin/permissions`:
   ```json
   {
@@ -318,18 +340,17 @@ Khi quản trị viên tối cao (Super Admin) tạo mới quyền qua giao di�
     "description": "Cho phép sửa nội dung bài viết"
   }
   ```
-  *(Hệ thống sẽ ghi nhận và tạo ID cho quyền này, ví dụ: `perm-uuid-123`)*
+  _(Hệ thống sẽ ghi nhận và tạo ID cho quyền này, ví dụ: `perm-uuid-123`)_
 
 ### Bước 3: Liên kết Quyền với Vai trò (Roles)
+
 - Gửi yêu cầu gán danh sách quyền tới `POST /admin/roles/{roleId}/permissions` bao gồm cả ID của quyền mới tạo để liên kết vào vai trò:
   ```json
   {
-    "permissionIds": [
-      "perm-uuid-123"
-    ]
+    "permissionIds": ["perm-uuid-123"]
   }
   ```
 
 ### Bước 4: Tác dụng ngay lập tức
-- Vì `AdminPermissionsGuard` tại BE kiểm tra trực tiếp qua cơ sở dữ liệu trên mỗi request API, ngay khi việc gán quyền ở **Bước 3** hoàn thành, các Admin thuộc vai trò đó khi gửi request tới API `PATCH /admin/posts/:id` sẽ được hệ thống cho phép truy cập ngay lập tức mà không cần phải restart server hay đăng nhập lại.
 
+- Vì `AdminPermissionsGuard` tại BE kiểm tra trực tiếp qua cơ sở dữ liệu trên mỗi request API, ngay khi việc gán quyền ở **Bước 3** hoàn thành, các Admin thuộc vai trò đó khi gửi request tới API `PATCH /admin/posts/:id` sẽ được hệ thống cho phép truy cập ngay lập tức mà không cần phải restart server hay đăng nhập lại.

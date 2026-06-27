@@ -20,10 +20,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
-import {
-  AuthenticatedUser,
-  CurrentUser,
-} from '../../common/decorators/current-user.decorator';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -39,7 +36,7 @@ import { CandidateAccount, CandidateAccountList } from './entities/candidate-acc
 @Roles(ActorType.ADMIN)
 @Controller('candidate-accounts')
 export class CandidateAccountController {
-  constructor(private readonly candidateAccountService: CandidateAccountService) { }
+  constructor(private readonly candidateAccountService: CandidateAccountService) {}
 
   @Get('me')
   @Roles(ActorType.CANDIDATE)

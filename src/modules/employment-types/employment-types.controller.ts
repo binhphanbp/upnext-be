@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, ParseUUIDPipe, HttpCode } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  ParseUUIDPipe,
+  HttpCode,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { EmploymentTypesService } from './employment-types.service';
 import { CreateEmploymentTypeDto } from './dto/create-employment-type.dto';

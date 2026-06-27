@@ -120,8 +120,7 @@ export class EmailService {
     try {
       await this.transporter.sendMail({
         from:
-          this.configService.get<string>('mailFrom') ??
-          this.configService.get<string>('smtpUser'),
+          this.configService.get<string>('mailFrom') ?? this.configService.get<string>('smtpUser'),
         to: params.to,
         subject: params.subject,
         text: params.text,

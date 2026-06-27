@@ -10,7 +10,9 @@ export class CandidateEmailVerificationRequest {
   @ApiPropertyOptional({ example: null, nullable: true })
   emailVerifiedAt: Date | null;
 
-  @ApiProperty({ example: 'Nếu email chưa xác thực, hệ thống đã gửi link xác thực đến email của bạn.' })
+  @ApiProperty({
+    example: 'Nếu email chưa xác thực, hệ thống đã gửi link xác thực đến email của bạn.',
+  })
   message: string;
 }
 
