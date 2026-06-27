@@ -57,7 +57,8 @@
     "prisma": "latest",
     "reflect-metadata": "latest",
     "rxjs": "latest",
-    "zod": "latest"
+    "zod": "latest",
+    "tsx": "latest"
   },
   "devDependencies": {
     "@commitlint/cli": "latest",
@@ -88,7 +89,6 @@
     "ts-loader": "latest",
     "ts-node": "latest",
     "tsconfig-paths": "latest",
-    "tsx": "latest",
     "typescript": "latest",
     "typescript-eslint": "latest",
     "xlsx": "^0.18.5"
