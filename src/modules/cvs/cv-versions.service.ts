@@ -9,6 +9,8 @@ import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
+import { Readable } from 'stream';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import { PaginationQueryDto, toPagination } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadCvVersionDto } from './dto/upload-cv-version.dto';
@@ -22,7 +24,10 @@ type UploadedFile = {
 
 @Injectable()
 export class CvVersionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   async upload(cvId: string, dto: UploadCvVersionDto, file?: UploadedFile) {
     await this.ensureCvExists(cvId);
@@ -131,19 +136,44 @@ export class CvVersionsService {
       throw new NotFoundException('Phiên bản CV chưa có file để tải xuống');
     }
 
-    const absolutePath = join(process.cwd(), version.sourceFile.storageKey);
+    const isLocal = version.sourceFile.storageKey.startsWith('uploads/');
 
-    try {
-      await stat(absolutePath);
-    } catch {
-      throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ');
+    if (isLocal) {
+      const absolutePath = join(process.cwd(), version.sourceFile.storageKey);
+
+      try {
+        await stat(absolutePath);
+      } catch {
+        throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ');
+      }
+
+      return {
+        stream: createReadStream(absolutePath),
+        fileName: version.sourceFile.originalName,
+        mimeType: version.sourceFile.mimeType,
+      };
+    } else {
+      const signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
+        resourceType: 'image',
+      });
+
+      try {
+        const response = await fetch(signedUrl);
+        if (!response.ok) {
+          throw new Error('Cloudinary download failed');
+        }
+
+        const nodeStream = Readable.fromWeb(response.body as any);
+
+        return {
+          stream: nodeStream,
+          fileName: version.sourceFile.originalName,
+          mimeType: version.sourceFile.mimeType,
+        };
+      } catch (error) {
+        throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ đám mây');
+      }
     }
-
-    return {
-      stream: createReadStream(absolutePath),
-      fileName: version.sourceFile.originalName,
-      mimeType: version.sourceFile.mimeType,
-    };
   }
 
   async restore(id: string) {
