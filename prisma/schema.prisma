@@ -1590,6 +1590,7 @@ model SearchKeywordLog {
   @@index([canonicalKeyword, createdAt])
   @@map("search_keyword_logs")
 }
+
 // =========================
 // Notifications module
 // =========================

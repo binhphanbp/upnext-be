@@ -29,12 +29,26 @@ export const FirebaseAdminProvider = {
       privateKey = generatedKey;
     }
 
-    return initializeApp({
-      credential: cert({
-        projectId,
-        clientEmail,
-        privateKey,
-      }),
-    });
+    try {
+      return initializeApp({
+        credential: cert({
+          projectId,
+          clientEmail,
+          privateKey,
+        }),
+      });
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(
+          '⚠️ Warning: Failed to initialize Firebase Admin with provided credentials. Push notifications will be mocked.',
+          err,
+        );
+        return {
+          name: '[DEFAULT]',
+          options: {},
+        } as any;
+      }
+      throw err;
+    }
   },
 };
