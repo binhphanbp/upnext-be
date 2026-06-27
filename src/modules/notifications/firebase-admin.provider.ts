@@ -46,7 +46,7 @@ export const FirebaseAdminProvider = {
         return {
           name: '[DEFAULT]',
           options: {},
-        } as any;
+        } as unknown;
       }
       throw err;
     }
