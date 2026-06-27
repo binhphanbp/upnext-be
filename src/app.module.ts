@@ -9,10 +9,13 @@ import { RecruitersModule } from './modules/recruiters/recruiters.module';
 import { CandidateAccountModule } from './modules/candidate-account/candidate-account.module';
 import { CandidateCertificationsModule } from './modules/candidate-certifications/candidate-certifications.module';
 import { CandidateEducationsModule } from './modules/candidate-educations/candidate-educations.module';
+import { CandidateExperiencesModule } from './modules/candidate-experiences/candidate-experiences.module';
+import { CandidateJobPreferencesModule } from './modules/candidate-job-preferences/candidate-job-preferences.module';
 import { CandidateLanguagesModule } from './modules/candidate-languages/candidate-languages.module';
 import { CandidateLinksModule } from './modules/candidate-links/candidate-links.module';
 import { CandidateProfileModule } from './modules/candidate-profile/candidate-profile.module';
 import { CandidateProjectsModule } from './modules/candidate-projects/candidate-projects.module';
+import { CandidateSkillsModule } from './modules/candidate-skills/candidate-skills.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { JobPostsModule } from './modules/job-posts/job-posts.module';
 import { SavedJobsModule } from './modules/saved-jobs/saved-jobs.module';
@@ -30,12 +33,17 @@ import { HomeModule } from './modules/home/home.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
+import { AdminRolesModule } from './modules/admin-roles/admin-roles.module';
 import { CvsModule } from './modules/cvs/cvs.module';
 import { SubscriptionPlansModule } from './modules/subscription-plans/subscription-plans.module';
 import { CompanySubscriptionsModule } from './modules/company-subscriptions/company-subscriptions.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { InterviewsModule } from './modules/interviews/interviews.module';
 import { HealthModule } from './modules/health/health.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { PostsModule } from './modules/posts/posts.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { SearchKeywordModule } from './modules/search-keyword/search-keyword.module';
 
 @Module({
   imports: [
@@ -46,6 +54,9 @@ import { HealthModule } from './modules/health/health.module';
     CloudinaryModule,
     AuthModule,
     AdminUsersModule,
+    AdminRolesModule,
+    PostsModule,
+    ReportsModule,
     CompaniesModule,
     RecruitersModule,
     CompanyMembersModule,
@@ -54,6 +65,9 @@ import { HealthModule } from './modules/health/health.module';
     CandidateAccountModule,
     CandidateProfileModule,
     CandidateEducationsModule,
+    CandidateExperiencesModule,
+    CandidateSkillsModule,
+    CandidateJobPreferencesModule,
     CandidateCertificationsModule,
     CandidateLanguagesModule,
     CandidateLinksModule,
@@ -78,6 +92,8 @@ import { HealthModule } from './modules/health/health.module';
     InvoicesModule,
     InterviewsModule,
     HealthModule,
+    SearchKeywordModule,
+    NotificationsModule,
   ],
 })
-export class AppModule { }
+export class AppModule {}

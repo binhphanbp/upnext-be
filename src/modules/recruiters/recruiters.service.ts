@@ -52,15 +52,7 @@ export class RecruitersService {
       include: {
         profile: true,
         recruiterRole: true,
-        company: {
-          select: {
-            id: true,
-            name: true,
-            status: true,
-            verificationStatus: true,
-            businessLicenseFileId: true,
-          },
-        },
+        company: { select: { id: true, name: true, status: true, verificationStatus: true, businessLicenseFileId: true } },
         companyMembers: true,
       },
     });
@@ -244,4 +236,5 @@ export class RecruitersService {
 
     return profile;
   }
+
 }

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   Param,
@@ -37,6 +38,7 @@ import {
   CompanyMemberRoleUpdate,
 } from './entities/company-member.entity';
 
+
 @ApiTags('Company - Members')
 @Controller()
 export class CompanyMembersController {
@@ -55,7 +57,15 @@ export class CompanyMembersController {
   })
   @ApiNotFoundResponse({ description: 'Company not found' })
   @Get('companies/:companyId/members')
-  listMembers(@Param('companyId', new ParseUUIDPipe()) companyId: string) {
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  listMembers(
+    @Param('companyId', new ParseUUIDPipe()) companyId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (user.role !== ActorType.ADMIN && user.companyId !== companyId) {
+      throw new ForbiddenException("You do not have access to this company's members.");
+    }
     return this.companyMembersService.listMembers(companyId);
   }
 
@@ -75,6 +85,8 @@ export class CompanyMembersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post('companies/:companyId/members/invite')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   inviteMember(
     @Param('companyId', new ParseUUIDPipe()) companyId: string,
     @Body() dto: InviteMemberDto,
@@ -97,8 +109,12 @@ export class CompanyMembersController {
   @ApiConflictResponse({ description: 'Invitation is not in INVITED status' })
   @ApiNotFoundResponse({ description: 'Invitation not found' })
   @Post('company-members/invitations/:id/accept')
-  acceptInvitation(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.companyMembersService.acceptInvitation(id);
+  @UseGuards(JwtAuthGuard)
+  acceptInvitation(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companyMembersService.acceptInvitation(id, user);
   }
 
   @ApiOperation({
@@ -113,11 +129,14 @@ export class CompanyMembersController {
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiNotFoundResponse({ description: 'Member or role not found' })
   @Patch('company-members/:id/role')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   updateRole(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateMemberRoleDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.companyMembersService.updateMemberRole(id, dto);
+    return this.companyMembersService.updateMemberRole(id, dto, user);
   }
 
   @ApiOperation({
@@ -128,8 +147,13 @@ export class CompanyMembersController {
   @ApiNoContentResponse({ description: 'Member removed successfully' })
   @ApiNotFoundResponse({ description: 'Member not found' })
   @Delete('company-members/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @HttpCode(204)
-  async removeMember(@Param('id', new ParseUUIDPipe()) id: string) {
-    await this.companyMembersService.removeMember(id);
+  async removeMember(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.companyMembersService.removeMember(id, user);
   }
 }

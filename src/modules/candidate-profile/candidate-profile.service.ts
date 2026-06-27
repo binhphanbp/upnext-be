@@ -20,6 +20,13 @@ export class CandidateProfileService {
         educations: {
           orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
         },
+        experiences: {
+          orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
+        },
+        skills: {
+          include: { skill: true },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+        },
         projects: {
           orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
         },
@@ -31,6 +38,9 @@ export class CandidateProfileService {
         },
         links: {
           orderBy: [{ type: 'asc' }, { createdAt: 'desc' }],
+        },
+        jobPreference: {
+          include: { desiredLevel: true },
         },
       },
     });
@@ -62,6 +72,13 @@ export class CandidateProfileService {
         educations: {
           orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
         },
+        experiences: {
+          orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
+        },
+        skills: {
+          include: { skill: true },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+        },
         projects: {
           orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
         },
@@ -73,6 +90,9 @@ export class CandidateProfileService {
         },
         links: {
           orderBy: [{ type: 'asc' }, { createdAt: 'desc' }],
+        },
+        jobPreference: {
+          include: { desiredLevel: true },
         },
       },
     });

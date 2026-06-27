@@ -74,6 +74,8 @@ async function bootstrap() {
     .addTag('Recruiter - Permissions', 'Permission của recruiter')
     .addTag('Admin - Auth', 'Đăng nhập admin')
     .addTag('Admin - Dashboard', 'Thống kê tổng quan cho dashboard admin')
+    .addTag('Admin - Roles', 'Quản lý vai trò Admin và liên kết gán quyền hạn động')
+    .addTag('Admin - Permissions', 'Quản lý danh sách các quyền hạn hệ thống cho Admin')
     .build();
   const openApiDocument = SwaggerModule.createDocument(app, openApiConfig);
   app.use(

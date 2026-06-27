@@ -167,4 +167,5 @@ export class RecruiterAccountsController {
   async deactivate(@Param('id', new ParseUUIDPipe()) id: string) {
     await this.recruitersService.deactivateAccount(id);
   }
+
 }
