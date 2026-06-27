@@ -23,6 +23,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z
     .string()
     .default('https://upnext.works,https://staging.upnext.works,http://localhost:5173,http://localhost:3000'),
+  GEMINI_API_KEY: z.string().optional(),
 });
 
 export type AppConfig = {
@@ -43,6 +44,7 @@ export type AppConfig = {
   cloudinaryApiSecret?: string;
   cloudinaryFolder: string;
   corsOrigins: string[];
+  geminiApiKey?: string;
 };
 
 export function validateEnv(config: Record<string, unknown>): AppConfig {
@@ -68,5 +70,6 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     corsOrigins: parsed.CORS_ORIGIN.split(',')
       .map((origin) => origin.trim())
       .filter(Boolean),
+    geminiApiKey: parsed.GEMINI_API_KEY,
   };
 }
