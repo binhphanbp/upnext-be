@@ -14,6 +14,21 @@ export class FcmService {
     private readonly tokenService: NotificationTokenService,
   ) {}
 
+  private getMessagingInstance() {
+    if (
+      !this.firebaseAdmin ||
+      !this.firebaseAdmin.options ||
+      Object.keys(this.firebaseAdmin.options).length === 0
+    ) {
+      return null;
+    }
+    try {
+      return getMessaging(this.firebaseAdmin);
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Sends a push notification to a single device.
    * Cleans up the registration token if Firebase returns an invalid/expired token error.
@@ -24,13 +39,19 @@ export class FcmService {
     data?: Record<string, string>,
   ) {
     try {
+      const messaging = this.getMessagingInstance();
+      if (!messaging) {
+        this.logger.warn(
+          `Skipping sending push notification to token ${token} (Firebase is not initialized/mocked)`,
+        );
+        return 'mock-message-id';
+      }
       const message: Message = {
         token,
         notification,
         data,
       };
 
-      const messaging = getMessaging(this.firebaseAdmin);
       const response = await messaging.send(message);
       this.logger.debug(`Successfully sent notification to token ${token}: ${response}`);
       return response;
@@ -69,7 +90,17 @@ export class FcmService {
     };
 
     try {
-      const messaging = getMessaging(this.firebaseAdmin);
+      const messaging = this.getMessagingInstance();
+      if (!messaging) {
+        this.logger.warn(
+          `Skipping sending multicast notification (Firebase is not initialized/mocked)`,
+        );
+        return {
+          responses: tokens.map(() => ({ success: true })),
+          successCount: tokens.length,
+          failureCount: 0,
+        } as any;
+      }
       const response: BatchResponse = await messaging.sendEachForMulticast(message);
       this.logger.log(
         `Multicast sent. Success count: ${response.successCount}, Failure count: ${response.failureCount}`,

@@ -15,15 +15,38 @@ export const FirebaseAdminProvider = {
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
     if (!projectId || !clientEmail || !privateKey) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(
+          '⚠️ Warning: Missing Firebase environment variables. Push notifications will be disabled/mocked in development.',
+        );
+        return {
+          name: '[DEFAULT]',
+          options: {},
+        } as any;
+      }
       throw new Error('Missing Firebase environment variables');
     }
 
-    return initializeApp({
-      credential: cert({
-        projectId,
-        clientEmail,
-        privateKey,
-      }),
-    });
+    try {
+      return initializeApp({
+        credential: cert({
+          projectId,
+          clientEmail,
+          privateKey,
+        }),
+      });
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(
+          '⚠️ Warning: Failed to initialize Firebase Admin with provided credentials. Push notifications will be mocked.',
+          err,
+        );
+        return {
+          name: '[DEFAULT]',
+          options: {},
+        } as any;
+      }
+      throw err;
+    }
   },
 };
