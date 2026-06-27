@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import { CompaniesController } from './companies.controller';
@@ -21,6 +22,12 @@ describe('CompaniesController', () => {
           useValue: {
             uploadBuffer: jest.fn(),
             createSignedUrl: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue('dummy-key'),
           },
         },
       ],
