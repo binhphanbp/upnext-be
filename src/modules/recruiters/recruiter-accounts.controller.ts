@@ -111,10 +111,7 @@ export class RecruiterAccountsController {
   @ApiNotFoundResponse({ description: 'Recruiter account not found' })
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Patch(':id')
-  update(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: UpdateRecruiterAccountDto,
-  ) {
+  update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateRecruiterAccountDto) {
     return this.recruitersService.updateAccount(id, dto);
   }
 
@@ -144,7 +141,9 @@ export class RecruiterAccountsController {
   })
   @ApiParam({ name: 'id', description: 'Recruiter account UUID' })
   @ApiOkResponse({ description: 'Đổi mật khẩu thành công' })
-  @ApiBadRequestResponse({ description: 'Mật khẩu hiện tại không chính xác hoặc dữ liệu không hợp lệ' })
+  @ApiBadRequestResponse({
+    description: 'Mật khẩu hiện tại không chính xác hoặc dữ liệu không hợp lệ',
+  })
   @Roles(ActorType.RECRUITER)
   @Post(':id/change-password')
   async changePassword(
@@ -167,5 +166,4 @@ export class RecruiterAccountsController {
   async deactivate(@Param('id', new ParseUUIDPipe()) id: string) {
     await this.recruitersService.deactivateAccount(id);
   }
-
 }

@@ -19,10 +19,10 @@ export class AdminPermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
-      ADMIN_PERMISSIONS_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(ADMIN_PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     // If no permission is required, let it pass
     if (!requiredPermissions || requiredPermissions.length === 0) {
@@ -74,9 +74,7 @@ export class AdminPermissionsGuard implements CanActivate {
     }
 
     // Gather permission codes
-    const userPermissionCodes = role.rolePermissions.map(
-      (rp) => rp.permission.permissionCode,
-    );
+    const userPermissionCodes = role.rolePermissions.map((rp) => rp.permission.permissionCode);
 
     // Verify all required permissions are possessed
     const hasAllPermissions = requiredPermissions.every((perm) =>

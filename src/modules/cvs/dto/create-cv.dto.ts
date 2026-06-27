@@ -28,7 +28,11 @@ export class CreateCvDto {
   @IsEnum(CvStatus)
   status?: CvStatus;
 
-  @ApiPropertyOptional({ example: true, default: false, description: 'Đánh dấu CV này là CV mặc định.' })
+  @ApiPropertyOptional({
+    example: true,
+    default: false,
+    description: 'Đánh dấu CV này là CV mặc định.',
+  })
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;

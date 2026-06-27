@@ -46,10 +46,7 @@ export class InterviewsController {
   @ApiBadRequestResponse({ description: 'Payload không hợp lệ' })
   @ApiForbiddenResponse({ description: 'Không có quyền lên lịch phỏng vấn cho hồ sơ này' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy Application hoặc Recruiter' })
-  create(
-    @Body() dto: CreateInterviewDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  create(@Body() dto: CreateInterviewDto, @CurrentUser() user: AuthenticatedUser) {
     return this.interviewsService.create(dto, user);
   }
 
@@ -58,10 +55,7 @@ export class InterviewsController {
   @ApiOperation({ summary: 'Lấy danh sách các cuộc phỏng vấn' })
   @ApiQuery({ name: 'applicationId', required: false, description: 'Lọc theo ID của Application' })
   @ApiOkResponse({ description: 'Lấy danh sách thành công' })
-  findAll(
-    @Query('applicationId') applicationId: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  findAll(@Query('applicationId') applicationId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.interviewsService.findAll({ applicationId }, user);
   }
 
@@ -72,10 +66,7 @@ export class InterviewsController {
   @ApiOkResponse({ description: 'Lấy chi tiết thành công' })
   @ApiForbiddenResponse({ description: 'Không có quyền truy cập cuộc phỏng vấn này' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy cuộc phỏng vấn' })
-  findOne(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  findOne(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.interviewsService.findOne(id, user);
   }
 
@@ -84,7 +75,9 @@ export class InterviewsController {
   @ApiOperation({ summary: 'Đề xuất hoặc dời lịch phỏng vấn mới' })
   @ApiParam({ name: 'id', description: 'Interview UUID' })
   @ApiOkResponse({ description: 'Dời lịch phỏng vấn thành công' })
-  @ApiBadRequestResponse({ description: 'Lịch phỏng vấn đã hoàn thành/hủy hoặc vượt quá giới hạn dời lịch' })
+  @ApiBadRequestResponse({
+    description: 'Lịch phỏng vấn đã hoàn thành/hủy hoặc vượt quá giới hạn dời lịch',
+  })
   @ApiForbiddenResponse({ description: 'Không có quyền dời lịch phỏng vấn này' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy cuộc phỏng vấn' })
   reschedule(

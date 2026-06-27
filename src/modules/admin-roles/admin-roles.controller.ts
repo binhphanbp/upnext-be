@@ -79,10 +79,7 @@ export class AdminRolesController {
   @ApiForbiddenResponse({ description: 'Không có quyền thực hiện hành động này.' })
   @AdminPermissions('roles:write')
   @Post()
-  create(
-    @Body() dto: CreateAdminRoleDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  create(@Body() dto: CreateAdminRoleDto, @CurrentUser() user: AuthenticatedUser) {
     return this.adminRolesService.createRole(user.id, dto);
   }
 
@@ -97,10 +94,7 @@ export class AdminRolesController {
   @ApiForbiddenResponse({ description: 'Không có quyền thực hiện hành động này.' })
   @AdminPermissions('roles:write')
   @Patch(':id')
-  update(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: UpdateAdminRoleDto,
-  ) {
+  update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateAdminRoleDto) {
     return this.adminRolesService.updateRole(id, dto);
   }
 

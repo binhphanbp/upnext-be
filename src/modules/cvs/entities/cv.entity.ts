@@ -20,7 +20,10 @@ export class CvVersionFile {
 }
 
 export class CvVersion {
-  @ApiProperty({ example: '2a3b4c5d-50d7-4f24-a65f-4f2a4d42f9cf', description: 'UUID phiên bản CV.' })
+  @ApiProperty({
+    example: '2a3b4c5d-50d7-4f24-a65f-4f2a4d42f9cf',
+    description: 'UUID phiên bản CV.',
+  })
   id!: string;
 
   @ApiPropertyOptional({
@@ -63,7 +66,11 @@ export class CvVersion {
   @ApiProperty({ example: '2026-06-09T08:00:00.000Z', description: 'Thời điểm tạo phiên bản CV.' })
   createdAt!: Date;
 
-  @ApiPropertyOptional({ type: CvVersionFile, nullable: true, description: 'Thông tin file nguồn.' })
+  @ApiPropertyOptional({
+    type: CvVersionFile,
+    nullable: true,
+    description: 'Thông tin file nguồn.',
+  })
   sourceFile?: CvVersionFile | null;
 }
 
@@ -92,7 +99,10 @@ export class CvEntity {
   @ApiProperty({ example: '2026-06-09T08:00:00.000Z', description: 'Thời điểm tạo CV.' })
   createdAt!: Date;
 
-  @ApiProperty({ example: '2026-06-09T08:00:00.000Z', description: 'Thời điểm cập nhật CV gần nhất.' })
+  @ApiProperty({
+    example: '2026-06-09T08:00:00.000Z',
+    description: 'Thời điểm cập nhật CV gần nhất.',
+  })
   updatedAt!: Date;
 
   @ApiProperty({ type: CvVersion, isArray: true, description: 'Danh sách phiên bản của CV.' })

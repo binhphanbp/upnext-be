@@ -29,7 +29,7 @@ export class CompaniesService {
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   async create(createCompanyDto: CreateCompanyDto) {
     let slug = slugify(createCompanyDto.name);
@@ -58,12 +58,12 @@ export class CompaniesService {
     const where: Prisma.CompanyWhereInput = {
       ...(query.q
         ? {
-          OR: [
-            { name: { contains: query.q, mode: 'insensitive' } },
-            { description: { contains: query.q, mode: 'insensitive' } },
-            { email: { contains: query.q, mode: 'insensitive' } },
-          ],
-        }
+            OR: [
+              { name: { contains: query.q, mode: 'insensitive' } },
+              { description: { contains: query.q, mode: 'insensitive' } },
+              { email: { contains: query.q, mode: 'insensitive' } },
+            ],
+          }
         : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.verificationStatus ? { verificationStatus: query.verificationStatus } : {}),
@@ -364,9 +364,21 @@ Chỉ trích xuất các thông tin thực tế hiển thị trên văn bản, k
                   name: { type: 'STRING', description: 'Tên chính thức của doanh nghiệp/công ty' },
                   taxCode: { type: 'STRING', description: 'Mã số doanh nghiệp hoặc mã số thuế' },
                   address: { type: 'STRING', description: 'Địa chỉ trụ sở chính của doanh nghiệp' },
-                  email: { type: 'STRING', nullable: true, description: 'Địa chỉ email của công ty nếu có' },
-                  phone: { type: 'STRING', nullable: true, description: 'Số điện thoại của công ty nếu có' },
-                  website: { type: 'STRING', nullable: true, description: 'Địa chỉ trang web (website) của công ty nếu có' },
+                  email: {
+                    type: 'STRING',
+                    nullable: true,
+                    description: 'Địa chỉ email của công ty nếu có',
+                  },
+                  phone: {
+                    type: 'STRING',
+                    nullable: true,
+                    description: 'Số điện thoại của công ty nếu có',
+                  },
+                  website: {
+                    type: 'STRING',
+                    nullable: true,
+                    description: 'Địa chỉ trang web (website) của công ty nếu có',
+                  },
                 },
                 required: ['name', 'taxCode', 'address'],
               },

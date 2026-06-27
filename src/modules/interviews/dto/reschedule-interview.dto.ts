@@ -12,7 +12,10 @@ export class RescheduleInterviewDto {
   @IsNotEmpty()
   scheduledEndAt!: string;
 
-  @ApiPropertyOptional({ description: 'Lý do dời lịch phỏng vấn', example: 'Trùng lịch họp đột xuất với ban giám đốc.' })
+  @ApiPropertyOptional({
+    description: 'Lý do dời lịch phỏng vấn',
+    example: 'Trùng lịch họp đột xuất với ban giám đốc.',
+  })
   @IsString()
   @IsOptional()
   note?: string;

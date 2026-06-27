@@ -8,7 +8,13 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { HomeJobTab, HomeQueryDto } from './dto/home-query.dto';
-import { HomeApiResponse, HomeData, HomeJobCard, HomeJobsSectionTab, HomeLatestJobCard } from './home.types';
+import {
+  HomeApiResponse,
+  HomeData,
+  HomeJobCard,
+  HomeJobsSectionTab,
+  HomeLatestJobCard,
+} from './home.types';
 
 const SALARY_BUCKETS = [
   { key: 'under-10', label: 'Duoi 10 trieu' },
@@ -73,16 +79,18 @@ export class HomeService {
   }
 
   async getTopCompanies(limit: number) {
-    const rows = await this.prisma.$queryRaw<Array<{
-      id: string;
-      name: string;
-      type: string;
-      description: string | null;
-      logo_url: string | null;
-      cover_url: string | null;
-      active_jobs_count: bigint | number;
-      applications_count: bigint | number;
-    }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        type: string;
+        description: string | null;
+        logo_url: string | null;
+        cover_url: string | null;
+        active_jobs_count: bigint | number;
+        applications_count: bigint | number;
+      }>
+    >(Prisma.sql`
       SELECT
         c.id,
         c.name,
@@ -219,7 +227,11 @@ export class HomeService {
     };
   }
 
-  private async getMarketInsightSummary(lastMonthStart: Date, currentMonthStart: Date, lastMonthEnd: Date) {
+  private async getMarketInsightSummary(
+    lastMonthStart: Date,
+    currentMonthStart: Date,
+    lastMonthEnd: Date,
+  ) {
     const [newJobsCount, activeJobsCount, hiringCompaniesCount] = await Promise.all([
       this.prisma.jobPost.count({
         where: {
@@ -262,7 +274,9 @@ export class HomeService {
   }
 
   private async getJobGrowthLineChart(from: Date, to: Date) {
-    const rows = await this.prisma.$queryRaw<Array<{ date: Date; jobs_count: bigint | number }>>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      Array<{ date: Date; jobs_count: bigint | number }>
+    >(Prisma.sql`
       SELECT
         DATE(created_at) AS date,
         COUNT(*) AS jobs_count
@@ -275,7 +289,9 @@ export class HomeService {
       ORDER BY DATE(created_at) ASC
     `);
 
-    const countsByDate = new Map(rows.map((row) => [this.toIsoDate(row.date), this.toNumber(row.jobs_count)]));
+    const countsByDate = new Map(
+      rows.map((row) => [this.toIsoDate(row.date), this.toNumber(row.jobs_count)]),
+    );
     const points: Array<{ date: string; jobsCount: number }> = [];
 
     for (const date = new Date(from); date < to; date.setDate(date.getDate() + 1)) {
@@ -295,7 +311,8 @@ export class HomeService {
       to: this.toIsoDate(to),
       minValue: values.length > 0 ? Math.min(...values) : 0,
       maxValue: values.length > 0 ? Math.max(...values) : 0,
-      growthPercent: firstValue > 0 ? Number((((lastValue - firstValue) / firstValue) * 100).toFixed(1)) : 0,
+      growthPercent:
+        firstValue > 0 ? Number((((lastValue - firstValue) / firstValue) * 100).toFixed(1)) : 0,
       points,
     };
   }
@@ -611,7 +628,11 @@ export class HomeService {
     }).format(value);
   }
 
-  private resolveSalaryBucket(min: Prisma.Decimal | null, max: Prisma.Decimal | null, isNegotiable: boolean) {
+  private resolveSalaryBucket(
+    min: Prisma.Decimal | null,
+    max: Prisma.Decimal | null,
+    isNegotiable: boolean,
+  ) {
     if (isNegotiable) {
       return 'negotiable';
     }
@@ -667,7 +688,10 @@ export class HomeService {
       return 'FULL_TIME';
     }
 
-    const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, '_');
+    const normalized = value
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
 
     if (normalized.includes('PART')) {
       return 'PART_TIME';

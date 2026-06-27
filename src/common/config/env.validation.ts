@@ -22,7 +22,9 @@ const envSchema = z.object({
   CLOUDINARY_FOLDER: z.string().default('upnext'),
   CORS_ORIGIN: z
     .string()
-    .default('https://upnext.works,https://staging.upnext.works,http://localhost:5173,http://localhost:3000'),
+    .default(
+      'https://upnext.works,https://staging.upnext.works,http://localhost:5173,http://localhost:3000',
+    ),
   GEMINI_API_KEY: z.string().optional(),
 });
 

@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
 import { toPagination } from '../../common/dto/pagination-query.dto';
@@ -52,7 +57,15 @@ export class RecruitersService {
       include: {
         profile: true,
         recruiterRole: true,
-        company: { select: { id: true, name: true, status: true, verificationStatus: true, businessLicenseFileId: true } },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            verificationStatus: true,
+            businessLicenseFileId: true,
+          },
+        },
         companyMembers: true,
       },
     });
@@ -66,6 +79,30 @@ export class RecruitersService {
 
   async updateAccount(id: string, dto: UpdateRecruiterAccountDto) {
     await this.ensureAccountExists(id);
+
+    if (dto.companyId) {
+      const existingMember = await this.prisma.companyMember.findFirst({
+        where: { recruiterAccountId: id, companyId: dto.companyId },
+      });
+
+      if (!existingMember) {
+        const ownerRole = await this.prisma.recruiterRole.findFirst({
+          where: { code: 'OWNER' },
+        });
+
+        if (ownerRole) {
+          await this.prisma.companyMember.create({
+            data: {
+              recruiterAccountId: id,
+              companyId: dto.companyId,
+              roleId: ownerRole.id,
+              status: 'ACTIVE',
+              joinedAt: new Date(),
+            },
+          });
+        }
+      }
+    }
 
     return this.prisma.recruiterAccount.update({
       where: { id },
@@ -236,5 +273,4 @@ export class RecruitersService {
 
     return profile;
   }
-
 }

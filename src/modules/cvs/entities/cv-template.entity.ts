@@ -24,7 +24,10 @@ export class CvTemplateEntity {
   @ApiProperty({ example: 'backend-minimal', description: 'Khóa định danh layout của mẫu CV.' })
   layoutKey!: string;
 
-  @ApiProperty({ example: true, description: 'Cho biết mẫu CV có đang được phép sử dụng hay không.' })
+  @ApiProperty({
+    example: true,
+    description: 'Cho biết mẫu CV có đang được phép sử dụng hay không.',
+  })
   isActive!: boolean;
 
   @ApiProperty({ example: 3, description: 'Số phiên bản CV đang tham chiếu mẫu này.' })

@@ -165,8 +165,7 @@ export class JobPostsController {
 
   @ApiOperation({
     summary: 'Mở lại tin tuyển dụng',
-    description:
-      'Recruiter mở lại tin tuyển dụng đã đóng. Công ty phải đủ điều kiện đăng tin.',
+    description: 'Recruiter mở lại tin tuyển dụng đã đóng. Công ty phải đủ điều kiện đăng tin.',
   })
   @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
   @ApiOkResponse({ description: 'Mở lại tin tuyển dụng thành công.' })

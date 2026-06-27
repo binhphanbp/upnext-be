@@ -1,174 +1,337 @@
 <!doctype html>
 <html lang="vi">
-
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="x-apple-disable-message-reformatting" />
     <title>Xác thực Email - UPNEXT</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+      }
+
+      @media screen and (max-width: 680px) {
+        .email-container {
+          width: 100% !important;
         }
 
-        @media screen and (max-width: 680px) {
-            .email-container {
-                width: 100% !important;
-            }
-
-            .content-column,
-            .image-column {
-                display: block !important;
-                width: 100% !important;
-                box-sizing: border-box !important;
-            }
-
-            .content-column {
-                padding: 28px 22px !important;
-            }
-
-            .image-column {
-                padding: 0 22px 28px !important;
-            }
-
-            .hero-image {
-                max-width: 240px !important;
-            }
+        .content-column,
+        .image-column {
+          display: block !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
         }
+
+        .content-column {
+          padding: 28px 22px !important;
+        }
+
+        .image-column {
+          padding: 0 22px 28px !important;
+        }
+
+        .hero-image {
+          max-width: 240px !important;
+        }
+      }
     </style>
-</head>
+  </head>
 
-<body
-    style="margin: 0; padding: 0; background: #f2faf7; color: #1e293b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-        style="width: 100%; border-collapse: collapse; background: #f2faf7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-        <tr>
-            <td align="center" style="padding: 48px 16px;">
-                <table role="presentation" class="email-container" width="760" cellpadding="0" cellspacing="0"
-                    style="width: 760px; max-width: 100%; border-collapse: separate; border-spacing: 0; background: #ffffff; border: 1px solid #e2f5f0; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 42px rgba(16, 167, 120, 0.1);">
-                    <tr>
-                        <td colspan="2" style="height: 8px; background: #10a778; line-height: 8px; font-size: 0;">&nbsp;
-                        </td>
-                    </tr>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background: #f2faf7;
+      color: #1e293b;
+      font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    "
+  >
+    <table
+      role="presentation"
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="
+        width: 100%;
+        border-collapse: collapse;
+        background: #f2faf7;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      "
+    >
+      <tr>
+        <td align="center" style="padding: 48px 16px">
+          <table
+            role="presentation"
+            class="email-container"
+            width="760"
+            cellpadding="0"
+            cellspacing="0"
+            style="
+              width: 760px;
+              max-width: 100%;
+              border-collapse: separate;
+              border-spacing: 0;
+              background: #ffffff;
+              border: 1px solid #e2f5f0;
+              border-radius: 24px;
+              overflow: hidden;
+              box-shadow: 0 20px 42px rgba(16, 167, 120, 0.1);
+            "
+          >
+            <tr>
+              <td
+                colspan="2"
+                style="height: 8px; background: #10a778; line-height: 8px; font-size: 0"
+              >
+                &nbsp;
+              </td>
+            </tr>
 
-                    <tr>
-                        <td class="content-column" width="58%" valign="top"
-                            style="width: 58%; padding: 40px 30px 36px 40px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: left;">
-                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                                style="border-collapse: collapse;">
-                                <tr>
-                                    <td style="padding-bottom: 30px;">
-                                        <img src="cid:upnext-logo" width="200" alt="UPNEXT"
-                                            style="display: block; width: 200px; max-width: 100%; height: auto; border: 0; pointer-events: none; cursor: default;" />
-                                    </td>
-                                </tr>
+            <tr>
+              <td
+                class="content-column"
+                width="58%"
+                valign="top"
+                style="
+                  width: 58%;
+                  padding: 40px 30px 36px 40px;
+                  font-family:
+                    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+                    sans-serif;
+                  text-align: left;
+                "
+              >
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="border-collapse: collapse"
+                >
+                  <tr>
+                    <td style="padding-bottom: 30px">
+                      <img
+                        src="cid:upnext-logo"
+                        width="200"
+                        alt="UPNEXT"
+                        style="
+                          display: block;
+                          width: 200px;
+                          max-width: 100%;
+                          height: auto;
+                          border: 0;
+                          pointer-events: none;
+                          cursor: default;
+                        "
+                      />
+                    </td>
+                  </tr>
 
-                                <tr>
-                                    <td>
-                                        <h1
-                                            style="margin: 0 0 22px; font-size: 26px; line-height: 1.25; font-weight: 800; color: #0f172a;">
-                                            Xác thực địa chỉ email
-                                        </h1>
+                  <tr>
+                    <td>
+                      <h1
+                        style="
+                          margin: 0 0 22px;
+                          font-size: 26px;
+                          line-height: 1.25;
+                          font-weight: 800;
+                          color: #0f172a;
+                        "
+                      >
+                        Xác thực địa chỉ email
+                      </h1>
 
-                                        <p style="margin: 0 0 14px; font-size: 15px; line-height: 1.7; color: #334155;">
-                                            Xin chào <strong style="color: #0f172a;">{{candidateName}}</strong>,
-                                        </p>
+                      <p
+                        style="margin: 0 0 14px; font-size: 15px; line-height: 1.7; color: #334155"
+                      >
+                        Xin chào <strong style="color: #0f172a">{{candidateName}}</strong>,
+                      </p>
 
-                                        <p style="margin: 0 0 28px; font-size: 15px; line-height: 1.7; color: #475569;">
-                                            Cảm ơn bạn đã tin tưởng và tham
-                                            gia cùng UPNEXT. Vui lòng nhấn
-                                            vào nút bên
-                                            dưới để xác thực địa chỉ email
-                                            và kích hoạt tài khoản của bạn.
-                                        </p>
+                      <p
+                        style="margin: 0 0 28px; font-size: 15px; line-height: 1.7; color: #475569"
+                      >
+                        Cảm ơn bạn đã tin tưởng và tham gia cùng UPNEXT. Vui lòng nhấn vào nút bên
+                        dưới để xác thực địa chỉ email và kích hoạt tài khoản của bạn.
+                      </p>
 
-                                        <table role="presentation" cellpadding="0" cellspacing="0"
-                                            style="border-collapse: collapse; margin-bottom: 28px;">
-                                            <tr>
-                                                <td bgcolor="#10a778" style="border-radius: 8px;">
-                                                    <a href="{{verificationLink}}"
-                                                        style="display: inline-block; padding: 14px 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 18px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 8px;">
-                                                        Kích hoạt tài khoản
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                        </table>
+                      <table
+                        role="presentation"
+                        cellpadding="0"
+                        cellspacing="0"
+                        style="border-collapse: collapse; margin-bottom: 28px"
+                      >
+                        <tr>
+                          <td bgcolor="#10a778" style="border-radius: 8px">
+                            <a
+                              href="{{verificationLink}}"
+                              style="
+                                display: inline-block;
+                                padding: 14px 24px;
+                                font-family:
+                                  -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+                                  Arial, sans-serif;
+                                font-size: 14px;
+                                line-height: 18px;
+                                font-weight: 700;
+                                color: #ffffff;
+                                text-decoration: none;
+                                border-radius: 8px;
+                              "
+                            >
+                              Kích hoạt tài khoản
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
 
-                                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                                            style="border-collapse: collapse; margin-bottom: 24px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;">
-                                            <tr>
-                                                <td
-                                                    style="padding: 14px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-                                                    <p
-                                                        style="margin: 0; font-size: 12px; line-height: 1.65; color: #64748b;">
-                                                        Lưu ý: liên kết có
-                                                        hiệu lực trong vòng
-                                                        <strong style="color: #0f172a;">30
-                                                            phút</strong>.
-                                                        Nếu bạn không tạo
-                                                        tài khoản này, bạn
-                                                        có thể bỏ qua email
-                                                        này.
-                                                    </p>
-                                                </td>
-                                            </tr>
-                                        </table>
-
-                                        <div
-                                            style="height: 1px; line-height: 1px; background: #f1f5f9; margin: 0 0 20px;">
-                                            &nbsp;</div>
-
-                                        <p style="margin: 0 0 6px; font-size: 11px; line-height: 1.5; color: #94a3b8;">
-                                            Nếu nút không hoạt động, copy
-                                            liên kết này vào trình duyệt:
-                                        </p>
-
-                                        <p style="margin: 0; font-size: 11px; line-height: 1.5; word-break: break-all;">
-                                            <a href="{{verificationLink}}"
-                                                style="color: #10a778; text-decoration: underline;">{{verificationLink}}</a>
-                                        </p>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-
-                        <td class="image-column" width="42%" valign="middle" align="center"
-                            style="width: 42%; padding: 32px 32px 32px 0; background: #fafdfc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-                            <img src="cid:hero-banner" alt="UPNEXT" class="hero-image" width="260"
-                                style="display: block; width: 260px; max-width: 100%; height: auto; border: 0; pointer-events: none; cursor: default;" />
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <td colspan="2" align="center"
-                            style="padding: 20px 30px; background: #fafdfc; border-top: 1px solid #f0f9f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-                            <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #64748b;">
-                                Cảm ơn bạn đồng hành cùng <strong style="color: #10a778;">UPNEXT
-                                    Works</strong>
-                            </p>
-                        </td>
-                    </tr>
-                </table>
-
-                <table role="presentation" width="760" cellpadding="0" cellspacing="0"
-                    style="width: 760px; max-width: 100%; border-collapse: collapse; margin-top: 20px;">
-                    <tr>
-                        <td align="center"
-                            style="padding: 0 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-                            <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #94a3b8;">
-                                Email tự động từ hệ thống bảo mật UPNEXT.
-                                Vui lòng không phản hồi email này.
-                            </p>
+                      <table
+                        role="presentation"
+                        width="100%"
+                        cellpadding="0"
+                        cellspacing="0"
+                        style="
+                          border-collapse: collapse;
+                          margin-bottom: 24px;
+                          background: #f8fafc;
+                          border: 1px solid #e2e8f0;
+                          border-radius: 14px;
+                        "
+                      >
+                        <tr>
+                          <td
+                            style="
+                              padding: 14px 16px;
+                              font-family:
+                                -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+                                Arial, sans-serif;
+                            "
+                          >
                             <p
-                                style="margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: #94a3b8; font-weight: 600;">
-                                © 2026 Upnext Works. All rights reserved.
+                              style="margin: 0; font-size: 12px; line-height: 1.65; color: #64748b"
+                            >
+                              Lưu ý: liên kết có hiệu lực trong vòng
+                              <strong style="color: #0f172a">30 phút</strong>. Nếu bạn không tạo tài
+                              khoản này, bạn có thể bỏ qua email này.
                             </p>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
-</body>
+                          </td>
+                        </tr>
+                      </table>
 
+                      <div
+                        style="height: 1px; line-height: 1px; background: #f1f5f9; margin: 0 0 20px"
+                      >
+                        &nbsp;
+                      </div>
+
+                      <p style="margin: 0 0 6px; font-size: 11px; line-height: 1.5; color: #94a3b8">
+                        Nếu nút không hoạt động, copy liên kết này vào trình duyệt:
+                      </p>
+
+                      <p
+                        style="margin: 0; font-size: 11px; line-height: 1.5; word-break: break-all"
+                      >
+                        <a
+                          href="{{verificationLink}}"
+                          style="color: #10a778; text-decoration: underline"
+                          >{{verificationLink}}</a
+                        >
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+
+              <td
+                class="image-column"
+                width="42%"
+                valign="middle"
+                align="center"
+                style="
+                  width: 42%;
+                  padding: 32px 32px 32px 0;
+                  background: #fafdfc;
+                  font-family:
+                    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+                    sans-serif;
+                "
+              >
+                <img
+                  src="cid:hero-banner"
+                  alt="UPNEXT"
+                  class="hero-image"
+                  width="260"
+                  style="
+                    display: block;
+                    width: 260px;
+                    max-width: 100%;
+                    height: auto;
+                    border: 0;
+                    pointer-events: none;
+                    cursor: default;
+                  "
+                />
+              </td>
+            </tr>
+
+            <tr>
+              <td
+                colspan="2"
+                align="center"
+                style="
+                  padding: 20px 30px;
+                  background: #fafdfc;
+                  border-top: 1px solid #f0f9f6;
+                  font-family:
+                    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+                    sans-serif;
+                "
+              >
+                <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #64748b">
+                  Cảm ơn bạn đồng hành cùng <strong style="color: #10a778">UPNEXT Works</strong>
+                </p>
+              </td>
+            </tr>
+          </table>
+
+          <table
+            role="presentation"
+            width="760"
+            cellpadding="0"
+            cellspacing="0"
+            style="width: 760px; max-width: 100%; border-collapse: collapse; margin-top: 20px"
+          >
+            <tr>
+              <td
+                align="center"
+                style="
+                  padding: 0 16px;
+                  font-family:
+                    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+                    sans-serif;
+                "
+              >
+                <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #94a3b8">
+                  Email tự động từ hệ thống bảo mật UPNEXT. Vui lòng không phản hồi email này.
+                </p>
+                <p
+                  style="
+                    margin: 8px 0 0;
+                    font-size: 12px;
+                    line-height: 1.6;
+                    color: #94a3b8;
+                    font-weight: 600;
+                  "
+                >
+                  © 2026 Upnext Works. All rights reserved.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
 </html>

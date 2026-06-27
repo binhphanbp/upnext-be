@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, ParseUUIDPipe, HttpCode, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  ParseUUIDPipe,
+  HttpCode,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SubscriptionPlansService } from './subscription-plans.service';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
@@ -19,10 +30,7 @@ export class SubscriptionPlansController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.ADMIN)
   @Post()
-  create(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: CreateSubscriptionPlanDto,
-  ) {
+  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateSubscriptionPlanDto) {
     return this.plansService.create(user.id, dto);
   }
 
@@ -43,10 +51,7 @@ export class SubscriptionPlansController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.ADMIN)
   @Patch(':id')
-  update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateSubscriptionPlanDto,
-  ) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateSubscriptionPlanDto) {
     return this.plansService.update(id, dto);
   }
 

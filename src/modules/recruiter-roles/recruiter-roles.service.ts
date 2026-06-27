@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AssignPermissionsDto } from './dto/assign-permissions.dto';
@@ -48,37 +44,23 @@ export class RecruiterRolesService {
   }
 
   async createRole(dto: CreateRecruiterRoleDto) {
-    return this.prisma.recruiterRole
-      .create({ data: dto })
-      .catch((e: unknown) => {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002'
-        ) {
-          throw new ConflictException(
-            `Recruiter role with code "${dto.code}" already exists`,
-          );
-        }
-        throw e;
-      });
+    return this.prisma.recruiterRole.create({ data: dto }).catch((e: unknown) => {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException(`Recruiter role with code "${dto.code}" already exists`);
+      }
+      throw e;
+    });
   }
 
   async updateRole(id: string, dto: UpdateRecruiterRoleDto) {
     await this.ensureRoleExists(id);
 
-    return this.prisma.recruiterRole
-      .update({ where: { id }, data: dto })
-      .catch((e: unknown) => {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002'
-        ) {
-          throw new ConflictException(
-            `Recruiter role with code "${dto.code}" already exists`,
-          );
-        }
-        throw e;
-      });
+    return this.prisma.recruiterRole.update({ where: { id }, data: dto }).catch((e: unknown) => {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException(`Recruiter role with code "${dto.code}" already exists`);
+      }
+      throw e;
+    });
   }
 
   async removeRole(id: string) {
@@ -107,19 +89,12 @@ export class RecruiterRolesService {
   }
 
   async createPermission(dto: CreateRecruiterPermissionDto) {
-    return this.prisma.recruiterPermission
-      .create({ data: dto })
-      .catch((e: unknown) => {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002'
-        ) {
-          throw new ConflictException(
-            `Permission with code "${dto.code}" already exists`,
-          );
-        }
-        throw e;
-      });
+    return this.prisma.recruiterPermission.create({ data: dto }).catch((e: unknown) => {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException(`Permission with code "${dto.code}" already exists`);
+      }
+      throw e;
+    });
   }
 
   async updatePermission(id: string, dto: UpdateRecruiterPermissionDto) {
@@ -128,13 +103,8 @@ export class RecruiterRolesService {
     return this.prisma.recruiterPermission
       .update({ where: { id }, data: dto })
       .catch((e: unknown) => {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002'
-        ) {
-          throw new ConflictException(
-            `Permission with code "${dto.code}" already exists`,
-          );
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new ConflictException(`Permission with code "${dto.code}" already exists`);
         }
         throw e;
       });
@@ -158,9 +128,7 @@ export class RecruiterRolesService {
     if (permissions.length !== dto.permissionIds.length) {
       const found = permissions.map((p) => p.id);
       const missing = dto.permissionIds.filter((id) => !found.includes(id));
-      throw new NotFoundException(
-        `Permissions not found: ${missing.join(', ')}`,
-      );
+      throw new NotFoundException(`Permissions not found: ${missing.join(', ')}`);
     }
 
     // Upsert each permission assignment (ignore already-assigned ones)

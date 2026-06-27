@@ -56,7 +56,7 @@ type CompanyUploadFile = {
 @ApiTags('Companies')
 @Controller('companies')
 export class CompaniesController {
-  constructor(private readonly companiesService: CompaniesService) { }
+  constructor(private readonly companiesService: CompaniesService) {}
 
   /**
    * Tạo mới một công ty với thông tin cơ bản.
@@ -329,7 +329,8 @@ export class CompaniesController {
    */
   @ApiOperation({
     summary: 'Tải lên giấy đăng ký kinh doanh',
-    description: 'Tải lên giấy phép kinh doanh của công ty. Chỉ cho phép Recruiter thuộc công ty đó hoặc Admin.',
+    description:
+      'Tải lên giấy phép kinh doanh của công ty. Chỉ cho phép Recruiter thuộc công ty đó hoặc Admin.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiConsumes('multipart/form-data')
@@ -402,7 +403,8 @@ export class CompaniesController {
    */
   @ApiOperation({
     summary: 'Lấy URL xem giấy đăng ký kinh doanh',
-    description: 'Lấy Signed URL có thời hạn để xem giấy phép đăng ký kinh doanh bảo mật. Chỉ cho phép Recruiter thuộc công ty hoặc Admin.',
+    description:
+      'Lấy Signed URL có thời hạn để xem giấy phép đăng ký kinh doanh bảo mật. Chỉ cho phép Recruiter thuộc công ty hoặc Admin.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiOkResponse({
@@ -452,7 +454,8 @@ export class CompaniesController {
    */
   @ApiOperation({
     summary: 'Xem lịch sử điểm uy tín',
-    description: 'Lấy danh sách lịch sử thay đổi điểm uy tín của doanh nghiệp. Chỉ cho phép Recruiter thuộc công ty đó hoặc Admin.',
+    description:
+      'Lấy danh sách lịch sử thay đổi điểm uy tín của doanh nghiệp. Chỉ cho phép Recruiter thuộc công ty đó hoặc Admin.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiOkResponse({

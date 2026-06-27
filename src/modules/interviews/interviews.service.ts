@@ -31,7 +31,9 @@ export class InterviewsService {
     // Role checks
     if (user.role === ActorType.RECRUITER) {
       if (application.jobPost.companyId !== user.companyId) {
-        throw new ForbiddenException('You do not have permission to schedule interviews for this application');
+        throw new ForbiddenException(
+          'You do not have permission to schedule interviews for this application',
+        );
       }
     }
 
@@ -48,7 +50,10 @@ export class InterviewsService {
         throw new NotFoundException(`Recruiter profile ${recruiterProfileId} not found`);
       }
 
-      if (user.role === ActorType.RECRUITER && profile.recruiterAccount.companyId !== user.companyId) {
+      if (
+        user.role === ActorType.RECRUITER &&
+        profile.recruiterAccount.companyId !== user.companyId
+      ) {
         throw new ForbiddenException('Cannot assign an interviewer from another company');
       }
     } else {
@@ -206,7 +211,9 @@ export class InterviewsService {
     }
 
     if (interview.rescheduleCount >= interview.maxRescheduleCount) {
-      throw new BadRequestException(`Maximum reschedule count of ${interview.maxRescheduleCount} reached`);
+      throw new BadRequestException(
+        `Maximum reschedule count of ${interview.maxRescheduleCount} reached`,
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -310,7 +317,10 @@ export class InterviewsService {
       throw new ForbiddenException('Only admins and recruiters can update interview results');
     }
 
-    if (user.role === ActorType.RECRUITER && interview.application.jobPost.companyId !== user.companyId) {
+    if (
+      user.role === ActorType.RECRUITER &&
+      interview.application.jobPost.companyId !== user.companyId
+    ) {
       throw new ForbiddenException('You do not have permission to manage this interview');
     }
 
@@ -348,10 +358,7 @@ export class InterviewsService {
     });
   }
 
-  private checkAccessPermission(
-    interview: any,
-    user: AuthenticatedUser,
-  ) {
+  private checkAccessPermission(interview: any, user: AuthenticatedUser) {
     if (user.role === ActorType.CANDIDATE) {
       if (interview.application.candidateProfile.candidateAccountId !== user.id) {
         throw new ForbiddenException('You do not have permission to access this interview');

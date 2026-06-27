@@ -21,10 +21,7 @@ export class NotificationTokenController {
   @ApiOperation({ summary: 'Register or update FCM device token for the current user' })
   @ApiResponse({ status: 200, description: 'Token registered successfully.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  async registerToken(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: SaveFcmTokenDto,
-  ) {
+  async registerToken(@CurrentUser() user: AuthenticatedUser, @Body() dto: SaveFcmTokenDto) {
     return this.tokenService.registerToken(user.id, user.role, dto);
   }
 
@@ -35,16 +32,16 @@ export class NotificationTokenController {
   @ApiOperation({ summary: 'Unregister/remove FCM device token (e.g. on logout)' })
   @ApiResponse({ status: 200, description: 'Token unregistered successfully.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  async unregisterToken(
-    @Body('token') token: string,
-  ) {
+  async unregisterToken(@Body('token') token: string) {
     await this.tokenService.unregisterToken(token);
     return { message: 'Token unregistered successfully' };
   }
 
   @Post('test-send')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Send a test push notification to a specific token (Public endpoint for testing)' })
+  @ApiOperation({
+    summary: 'Send a test push notification to a specific token (Public endpoint for testing)',
+  })
   @ApiResponse({ status: 200, description: 'Test notification sent.' })
   async sendTestNotification(
     @Body('token') token: string,

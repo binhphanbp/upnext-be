@@ -279,4 +279,116 @@ export class ApplicationsService {
       applied: false,
     };
   }
+
+  async getCompanyApplications(
+    recruiterId: string,
+    query?: {
+      jobPostId?: string;
+      status?: ApplicationStatus;
+      search?: string;
+    },
+  ) {
+    const recruiter = await this.prisma.recruiterAccount.findUnique({
+      where: { id: recruiterId },
+    });
+    if (!recruiter) {
+      throw new NotFoundException('Recruiter account not found');
+    }
+    if (!recruiter.companyId) {
+      throw new BadRequestException('Recruiter does not belong to any company');
+    }
+
+    const whereClause: any = {
+      jobPost: {
+        companyId: recruiter.companyId,
+      },
+    };
+
+    if (query?.jobPostId) {
+      whereClause.jobPostId = query.jobPostId;
+    }
+
+    if (query?.status) {
+      whereClause.status = query.status;
+    }
+
+    if (query?.search) {
+      whereClause.candidateProfile = {
+        account: {
+          OR: [
+            { fullName: { contains: query.search, mode: 'insensitive' } },
+            { email: { contains: query.search, mode: 'insensitive' } },
+          ],
+        },
+      };
+    }
+
+    return this.prisma.application.findMany({
+      where: whereClause,
+      include: {
+        candidateProfile: {
+          include: {
+            account: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+          },
+        },
+        jobPost: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+        cvVersion: true,
+      },
+      orderBy: { submittedAt: 'desc' },
+    });
+  }
+
+  async updateStatus(recruiterId: string, id: string, status: ApplicationStatus, note?: string) {
+    const recruiter = await this.prisma.recruiterAccount.findUnique({
+      where: { id: recruiterId },
+    });
+    if (!recruiter) {
+      throw new NotFoundException('Recruiter account not found');
+    }
+
+    const application = await this.prisma.application.findUnique({
+      where: { id },
+      include: {
+        jobPost: true,
+      },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+
+    if (application.jobPost.companyId !== recruiter.companyId) {
+      throw new ForbiddenException('You do not have permission to manage this application');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedApp = await tx.application.update({
+        where: { id },
+        data: { status },
+      });
+
+      await tx.applicationStatusLog.create({
+        data: {
+          applicationId: id,
+          actorType: ActorType.RECRUITER,
+          actorId: recruiterId,
+          oldStatus: application.status,
+          newStatus: status,
+          note: note ?? `Recruiter updated status to ${status}`,
+        },
+      });
+
+      return updatedApp;
+    });
+  }
 }
