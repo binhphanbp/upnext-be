@@ -9,14 +9,13 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiParam,
-  ApiQuery,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ActorType } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CompanyReviewsService } from './company-reviews.service';
 import { CreateCompanyReviewDto } from './dto/create-company-review.dto';
 import { UpdateCompanyReviewDto } from './dto/update-company-review.dto';
@@ -31,6 +30,8 @@ export class CompanyReviewsController {
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.CANDIDATE)
   @Post(':id/reviews')
   createReview(
     @Param('id', new ParseUUIDPipe()) companyId: string,
@@ -51,6 +52,8 @@ export class CompanyReviewsController {
 // ─── PATCH & DELETE scoped under /company-reviews ────────────────────────────
 @ApiTags('Company - Reviews')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(ActorType.CANDIDATE)
 @Controller('company-reviews')
 export class CompanyReviewsMutationController {
   constructor(private readonly companyReviewsService: CompanyReviewsService) {}

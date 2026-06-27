@@ -3,7 +3,7 @@ import { ActorType, AdminStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { LoginDto } from '../auth/dto/login.dto';
-import { LoginResponse } from '../auth/entities/auth.entity';
+import { AdminLoginResponse } from '../auth/entities/auth.entity';
 
 @Injectable()
 export class AdminAuthService {
@@ -12,7 +12,7 @@ export class AdminAuthService {
     private readonly authService: AuthService,
   ) {}
 
-  async login(dto: LoginDto): Promise<LoginResponse> {
+  async login(dto: LoginDto): Promise<AdminLoginResponse> {
     const admin = await this.prisma.adminUser.findFirst({
       where: {
         email: dto.email.toLowerCase(),
@@ -27,7 +27,7 @@ export class AdminAuthService {
     });
 
     if (!admin) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Email hoặc mật khẩu không hợp lệ');
     }
 
     await this.authService.verifyPassword(dto.password, admin.passwordHash);

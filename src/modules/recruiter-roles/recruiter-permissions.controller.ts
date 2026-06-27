@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -19,23 +20,46 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
+import { ActorType } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateRecruiterPermissionDto } from './dto/create-recruiter-permission.dto';
 import { UpdateRecruiterPermissionDto } from './dto/update-recruiter-permission.dto';
 import { RecruiterRolesService } from './recruiter-roles.service';
 
 @ApiTags('Recruiter - Permissions')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(ActorType.RECRUITER, ActorType.ADMIN)
 @Controller('recruiter-permissions')
 export class RecruiterPermissionsController {
   constructor(private readonly recruiterRolesService: RecruiterRolesService) {}
 
-  @ApiOperation({ summary: 'Danh sách quyền nhà tuyển dụng', description: 'Lấy danh sách tất cả quyền recruiter.' })
+  @ApiOperation({
+    summary: 'Danh sách quyền nhà tuyển dụng',
+    description: 'Lấy danh sách tất cả quyền recruiter.',
+  })
   @ApiOkResponse({
     description: 'Permissions fetched successfully',
     schema: {
       example: [
-        { id: 'p1...', code: 'job_posts:create', module: 'job_posts', action: 'create', description: 'Allows creating new job posts' },
-        { id: 'p2...', code: 'job_posts:read', module: 'job_posts', action: 'read', description: null },
+        {
+          id: 'p1...',
+          code: 'job_posts:create',
+          module: 'job_posts',
+          action: 'create',
+          description: 'Allows creating new job posts',
+        },
+        {
+          id: 'p2...',
+          code: 'job_posts:read',
+          module: 'job_posts',
+          action: 'read',
+          description: null,
+        },
       ],
     },
   })
@@ -44,7 +68,10 @@ export class RecruiterPermissionsController {
     return this.recruiterRolesService.findAllPermissions();
   }
 
-  @ApiOperation({ summary: 'Chi tiết quyền nhà tuyển dụng', description: 'Xem chi tiết một quyền theo id.' })
+  @ApiOperation({
+    summary: 'Chi tiết quyền nhà tuyển dụng',
+    description: 'Xem chi tiết một quyền theo id.',
+  })
   @ApiParam({ name: 'id', description: 'Recruiter permission UUID' })
   @ApiOkResponse({ description: 'Permission fetched successfully' })
   @ApiNotFoundResponse({ description: 'Permission not found' })
@@ -53,7 +80,10 @@ export class RecruiterPermissionsController {
     return this.recruiterRolesService.findOnePermission(id);
   }
 
-  @ApiOperation({ summary: 'Tạo quyền nhà tuyển dụng', description: 'Tạo mới một quyền recruiter.' })
+  @ApiOperation({
+    summary: 'Tạo quyền nhà tuyển dụng',
+    description: 'Tạo mới một quyền recruiter.',
+  })
   @ApiCreatedResponse({
     description: 'Permission created successfully',
     schema: {
@@ -74,17 +104,17 @@ export class RecruiterPermissionsController {
     return this.recruiterRolesService.createPermission(dto);
   }
 
-  @ApiOperation({ summary: 'Cập nhật quyền nhà tuyển dụng', description: 'Cập nhật thông tin quyền.' })
+  @ApiOperation({
+    summary: 'Cập nhật quyền nhà tuyển dụng',
+    description: 'Cập nhật thông tin quyền.',
+  })
   @ApiParam({ name: 'id', description: 'Recruiter permission UUID' })
   @ApiOkResponse({ description: 'Permission updated successfully' })
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiConflictResponse({ description: 'Permission with this code already exists' })
   @ApiNotFoundResponse({ description: 'Permission not found' })
   @Patch(':id')
-  update(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: UpdateRecruiterPermissionDto,
-  ) {
+  update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateRecruiterPermissionDto) {
     return this.recruiterRolesService.updatePermission(id, dto);
   }
 

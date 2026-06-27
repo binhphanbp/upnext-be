@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -8,7 +19,12 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
+import { ActorType } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CvTemplatesService } from './cv-templates.service';
 import { CreateCvTemplateDto } from './dto/create-cv-template.dto';
 import { ListCvTemplatesQueryDto } from './dto/list-cv-templates-query.dto';
@@ -16,6 +32,9 @@ import { UpdateCvTemplateDto } from './dto/update-cv-template.dto';
 import { CvTemplateEntity, CvTemplateList } from './entities/cv-template.entity';
 
 @ApiTags('Cv - Templates')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(ActorType.ADMIN)
 @Controller('cv-templates')
 export class CvTemplatesController {
   constructor(private readonly cvTemplatesService: CvTemplatesService) {}
@@ -30,6 +49,7 @@ export class CvTemplatesController {
   }
 
   @Get()
+  @Roles(ActorType.ADMIN, ActorType.CANDIDATE)
   @ApiOperation({ summary: 'Lấy danh sách mẫu CV' })
   @ApiOkResponse({ type: CvTemplateList, description: 'Danh sách mẫu CV.' })
   @ApiBadRequestResponse({ description: 'Tham số truy vấn không hợp lệ.' })
@@ -38,6 +58,7 @@ export class CvTemplatesController {
   }
 
   @Get(':id')
+  @Roles(ActorType.ADMIN, ActorType.CANDIDATE)
   @ApiOperation({ summary: 'Xem chi tiết mẫu CV' })
   @ApiParam({ name: 'id', description: 'UUID của mẫu CV' })
   @ApiOkResponse({ type: CvTemplateEntity, description: 'Thông tin chi tiết mẫu CV.' })

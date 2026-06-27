@@ -17,7 +17,7 @@ export class AdminDashboardController {
 
   @Get()
   @ApiOperation({ summary: 'Lấy dữ liệu dashboard thống kê nền tảng cho admin' })
-  @ApiOkResponse({ description: 'Dashboard statistics returned successfully.' })
+  @ApiOkResponse({ description: 'Lấy dữ liệu dashboard thống kê nền tảng cho admin thành công.' })
   getDashboard(@Query() query: AdminDashboardQueryDto) {
     return this.dashboardService.getDashboard(query);
   }
