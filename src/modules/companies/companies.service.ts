@@ -72,6 +72,9 @@ export class CompaniesService {
       this.prisma.company.findMany({
         where,
         orderBy: { createdAt: 'desc' },
+        include: {
+          logoFile: true,
+        },
         ...toPagination(query),
       }),
       this.prisma.company.count({ where }),

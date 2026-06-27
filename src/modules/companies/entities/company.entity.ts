@@ -6,9 +6,41 @@ import {
   JobStatus,
 } from '@prisma/client';
 
+export class CompanyUploadedFile {
+  @ApiProperty({ example: '08a32cbe-6078-4313-b916-358a922d4cfe' })
+  id!: string;
+
+  @ApiProperty({ example: 'logo.png' })
+  originalName!: string;
+
+  @ApiProperty({ example: 'image/png' })
+  mimeType!: string;
+
+  @ApiProperty({ example: '24567' })
+  sizeBytes!: string;
+
+  @ApiProperty({
+    example:
+      'uploads/companies/1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf/logo-uuid.png',
+  })
+  storageKey!: string;
+
+  @ApiPropertyOptional({
+    example:
+      'https://res.cloudinary.com/dfvaxlkol/image/upload/v1719273600/companies/1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf/logo.png',
+  })
+  publicUrl?: string | null;
+}
+
 export class Company {
   @ApiProperty({ example: '1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf' })
   id!: string;
+
+  @ApiPropertyOptional({ example: '08a32cbe-6078-4313-b916-358a922d4cfe' })
+  logoFileId?: string | null;
+
+  @ApiPropertyOptional({ type: CompanyUploadedFile })
+  logoFile?: CompanyUploadedFile | null;
 
   @ApiProperty({ example: 'Công ty cổ phần UPNEXT Việt Nam' })
   name!: string;
@@ -65,6 +97,12 @@ export class Company {
 export class CompanyListItem {
   @ApiProperty({ example: '1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf' })
   id!: string;
+
+  @ApiPropertyOptional({ example: '08a32cbe-6078-4313-b916-358a922d4cfe' })
+  logoFileId?: string | null;
+
+  @ApiPropertyOptional({ type: CompanyUploadedFile })
+  logoFile?: CompanyUploadedFile | null;
 
   @ApiProperty({ example: 'Công ty cổ phần UPNEXT Việt Nam' })
   name!: string;
@@ -176,26 +214,6 @@ export class CompanyUpdateResponse {
 
   @ApiProperty({ example: '2026-06-09T09:00:00.000Z' })
   updatedAt!: Date;
-}
-
-export class CompanyUploadedFile {
-  @ApiProperty({ example: '08a32cbe-6078-4313-b916-358a922d4cfe' })
-  id!: string;
-
-  @ApiProperty({ example: 'logo.png' })
-  originalName!: string;
-
-  @ApiProperty({ example: 'image/png' })
-  mimeType!: string;
-
-  @ApiProperty({ example: '24567' })
-  sizeBytes!: string;
-
-  @ApiProperty({
-    example:
-      'uploads/companies/1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf/logo-uuid.png',
-  })
-  storageKey!: string;
 }
 
 export class CompanyFileUploadResponse {

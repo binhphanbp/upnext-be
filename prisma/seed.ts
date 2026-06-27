@@ -234,6 +234,79 @@ function getCategoryForSkill(name: string, categories: Record<string, { id: stri
   return categories['Others'].id;
 }
 
+function getRandomLocationDetails(cityInput: string | null): {
+  city: string;
+  district: string;
+  address: string;
+} {
+  const cleanCity = (cityInput || '').trim().toLowerCase();
+
+  const hanoiDetails = [
+    { district: 'Quận Cầu Giấy', address: 'Dịch Vọng Hậu' },
+    { district: 'Quận Đống Đa', address: 'Chùa Bộc' },
+    { district: 'Quận Ba Đình', address: 'Kim Mã' },
+    { district: 'Quận Hai Bà Trưng', address: 'Đại Cồ Việt' },
+    { district: 'Quận Hoàn Kiếm', address: 'Tràng Tiền' },
+    { district: 'Quận Thanh Xuân', address: 'Nguyễn Trãi' },
+  ];
+
+  const hcmDetails = [
+    { district: 'Quận 1', address: 'Nguyễn Huệ' },
+    { district: 'Quận Bình Thạnh', address: 'Điện Biên Phủ' },
+    { district: 'Quận 3', address: 'Cách Mạng Tháng Tám' },
+    { district: 'Quận 2', address: 'Xa Lộ Hà Nội' },
+    { district: 'Quận 7', address: 'Nguyễn Văn Linh' },
+    { district: 'Quận Tân Bình', address: 'Cộng Hòa' },
+  ];
+
+  const danangDetails = [
+    { district: 'Quận Hải Châu', address: 'Lê Duẩn' },
+    { district: 'Quận Sơn Trà', address: 'Võ Nguyên Giáp' },
+    { district: 'Quận Thanh Khê', address: 'Nguyễn Văn Linh' },
+    { district: 'Quận Cẩm Lệ', address: 'Cách Mạng Tháng Tám' },
+  ];
+
+  const canthoDetails = [
+    { district: 'Quận Ninh Kiều', address: 'Đại Lộ Hòa Bình' },
+    { district: 'Quận Cái Răng', address: 'Quốc Lộ 1A' },
+    { district: 'Quận Bình Thủy', address: 'Lê Hồng Phong' },
+  ];
+
+  let pool = hcmDetails;
+  let cityName = 'Hồ Chí Minh';
+
+  if (cleanCity.includes('hanoi') || cleanCity.includes('ha noi')) {
+    pool = hanoiDetails;
+    cityName = 'Hà Nội';
+  } else if (cleanCity.includes('da nang') || cleanCity.includes('danang')) {
+    pool = danangDetails;
+    cityName = 'Đà Nẵng';
+  } else if (cleanCity.includes('can tho') || cleanCity.includes('cantho')) {
+    pool = canthoDetails;
+    cityName = 'Cần Thơ';
+  } else if (cleanCity.includes('ho chi minh') || cleanCity.includes('hcm') || cleanCity.includes('gia dinh')) {
+    pool = hcmDetails;
+    cityName = 'Hồ Chí Minh';
+  } else {
+    if (Math.random() > 0.5) {
+      pool = hanoiDetails;
+      cityName = 'Hà Nội';
+    } else {
+      pool = hcmDetails;
+      cityName = 'Hồ Chí Minh';
+    }
+  }
+
+  const randomDetail = pool[Math.floor(Math.random() * pool.length)];
+  const streetNumber = Math.floor(Math.random() * 299) + 1;
+
+  return {
+    city: cityName,
+    district: randomDetail.district,
+    address: `${streetNumber} ${randomDetail.address}`,
+  };
+}
+
 async function cleanHomeSeedData() {
   await prisma.adminAuditLog.deleteMany({});
   await prisma.appeal.deleteMany({});
@@ -482,8 +555,8 @@ async function cleanHomeSeedData() {
 
   await prisma.jobLocation.deleteMany({
     where: {
-      address: {
-        startsWith: SEED_ADDRESS_PREFIX,
+      jobPostLocations: {
+        none: {},
       },
     },
   });
@@ -568,37 +641,6 @@ async function main() {
 
   const passwordHash = await hash('Password123!', 12);
 
-  const adminPermissionsToSeed = [
-    { permissionName: 'Xem vai trò', permissionCode: 'roles:read', module: 'roles', description: 'Cho phép xem các vai trò admin' },
-    { permissionName: 'Quản lý vai trò', permissionCode: 'roles:write', module: 'roles', description: 'Cho phép tạo, sửa, xóa, gán quyền vai trò admin' },
-    { permissionName: 'Xem quyền hạn', permissionCode: 'permissions:read', module: 'permissions', description: 'Cho phép xem danh sách các quyền hạn admin' },
-    { permissionName: 'Quản lý quyền hạn', permissionCode: 'permissions:write', module: 'permissions', description: 'Cho phép tạo, sửa, xóa các quyền hạn admin' },
-    { permissionName: 'Xem bài viết', permissionCode: 'posts:read', module: 'posts', description: 'Cho phép xem các bài viết blog/news' },
-    { permissionName: 'Quản lý bài viết', permissionCode: 'posts:write', module: 'posts', description: 'Cho phép tạo, sửa, xóa bài viết blog/news' },
-    { permissionName: 'Xem báo cáo', permissionCode: 'reports:read', module: 'reports', description: 'Cho phép xem báo cáo vi phạm' },
-    { permissionName: 'Xử lý báo cáo', permissionCode: 'reports:write', module: 'reports', description: 'Cho phép duyệt/xử lý báo cáo vi phạm' },
-  ];
-
-  const seededAdminPermissions = [];
-  for (const perm of adminPermissionsToSeed) {
-    const record = await prisma.adminPermission.upsert({
-      where: { permissionCode: perm.permissionCode },
-      update: {
-        permissionName: perm.permissionName,
-        module: perm.module,
-        description: perm.description,
-      },
-      create: perm,
-    });
-    seededAdminPermissions.push(record);
-  }
-
-  const adminRole = await prisma.adminRole.upsert({
-    where: { roleName: 'super_admin' },
-    update: {},
-    create: {
-      roleName: 'super_admin',
-      description: 'Default administrator role with full access bypass.',
   const adminPermissionsDefinitions = [
     // jobs
     { name: 'Moderate Jobs', code: 'jobs:moderate', module: 'jobs', description: 'Duyệt hoặc từ chối tin tuyển dụng.' },
@@ -676,33 +718,6 @@ async function main() {
     },
   ];
 
-  // Link all default permissions to super_admin role
-  for (const perm of seededAdminPermissions) {
-    await prisma.adminRolePermission.upsert({
-      where: {
-        roleId_permissionId: {
-          roleId: adminRole.id,
-          permissionId: perm.id,
-        },
-      },
-      update: {},
-      create: {
-        roleId: adminRole.id,
-        permissionId: perm.id,
-      },
-    });
-  }
-
-  const adminUser = await prisma.adminUser.upsert({
-    where: { email: 'admin@upnext.dev' },
-    update: {
-      roleId: adminRole.id,
-    },
-    create: {
-      email: 'admin@upnext.dev',
-      fullName: 'UpNext Admin',
-      passwordHash,
-      roleId: adminRole.id,
   const seededAdminRoles: Record<string, any> = {};
   for (const roleDef of adminRolesDefinitions) {
     const role = await prisma.adminRole.upsert({
@@ -1172,7 +1187,7 @@ async function main() {
       type: CompanyType.PRODUCT,
       description: 'Builds SaaS hiring products for regional employers.',
       companySize: '100-199',
-      city: 'Ho Chi Minh City',
+      city: 'Hồ Chí Minh',
       applicationsWeight: 11,
     },
     {
@@ -1181,7 +1196,7 @@ async function main() {
       type: CompanyType.OUTSOURCING,
       description: 'Delivers distributed product teams for fast-growing startups.',
       companySize: '200-499',
-      city: 'Da Nang',
+      city: 'Đà Nẵng',
       applicationsWeight: 8,
     },
     {
@@ -1190,7 +1205,7 @@ async function main() {
       type: CompanyType.STARTUP,
       description: 'Applies AI workflows to recruiting and talent analytics.',
       companySize: '50-99',
-      city: 'Ha Noi',
+      city: 'Hà Nội',
       applicationsWeight: 5,
     },
     {
@@ -1199,7 +1214,7 @@ async function main() {
       type: CompanyType.PRODUCT,
       description: 'Builds commerce operations tools and internal platforms.',
       companySize: '100-199',
-      city: 'Can Tho',
+      city: 'Cần Thơ',
       applicationsWeight: 3,
     },
   ] as const;
@@ -1217,8 +1232,6 @@ async function main() {
       coverFileId,
       businessLicenseFileId,
       taxCode: `${SEED_TAX_CODE_PREFIX}${definition.key.toUpperCase()}`,
-      email: `${definition.key}@seed-home-test.upnext.dev`,
-      website: `https://${definition.key}.seed-home-test.upnext.dev`,
       slug: toSlug(definition.name),
       email: definition.key === 'alpha' ? 'hr@northstar.dev' : definition.key === 'beta' ? 'contact@bluewave.com' : definition.key === 'gamma' ? 'jobs@orbitai.vn' : 'support@vertex.tech',
       website: definition.key === 'alpha' ? 'https://northstar.dev' : definition.key === 'beta' ? 'https://bluewave.com' : definition.key === 'gamma' ? 'https://orbitai.vn' : 'https://vertex.tech',
@@ -1543,7 +1556,7 @@ async function main() {
       return {
         id: candidate.profileId,
         candidateAccountId: candidate.accountId,
-        address: idx % 2 === 0 ? 'Ho Chi Minh City, Vietnam' : 'Hanoi, Vietnam',
+        address: idx % 2 === 0 ? 'Hồ Chí Minh' : 'Hà Nội',
         description,
         createdAt: candidate.createdAt,
         updatedAt: candidate.createdAt,
@@ -2380,16 +2393,68 @@ async function main() {
     })),
   });
 
-  const jobLocations = jobs.map((job) => ({
-    id: randomUUID(),
-    jobPostId: job.id,
-    country: 'Vietnam',
-    city: job.city,
-    district: job.district,
-    address: `${SEED_ADDRESS_PREFIX} ${job.title} Hub`,
-    workingModel: job.workMode,
-    createdAt: job.createdAt,
-  }));
+  const jobLocations = jobs.map((job) => {
+    let cleanCity = job.city as string;
+    let cleanDistrict = job.district as string;
+
+    if (cleanCity === 'Ho Chi Minh City') cleanCity = 'Hồ Chí Minh';
+    else if (cleanCity === 'Ha Noi') cleanCity = 'Hà Nội';
+    else if (cleanCity === 'Da Nang') cleanCity = 'Đà Nẵng';
+    else if (cleanCity === 'Can Tho') cleanCity = 'Cần Thơ';
+
+    if (cleanDistrict.startsWith('District ')) {
+      cleanDistrict = cleanDistrict.replace('District ', 'Quận ');
+    } else if (cleanDistrict === 'Phu Nhuan') {
+      cleanDistrict = 'Quận Phú Nhuận';
+    } else if (cleanDistrict === 'Binh Thanh') {
+      cleanDistrict = 'Quận Bình Thạnh';
+    } else if (cleanDistrict === 'Hai Chau') {
+      cleanDistrict = 'Quận Hải Châu';
+    } else if (cleanDistrict === 'Thanh Khe') {
+      cleanDistrict = 'Quận Thanh Khê';
+    } else if (cleanDistrict === 'Son Tra') {
+      cleanDistrict = 'Quận Sơn Trà';
+    } else if (cleanDistrict === 'Ngu Hanh Son') {
+      cleanDistrict = 'Quận Ngũ Hành Sơn';
+    } else if (cleanDistrict === 'Ba Dinh') {
+      cleanDistrict = 'Quận Ba Đình';
+    } else if (cleanDistrict === 'Cau Giay') {
+      cleanDistrict = 'Quận Cầu Giấy';
+    } else if (cleanDistrict === 'Hai Ba Trung') {
+      cleanDistrict = 'Quận Hai Bà Trưng';
+    } else if (cleanDistrict === 'Dong Da') {
+      cleanDistrict = 'Quận Đống Đa';
+    } else if (cleanDistrict === 'Ninh Kieu') {
+      cleanDistrict = 'Quận Ninh Kiều';
+    } else if (cleanDistrict === 'Binh Thuy') {
+      cleanDistrict = 'Quận Bình Thủy';
+    } else if (cleanDistrict === 'Cai Rang') {
+      cleanDistrict = 'Quận Cái Răng';
+    } else if (cleanDistrict === 'O Mon') {
+      cleanDistrict = 'Quận Ô Môn';
+    }
+
+    const streetNumber = Math.floor(Math.random() * 290) + 1;
+    const streetNames: Record<string, string[]> = {
+      'Hồ Chí Minh': ['Nguyễn Huệ', 'Điện Biên Phủ', 'Cách Mạng Tháng Tám', 'Xa Lộ Hà Nội', 'Nguyễn Văn Linh', 'Cộng Hòa'],
+      'Hà Nội': ['Dịch Vọng Hậu', 'Chùa Bộc', 'Kim Mã', 'Đại Cồ Việt', 'Tràng Tiền', 'Nguyễn Trãi'],
+      'Đà Nẵng': ['Lê Duẩn', 'Võ Nguyên Giáp', 'Nguyễn Văn Linh', 'Cách Mạng Tháng Tám'],
+      'Cần Thơ': ['Đại Lộ Hòa Bình', 'Quốc Lộ 1A', 'Lê Hồng Phong']
+    };
+    const streets = streetNames[cleanCity] || ['Nguyễn Trãi'];
+    const randomStreet = streets[Math.floor(Math.random() * streets.length)];
+
+    return {
+      id: randomUUID(),
+      jobPostId: job.id,
+      country: 'Vietnam',
+      city: cleanCity,
+      district: cleanDistrict,
+      address: `${streetNumber} Đường ${randomStreet}`,
+      workingModel: job.workMode,
+      createdAt: job.createdAt,
+    };
+  });
 
   await prisma.jobLocation.createMany({
     data: jobLocations.map((location) => ({
@@ -3495,7 +3560,7 @@ async function main() {
         targetType: 'SUBSCRIPTION_PLAN',
         targetId: plans.premium.id,
         ipAddress: '192.168.1.88',
-        oldValue: null,
+        oldValue: Prisma.DbNull,
         newValue: JSON.stringify({ subscriptionName: 'Premium Plan', price: 1490000 }),
         createdAt: addDays(now, -15),
       },
@@ -3506,7 +3571,7 @@ async function main() {
         targetType: 'USER',
         targetId: candidates[0].accountId,
         ipAddress: '192.168.1.120',
-        oldValue: null,
+        oldValue: Prisma.DbNull,
         newValue: JSON.stringify({ viewed: true }),
         createdAt: addDays(now, -1),
       }
@@ -3565,8 +3630,8 @@ async function cleanImportedData() {
 
   await prisma.jobLocation.deleteMany({
     where: {
-      address: {
-        startsWith: '[IMPORTED_ITVIEC]',
+      jobPostLocations: {
+        none: {},
       },
     },
   });
@@ -3799,14 +3864,16 @@ async function importItviecData(
         if (location.workingModel === 'REMOTE') workingModel = WorkingModel.REMOTE;
         else if (location.workingModel === 'HYBRID') workingModel = WorkingModel.HYBRID;
 
+        const locDetails = getRandomLocationDetails(location.city);
         const locationId = randomUUID();
         await prisma.jobLocation.create({
           data: {
             id: locationId,
-            country: location.country || 'Vietnam',
+            country: 'Vietnam',
             workingModel: workingModel,
-            city: location.city || null,
-            address: `[IMPORTED_ITVIEC] ${location.city || ''}`,
+            city: locDetails.city,
+            district: locDetails.district,
+            address: `${locDetails.address}, ${locDetails.district}`,
           },
         });
 
