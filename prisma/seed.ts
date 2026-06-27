@@ -897,6 +897,66 @@ async function main() {
     },
   });
 
+  // Clean up deprecated HR_MANAGER role if it exists
+  const hrManagerRole = await prisma.recruiterRole.findUnique({
+    where: { code: 'HR_MANAGER' },
+  });
+
+  if (hrManagerRole) {
+    let adminRoleRecord = await prisma.recruiterRole.findUnique({
+      where: { code: 'ADMIN' },
+    });
+    if (!adminRoleRecord) {
+      adminRoleRecord = await prisma.recruiterRole.create({
+        data: {
+          code: 'ADMIN',
+          name: 'Admin',
+          description: 'Manage recruiting operations',
+        },
+      });
+    }
+
+    await prisma.recruiterAccount.updateMany({
+      where: { recruiterRoleId: hrManagerRole.id },
+      data: { recruiterRoleId: adminRoleRecord.id },
+    });
+
+    await prisma.companyMember.updateMany({
+      where: { roleId: hrManagerRole.id },
+      data: { roleId: adminRoleRecord.id },
+    });
+
+    await prisma.recruiterRole.delete({
+      where: { id: hrManagerRole.id },
+    });
+  }
+
+  // Also clean up any other roles that are not part of OWNER, ADMIN, RECRUITER, INTERVIEWER
+  const validRoleCodes = ['OWNER', 'HR', 'TECHLEAD'];
+  const invalidRoles = await prisma.recruiterRole.findMany({
+    where: {
+      code: {
+        notIn: validRoleCodes,
+      },
+    },
+  });
+
+  for (const role of invalidRoles) {
+    const ownerRole = await prisma.recruiterRole.findUnique({ where: { code: 'OWNER' } });
+    const fallbackRoleId = ownerRole?.id;
+    if (fallbackRoleId) {
+      await prisma.recruiterAccount.updateMany({
+        where: { recruiterRoleId: role.id },
+        data: { recruiterRoleId: fallbackRoleId },
+      });
+      await prisma.companyMember.updateMany({
+        where: { roleId: role.id },
+        data: { roleId: fallbackRoleId },
+      });
+    }
+    await prisma.recruiterRole.delete({ where: { id: role.id } });
+  }
+
   const seededPermissions: Record<string, string> = {};
   for (const perm of permissionsList) {
     const record = await prisma.recruiterPermission.upsert({
@@ -915,13 +975,13 @@ async function main() {
     {
       code: 'OWNER',
       name: 'Owner',
-      description: 'Full company workspace access',
+      description: 'Chủ tài khoản - Toàn quyền quản lý',
       permissionCodes: permissionsList.map((p) => p.code),
     },
     {
       code: 'HR',
       name: 'HR',
-      description: 'Manage recruiting operations, jobs, and candidates',
+      description: 'Quản lý tin tuyển dụng, hồ sơ ứng viên và lịch phỏng vấn',
       permissionCodes: [
         'jobs:manage',
         'applications:manage',
@@ -933,9 +993,9 @@ async function main() {
       ],
     },
     {
-      code: 'INTERVIEW',
-      name: 'Interview',
-      description: 'Review assigned interviews and candidates',
+      code: 'TECHLEAD',
+      name: 'TechLead',
+      description: 'Xem thông tin ứng viên được gán và đánh giá phỏng vấn',
       permissionCodes: ['applications:review_assigned', 'interviews:review_assigned'],
     },
   ];
@@ -1389,20 +1449,26 @@ async function main() {
     {
       companyIndex: 0,
       roleCode: 'OWNER',
-      email: `${SEED_EMAIL_PREFIX}recruiter.nhan.nguyen@northstar.dev`,
-      fullName: `Nguyễn Hữu Nhân`,
+      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.owner@upnext.dev`,
+      fullName: `Alpha Owner`,
     },
     {
       companyIndex: 0,
       roleCode: 'HR',
-      email: `${SEED_EMAIL_PREFIX}recruiter.hoai.le@northstar.dev`,
-      fullName: `Lê Thị Hoài`,
+      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.admin@upnext.dev`,
+      fullName: `Alpha Admin`,
     },
     {
       companyIndex: 0,
-      roleCode: 'INTERVIEW',
-      email: `${SEED_EMAIL_PREFIX}recruiter.son.tran@northstar.dev`,
-      fullName: `Trần Văn Sơn`,
+      roleCode: 'HR',
+      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.recruiter@upnext.dev`,
+      fullName: `Alpha Recruiter`,
+    },
+    {
+      companyIndex: 0,
+      roleCode: 'TECHLEAD',
+      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.interviewer@upnext.dev`,
+      fullName: `Alpha Interviewer`,
     },
     {
       companyIndex: 1,
