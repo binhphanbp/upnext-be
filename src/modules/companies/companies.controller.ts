@@ -359,6 +359,43 @@ export class CompaniesController {
   }
 
   /**
+   * Quét giấy phép kinh doanh bằng AI (Gemini).
+   * @param id ID (UUID) của công ty
+   * @param file File giấy phép kinh doanh
+   * @param user Thông tin user đang đăng nhập
+   */
+  @ApiOperation({
+    summary: 'Quét giấy phép kinh doanh bằng AI',
+    description: 'Trích xuất thông tin doanh nghiệp từ giấy phép kinh doanh thông qua Gemini AI.',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiOkResponse({
+    description: 'Trích xuất thông tin thành công.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @Post(':id/scan-license')
+  @UseInterceptors(FileInterceptor('file'))
+  scanBusinessLicense(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @UploadedFile() file: CompanyUploadFile,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.scanBusinessLicense(id, file, user);
+  }
+
+  /**
    * Lấy Signed URL để xem giấy phép đăng ký kinh doanh (Recruiter / Admin).
    * @param id ID (UUID) của công ty
    * @param user Thông tin user đang đăng nhập

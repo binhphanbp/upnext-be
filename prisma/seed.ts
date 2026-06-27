@@ -625,7 +625,7 @@ async function main() {
   }
 
   // Also clean up any other roles that are not part of OWNER, ADMIN, RECRUITER, INTERVIEWER
-  const validRoleCodes = ['OWNER', 'ADMIN', 'RECRUITER', 'INTERVIEWER'];
+  const validRoleCodes = ['OWNER', 'HR', 'TECHLEAD'];
   const invalidRoles = await prisma.recruiterRole.findMany({
     where: {
       code: {
@@ -668,13 +668,13 @@ async function main() {
     {
       code: 'OWNER',
       name: 'Owner',
-      description: 'Full company workspace access',
+      description: 'Chủ tài khoản - Toàn quyền quản lý',
       permissionCodes: permissionsList.map((p) => p.code),
     },
     {
-      code: 'ADMIN',
-      name: 'Admin',
-      description: 'Manage recruiting operations',
+      code: 'HR',
+      name: 'HR',
+      description: 'Quản lý tin tuyển dụng, hồ sơ ứng viên và lịch phỏng vấn',
       permissionCodes: [
         'jobs:manage',
         'applications:manage',
@@ -685,21 +685,9 @@ async function main() {
       ],
     },
     {
-      code: 'RECRUITER',
-      name: 'Recruiter',
-      description: 'Manage jobs, candidates, and interviews',
-      permissionCodes: [
-        'jobs:manage',
-        'applications:manage',
-        'applications:review_assigned',
-        'interviews:manage',
-        'interviews:review_assigned',
-      ],
-    },
-    {
-      code: 'INTERVIEWER',
-      name: 'Interviewer',
-      description: 'Review assigned interviews and candidates',
+      code: 'TECHLEAD',
+      name: 'TechLead',
+      description: 'Xem thông tin ứng viên được gán và đánh giá phỏng vấn',
       permissionCodes: ['applications:review_assigned', 'interviews:review_assigned'],
     },
   ];
@@ -1113,19 +1101,19 @@ async function main() {
     },
     {
       companyIndex: 0,
-      roleCode: 'ADMIN',
+      roleCode: 'HR',
       email: `${SEED_EMAIL_PREFIX}recruiter.alpha.admin@upnext.dev`,
       fullName: `Alpha Admin`,
     },
     {
       companyIndex: 0,
-      roleCode: 'RECRUITER',
+      roleCode: 'HR',
       email: `${SEED_EMAIL_PREFIX}recruiter.alpha.recruiter@upnext.dev`,
       fullName: `Alpha Recruiter`,
     },
     {
       companyIndex: 0,
-      roleCode: 'INTERVIEWER',
+      roleCode: 'TECHLEAD',
       email: `${SEED_EMAIL_PREFIX}recruiter.alpha.interviewer@upnext.dev`,
       fullName: `Alpha Interviewer`,
     },

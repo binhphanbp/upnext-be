@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ActorType,
   CompanyVerificationStatus,
@@ -26,7 +27,8 @@ export class CompaniesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) { }
 
   create(createCompanyDto: CreateCompanyDto) {
     return this.prisma.company
@@ -45,12 +47,12 @@ export class CompaniesService {
     const where: Prisma.CompanyWhereInput = {
       ...(query.q
         ? {
-            OR: [
-              { name: { contains: query.q, mode: 'insensitive' } },
-              { description: { contains: query.q, mode: 'insensitive' } },
-              { email: { contains: query.q, mode: 'insensitive' } },
-            ],
-          }
+          OR: [
+            { name: { contains: query.q, mode: 'insensitive' } },
+            { description: { contains: query.q, mode: 'insensitive' } },
+            { email: { contains: query.q, mode: 'insensitive' } },
+          ],
+        }
         : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.verificationStatus ? { verificationStatus: query.verificationStatus } : {}),
@@ -283,6 +285,103 @@ export class CompaniesService {
   async remove(id: string) {
     await this.ensureCompanyExists(id);
     await this.prisma.company.delete({ where: { id } });
+  }
+
+  async scanBusinessLicense(id: string, file: UploadedFile, user: AuthenticatedUser) {
+    await this.ensureCompanyExists(id);
+    await this.checkCompanyPermission(id, user);
+
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    const apiKey = this.configService.get<string>('geminiApiKey')?.trim();
+    if (!apiKey) {
+      throw new BadRequestException('Gemini API key is not configured on the server');
+    }
+
+    // Convert file buffer to base64
+    const base64Data = file.buffer.toString('base64');
+
+    const prompt = `Hãy trích xuất chính xác các thông tin từ giấy phép kinh doanh/giấy chứng nhận đăng ký doanh nghiệp này.
+Trả về một JSON object chứa các trường sau:
+- name (tên công ty chính thức đầy đủ, ví dụ: CÔNG TY CỔ PHẦN UPNEXT VIỆT NAM)
+- taxCode (mã số thuế hoặc mã số doanh nghiệp, là chuỗi chỉ gồm các chữ số)
+- address (địa chỉ trụ sở chính đầy đủ, có dạng: số nhà tên đường, phường/xã, quận/huyện, tỉnh/thành phố. Vui lòng ghi rõ tên các cấp hành chính đầy đủ không viết tắt, ví dụ: 'Phường 11, Quận Gò Vấp, Thành phố Hồ Chí Minh')
+- email (email liên hệ nếu có ghi trong giấy phép, ví dụ: contact@upnext.works, nếu không có trả về null)
+- phone (số điện thoại liên hệ nếu có ghi trong giấy phép, nếu không có trả về null)
+- website (địa chỉ website nếu có ghi trong giấy phép, nếu không có trả về null)
+
+Chỉ trích xuất các thông tin thực tế hiển thị trên văn bản, không tự ý sáng tạo thông tin. Nếu không có hoặc không tìm thấy trường nào thì để giá trị null.`;
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: file.mimetype,
+                      data: base64Data,
+                    },
+                  },
+                  {
+                    text: prompt,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'OBJECT',
+                properties: {
+                  name: { type: 'STRING', description: 'Tên chính thức của doanh nghiệp/công ty' },
+                  taxCode: { type: 'STRING', description: 'Mã số doanh nghiệp hoặc mã số thuế' },
+                  address: { type: 'STRING', description: 'Địa chỉ trụ sở chính của doanh nghiệp' },
+                  email: { type: 'STRING', nullable: true, description: 'Địa chỉ email của công ty nếu có' },
+                  phone: { type: 'STRING', nullable: true, description: 'Số điện thoại của công ty nếu có' },
+                  website: { type: 'STRING', nullable: true, description: 'Địa chỉ trang web (website) của công ty nếu có' },
+                },
+                required: ['name', 'taxCode', 'address'],
+              },
+            },
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+      }
+
+      const responseData = (await response.json()) as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{
+              text?: string;
+            }>;
+          };
+        }>;
+      };
+      const text = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        throw new Error('Failed to extract text from Gemini response');
+      }
+
+      return JSON.parse(text) as Record<string, unknown>;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(`Không thể quét giấy phép kinh doanh: ${message}`);
+    }
   }
 
   async uploadBusinessLicense(id: string, file: UploadedFile, user: AuthenticatedUser) {
