@@ -568,37 +568,7 @@ async function main() {
 
   const passwordHash = await hash('Password123!', 12);
 
-  const adminPermissionsToSeed = [
-    { permissionName: 'Xem vai trò', permissionCode: 'roles:read', module: 'roles', description: 'Cho phép xem các vai trò admin' },
-    { permissionName: 'Quản lý vai trò', permissionCode: 'roles:write', module: 'roles', description: 'Cho phép tạo, sửa, xóa, gán quyền vai trò admin' },
-    { permissionName: 'Xem quyền hạn', permissionCode: 'permissions:read', module: 'permissions', description: 'Cho phép xem danh sách các quyền hạn admin' },
-    { permissionName: 'Quản lý quyền hạn', permissionCode: 'permissions:write', module: 'permissions', description: 'Cho phép tạo, sửa, xóa các quyền hạn admin' },
-    { permissionName: 'Xem bài viết', permissionCode: 'posts:read', module: 'posts', description: 'Cho phép xem các bài viết blog/news' },
-    { permissionName: 'Quản lý bài viết', permissionCode: 'posts:write', module: 'posts', description: 'Cho phép tạo, sửa, xóa bài viết blog/news' },
-    { permissionName: 'Xem báo cáo', permissionCode: 'reports:read', module: 'reports', description: 'Cho phép xem báo cáo vi phạm' },
-    { permissionName: 'Xử lý báo cáo', permissionCode: 'reports:write', module: 'reports', description: 'Cho phép duyệt/xử lý báo cáo vi phạm' },
-  ];
 
-  const seededAdminPermissions = [];
-  for (const perm of adminPermissionsToSeed) {
-    const record = await prisma.adminPermission.upsert({
-      where: { permissionCode: perm.permissionCode },
-      update: {
-        permissionName: perm.permissionName,
-        module: perm.module,
-        description: perm.description,
-      },
-      create: perm,
-    });
-    seededAdminPermissions.push(record);
-  }
-
-  const adminRole = await prisma.adminRole.upsert({
-    where: { roleName: 'super_admin' },
-    update: {},
-    create: {
-      roleName: 'super_admin',
-      description: 'Default administrator role with full access bypass.',
   const adminPermissionsDefinitions = [
     // jobs
     { name: 'Moderate Jobs', code: 'jobs:moderate', module: 'jobs', description: 'Duyệt hoặc từ chối tin tuyển dụng.' },
@@ -676,33 +646,7 @@ async function main() {
     },
   ];
 
-  // Link all default permissions to super_admin role
-  for (const perm of seededAdminPermissions) {
-    await prisma.adminRolePermission.upsert({
-      where: {
-        roleId_permissionId: {
-          roleId: adminRole.id,
-          permissionId: perm.id,
-        },
-      },
-      update: {},
-      create: {
-        roleId: adminRole.id,
-        permissionId: perm.id,
-      },
-    });
-  }
 
-  const adminUser = await prisma.adminUser.upsert({
-    where: { email: 'admin@upnext.dev' },
-    update: {
-      roleId: adminRole.id,
-    },
-    create: {
-      email: 'admin@upnext.dev',
-      fullName: 'UpNext Admin',
-      passwordHash,
-      roleId: adminRole.id,
   const seededAdminRoles: Record<string, any> = {};
   for (const roleDef of adminRolesDefinitions) {
     const role = await prisma.adminRole.upsert({
@@ -1225,6 +1169,20 @@ async function main() {
     };
   });
 
+  const logoUrls: Record<string, string> = {
+    alpha: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&h=150&fit=crop&q=80',
+    beta: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=150&h=150&fit=crop&q=80',
+    gamma: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=150&h=150&fit=crop&q=80',
+    delta: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=150&h=150&fit=crop&q=80'
+  };
+
+  const coverUrls: Record<string, string> = {
+    alpha: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=400&fit=crop&q=80',
+    beta: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=800&h=400&fit=crop&q=80',
+    gamma: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=400&fit=crop&q=80',
+    delta: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=400&fit=crop&q=80'
+  };
+
   const fileAssetsData = companies.flatMap((company) => {
     const assets: Prisma.FileAssetCreateManyInput[] = [
       {
@@ -1237,7 +1195,7 @@ async function main() {
         originalName: `${company.key}-logo.png`,
         mimeType: 'image/png',
         sizeBytes: BigInt(2048),
-        publicUrl: `https://cdn.seed-home-test.local/${company.key}/logo.png`,
+        publicUrl: logoUrls[company.key] || `https://cdn.seed-home-test.local/${company.key}/logo.png`,
       },
       {
         id: company.coverFileId,
@@ -1249,7 +1207,7 @@ async function main() {
         originalName: `${company.key}-cover.png`,
         mimeType: 'image/png',
         sizeBytes: BigInt(4096),
-        publicUrl: `https://cdn.seed-home-test.local/${company.key}/cover.png`,
+        publicUrl: coverUrls[company.key] || `https://cdn.seed-home-test.local/${company.key}/cover.png`,
       },
     ];
 
@@ -1449,12 +1407,21 @@ async function main() {
     })),
   });
 
+  const avatarUrls = [
+    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&q=80',
+  ];
+
   await prisma.recruiterProfile.createMany({
-    data: recruiters.map((recruiter) => ({
+    data: recruiters.map((recruiter, idx) => ({
       id: recruiter.profileId,
       recruiterAccountId: recruiter.id,
       fullName: recruiter.fullName,
-      avatarUrl: `https://cdn.seed-home-test.local/recruiters/${toSlug(recruiter.fullName)}.png`,
+      avatarUrl: avatarUrls[idx % avatarUrls.length],
       createdAt: recruiter.createdAt,
       updatedAt: recruiter.createdAt,
     })),
@@ -2340,7 +2307,7 @@ async function main() {
     return {
       ...definition,
       id: randomUUID(),
-      slug: `${SEED_KEY}-${toSlug(definition.title)}`,
+      slug: `${toSlug(company.name)}-${toSlug(definition.title)}`,
       companyId: company.id,
       recruiterId: recruiter.id,
       employmentTypeId: employmentType.id,
@@ -2380,16 +2347,44 @@ async function main() {
     })),
   });
 
-  const jobLocations = jobs.map((job) => ({
-    id: randomUUID(),
-    jobPostId: job.id,
-    country: 'Vietnam',
-    city: job.city,
-    district: job.district,
-    address: `${SEED_ADDRESS_PREFIX} ${job.title} Hub`,
-    workingModel: job.workMode,
-    createdAt: job.createdAt,
-  }));
+  const addressesByCity: Record<string, string[]> = {
+    'Da Nang': [
+      'Lô C, Đường số 2, KCN An Đồn, Quận Sơn Trà',
+      'Lầu 4, Tòa nhà Indochina, 74 Bạch Đằng, Quận Hải Châu',
+      'Tầng 2, 103 Nguyễn Hữu Thọ, Quận Hải Châu',
+    ],
+    'Ha Noi': [
+      'Tầng 5, Tòa nhà HITC, 239 Xuân Thủy, Cầu Giấy',
+      'Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Nam Từ Liêm',
+      'Tầng 3, Tòa nhà Ladeco, 266 Đội Cấn, Ba Đình',
+    ],
+    'Ho Chi Minh City': [
+      'Tầng 12, Tòa nhà Viettel, 285 Cách Mạng Tháng Tám, Quận 10',
+      'Tòa nhà Deutsches Haus, 33 Lê Duẩn, Bến Nghé, Quận 1',
+      'Tầng 6, Landmark 81, 720A Điện Biên Phủ, Bình Thạnh',
+    ],
+    'Can Tho': [
+      'Số 1, Đại lộ Hòa Bình, Quận Ninh Kiều',
+      'Khu Dân Cư Hồng Phát, An Bình, Ninh Kiều',
+      'Tầng 2, Tòa nhà STS, 11B Hòa Bình, Tân An, Ninh Kiều',
+    ],
+  };
+
+  const jobLocations = jobs.map((job, idx) => {
+    const cityList = addressesByCity[job.city] || ['Việt Nam'];
+    const address = cityList[idx % cityList.length];
+
+    return {
+      id: randomUUID(),
+      jobPostId: job.id,
+      country: 'Vietnam',
+      city: job.city,
+      district: job.district,
+      address,
+      workingModel: job.workMode,
+      createdAt: job.createdAt,
+    };
+  });
 
   await prisma.jobLocation.createMany({
     data: jobLocations.map((location) => ({
@@ -3565,8 +3560,8 @@ async function cleanImportedData() {
 
   await prisma.jobLocation.deleteMany({
     where: {
-      address: {
-        startsWith: '[IMPORTED_ITVIEC]',
+      jobPostLocations: {
+        none: {},
       },
     },
   });
@@ -3659,6 +3654,34 @@ async function importItviecData(
     const hashSlug = createHash('md5').update(item.Slug as string).digest('hex').substring(0, 30);
 
     const companyId = randomUUID();
+    const coverFileId = randomUUID();
+    const coverUrls = [
+      'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=400&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=800&h=400&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=400&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=400&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&h=400&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800&h=400&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&h=400&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&h=400&fit=crop&q=80',
+    ];
+    const randomCoverUrl = coverUrls[Math.abs(createHash('md5').update(item.Slug).digest().readInt32BE(0)) % coverUrls.length];
+
+    await prisma.fileAsset.create({
+      data: {
+        id: coverFileId,
+        ownerType: 'company_cover',
+        ownerId: companyId,
+        purpose: FilePurpose.OTHER,
+        visibility: FileVisibility.PUBLIC,
+        storageKey: `imported/covers/${item.Slug}`,
+        originalName: `${item.Slug}-cover`,
+        mimeType: 'image/jpeg',
+        sizeBytes: BigInt(0),
+        publicUrl: randomCoverUrl,
+      },
+    });
+
     await prisma.company.create({
       data: {
         id: companyId,
@@ -3800,13 +3823,39 @@ async function importItviecData(
         else if (location.workingModel === 'HYBRID') workingModel = WorkingModel.HYBRID;
 
         const locationId = randomUUID();
+        const addressesByCity: Record<string, string[]> = {
+          'Da Nang': [
+            'Lô C, Đường số 2, KCN An Đồn, Quận Sơn Trà',
+            'Lầu 4, Tòa nhà Indochina, 74 Bạch Đằng, Quận Hải Châu',
+            'Tầng 2, 103 Nguyễn Hữu Thọ, Quận Hải Châu',
+          ],
+          'Ha Noi': [
+            'Tầng 5, Tòa nhà HITC, 239 Xuân Thủy, Cầu Giấy',
+            'Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Nam Từ Liêm',
+            'Tầng 3, Tòa nhà Ladeco, 266 Đội Cấn, Ba Đình',
+          ],
+          'Ho Chi Minh': [
+            'Tầng 12, Tòa nhà Viettel, 285 Cách Mạng Tháng Tám, Quận 10',
+            'Tòa nhà Deutsches Haus, 33 Lê Duẩn, Bến Nghé, Quận 1',
+            'Tầng 6, Landmark 81, 720A Điện Biên Phủ, Bình Thạnh',
+          ],
+          'Can Tho': [
+            'Số 1, Đại lộ Hòa Bình, Quận Ninh Kiều',
+            'Khu Dân Cư Hồng Phát, An Bình, Ninh Kiều',
+            'Tầng 2, Tòa nhà STS, 11B Hòa Bình, Tân An, Ninh Kiều',
+          ],
+        };
+        const cityKey = location.city || 'Ho Chi Minh';
+        const cityList = addressesByCity[cityKey] || addressesByCity['Ho Chi Minh'];
+        const address = cityList[Math.abs(createHash('md5').update(job.jobPost.title + locationId).digest().readInt32BE(0)) % cityList.length];
+
         await prisma.jobLocation.create({
           data: {
             id: locationId,
             country: location.country || 'Vietnam',
             workingModel: workingModel,
             city: location.city || null,
-            address: `[IMPORTED_ITVIEC] ${location.city || ''}`,
+            address: address,
           },
         });
 
