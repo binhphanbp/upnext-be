@@ -19,24 +19,24 @@ export class CandidateLanguagesController {
   constructor(private readonly candidateLanguagesService: CandidateLanguagesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Lấy danh sách ngoại ngữ' })
+  @ApiOperation({ summary: 'Lấy danh sách ngôn ngữ' })
   @ApiOkResponse({ type: CandidateLanguage, isArray: true })
   findAll(@CurrentUser() user: AuthenticatedUser) {
     return this.candidateLanguagesService.findAll(user.id);
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create my language' })
+  @ApiOperation({ summary: 'Tạo ngôn ngữ' })
   @ApiCreatedResponse({ type: CandidateLanguage })
-  @ApiConflictResponse({ description: 'Language already exists in this profile.' })
+  @ApiConflictResponse({ description: 'Ngôn ngữ đã tồn tại' })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateCandidateLanguageDto) {
     return this.candidateLanguagesService.create(user.id, dto);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update my language' })
+  @ApiOperation({ summary: 'Cập nhật ngôn ngữ' })
   @ApiOkResponse({ type: CandidateLanguage })
-  @ApiConflictResponse({ description: 'Language already exists in this profile.' })
+  @ApiConflictResponse({ description: 'Ngôn ngữ đã tồn tại' })
   update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -47,7 +47,7 @@ export class CandidateLanguagesController {
 
   @Delete(':id')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Delete my language' })
+  @ApiOperation({ summary: 'Xóa ngôn ngữ' })
   @ApiNoContentResponse()
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.candidateLanguagesService.remove(user.id, id);

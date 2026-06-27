@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -19,18 +20,29 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
+import { ActorType } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { AssignPermissionsDto } from './dto/assign-permissions.dto';
 import { CreateRecruiterRoleDto } from './dto/create-recruiter-role.dto';
 import { UpdateRecruiterRoleDto } from './dto/update-recruiter-role.dto';
 import { RecruiterRolesService } from './recruiter-roles.service';
 
 @ApiTags('Recruiter - Roles')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(ActorType.RECRUITER, ActorType.ADMIN)
 @Controller('recruiter-roles')
 export class RecruiterRolesController {
   constructor(private readonly recruiterRolesService: RecruiterRolesService) {}
 
-  @ApiOperation({ summary: 'Danh sách vai trò nhà tuyển dụng', description: 'Lấy danh sách tất cả role recruiter kèm danh sách permission.' })
+  @ApiOperation({
+    summary: 'Danh sách vai trò nhà tuyển dụng',
+    description: 'Lấy danh sách tất cả role recruiter kèm danh sách permission.',
+  })
   @ApiOkResponse({
     description: 'Roles fetched successfully',
     schema: {
@@ -41,7 +53,14 @@ export class RecruiterRolesController {
           name: 'HR Manager',
           description: 'Manages recruitment operations',
           rolePermissions: [
-            { recruiterPermission: { id: 'p1...', code: 'job_posts:create', module: 'job_posts', action: 'create' } },
+            {
+              recruiterPermission: {
+                id: 'p1...',
+                code: 'job_posts:create',
+                module: 'job_posts',
+                action: 'create',
+              },
+            },
           ],
         },
       ],
@@ -52,7 +71,10 @@ export class RecruiterRolesController {
     return this.recruiterRolesService.findAllRoles();
   }
 
-  @ApiOperation({ summary: 'Chi tiết vai trò nhà tuyển dụng', description: 'Xem chi tiết một role theo id.' })
+  @ApiOperation({
+    summary: 'Chi tiết vai trò nhà tuyển dụng',
+    description: 'Xem chi tiết một role theo id.',
+  })
   @ApiParam({ name: 'id', description: 'Recruiter role UUID' })
   @ApiOkResponse({ description: 'Role fetched successfully' })
   @ApiNotFoundResponse({ description: 'Role not found' })
@@ -61,7 +83,10 @@ export class RecruiterRolesController {
     return this.recruiterRolesService.findOneRole(id);
   }
 
-  @ApiOperation({ summary: 'Tạo vai trò nhà tuyển dụng', description: 'Tạo mới một role cho recruiter.' })
+  @ApiOperation({
+    summary: 'Tạo vai trò nhà tuyển dụng',
+    description: 'Tạo mới một role cho recruiter.',
+  })
   @ApiCreatedResponse({
     description: 'Role created successfully',
     schema: {
@@ -81,17 +106,17 @@ export class RecruiterRolesController {
     return this.recruiterRolesService.createRole(dto);
   }
 
-  @ApiOperation({ summary: 'Cập nhật vai trò nhà tuyển dụng', description: 'Cập nhật thông tin role.' })
+  @ApiOperation({
+    summary: 'Cập nhật vai trò nhà tuyển dụng',
+    description: 'Cập nhật thông tin role.',
+  })
   @ApiParam({ name: 'id', description: 'Recruiter role UUID' })
   @ApiOkResponse({ description: 'Role updated successfully' })
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiConflictResponse({ description: 'Role with this code already exists' })
   @ApiNotFoundResponse({ description: 'Role not found' })
   @Patch(':id')
-  update(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: UpdateRecruiterRoleDto,
-  ) {
+  update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateRecruiterRoleDto) {
     return this.recruiterRolesService.updateRole(id, dto);
   }
 
@@ -118,8 +143,22 @@ export class RecruiterRolesController {
         code: 'hr_manager',
         name: 'HR Manager',
         rolePermissions: [
-          { recruiterPermission: { id: 'p1...', code: 'job_posts:create', module: 'job_posts', action: 'create' } },
-          { recruiterPermission: { id: 'p2...', code: 'job_posts:read', module: 'job_posts', action: 'read' } },
+          {
+            recruiterPermission: {
+              id: 'p1...',
+              code: 'job_posts:create',
+              module: 'job_posts',
+              action: 'create',
+            },
+          },
+          {
+            recruiterPermission: {
+              id: 'p2...',
+              code: 'job_posts:read',
+              module: 'job_posts',
+              action: 'read',
+            },
+          },
         ],
       },
     },

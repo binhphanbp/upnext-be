@@ -8,7 +8,7 @@ export class CreateAdminRoleDto {
   @MaxLength(120)
   roleName!: string;
 
-  @ApiPropertyOptional({ example: 'Full system administrative access' })
+  @ApiPropertyOptional({ example: 'Quyền truy cập quản trị hệ thống đầy đủ' })
   @IsOptional()
   @IsString()
   description?: string;
