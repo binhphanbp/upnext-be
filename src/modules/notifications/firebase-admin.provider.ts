@@ -1,4 +1,4 @@
-import { initializeApp, getApp, getApps, cert } from 'firebase-admin/app';
+import { initializeApp, getApp, getApps, cert, App } from 'firebase-admin/app';
 import { generateKeyPairSync } from 'node:crypto';
 
 export const FIREBASE_ADMIN = 'FIREBASE_ADMIN';
@@ -46,7 +46,7 @@ export const FirebaseAdminProvider = {
         return {
           name: '[DEFAULT]',
           options: {},
-        } as any;
+        } as unknown as App;
       }
       throw err;
     }

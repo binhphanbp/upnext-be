@@ -20,7 +20,7 @@ export class SearchKeywordService {
       .replace(/[\u0300-\u036f]/g, '') // remove diacritics
       .replace(/đ/g, 'd')             // replace Vietnamese specific character đ
       .replace(/Đ/g, 'd')
-      .replace(/[^a-z0-9\s\+\#\.]/g, ' ') // keep +, #, . and alphanumeric/spaces
+      .replace(/[^a-z0-9\s+#.]/g, ' ') // keep +, #, . and alphanumeric/spaces
       .replace(/\s+/g, ' ')           // replace multiple spaces with single space
       .trim();
   }
@@ -54,7 +54,7 @@ export class SearchKeywordService {
     }
 
     // 2. Check compact keyword by removing spaces and dots
-    const compactKeyword = normalizedKeyword.replace(/[\s\.]/g, '');
+    const compactKeyword = normalizedKeyword.replace(/[\s.]/g, '');
     const compactMatch = KEYWORD_SYNONYM_MAP[compactKeyword];
     if (compactMatch) {
       return compactMatch;

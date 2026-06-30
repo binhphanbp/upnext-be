@@ -43,6 +43,7 @@ export class NotificationTokenController {
     return { message: 'Token unregistered successfully' };
   }
 
+  @Public()
   @Post('test-send')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Send a test push notification to a specific token (Public endpoint for testing)' })

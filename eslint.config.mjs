@@ -12,6 +12,7 @@ export default tseslint.config(
       'commitlint.config.cjs',
       'eslint.config.mjs',
       'prettier.config.cjs',
+      'prisma/**',
     ],
   },
   js.configs.recommended,

@@ -5,7 +5,7 @@ import { IsInt, IsOptional, IsString, Min, MinLength, MaxLength } from 'class-va
 export class LogSearchKeywordDto {
   @ApiProperty({ minLength: 2, maxLength: 255, example: 'React JS' })
   @IsString()
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   @MinLength(2)
   @MaxLength(255)
   keyword!: string;
