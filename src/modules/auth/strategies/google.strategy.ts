@@ -6,9 +6,9 @@ import { Profile, Strategy } from 'passport-google-oauth20';
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(configService: ConfigService) {
     super({
-      clientID: configService.getOrThrow<string>('googleClientId'),
-      clientSecret: configService.getOrThrow<string>('googleClientSecret'),
-      callbackURL: `${configService.getOrThrow<string>('appBackendUrl')}/api/v1/candidate/auth/google/callback`,
+      clientID: configService.get<string>('googleClientId') || 'dummy-google-client-id',
+      clientSecret: configService.get<string>('googleClientSecret') || 'dummy-google-client-secret',
+      callbackURL: `${configService.get<string>('appBackendUrl') || 'http://localhost:3001'}/api/v1/candidate/auth/google/callback`,
       scope: ['email', 'profile'],
     });
   }
