@@ -27,7 +27,7 @@ describe('AdminRolesService', () => {
     adminUser: {
       count: jest.fn(),
     },
-    $transaction: jest.fn().mockImplementation((cb) => cb(mockPrismaService) as unknown),
+    $transaction: jest.fn().mockImplementation((cb: (tx: any) => unknown) => cb(mockPrismaService)),
   };
 
   beforeEach(async () => {

@@ -56,7 +56,8 @@ export class CandidateAccountAuthController {
   @UseGuards(GoogleAuthGuard)
   @ApiOperation({ summary: 'Callback xử lý đăng nhập Google từ Backend và redirect về Frontend' })
   async googleAuthCallback(@Req() req: any, @Res() res: Response) {
-    const result = await this.candidateAccountAuthService.loginOrRegisterGoogle(req.user);
+    const googleUser = req.user as { providerUserId: string; email: string; fullName: string };
+    const result = await this.candidateAccountAuthService.loginOrRegisterGoogle(googleUser);
     const { accessToken } = result;
     const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
     return res.redirect(`${frontendUrl}/auth/callback?token=${accessToken}`);

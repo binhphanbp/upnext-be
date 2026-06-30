@@ -109,7 +109,7 @@ export class FcmService {
           responses: tokens.map(() => ({ success: true })),
           successCount: tokens.length,
           failureCount: 0,
-        };
+        } as BatchResponse;
       }
       const response: BatchResponse = await messaging.sendEachForMulticast(message);
       this.fcmLogger.log(

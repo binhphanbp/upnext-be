@@ -1,6 +1,7 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SaveFcmTokenDto } from './dto/save-fcm-token.dto';
 import { NotificationTokenService } from './notification-token.service';
@@ -37,6 +38,7 @@ export class NotificationTokenController {
     return { message: 'Token unregistered successfully' };
   }
 
+  @Public()
   @Post('test-send')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
