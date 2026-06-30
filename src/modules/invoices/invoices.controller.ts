@@ -19,10 +19,7 @@ export class InvoicesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.ADMIN, ActorType.RECRUITER)
   @Post()
-  create(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: CreateInvoiceDto,
-  ) {
+  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateInvoiceDto) {
     return this.invoicesService.create(user, dto);
   }
 
@@ -40,10 +37,7 @@ export class InvoicesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.ADMIN, ActorType.RECRUITER)
   @Get(':id')
-  findOne(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.invoicesService.findOne(id, user);
   }
 

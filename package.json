@@ -40,8 +40,8 @@
     "@nestjs/passport": "latest",
     "@nestjs/platform-express": "latest",
     "@nestjs/swagger": "latest",
-    "@prisma/adapter-pg": "latest",
-    "@prisma/client": "latest",
+    "@prisma/adapter-pg": "7.8.0",
+    "@prisma/client": "7.8.0",
     "@scalar/nestjs-api-reference": "^1.2.2",
     "bcryptjs": "latest",
     "class-transformer": "latest",
@@ -56,10 +56,11 @@
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "latest",
     "pg": "latest",
-    "prisma": "latest",
+    "prisma": "7.8.0",
     "reflect-metadata": "latest",
     "rxjs": "latest",
-    "zod": "latest"
+    "zod": "latest",
+    "tsx": "latest"
   },
   "devDependencies": {
     "@commitlint/cli": "latest",
@@ -91,7 +92,6 @@
     "ts-loader": "latest",
     "ts-node": "latest",
     "tsconfig-paths": "latest",
-    "tsx": "latest",
     "typescript": "latest",
     "typescript-eslint": "latest",
     "xlsx": "^0.18.5"

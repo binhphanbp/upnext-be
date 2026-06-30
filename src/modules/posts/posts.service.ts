@@ -49,11 +49,12 @@ export class PostsService {
         metaTitle: dto.metaTitle ?? null,
         metaDescription: dto.metaDescription ?? null,
         metaKeywords: dto.metaKeywords ?? null,
-        postTags: dto.tagIds && dto.tagIds.length > 0
-          ? {
-              create: dto.tagIds.map((tagId) => ({ tagId })),
-            }
-          : undefined,
+        postTags:
+          dto.tagIds && dto.tagIds.length > 0
+            ? {
+                create: dto.tagIds.map((tagId) => ({ tagId })),
+              }
+            : undefined,
       },
       include: {
         category: true,

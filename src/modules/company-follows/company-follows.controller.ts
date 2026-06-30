@@ -1,8 +1,25 @@
-import { Controller, Get, Post, Delete, Param, ParseUUIDPipe, HttpCode, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  ParseUUIDPipe,
+  HttpCode,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ActorType } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CompanyFollowsService } from './company-follows.service';
 
+@ApiTags('Companies')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(ActorType.CANDIDATE)
 @Controller()
 export class CompanyFollowsController {
   constructor(private readonly companyFollowsService: CompanyFollowsService) {}

@@ -1,6 +1,7 @@
 // UpNext - Prisma schema for PostgreSQL
 generator client {
-    provider = "prisma-client-js"
+    provider      = "prisma-client-js"
+    binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -676,6 +677,7 @@ model Company {
     phone                 String?                   @db.VarChar(30)
     website               String?                   @db.VarChar(500)
     description           String?                   @db.Text
+    benefits              String?                   @db.Text
     companySize           String?                   @map("company_size") @db.VarChar(80)
     verificationStatus    CompanyVerificationStatus @default(UNVERIFIED) @map("verification_status")
     reputationScore       Decimal                   @default(0) @map("reputation_score") @db.Decimal(6, 2)
@@ -690,6 +692,7 @@ model Company {
 
     recruiterAccounts    RecruiterAccount[]
     members              CompanyMember[]
+    recruiterRoles       RecruiterRole[]
     jobPosts             JobPost[]
     follows              CompanyFollow[]
     reviews              CompanyReview[]
@@ -697,6 +700,7 @@ model Company {
     invoices             Invoice[]
     jobBoosts            JobBoost[]
     reputationActivities CompanyReputationActivity[]
+    companyLocations     CompanyLocation[]
 
     @@index([verificationStatus])
     @@index([status])
@@ -705,16 +709,19 @@ model Company {
 
 model RecruiterRole {
     id          String   @id @default(uuid()) @db.Uuid
+    companyId   String?  @map("company_id") @db.Uuid
     code        String   @unique @db.VarChar(80)
     name        String   @db.VarChar(120)
     description String?  @db.Text
     createdAt   DateTime @default(now()) @map("created_at")
     updatedAt   DateTime @updatedAt @map("updated_at")
 
+    company           Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
     recruiterAccounts RecruiterAccount[]
     rolePermissions   RecruiterRolePermission[]
     companyMembers    CompanyMember[]
 
+    @@index([companyId])
     @@map("recruiter_roles")
 }
 
@@ -896,8 +903,10 @@ model JobPostSpecialization {
     @@map("job_post_specializations")
 }
 
-model JobLocation {
+model CompanyLocation {
     id           String       @id @default(uuid()) @db.Uuid
+    companyId    String?      @map("company_id") @db.Uuid
+    name         String?      @db.VarChar(100)
     country      String       @default("Vietnam") @db.VarChar(100)
     workingModel WorkingModel @map("working_model")
     city         String?      @db.VarChar(100)
@@ -908,6 +917,7 @@ model JobLocation {
     createdAt    DateTime     @default(now()) @map("created_at")
     updatedAt    DateTime     @updatedAt @map("updated_at")
 
+    company      Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
     jobPostLocations JobPostLocation[]
 
     @@index([city, district])
@@ -920,8 +930,8 @@ model JobPostLocation {
     jobPostId     String @map("job_post_id") @db.Uuid
     jobLocationId String @map("job_location_id") @db.Uuid
 
-    jobPost     JobPost     @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
-    jobLocation JobLocation @relation(fields: [jobLocationId], references: [id], onDelete: Cascade)
+    jobPost     JobPost         @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+    jobLocation CompanyLocation @relation(fields: [jobLocationId], references: [id], onDelete: Cascade)
 
     @@unique([jobPostId, jobLocationId])
     @@index([jobLocationId])

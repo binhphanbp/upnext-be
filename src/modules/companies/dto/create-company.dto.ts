@@ -23,7 +23,10 @@ export class CreateCompanyDto {
   @MaxLength(50)
   taxCode?: string;
 
-  @ApiPropertyOptional({ maxLength: 255, example: '688 Quang Trung, Thông Tây Hội, Thành Phố Hồ Chí Minh' })
+  @ApiPropertyOptional({
+    maxLength: 255,
+    example: '688 Quang Trung, Thông Tây Hội, Thành Phố Hồ Chí Minh',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(255)
@@ -45,10 +48,19 @@ export class CreateCompanyDto {
   @IsUrl()
   website?: string;
 
-  @ApiPropertyOptional({ example: 'Công ty công nghệ tập trung vào các sản phẩm nền tảng tuyển dụng' })
+  @ApiPropertyOptional({
+    example: 'Công ty công nghệ tập trung vào các sản phẩm nền tảng tuyển dụng',
+  })
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({
+    example: 'Phúc lợi gồm có ăn trưa, teambuilding hàng tháng, BHXH...',
+  })
+  @IsOptional()
+  @IsString()
+  benefits?: string;
 
   @ApiPropertyOptional({ maxLength: 80, example: '51-200 nhân sự' })
   @IsOptional()

@@ -18,10 +18,10 @@ export class SearchKeywordService {
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // remove diacritics
-      .replace(/đ/g, 'd')             // replace Vietnamese specific character đ
+      .replace(/đ/g, 'd') // replace Vietnamese specific character đ
       .replace(/Đ/g, 'd')
       .replace(/[^a-z0-9\s+#.]/g, ' ') // keep +, #, . and alphanumeric/spaces
-      .replace(/\s+/g, ' ')           // replace multiple spaces with single space
+      .replace(/\s+/g, ' ') // replace multiple spaces with single space
       .trim();
   }
 
@@ -29,22 +29,22 @@ export class SearchKeywordService {
     if (!normalizedKeyword) return '';
 
     const KEYWORD_SYNONYM_MAP: Record<string, string> = {
-      'react': 'reactjs',
-      'reactjs': 'reactjs',
+      react: 'reactjs',
+      reactjs: 'reactjs',
       'react js': 'reactjs',
       'react.js': 'reactjs',
-      'next': 'nextjs',
-      'nextjs': 'nextjs',
+      next: 'nextjs',
+      nextjs: 'nextjs',
       'next js': 'nextjs',
       'next.js': 'nextjs',
-      'node': 'nodejs',
-      'nodejs': 'nodejs',
+      node: 'nodejs',
+      nodejs: 'nodejs',
       'node js': 'nodejs',
       'node.js': 'nodejs',
-      'js': 'javascript',
-      'javascript': 'javascript',
-      'ts': 'typescript',
-      'typescript': 'typescript',
+      js: 'javascript',
+      javascript: 'javascript',
+      ts: 'typescript',
+      typescript: 'typescript',
     };
 
     // 1. Check exact normalizedKeyword first
@@ -64,11 +64,7 @@ export class SearchKeywordService {
     return normalizedKeyword;
   }
 
-  async logSearchKeyword(
-    dto: LogSearchKeywordDto,
-    authHeader?: string,
-    ipAddress?: string,
-  ) {
+  async logSearchKeyword(dto: LogSearchKeywordDto, authHeader?: string, ipAddress?: string) {
     const keyword = dto.keyword.trim();
     const normalizedKeyword = this.normalizeSearchKeyword(keyword);
     const canonicalKeyword = this.canonicalizeSearchKeyword(normalizedKeyword);

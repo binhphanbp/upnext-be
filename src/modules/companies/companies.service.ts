@@ -22,6 +22,8 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { VerifyCompanyDto } from './dto/verify-company.dto';
 import { slugify } from '../../common/utils/slugify';
+import { CreateJobLocationDto } from '../job-locations/dto/create-job-location.dto';
+import { UpdateJobLocationDto } from '../job-locations/dto/update-job-location.dto';
 
 @Injectable()
 export class CompaniesService {
@@ -29,7 +31,7 @@ export class CompaniesService {
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   async create(createCompanyDto: CreateCompanyDto) {
     let slug = slugify(createCompanyDto.name);
@@ -58,12 +60,12 @@ export class CompaniesService {
     const where: Prisma.CompanyWhereInput = {
       ...(query.q
         ? {
-          OR: [
-            { name: { contains: query.q, mode: 'insensitive' } },
-            { description: { contains: query.q, mode: 'insensitive' } },
-            { email: { contains: query.q, mode: 'insensitive' } },
-          ],
-        }
+            OR: [
+              { name: { contains: query.q, mode: 'insensitive' } },
+              { description: { contains: query.q, mode: 'insensitive' } },
+              { email: { contains: query.q, mode: 'insensitive' } },
+            ],
+          }
         : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.verificationStatus ? { verificationStatus: query.verificationStatus } : {}),
@@ -172,10 +174,31 @@ export class CompaniesService {
   async update(id: string, updateCompanyDto: UpdateCompanyDto) {
     await this.ensureCompanyExists(id);
 
-    return this.prisma.company.update({
-      where: { id },
-      data: updateCompanyDto,
-    });
+    if (updateCompanyDto.taxCode) {
+      const existingCompany = await this.prisma.company.findFirst({
+        where: {
+          taxCode: updateCompanyDto.taxCode,
+          id: { not: id },
+        },
+        select: { id: true },
+      });
+
+      if (existingCompany) {
+        throw new ConflictException('A company with this tax code already exists');
+      }
+    }
+
+    return this.prisma.company
+      .update({
+        where: { id },
+        data: updateCompanyDto,
+      })
+      .catch((e: unknown) => {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new ConflictException('A company with this tax code already exists');
+        }
+        throw e;
+      });
   }
 
   async uploadLogo(id: string, file: UploadedFile) {
@@ -321,16 +344,13 @@ export class CompaniesService {
     // Convert file buffer to base64
     const base64Data = file.buffer.toString('base64');
 
-    const prompt = `Hãy trích xuất chính xác các thông tin từ giấy phép kinh doanh/giấy chứng nhận đăng ký doanh nghiệp này.
-Trả về một JSON object chứa các trường sau:
-- name (tên công ty chính thức đầy đủ, ví dụ: CÔNG TY CỔ PHẦN UPNEXT VIỆT NAM)
-- taxCode (mã số thuế hoặc mã số doanh nghiệp, là chuỗi chỉ gồm các chữ số)
-- address (địa chỉ trụ sở chính đầy đủ, có dạng: số nhà tên đường, phường/xã, quận/huyện, tỉnh/thành phố. Vui lòng ghi rõ tên các cấp hành chính đầy đủ không viết tắt, ví dụ: 'Phường 11, Quận Gò Vấp, Thành phố Hồ Chí Minh')
-- email (email liên hệ nếu có ghi trong giấy phép, ví dụ: contact@upnext.works, nếu không có trả về null)
-- phone (số điện thoại liên hệ nếu có ghi trong giấy phép, nếu không có trả về null)
-- website (địa chỉ website nếu có ghi trong giấy phép, nếu không có trả về null)
-
-Chỉ trích xuất các thông tin thực tế hiển thị trên văn bản, không tự ý sáng tạo thông tin. Nếu không có hoặc không tìm thấy trường nào thì để giá trị null.`;
+    const prompt = `Trích xuất đúng từ giấy phép/GCN đăng ký doanh nghiệp. Trả JSON ngắn.
+Rules:
+- Không suy đoán. Không thấy thì null.
+- city: tên tỉnh/thành phố cấp cao nhất, dùng dạng đầy đủ như "Thành phố Hồ Chí Minh", "Thành phố Hà Nội", "Tỉnh Bình Dương".
+- address: địa chỉ trụ sở KHÔNG lặp lại city ở cuối; giữ số nhà, đường, phường/xã, quận/huyện nếu có.
+- website: domain/URL thực tế nếu có, không tự tạo.
+Fields: name, taxCode, city, address, email, phone, website.`;
 
     try {
       const response = await fetch(
@@ -363,10 +383,30 @@ Chỉ trích xuất các thông tin thực tế hiển thị trên văn bản, k
                 properties: {
                   name: { type: 'STRING', description: 'Tên chính thức của doanh nghiệp/công ty' },
                   taxCode: { type: 'STRING', description: 'Mã số doanh nghiệp hoặc mã số thuế' },
-                  address: { type: 'STRING', description: 'Địa chỉ trụ sở chính của doanh nghiệp' },
-                  email: { type: 'STRING', nullable: true, description: 'Địa chỉ email của công ty nếu có' },
-                  phone: { type: 'STRING', nullable: true, description: 'Số điện thoại của công ty nếu có' },
-                  website: { type: 'STRING', nullable: true, description: 'Địa chỉ trang web (website) của công ty nếu có' },
+                  city: {
+                    type: 'STRING',
+                    nullable: true,
+                    description: 'Tỉnh/thành phố cấp cao nhất trong địa chỉ trụ sở',
+                  },
+                  address: {
+                    type: 'STRING',
+                    description: 'Địa chỉ trụ sở không bao gồm tỉnh/thành phố ở cuối',
+                  },
+                  email: {
+                    type: 'STRING',
+                    nullable: true,
+                    description: 'Địa chỉ email của công ty nếu có',
+                  },
+                  phone: {
+                    type: 'STRING',
+                    nullable: true,
+                    description: 'Số điện thoại của công ty nếu có',
+                  },
+                  website: {
+                    type: 'STRING',
+                    nullable: true,
+                    description: 'Địa chỉ trang web (website) của công ty nếu có',
+                  },
                 },
                 required: ['name', 'taxCode', 'address'],
               },
@@ -554,6 +594,65 @@ Chỉ trích xuất các thông tin thực tế hiển thị trên văn bản, k
         },
       },
     });
+  }
+
+  async getLocations(companyId: string, user: AuthenticatedUser) {
+    await this.ensureCompanyExists(companyId);
+    await this.checkCompanyPermission(companyId, user);
+    return this.prisma.companyLocation.findMany({
+      where: { companyId },
+      orderBy: [{ city: 'asc' }, { district: 'asc' }],
+    });
+  }
+
+  async createLocation(companyId: string, dto: CreateJobLocationDto, user: AuthenticatedUser) {
+    await this.ensureCompanyExists(companyId);
+    await this.checkCompanyPermission(companyId, user);
+    return this.prisma.companyLocation.create({
+      data: {
+        ...dto,
+        companyId,
+      },
+    });
+  }
+
+  async updateLocation(
+    companyId: string,
+    locationId: string,
+    dto: UpdateJobLocationDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.ensureCompanyExists(companyId);
+    await this.checkCompanyPermission(companyId, user);
+
+    const location = await this.prisma.companyLocation.findFirst({
+      where: { id: locationId, companyId },
+    });
+    if (!location) {
+      throw new NotFoundException('Company location not found');
+    }
+
+    return this.prisma.companyLocation.update({
+      where: { id: locationId },
+      data: dto,
+    });
+  }
+
+  async removeLocation(companyId: string, locationId: string, user: AuthenticatedUser) {
+    await this.ensureCompanyExists(companyId);
+    await this.checkCompanyPermission(companyId, user);
+
+    const location = await this.prisma.companyLocation.findFirst({
+      where: { id: locationId, companyId },
+    });
+    if (!location) {
+      throw new NotFoundException('Company location not found');
+    }
+
+    await this.prisma.companyLocation.delete({
+      where: { id: locationId },
+    });
+    return { message: 'Location deleted successfully' };
   }
 
   private async checkCompanyPermission(companyId: string, user: AuthenticatedUser) {

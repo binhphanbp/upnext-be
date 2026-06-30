@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssignAdminPermissionsDto } from './dto/assign-admin-permissions.dto';
@@ -60,13 +56,8 @@ export class AdminRolesService {
         },
       })
       .catch((e: unknown) => {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002'
-        ) {
-          throw new ConflictException(
-            `Tên vai trò "${dto.roleName}" đã tồn tại.`,
-          );
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new ConflictException(`Tên vai trò "${dto.roleName}" đã tồn tại.`);
         }
         throw e;
       });
@@ -81,13 +72,8 @@ export class AdminRolesService {
         data: dto,
       })
       .catch((e: unknown) => {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002'
-        ) {
-          throw new ConflictException(
-            `Tên vai trò "${dto.roleName}" đã tồn tại.`,
-          );
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new ConflictException(`Tên vai trò "${dto.roleName}" đã tồn tại.`);
         }
         throw e;
       });
@@ -136,13 +122,8 @@ export class AdminRolesService {
         data: dto,
       })
       .catch((e: unknown) => {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002'
-        ) {
-          throw new ConflictException(
-            `Mã quyền "${dto.permissionCode}" đã tồn tại.`,
-          );
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new ConflictException(`Mã quyền "${dto.permissionCode}" đã tồn tại.`);
         }
         throw e;
       });
@@ -157,13 +138,8 @@ export class AdminRolesService {
         data: dto,
       })
       .catch((e: unknown) => {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002'
-        ) {
-          throw new ConflictException(
-            `Mã quyền "${dto.permissionCode}" đã tồn tại.`,
-          );
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new ConflictException(`Mã quyền "${dto.permissionCode}" đã tồn tại.`);
         }
         throw e;
       });
@@ -187,9 +163,7 @@ export class AdminRolesService {
     if (permissions.length !== dto.permissionIds.length) {
       const found = permissions.map((p) => p.id);
       const missing = dto.permissionIds.filter((id) => !found.includes(id));
-      throw new NotFoundException(
-        `Không tìm thấy các quyền sau: ${missing.join(', ')}`,
-      );
+      throw new NotFoundException(`Không tìm thấy các quyền sau: ${missing.join(', ')}`);
     }
 
     // Sync roles & permissions using a database transaction

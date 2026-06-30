@@ -1,3 +1,4 @@
+/* eslint-disable */
 import {
   ActorType,
   ApplicationStatus,
@@ -332,7 +333,11 @@ function getRandomLocationDetails(cityInput: string | null): {
   } else if (cleanCity.includes('can tho') || cleanCity.includes('cantho')) {
     pool = canthoDetails;
     cityName = 'Cần Thơ';
-  } else if (cleanCity.includes('ho chi minh') || cleanCity.includes('hcm') || cleanCity.includes('gia dinh')) {
+  } else if (
+    cleanCity.includes('ho chi minh') ||
+    cleanCity.includes('hcm') ||
+    cleanCity.includes('gia dinh')
+  ) {
     pool = hcmDetails;
     cityName = 'Hồ Chí Minh';
   } else {
@@ -601,7 +606,7 @@ async function cleanHomeSeedData() {
     });
   }
 
-  await prisma.jobLocation.deleteMany({
+  await prisma.companyLocation.deleteMany({
     where: {
       jobPostLocations: {
         none: {},
@@ -1428,14 +1433,14 @@ async function main() {
     alpha: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&h=150&fit=crop&q=80',
     beta: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=150&h=150&fit=crop&q=80',
     gamma: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=150&h=150&fit=crop&q=80',
-    delta: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=150&h=150&fit=crop&q=80'
+    delta: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=150&h=150&fit=crop&q=80',
   };
 
   const coverUrls: Record<string, string> = {
     alpha: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=400&fit=crop&q=80',
     beta: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=800&h=400&fit=crop&q=80',
     gamma: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=400&fit=crop&q=80',
-    delta: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=400&fit=crop&q=80'
+    delta: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=400&fit=crop&q=80',
   };
 
   const fileAssetsData = companies.flatMap((company) => {
@@ -1450,7 +1455,8 @@ async function main() {
         originalName: `${company.key}-logo.png`,
         mimeType: 'image/png',
         sizeBytes: BigInt(2048),
-        publicUrl: logoUrls[company.key] || `https://cdn.seed-home-test.local/${company.key}/logo.png`,
+        publicUrl:
+          logoUrls[company.key] || `https://cdn.seed-home-test.local/${company.key}/logo.png`,
       },
       {
         id: company.coverFileId,
@@ -1462,7 +1468,8 @@ async function main() {
         originalName: `${company.key}-cover.png`,
         mimeType: 'image/png',
         sizeBytes: BigInt(4096),
-        publicUrl: coverUrls[company.key] || `https://cdn.seed-home-test.local/${company.key}/cover.png`,
+        publicUrl:
+          coverUrls[company.key] || `https://cdn.seed-home-test.local/${company.key}/cover.png`,
       },
     ];
 
@@ -2821,10 +2828,17 @@ async function main() {
 
     const streetNumber = Math.floor(Math.random() * 290) + 1;
     const streetNames: Record<string, string[]> = {
-      'Hồ Chí Minh': ['Nguyễn Huệ', 'Điện Biên Phủ', 'Cách Mạng Tháng Tám', 'Xa Lộ Hà Nội', 'Nguyễn Văn Linh', 'Cộng Hòa'],
+      'Hồ Chí Minh': [
+        'Nguyễn Huệ',
+        'Điện Biên Phủ',
+        'Cách Mạng Tháng Tám',
+        'Xa Lộ Hà Nội',
+        'Nguyễn Văn Linh',
+        'Cộng Hòa',
+      ],
       'Hà Nội': ['Dịch Vọng Hậu', 'Chùa Bộc', 'Kim Mã', 'Đại Cồ Việt', 'Tràng Tiền', 'Nguyễn Trãi'],
       'Đà Nẵng': ['Lê Duẩn', 'Võ Nguyên Giáp', 'Nguyễn Văn Linh', 'Cách Mạng Tháng Tám'],
-      'Cần Thơ': ['Đại Lộ Hòa Bình', 'Quốc Lộ 1A', 'Lê Hồng Phong']
+      'Cần Thơ': ['Đại Lộ Hòa Bình', 'Quốc Lộ 1A', 'Lê Hồng Phong'],
     };
     const streets = streetNames[cleanCity] || ['Nguyễn Trãi'];
     const randomStreet = streets[Math.floor(Math.random() * streets.length)];
@@ -2841,7 +2855,7 @@ async function main() {
     };
   });
 
-  await prisma.jobLocation.createMany({
+  await prisma.companyLocation.createMany({
     data: jobLocations.map((location) => ({
       id: location.id,
       country: location.country,
@@ -4052,7 +4066,7 @@ async function cleanImportedData() {
     },
   });
 
-  await prisma.jobLocation.deleteMany({
+  await prisma.companyLocation.deleteMany({
     where: {
       jobPostLocations: {
         none: {},
@@ -4169,7 +4183,10 @@ async function importItviecData(
       'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&h=400&fit=crop&q=80',
       'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&h=400&fit=crop&q=80',
     ];
-    const randomCoverUrl = coverUrls[Math.abs(createHash('md5').update(item.Slug).digest().readInt32BE(0)) % coverUrls.length];
+    const randomCoverUrl =
+      coverUrls[
+        Math.abs(createHash('md5').update(item.Slug).digest().readInt32BE(0)) % coverUrls.length
+      ];
 
     await prisma.fileAsset.create({
       data: {
@@ -4352,9 +4369,17 @@ async function importItviecData(
         };
         const cityKey = location.city || 'Ho Chi Minh';
         const cityList = addressesByCity[cityKey] || addressesByCity['Ho Chi Minh'];
-        const address = cityList[Math.abs(createHash('md5').update(job.jobPost.title + locationId).digest().readInt32BE(0)) % cityList.length];
+        const address =
+          cityList[
+            Math.abs(
+              createHash('md5')
+                .update(job.jobPost.title + locationId)
+                .digest()
+                .readInt32BE(0),
+            ) % cityList.length
+          ];
 
-        await prisma.jobLocation.create({
+        await prisma.companyLocation.create({
           data: {
             id: locationId,
             country: 'Vietnam',

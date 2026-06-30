@@ -32,7 +32,7 @@ export class SavedJobsService {
 
   async unsaveJob(candidateAccountId: string, jobPostId: string) {
     const profile = await this.getProfile(candidateAccountId);
-    
+
     try {
       await this.prisma.savedJob.delete({
         where: {
@@ -49,7 +49,7 @@ export class SavedJobsService {
 
   async listSavedJobs(candidateAccountId: string) {
     const profile = await this.getProfile(candidateAccountId);
-    
+
     return this.prisma.savedJob.findMany({
       where: { candidateProfileId: profile.id },
       include: {

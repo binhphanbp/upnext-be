@@ -30,10 +30,10 @@ importers:
         specifier: latest
         version: 11.4.4(@nestjs/common@11.1.26(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.26)(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)
       '@prisma/adapter-pg':
-        specifier: latest
+        specifier: 7.8.0
         version: 7.8.0
       '@prisma/client':
-        specifier: latest
+        specifier: 7.8.0
         version: 7.8.0(prisma@7.8.0(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3))(typescript@6.0.3)
       '@scalar/nestjs-api-reference':
         specifier: ^1.2.2
@@ -78,7 +78,7 @@ importers:
         specifier: latest
         version: 8.21.0
       prisma:
-        specifier: latest
+        specifier: 7.8.0
         version: 7.8.0(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)
       reflect-metadata:
         specifier: latest
@@ -86,6 +86,9 @@ importers:
       rxjs:
         specifier: latest
         version: 7.8.2
+      tsx:
+        specifier: latest
+        version: 4.22.4
       zod:
         specifier: latest
         version: 4.4.3
@@ -177,9 +180,6 @@ importers:
       tsconfig-paths:
         specifier: latest
         version: 4.2.0
-      tsx:
-        specifier: latest
-        version: 4.22.4
       typescript:
         specifier: latest
         version: 6.0.3

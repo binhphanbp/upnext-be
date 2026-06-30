@@ -46,7 +46,11 @@ export class NotificationTokenService {
    * Returns a list of all active FCM tokens registered for a specific user ID and role.
    */
   async getTokensByUser(userId: string, role: ActorType): Promise<string[]> {
-    let whereClause: Record<string, string>;
+    let whereClause: {
+      candidateAccountId?: string;
+      recruiterAccountId?: string;
+      adminUserId?: string;
+    };
 
     if (role === ActorType.CANDIDATE) {
       whereClause = { candidateAccountId: userId };

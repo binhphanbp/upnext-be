@@ -11,6 +11,7 @@ import {
   StreamableFile,
   UploadedFile,
   UseInterceptors,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -24,9 +25,14 @@ import {
   ApiParam,
   ApiProduces,
   ApiTags,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
+import { ActorType } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { CvVersionsService } from './cv-versions.service';
 import { UploadCvVersionDto } from './dto/upload-cv-version.dto';
@@ -40,6 +46,9 @@ type UploadedFile = {
 };
 
 @ApiTags('Cv - Versions')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(ActorType.CANDIDATE)
 @Controller()
 export class CvVersionsController {
   constructor(private readonly cvVersionsService: CvVersionsService) {}
@@ -67,14 +76,12 @@ export class CvVersionsController {
   @ApiOkResponse({ type: CvVersionList, description: 'Danh sách phiên bản CV.' })
   @ApiBadRequestResponse({ description: 'Tham số truy vấn hoặc UUID của CV không hợp lệ.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy CV.' })
-  findAll(
-    @Param('cvId', new ParseUUIDPipe()) cvId: string,
-    @Query() query: PaginationQueryDto,
-  ) {
+  findAll(@Param('cvId', new ParseUUIDPipe()) cvId: string, @Query() query: PaginationQueryDto) {
     return this.cvVersionsService.findAll(cvId, query);
   }
 
   @Get('cv-versions/:id')
+  @Roles(ActorType.CANDIDATE, ActorType.RECRUITER, ActorType.ADMIN)
   @ApiOperation({ summary: 'Xem chi tiết phiên bản CV' })
   @ApiParam({ name: 'id', description: 'UUID của phiên bản CV' })
   @ApiOkResponse({ type: CvVersion, description: 'Thông tin chi tiết phiên bản CV.' })
@@ -85,6 +92,7 @@ export class CvVersionsController {
   }
 
   @Get('cv-versions/:id/download')
+  @Roles(ActorType.CANDIDATE, ActorType.RECRUITER, ActorType.ADMIN)
   @ApiOperation({ summary: 'Tải xuống phiên bản CV' })
   @ApiParam({ name: 'id', description: 'UUID của phiên bản CV' })
   @ApiProduces('application/pdf')

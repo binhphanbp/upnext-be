@@ -1,10 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  CompanyStatus,
-  CompanyType,
-  CompanyVerificationStatus,
-  JobStatus,
-} from '@prisma/client';
+import { CompanyStatus, CompanyType, CompanyVerificationStatus, JobStatus } from '@prisma/client';
 
 export class CompanyUploadedFile {
   @ApiProperty({ example: '08a32cbe-6078-4313-b916-358a922d4cfe' })
@@ -20,8 +15,7 @@ export class CompanyUploadedFile {
   sizeBytes!: string;
 
   @ApiProperty({
-    example:
-      'uploads/companies/1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf/logo-uuid.png',
+    example: 'uploads/companies/1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf/logo-uuid.png',
   })
   storageKey!: string;
 
@@ -52,8 +46,7 @@ export class Company {
   taxCode?: string | null;
 
   @ApiPropertyOptional({
-    example:
-      '688 Quang Trung, Thông Tây Hội, Thành Phố Hồ Chí Minh',
+    example: '688 Quang Trung, Thông Tây Hội, Thành Phố Hồ Chí Minh',
   })
   address?: string | null;
 
@@ -67,10 +60,14 @@ export class Company {
   website?: string | null;
 
   @ApiPropertyOptional({
-    example:
-      'Công ty công nghệ tập trung vào các sản phẩm nền tảng tuyển dụng',
+    example: 'Công ty công nghệ tập trung vào các sản phẩm nền tảng tuyển dụng',
   })
   description?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Ăn trưa, Teambuilding hàng tháng, BHXH...',
+  })
+  benefits?: string | null;
 
   @ApiPropertyOptional({ example: '51-200 nhân sự' })
   companySize?: string | null;

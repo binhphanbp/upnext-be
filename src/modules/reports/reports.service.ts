@@ -53,7 +53,6 @@ export class ReportsService {
             },
           },
         },
-
       },
     });
   }
@@ -68,7 +67,9 @@ export class ReportsService {
 
     const where: Prisma.ReportWhereInput = {
       ...(query.status ? { status: query.status } : {}),
-      ...(query.targetType ? { targetType: { equals: query.targetType, mode: 'insensitive' } } : {}),
+      ...(query.targetType
+        ? { targetType: { equals: query.targetType, mode: 'insensitive' } }
+        : {}),
       ...(query.q
         ? {
             OR: [

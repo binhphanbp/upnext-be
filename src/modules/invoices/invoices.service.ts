@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CompanySubscriptionsService } from '../company-subscriptions/company-subscriptions.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
@@ -33,7 +38,9 @@ export class InvoicesService {
     const company = await this.prisma.company.findUnique({ where: { id: targetCompanyId } });
     if (!company) throw new NotFoundException('Company not found');
 
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id: dto.subscriptionPlanId } });
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: dto.subscriptionPlanId },
+    });
     if (!plan) throw new NotFoundException('Subscription plan not found');
 
     // Tạo mã hóa đơn độc nhất dạng: INV-YYYYMMDD-RANDOM

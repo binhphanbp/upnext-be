@@ -7,7 +7,7 @@ import { AuthService } from '../auth/auth.service';
 import { LoginDto } from '../auth/dto/login.dto';
 import { RequestPasswordResetDto } from '../auth/dto/request-password-reset.dto';
 import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
-import { LoginResponse } from '../auth/entities/auth.entity';
+import { RecruiterLoginResponse } from '../auth/entities/auth.entity';
 import {
   PasswordResetRequestResponse,
   PasswordResetResponse,
@@ -23,7 +23,7 @@ export class RecruiterAuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async register(dto: RegisterRecruiterDto): Promise<LoginResponse> {
+  async register(dto: RegisterRecruiterDto): Promise<RecruiterLoginResponse> {
     try {
       const account = await this.prisma.recruiterAccount.create({
         data: {
@@ -55,7 +55,7 @@ export class RecruiterAuthService {
     }
   }
 
-  async login(dto: LoginDto): Promise<LoginResponse> {
+  async login(dto: LoginDto): Promise<RecruiterLoginResponse> {
     const account = await this.prisma.recruiterAccount.findFirst({
       where: {
         email: dto.email.toLowerCase(),

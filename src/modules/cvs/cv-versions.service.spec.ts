@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CvVersionsService } from './cv-versions.service';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 
 describe('CvVersionsService', () => {
   let service: CvVersionsService;
@@ -44,6 +45,12 @@ describe('CvVersionsService', () => {
         {
           provide: PrismaService,
           useValue: prismaMock,
+        },
+        {
+          provide: CloudinaryService,
+          useValue: {
+            createSignedUrl: jest.fn(),
+          },
         },
       ],
     }).compile();

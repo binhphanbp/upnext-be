@@ -143,10 +143,7 @@ export class RecruiterProfilesController {
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiNotFoundResponse({ description: 'Recruiter profile not found' })
   @Patch(':id')
-  update(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: UpdateRecruiterProfileDto,
-  ) {
+  update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateRecruiterProfileDto) {
     return this.recruitersService.updateProfile(id, dto);
   }
 

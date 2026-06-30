@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AccountStatus, ActorType, AuthProvider, Prisma } from '@prisma/client';
 import { EmailService } from '../../common/email/email.service';
@@ -159,9 +164,7 @@ export class CandidateAccountAuthService {
     };
   }
 
-  async requestPasswordReset(
-    dto: RequestPasswordResetDto,
-  ): Promise<PasswordResetRequestResponse> {
+  async requestPasswordReset(dto: RequestPasswordResetDto): Promise<PasswordResetRequestResponse> {
     const account = await this.prisma.candidateAccount.findFirst({
       where: {
         email: dto.email.toLowerCase(),
@@ -193,10 +196,7 @@ export class CandidateAccountAuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<PasswordResetResponse> {
-    const payload = await this.authService.verifyPasswordResetToken(
-      dto.token,
-      ActorType.CANDIDATE,
-    );
+    const payload = await this.authService.verifyPasswordResetToken(dto.token, ActorType.CANDIDATE);
 
     const account = await this.prisma.candidateAccount.findFirst({
       where: {

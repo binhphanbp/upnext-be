@@ -2,7 +2,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
 
 export class SubscribeCompanyDto {
-  @ApiProperty({ description: 'ID của gói dịch vụ', example: 'd3b07384-d113-49cd-a5d6-8c2fa8e1b644' })
+  @ApiProperty({
+    description: 'ID của gói dịch vụ',
+    example: 'd3b07384-d113-49cd-a5d6-8c2fa8e1b644',
+  })
   @IsUUID()
   @IsNotEmpty()
   planId: string;

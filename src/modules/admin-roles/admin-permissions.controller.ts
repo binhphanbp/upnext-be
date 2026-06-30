@@ -87,10 +87,7 @@ export class AdminPermissionsController {
   @ApiConflictResponse({ description: 'Mã quyền đã tồn tại.' })
   @AdminPermissions('permissions:write')
   @Patch(':id')
-  update(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: UpdateAdminPermissionDto,
-  ) {
+  update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateAdminPermissionDto) {
     return this.adminRolesService.updatePermission(id, dto);
   }
 

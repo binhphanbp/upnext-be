@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, ParseUUIDPipe, HttpCode, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  ParseUUIDPipe,
+  HttpCode,
+  Query,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { SkillsService } from './skills.service';
 import { CreateSkillDto, CreateSkillCategoryDto } from './dto/create-skill.dto';

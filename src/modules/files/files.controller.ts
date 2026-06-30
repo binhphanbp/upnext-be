@@ -32,7 +32,7 @@ export class FilesController {
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload file lên Cloudinary và lưu metadata' })
+  @ApiOperation({ summary: 'Upload file lên Cloudinary' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -59,7 +59,7 @@ export class FilesController {
 
   @Post('upload-many')
   @UseInterceptors(FilesInterceptor('files', 20))
-  @ApiOperation({ summary: 'Upload nhiều file lên Cloudinary và lưu metadata' })
+  @ApiOperation({ summary: 'Upload nhiều file lên Cloudinary' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {

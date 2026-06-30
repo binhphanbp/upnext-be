@@ -3,6 +3,11 @@ import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { WorkingModel } from '@prisma/client';
 
 export class CreateJobLocationDto {
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  name?: string;
+
   @ApiPropertyOptional({ default: 'Vietnam' })
   @IsString()
   @IsOptional()

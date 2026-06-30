@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -8,7 +19,12 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
+import { ActorType } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CvsService } from './cvs.service';
 import { CandidateAccountQueryDto, ListMyCvsQueryDto } from './dto/cv-query.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
@@ -16,6 +32,9 @@ import { UpdateCvDto } from './dto/update-cv.dto';
 import { CvEntity, CvList } from './entities/cv.entity';
 
 @ApiTags('Cvs')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(ActorType.CANDIDATE)
 @Controller('cvs')
 export class CvsController {
   constructor(private readonly cvsService: CvsService) {}

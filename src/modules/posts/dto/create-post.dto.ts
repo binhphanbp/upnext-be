@@ -13,7 +13,11 @@ export class CreatePostDto {
   @IsNotEmpty()
   content: string;
 
-  @ApiPropertyOptional({ enum: PostStatus, default: PostStatus.DRAFT, description: 'Trạng thái bài viết' })
+  @ApiPropertyOptional({
+    enum: PostStatus,
+    default: PostStatus.DRAFT,
+    description: 'Trạng thái bài viết',
+  })
   @IsOptional()
   @IsEnum(PostStatus)
   status?: PostStatus;

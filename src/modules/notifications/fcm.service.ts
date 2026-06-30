@@ -7,10 +7,10 @@ import { NotificationTokenService } from './notification-token.service';
 
 @Injectable()
 export class FcmService {
-  private readonly logger = new Logger(FcmService.name);
+  private readonly fcmLogger = new Logger(FcmService.name);
 
   constructor(
-    @Inject(FIREBASE_ADMIN) private readonly firebaseAdmin: App,
+    @Inject(FIREBASE_ADMIN) private readonly firebaseAdmin: App | null,
     private readonly tokenService: NotificationTokenService,
   ) {}
 
@@ -38,10 +38,15 @@ export class FcmService {
     notification: { title: string; body: string },
     data?: Record<string, string>,
   ) {
+    if (!this.firebaseAdmin) {
+      this.fcmLogger.warn('Firebase Admin is not initialized. Skipping push notification.');
+      return null;
+    }
+
     try {
       const messaging = this.getMessagingInstance();
       if (!messaging) {
-        this.logger.warn(
+        this.fcmLogger.warn(
           `Skipping sending push notification to token ${token} (Firebase is not initialized/mocked)`,
         );
         return 'mock-message-id';
@@ -53,17 +58,17 @@ export class FcmService {
       };
 
       const response = await messaging.send(message);
-      this.logger.debug(`Successfully sent notification to token ${token}: ${response}`);
+      this.fcmLogger.debug(`Successfully sent notification to token ${token}: ${response}`);
       return response;
     } catch (error: any) {
-      this.logger.error(`Error sending push notification to token ${token}`, error);
+      this.fcmLogger.error(`Error sending push notification to token ${token}`, error);
 
       // Clean up invalid or expired token
       if (
         error.code === 'messaging/invalid-registration-token' ||
         error.code === 'messaging/registration-token-not-registered'
       ) {
-        this.logger.warn(`Removing invalid FCM token: ${token}`);
+        this.fcmLogger.warn(`Removing invalid FCM token: ${token}`);
         await this.tokenService.unregisterToken(token);
       }
       throw error;
@@ -79,6 +84,11 @@ export class FcmService {
     notification: { title: string; body: string },
     data?: Record<string, string>,
   ) {
+    if (!this.firebaseAdmin) {
+      this.fcmLogger.warn('Firebase Admin is not initialized. Skipping multicast notification.');
+      return null;
+    }
+
     if (!tokens || tokens.length === 0) {
       return null;
     }
@@ -92,7 +102,7 @@ export class FcmService {
     try {
       const messaging = this.getMessagingInstance();
       if (!messaging) {
-        this.logger.warn(
+        this.fcmLogger.warn(
           `Skipping sending multicast notification (Firebase is not initialized/mocked)`,
         );
         return {
@@ -102,7 +112,7 @@ export class FcmService {
         } as BatchResponse;
       }
       const response: BatchResponse = await messaging.sendEachForMulticast(message);
-      this.logger.log(
+      this.fcmLogger.log(
         `Multicast sent. Success count: ${response.successCount}, Failure count: ${response.failureCount}`,
       );
 
@@ -122,14 +132,14 @@ export class FcmService {
         });
 
         if (tokensToRemove.length > 0) {
-          this.logger.warn(`Removing ${tokensToRemove.length} invalid FCM tokens from database`);
+          this.fcmLogger.warn(`Removing ${tokensToRemove.length} invalid FCM tokens from database`);
           await Promise.all(tokensToRemove.map((t) => this.tokenService.unregisterToken(t)));
         }
       }
 
       return response;
     } catch (error) {
-      this.logger.error('Error sending multicast push notification', error);
+      this.fcmLogger.error('Error sending multicast push notification', error);
       throw error;
     }
   }
@@ -146,7 +156,7 @@ export class FcmService {
     const tokens = await this.tokenService.getTokensByUser(userId, userRole);
 
     if (tokens.length === 0) {
-      this.logger.log(`No active FCM tokens found for user ID: ${userId} (${userRole})`);
+      this.fcmLogger.log(`No active FCM tokens found for user ID: ${userId} (${userRole})`);
       return null;
     }
 
