@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Get, Req, Res, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -14,11 +14,13 @@ import { LoginDto } from '../auth/dto/login.dto';
 import { LoginResponse } from '../auth/entities/auth.entity';
 import { CandidateAccountAuthService } from './candidate-account-auth.service';
 import { RegisterCandidateDto } from './dto/register-candidate.dto';
-
+import { ConfigService } from '@nestjs/config';
+import { GoogleAuthGuard } from '../auth/guards/google-auth.guard';
+import { Response } from 'express';
 @ApiTags('Candidate - Auth')
 @Controller('candidate/auth')
 export class CandidateAccountAuthController {
-  constructor(private readonly candidateAccountAuthService: CandidateAccountAuthService) {}
+  constructor(private readonly candidateAccountAuthService: CandidateAccountAuthService, private readonly configService: ConfigService) { }
 
   @Public()
   @Post('register')
@@ -40,5 +42,23 @@ export class CandidateAccountAuthController {
   @ApiUnauthorizedResponse({ description: 'Sai thông tin đăng nhập' })
   login(@Body() dto: LoginDto) {
     return this.candidateAccountAuthService.login(dto);
+  }
+
+  @Public()
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Khởi chạy luồng đăng nhập bằng Google (Redirect)' })
+  googleAuth() {
+  }
+
+  @Public()
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Callback xử lý đăng nhập Google từ Backend và redirect về Frontend' })
+  async googleAuthCallback(@Req() req: any, @Res() res: Response) {
+    const result = await this.candidateAccountAuthService.loginOrRegisterGoogle(req.user);
+    const { accessToken } = result;
+    const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
+    return res.redirect(`${frontendUrl}/auth/callback?token=${accessToken}`);
   }
 }

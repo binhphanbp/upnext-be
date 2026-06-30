@@ -7,7 +7,8 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
-
+import { GoogleStrategy } from './strategies/google.strategy';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 @Global()
 @Module({
   imports: [
@@ -25,7 +26,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       }),
     }),
   ],
-  providers: [AuthService, EmailService, JwtStrategy, JwtAuthGuard, RolesGuard],
-  exports: [AuthService, EmailService, JwtAuthGuard, RolesGuard, JwtModule],
+  providers: [AuthService, EmailService, JwtStrategy, JwtAuthGuard, RolesGuard,GoogleAuthGuard,GoogleStrategy],
+  exports: [AuthService, EmailService, JwtAuthGuard, RolesGuard, JwtModule,GoogleAuthGuard,GoogleStrategy],
 })
 export class AuthModule {}
