@@ -37,6 +37,8 @@ import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { VerifyCompanyDto } from './dto/verify-company.dto';
+import { CreateJobLocationDto } from '../job-locations/dto/create-job-location.dto';
+import { UpdateJobLocationDto } from '../job-locations/dto/update-job-location.dto';
 import {
   Company,
   CompanyDetail,
@@ -470,5 +472,72 @@ export class CompaniesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.companiesService.getReputationActivities(id, user);
+  }
+
+  @ApiOperation({
+    summary: 'Lấy danh sách địa điểm của công ty',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @Get(':id/locations')
+  getLocations(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.getLocations(id, user);
+  }
+
+  @ApiOperation({
+    summary: 'Thêm địa điểm cho công ty',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @Post(':id/locations')
+  createLocation(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: CreateJobLocationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.createLocation(id, dto, user);
+  }
+
+  @ApiOperation({
+    summary: 'Cập nhật địa điểm của công ty',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiParam({ name: 'locationId', description: 'Location UUID' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @Patch(':id/locations/:locationId')
+  updateLocation(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('locationId', new ParseUUIDPipe()) locationId: string,
+    @Body() dto: UpdateJobLocationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.updateLocation(id, locationId, dto, user);
+  }
+
+  @ApiOperation({
+    summary: 'Xóa địa điểm của công ty',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiParam({ name: 'locationId', description: 'Location UUID' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @HttpCode(204)
+  @Delete(':id/locations/:locationId')
+  removeLocation(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('locationId', new ParseUUIDPipe()) locationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.removeLocation(id, locationId, user);
   }
 }

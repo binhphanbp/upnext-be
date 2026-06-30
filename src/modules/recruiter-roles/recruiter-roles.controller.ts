@@ -23,6 +23,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -67,8 +68,8 @@ export class RecruiterRolesController {
     },
   })
   @Get()
-  findAll() {
-    return this.recruiterRolesService.findAllRoles();
+  findAll(@CurrentUser() user: AuthenticatedUser) {
+    return this.recruiterRolesService.findAllRoles(user);
   }
 
   @ApiOperation({
@@ -102,8 +103,8 @@ export class RecruiterRolesController {
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiConflictResponse({ description: 'Role with this code already exists' })
   @Post()
-  create(@Body() dto: CreateRecruiterRoleDto) {
-    return this.recruiterRolesService.createRole(dto);
+  create(@Body() dto: CreateRecruiterRoleDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.recruiterRolesService.createRole(user, dto);
   }
 
   @ApiOperation({
@@ -116,8 +117,12 @@ export class RecruiterRolesController {
   @ApiConflictResponse({ description: 'Role with this code already exists' })
   @ApiNotFoundResponse({ description: 'Role not found' })
   @Patch(':id')
-  update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateRecruiterRoleDto) {
-    return this.recruiterRolesService.updateRole(id, dto);
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateRecruiterRoleDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.recruiterRolesService.updateRole(user, id, dto);
   }
 
   @ApiOperation({ summary: 'Xóa vai trò nhà tuyển dụng', description: 'Xóa một role recruiter.' })
@@ -126,8 +131,11 @@ export class RecruiterRolesController {
   @ApiNotFoundResponse({ description: 'Role not found' })
   @Delete(':id')
   @HttpCode(204)
-  async remove(@Param('id', new ParseUUIDPipe()) id: string) {
-    await this.recruiterRolesService.removeRole(id);
+  async remove(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.recruiterRolesService.removeRole(user, id);
   }
 
   @ApiOperation({
@@ -169,7 +177,8 @@ export class RecruiterRolesController {
   assignPermissions(
     @Param('roleId', new ParseUUIDPipe()) roleId: string,
     @Body() dto: AssignPermissionsDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.recruiterRolesService.assignPermissions(roleId, dto);
+    return this.recruiterRolesService.assignPermissions(user, roleId, dto);
   }
 }

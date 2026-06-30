@@ -117,11 +117,15 @@ export class CompanyMembersService {
     if (dto.roleId) {
       const role = await this.prisma.recruiterRole.findUnique({
         where: { id: dto.roleId },
-        select: { id: true, code: true },
+        select: { id: true, code: true, companyId: true },
       });
 
       if (!role) {
         throw new NotFoundException(`Recruiter role ${dto.roleId} not found`);
+      }
+
+      if (role.companyId && role.companyId !== companyId) {
+        throw new ForbiddenException('This role does not belong to the company.');
       }
 
       // Only 1 Owner is allowed per company
@@ -236,6 +240,10 @@ export class CompanyMembersService {
 
     if (!targetRole) {
       throw new NotFoundException(`Recruiter role ${dto.roleId} not found`);
+    }
+
+    if (targetRole.companyId && targetRole.companyId !== targetMember.companyId) {
+      throw new ForbiddenException('This role does not belong to the company.');
     }
 
     // Find current user member record in the target member's company
