@@ -28,7 +28,7 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
-  APP_BACKEND_URL: z.string().url().default('http://localhost:3001')
+  APP_BACKEND_URL: z.string().url().default('http://localhost:3001'),
 });
 
 export type AppConfig = {

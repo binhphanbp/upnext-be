@@ -26,7 +26,23 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
       }),
     }),
   ],
-  providers: [AuthService, EmailService, JwtStrategy, JwtAuthGuard, RolesGuard,GoogleAuthGuard,GoogleStrategy],
-  exports: [AuthService, EmailService, JwtAuthGuard, RolesGuard, JwtModule,GoogleAuthGuard,GoogleStrategy],
+  providers: [
+    AuthService,
+    EmailService,
+    JwtStrategy,
+    JwtAuthGuard,
+    RolesGuard,
+    GoogleAuthGuard,
+    GoogleStrategy,
+  ],
+  exports: [
+    AuthService,
+    EmailService,
+    JwtAuthGuard,
+    RolesGuard,
+    JwtModule,
+    GoogleAuthGuard,
+    GoogleStrategy,
+  ],
 })
 export class AuthModule {}

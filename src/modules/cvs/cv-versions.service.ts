@@ -163,7 +163,9 @@ export class CvVersionsService {
           throw new Error('Cloudinary download failed');
         }
 
-        const nodeStream = Readable.fromWeb(response.body as unknown as Parameters<typeof Readable.fromWeb>[0]);
+        const nodeStream = Readable.fromWeb(
+          response.body as unknown as Parameters<typeof Readable.fromWeb>[0],
+        );
 
         return {
           stream: nodeStream,

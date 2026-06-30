@@ -234,7 +234,7 @@ export class CandidateAccountAuthService {
     url.searchParams.set('token', token);
     return url.toString();
   }
-    async loginOrRegisterGoogle(googleUser: {
+  async loginOrRegisterGoogle(googleUser: {
     providerUserId: string;
     email: string;
     fullName: string;
@@ -290,5 +290,4 @@ export class CandidateAccountAuthService {
       role: ActorType.CANDIDATE,
     });
   }
-
 }

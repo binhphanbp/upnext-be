@@ -20,7 +20,10 @@ import { Response } from 'express';
 @ApiTags('Candidate - Auth')
 @Controller('candidate/auth')
 export class CandidateAccountAuthController {
-  constructor(private readonly candidateAccountAuthService: CandidateAccountAuthService, private readonly configService: ConfigService) { }
+  constructor(
+    private readonly candidateAccountAuthService: CandidateAccountAuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Public()
   @Post('register')
@@ -48,8 +51,7 @@ export class CandidateAccountAuthController {
   @Get('google')
   @UseGuards(GoogleAuthGuard)
   @ApiOperation({ summary: 'Khởi chạy luồng đăng nhập bằng Google (Redirect)' })
-  googleAuth() {
-  }
+  googleAuth() {}
 
   @Public()
   @Get('google/callback')
