@@ -20,45 +20,45 @@ export class AdminDashboardService {
 
   async getDashboard(query: AdminDashboardQueryDto) {
     const now = new Date();
-    const currentMonthStart = this.startOfMonth(now);
-    const nextMonthStart = this.addMonths(currentMonthStart, 1);
-    const previousMonthStart = this.addMonths(currentMonthStart, -1);
+    const currentWeekStart = this.startOfWeek(now);
+    const nextWeekStart = this.addDays(currentWeekStart, 7);
+    const previousWeekStart = this.addDays(currentWeekStart, -7);
     const activityLimit = query.activityLimit ?? 10;
 
     const [
       totalRevenue,
-      currentMonthRevenue,
-      previousMonthRevenue,
-      currentMonthCandidates,
-      currentMonthRecruiters,
-      previousMonthCandidates,
-      previousMonthRecruiters,
+      currentWeekRevenue,
+      previousWeekRevenue,
+      currentWeekCandidates,
+      currentWeekRecruiters,
+      previousWeekCandidates,
+      previousWeekRecruiters,
       activeJobPosts,
-      currentMonthActiveJobPosts,
-      previousMonthActiveJobPosts,
+      currentWeekActiveJobPosts,
+      previousWeekActiveJobPosts,
       pendingCompanyRegistrations,
       pendingJobPosts,
       revenueChart,
       latestActivities,
     ] = await Promise.all([
       this.sumPaidRevenue(),
-      this.sumPaidRevenue(currentMonthStart, nextMonthStart),
-      this.sumPaidRevenue(previousMonthStart, currentMonthStart),
+      this.sumPaidRevenue(currentWeekStart, nextWeekStart),
+      this.sumPaidRevenue(previousWeekStart, currentWeekStart),
       this.prisma.candidateAccount.count({
-        where: { createdAt: { gte: currentMonthStart, lt: nextMonthStart } },
+        where: { createdAt: { gte: currentWeekStart, lt: nextWeekStart } },
       }),
       this.prisma.recruiterAccount.count({
-        where: { createdAt: { gte: currentMonthStart, lt: nextMonthStart } },
+        where: { createdAt: { gte: currentWeekStart, lt: nextWeekStart } },
       }),
       this.prisma.candidateAccount.count({
-        where: { createdAt: { gte: previousMonthStart, lt: currentMonthStart } },
+        where: { createdAt: { gte: previousWeekStart, lt: currentWeekStart } },
       }),
       this.prisma.recruiterAccount.count({
-        where: { createdAt: { gte: previousMonthStart, lt: currentMonthStart } },
+        where: { createdAt: { gte: previousWeekStart, lt: currentWeekStart } },
       }),
       this.countActiveJobPosts(),
-      this.countActiveJobPosts(currentMonthStart, nextMonthStart),
-      this.countActiveJobPosts(previousMonthStart, currentMonthStart),
+      this.countActiveJobPosts(currentWeekStart, nextWeekStart),
+      this.countActiveJobPosts(previousWeekStart, currentWeekStart),
       this.prisma.company.count({
         where: { verificationStatus: CompanyVerificationStatus.PENDING },
       }),
@@ -72,35 +72,37 @@ export class AdminDashboardService {
       this.getLatestActivities(activityLimit),
     ]);
 
-    const currentMonthUsers = currentMonthCandidates + currentMonthRecruiters;
-    const previousMonthUsers = previousMonthCandidates + previousMonthRecruiters;
+    const currentWeekUsers = currentWeekCandidates + currentWeekRecruiters;
+    const previousWeekUsers = previousWeekCandidates + previousWeekRecruiters;
 
     return {
       summary: {
         revenue: {
           total: totalRevenue,
-          currentMonth: currentMonthRevenue,
-          previousMonth: previousMonthRevenue,
-          growthPercent: this.percentGrowth(currentMonthRevenue, previousMonthRevenue),
+          currentWeek: currentWeekRevenue,
+          previousWeek: previousWeekRevenue,
+          growthPercent: this.percentGrowth(currentWeekRevenue, previousWeekRevenue),
         },
         newUsers: {
-          candidate: currentMonthCandidates,
-          recruiter: currentMonthRecruiters,
-          total: currentMonthUsers,
-          previousMonth: {
-            candidate: previousMonthCandidates,
-            recruiter: previousMonthRecruiters,
-            total: previousMonthUsers,
+          currentWeek: {
+            candidate: currentWeekCandidates,
+            recruiter: currentWeekRecruiters,
+            total: currentWeekUsers,
           },
-          growthPercent: this.percentGrowth(currentMonthUsers, previousMonthUsers),
+          previousWeek: {
+            candidate: previousWeekCandidates,
+            recruiter: previousWeekRecruiters,
+            total: previousWeekUsers,
+          },
+          growthPercent: this.percentGrowth(currentWeekUsers, previousWeekUsers),
         },
         activeJobPosts: {
           total: activeJobPosts,
-          currentMonth: currentMonthActiveJobPosts,
-          previousMonth: previousMonthActiveJobPosts,
+          currentWeek: currentWeekActiveJobPosts,
+          previousWeek: previousWeekActiveJobPosts,
           growthPercent: this.percentGrowth(
-            currentMonthActiveJobPosts,
-            previousMonthActiveJobPosts,
+            currentWeekActiveJobPosts,
+            previousWeekActiveJobPosts,
           ),
         },
         pendingReview: {

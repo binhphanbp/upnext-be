@@ -1666,7 +1666,7 @@ async function main() {
       email: def.email,
       fullName: def.fullName,
       roleCode: def.roleCode,
-      createdAt: addDays(lastMonthStart, 1),
+      createdAt: addDays(now, - (def.companyIndex % 5) * 3),
     };
   });
 
@@ -1776,7 +1776,6 @@ async function main() {
   ];
 
   const candidates = Array.from({ length: 60 }, (_, index) => {
-    const n = index + 1;
     const accountId = randomUUID();
     const profileId = randomUUID();
     const cvId = randomUUID();
@@ -1791,7 +1790,7 @@ async function main() {
       cvVersionId,
       email: `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName)}@gmail.com`,
       fullName,
-      createdAt: addDays(lastMonthStart, n % 25),
+      createdAt: addDays(now, - (index % 30)),
     };
   });
 
@@ -3426,7 +3425,7 @@ async function main() {
       amount: plans.premium.price,
       paymentMethod: 'STRIPE',
       paymentStatus: 'PAID',
-      paidAt: addDays(now, -15),
+      paidAt: addDays(now, -2),
     },
   });
 
@@ -3539,8 +3538,8 @@ async function main() {
       jobPostUsed: 4,
       boostCreditTotal: plans.standard.boostCreditLimit,
       boostCreditUsed: 1,
-      startedAt: addDays(now, -10),
-      expiredAt: addDays(now, 20),
+      startedAt: addDays(now, -8),
+      expiredAt: addDays(now, 22),
       status: 'ACTIVE',
     },
   });
@@ -3552,7 +3551,7 @@ async function main() {
       amount: plans.standard.price,
       paymentMethod: 'MOMO',
       paymentStatus: 'PAID',
-      paidAt: addDays(now, -10),
+      paidAt: addDays(now, -8),
     },
   });
   await prisma.invoice.create({
@@ -4093,6 +4092,7 @@ async function importItviecData(
   categories: Record<string, { id: string }>,
   specializations: Record<string, { id: string }>,
 ) {
+  const now = new Date();
   console.log('Loading ITviec data files...');
   const jobsPath = path.join(__dirname, 'data/itviec-jobs-backend.json');
   const companiesPath = path.join(__dirname, 'data/companies_detailed.json');
@@ -4226,6 +4226,9 @@ async function importItviecData(
       email = 'recruiter.max@imported.upnext.dev';
     }
 
+    const dayOffset = (item.Slug.charCodeAt(0) || 0) % 30;
+    const recordDate = addDays(now, -dayOffset);
+
     await prisma.recruiterAccount.create({
       data: {
         id: recruiterId,
@@ -4234,7 +4237,9 @@ async function importItviecData(
         email: email,
         passwordHash: passwordHash,
         status: 'ACTIVE',
-        emailVerifiedAt: new Date(),
+        emailVerifiedAt: recordDate,
+        createdAt: recordDate,
+        updatedAt: recordDate,
       },
     });
 
@@ -4309,6 +4314,9 @@ async function importItviecData(
     const urlParts = job.source.url.split('/');
     const jobSlug = urlParts[urlParts.length - 1];
 
+    const jobDayOffset = (jobSlug.charCodeAt(0) || 0) % 30;
+    const jobRecordDate = addDays(now, -jobDayOffset);
+
     const jobPostId = randomUUID();
     await prisma.jobPost.create({
       data: {
@@ -4332,7 +4340,9 @@ async function importItviecData(
         vacanciesCount: job.jobPost.vacanciesCount || 1,
         status: JobStatus.PUBLISHED,
         moderationStatus: 'APPROVED',
-        publishedAt: new Date(),
+        publishedAt: jobRecordDate,
+        createdAt: jobRecordDate,
+        updatedAt: jobRecordDate,
         expiredAt: futureDeadline,
       },
     });
