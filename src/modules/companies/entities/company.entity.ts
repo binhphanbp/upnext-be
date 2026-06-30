@@ -64,6 +64,11 @@ export class Company {
   })
   description?: string | null;
 
+  @ApiPropertyOptional({
+    example: 'Ăn trưa, Teambuilding hàng tháng, BHXH...',
+  })
+  benefits?: string | null;
+
   @ApiPropertyOptional({ example: '51-200 nhân sự' })
   companySize?: string | null;
 

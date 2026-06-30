@@ -55,6 +55,13 @@ export class CreateCompanyDto {
   @IsString()
   description?: string;
 
+  @ApiPropertyOptional({
+    example: 'Phúc lợi gồm có ăn trưa, teambuilding hàng tháng, BHXH...',
+  })
+  @IsOptional()
+  @IsString()
+  benefits?: string;
+
   @ApiPropertyOptional({ maxLength: 80, example: '51-200 nhân sự' })
   @IsOptional()
   @IsString()

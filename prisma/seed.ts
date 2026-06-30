@@ -606,7 +606,7 @@ async function cleanHomeSeedData() {
     });
   }
 
-  await prisma.jobLocation.deleteMany({
+  await prisma.companyLocation.deleteMany({
     where: {
       jobPostLocations: {
         none: {},
@@ -2855,7 +2855,7 @@ async function main() {
     };
   });
 
-  await prisma.jobLocation.createMany({
+  await prisma.companyLocation.createMany({
     data: jobLocations.map((location) => ({
       id: location.id,
       country: location.country,
@@ -4066,7 +4066,7 @@ async function cleanImportedData() {
     },
   });
 
-  await prisma.jobLocation.deleteMany({
+  await prisma.companyLocation.deleteMany({
     where: {
       jobPostLocations: {
         none: {},
@@ -4379,7 +4379,7 @@ async function importItviecData(
             ) % cityList.length
           ];
 
-        await prisma.jobLocation.create({
+        await prisma.companyLocation.create({
           data: {
             id: locationId,
             country: 'Vietnam',

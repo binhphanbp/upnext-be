@@ -2,10 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateRecruiterRoleDto {
-  @ApiProperty({ maxLength: 80, example: 'hr_manager' })
+  @ApiPropertyOptional({ maxLength: 80, example: 'accounting' })
+  @IsOptional()
   @IsString()
   @MaxLength(80)
-  code!: string;
+  code?: string;
 
   @ApiProperty({ maxLength: 120, example: 'HR Manager' })
   @IsString()
