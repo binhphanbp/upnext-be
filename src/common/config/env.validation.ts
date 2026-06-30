@@ -26,6 +26,9 @@ const envSchema = z.object({
       'https://upnext.works,https://staging.upnext.works,http://localhost:5173,http://localhost:3000',
     ),
   GEMINI_API_KEY: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  APP_BACKEND_URL: z.string().url().default('http://localhost:3001')
 });
 
 export type AppConfig = {
@@ -47,6 +50,9 @@ export type AppConfig = {
   cloudinaryFolder: string;
   corsOrigins: string[];
   geminiApiKey?: string;
+  googleClientId?: string;
+  googleClientSecret?: string;
+  appBackendUrl?: string;
 };
 
 export function validateEnv(config: Record<string, unknown>): AppConfig {
@@ -73,5 +79,8 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
       .map((origin) => origin.trim())
       .filter(Boolean),
     geminiApiKey: parsed.GEMINI_API_KEY,
+    googleClientId: parsed.GOOGLE_CLIENT_ID,
+    googleClientSecret: parsed.GOOGLE_CLIENT_SECRET,
+    appBackendUrl: parsed.APP_BACKEND_URL,
   };
 }

@@ -234,4 +234,61 @@ export class CandidateAccountAuthService {
     url.searchParams.set('token', token);
     return url.toString();
   }
+    async loginOrRegisterGoogle(googleUser: {
+    providerUserId: string;
+    email: string;
+    fullName: string;
+  }): Promise<LoginResponse> {
+    const { providerUserId, email, fullName } = googleUser;
+
+    if (!email) {
+      throw new UnauthorizedException('Không thể lấy email từ tài khoản Google.');
+    }
+    let account = await this.prisma.candidateAccount.findFirst({
+      where: {
+        authProvider: AuthProvider.GOOGLE,
+        providerUserId: providerUserId,
+      },
+    });
+
+    if (!account) {
+      account = await this.prisma.candidateAccount.findUnique({
+        where: { email: email.toLowerCase() },
+      });
+
+      if (account) {
+        account = await this.prisma.candidateAccount.update({
+          where: { id: account.id },
+          data: {
+            authProvider: AuthProvider.GOOGLE,
+            providerUserId: providerUserId,
+            emailVerifiedAt: account.emailVerifiedAt || new Date(),
+          },
+        });
+      } else {
+        account = await this.prisma.candidateAccount.create({
+          data: {
+            fullName: fullName || 'Google User',
+            email: email.toLowerCase(),
+            authProvider: AuthProvider.GOOGLE,
+            providerUserId: providerUserId,
+            candidateAccountStatus: AccountStatus.ACTIVE,
+            emailVerifiedAt: new Date(),
+            profile: {
+              create: {},
+            },
+          },
+        });
+      }
+    }
+    if (account.candidateAccountStatus === AccountStatus.BANNED) {
+      throw new UnauthorizedException('Tài khoản của bạn đã bị khóa.');
+    }
+    return this.authService.signAccessToken({
+      id: account.id,
+      email: account.email,
+      role: ActorType.CANDIDATE,
+    });
+  }
+
 }
