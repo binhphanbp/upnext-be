@@ -51,10 +51,31 @@ export class CompanyMembersService {
 
     // 2. Check if current user has OWNER or HR role in the company
     if (currentUser.role !== ActorType.ADMIN) {
-      const invitingMember = await this.prisma.companyMember.findFirst({
+      let invitingMember = await this.prisma.companyMember.findFirst({
         where: { recruiterAccountId: currentUser.id, companyId },
         include: { role: true },
       });
+
+      // Auto-create missing CompanyMember record for the company owner/creator
+      if (!invitingMember && currentUser.companyId === companyId) {
+        const ownerRole = await this.prisma.recruiterRole.findFirst({
+          where: { code: 'OWNER' },
+        });
+
+        if (ownerRole) {
+          invitingMember = await this.prisma.companyMember.create({
+            data: {
+              recruiterAccountId: currentUser.id,
+              companyId,
+              roleId: ownerRole.id,
+              status: 'ACTIVE',
+              joinedAt: new Date(),
+            },
+            include: { role: true },
+          });
+        }
+      }
+
       if (
         !invitingMember ||
         (invitingMember.role?.code !== 'OWNER' && invitingMember.role?.code !== 'HR')
