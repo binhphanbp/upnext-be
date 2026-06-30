@@ -88,7 +88,7 @@ export class CompaniesController {
    * @returns Danh sách các công ty thỏa mãn điều kiện tìm kiếm kèm metadata phân trang
    */
   @ApiOperation({
-    summary: 'Danh sách công ty',
+    summary: 'Lấy danh sách công ty (ADMIN)',
     description: 'Lấy danh sách công ty, có hỗ trợ tìm kiếm, filter và pagination.',
   })
   @ApiOkResponse({
@@ -430,7 +430,7 @@ export class CompaniesController {
    * @param user Thông tin Admin thực hiện
    */
   @ApiOperation({
-    summary: 'Xác thực doanh nghiệp',
+    summary: 'Xác thực doanh nghiệp (ADMIN)',
     description: 'Phê duyệt hoặc từ chối trạng thái xác thực của công ty. Chỉ dành cho Admin.',
   })
   @ApiParam({ name: 'id', description: 'Company UUID' })
