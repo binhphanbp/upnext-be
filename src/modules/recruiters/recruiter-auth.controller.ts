@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Get, Req, Res, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -14,11 +14,17 @@ import { LoginDto } from '../auth/dto/login.dto';
 import { RecruiterLoginResponse } from '../auth/entities/auth.entity';
 import { RegisterRecruiterDto } from './dto/register-recruiter.dto';
 import { RecruiterAuthService } from './recruiter-auth.service';
+import { ConfigService } from '@nestjs/config';
+import { RecruiterGoogleAuthGuard } from '../auth/guards/recruiter-google-auth.guard';
+import { Response } from 'express';
 
 @ApiTags('Recruiter - Auth')
 @Controller('recruiter/auth')
 export class RecruiterAuthController {
-  constructor(private readonly recruiterAuthService: RecruiterAuthService) {}
+  constructor(
+    private readonly recruiterAuthService: RecruiterAuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Public()
   @Post('register')
@@ -40,5 +46,24 @@ export class RecruiterAuthController {
   @ApiUnauthorizedResponse({ description: 'Email hoặc password không hợp lệ' })
   login(@Body() dto: LoginDto) {
     return this.recruiterAuthService.login(dto);
+  }
+
+  @Public()
+  @Get('google')
+  @UseGuards(RecruiterGoogleAuthGuard)
+  @ApiOperation({ summary: 'Khởi chạy luồng đăng nhập bằng Google cho Recruiter (Redirect)' })
+  googleAuth() {}
+
+  @Public()
+  @Get('google/callback')
+  @UseGuards(RecruiterGoogleAuthGuard)
+  @ApiOperation({ summary: 'Callback xử lý đăng nhập Google Recruiter từ Backend và redirect về Frontend' })
+  async googleAuthCallback(@Req() req: any, @Res() res: Response) {
+    const googleUser = req.user as { providerUserId: string; email: string; fullName: string };
+    const result = await this.recruiterAuthService.loginOrRegisterGoogle(googleUser);
+    const { accessToken } = result;
+    const locale = req.query.state === 'en' ? 'en' : 'vi';
+    const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
+    return res.redirect(`${frontendUrl}/${locale}/recruiter/auth/callback?token=${accessToken}`);
   }
 }

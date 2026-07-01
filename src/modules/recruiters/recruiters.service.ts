@@ -238,6 +238,12 @@ export class RecruitersService {
       throw new NotFoundException(`Recruiter account ${id} not found`);
     }
 
+    if (!account.passwordHash) {
+      throw new BadRequestException(
+        'Tài khoản đăng nhập bằng Google chưa thiết lập mật khẩu. Vui lòng đặt lại mật khẩu để tạo mới.',
+      );
+    }
+
     const isPasswordValid = await compare(dto.currentPassword, account.passwordHash);
     if (!isPasswordValid) {
       throw new BadRequestException('Mật khẩu hiện tại không chính xác');

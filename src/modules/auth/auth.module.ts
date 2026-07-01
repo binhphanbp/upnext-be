@@ -9,6 +9,8 @@ import { RolesGuard } from './guards/roles.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { RecruiterGoogleStrategy } from './strategies/recruiter-google.strategy';
+import { RecruiterGoogleAuthGuard } from './guards/recruiter-google-auth.guard';
 @Global()
 @Module({
   imports: [
@@ -34,6 +36,8 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
     RolesGuard,
     GoogleAuthGuard,
     GoogleStrategy,
+    RecruiterGoogleAuthGuard,
+    RecruiterGoogleStrategy,
   ],
   exports: [
     AuthService,
@@ -43,6 +47,8 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
     JwtModule,
     GoogleAuthGuard,
     GoogleStrategy,
+    RecruiterGoogleAuthGuard,
+    RecruiterGoogleStrategy,
   ],
 })
 export class AuthModule {}

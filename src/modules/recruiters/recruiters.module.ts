@@ -6,6 +6,7 @@ import { RecruiterPasswordResetController } from './recruiter-password-reset.con
 import { RecruiterAccountsController } from './recruiter-accounts.controller';
 import { RecruiterProfilesController } from './recruiter-profiles.controller';
 import { RecruitersService } from './recruiters.service';
+import { RecruiterAccountEmailVerificationController } from './recruiter-account-email-verification.controller';
 
 @Module({
   controllers: [
@@ -13,6 +14,7 @@ import { RecruitersService } from './recruiters.service';
     RecruiterPasswordResetController,
     RecruiterAccountsController,
     RecruiterProfilesController,
+    RecruiterAccountEmailVerificationController,
   ],
   providers: [RecruiterAuthService, RecruitersService, PrismaService],
 })

@@ -1,6 +1,12 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AccountStatus, ActorType, Prisma } from '@prisma/client';
+import { AccountStatus, ActorType, AuthProvider, Prisma } from '@prisma/client';
 import { EmailService } from '../../common/email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
@@ -13,6 +19,11 @@ import {
   PasswordResetResponse,
 } from '../auth/entities/password-reset.entity';
 import { RegisterRecruiterDto } from './dto/register-recruiter.dto';
+import { VerifyRecruiterEmailDto } from './dto/recruiter-accounts/verify-recruiter-email.dto';
+import {
+  RecruiterEmailVerificationRequest,
+  RecruiterEmailVerificationResult,
+} from './entities/recruiter-email-verification.entity';
 
 @Injectable()
 export class RecruiterAuthService {
@@ -37,6 +48,19 @@ export class RecruiterAuthService {
           companyId: true,
           recruiterRoleId: true,
         },
+      });
+
+      // Send verification email during registration
+      const verificationToken = await this.authService.signEmailVerificationToken({
+        id: account.id,
+        email: account.email,
+        role: ActorType.RECRUITER,
+      });
+      const verificationLink = this.buildEmailVerificationLink(verificationToken);
+      await this.emailService.sendRecruiterEmailVerification({
+        to: account.email,
+        recruiterName: account.email,
+        verificationLink,
       });
 
       return this.authService.signAccessToken({
@@ -67,6 +91,7 @@ export class RecruiterAuthService {
         passwordHash: true,
         companyId: true,
         recruiterRoleId: true,
+        emailVerifiedAt: true,
       },
     });
 
@@ -75,6 +100,12 @@ export class RecruiterAuthService {
     }
 
     await this.authService.verifyPassword(dto.password, account.passwordHash);
+
+    if (!account.emailVerifiedAt) {
+      throw new ForbiddenException(
+        'Tài khoản của bạn chưa được xác thực email. Vui lòng xác thực email trước khi đăng nhập.',
+      );
+    }
 
     return this.authService.signAccessToken({
       id: account.id,
@@ -85,7 +116,131 @@ export class RecruiterAuthService {
     });
   }
 
-  async requestPasswordReset(dto: RequestPasswordResetDto): Promise<PasswordResetRequestResponse> {
+  async requestEmailVerification(
+    recruiterAccountId: string,
+  ): Promise<RecruiterEmailVerificationRequest> {
+    const account = await this.prisma.recruiterAccount.findUnique({
+      where: { id: recruiterAccountId },
+      select: {
+        id: true,
+        email: true,
+        emailVerifiedAt: true,
+        profile: {
+          select: { fullName: true },
+        },
+      },
+    });
+
+    if (!account) {
+      throw new NotFoundException('Không tìm thấy tài khoản nhà tuyển dụng');
+    }
+
+    const verificationToken = await this.authService.signEmailVerificationToken({
+      id: account.id,
+      email: account.email,
+      role: ActorType.RECRUITER,
+    });
+    const verificationLink = this.buildEmailVerificationLink(verificationToken);
+
+    if (!account.emailVerifiedAt) {
+      await this.emailService.sendRecruiterEmailVerification({
+        to: account.email,
+        recruiterName: account.profile?.fullName,
+        verificationLink,
+      });
+    }
+
+    return {
+      email: account.email,
+      emailVerified: Boolean(account.emailVerifiedAt),
+      emailVerifiedAt: account.emailVerifiedAt,
+      message: account.emailVerifiedAt
+        ? 'Email của bạn đã được xác thực.'
+        : 'Hệ thống đã gửi link xác thực đến email của bạn.',
+    };
+  }
+
+  async requestEmailVerificationByEmail(email: string): Promise<RecruiterEmailVerificationRequest> {
+    const account = await this.prisma.recruiterAccount.findUnique({
+      where: { email: email.toLowerCase() },
+      select: {
+        id: true,
+        email: true,
+        emailVerifiedAt: true,
+        profile: {
+          select: { fullName: true },
+        },
+      },
+    });
+
+    if (!account) {
+      throw new NotFoundException('Không tìm thấy tài khoản nhà tuyển dụng với email này');
+    }
+
+    const verificationToken = await this.authService.signEmailVerificationToken({
+      id: account.id,
+      email: account.email,
+      role: ActorType.RECRUITER,
+    });
+    const verificationLink = this.buildEmailVerificationLink(verificationToken);
+
+    if (!account.emailVerifiedAt) {
+      await this.emailService.sendRecruiterEmailVerification({
+        to: account.email,
+        recruiterName: account.profile?.fullName,
+        verificationLink,
+      });
+    }
+
+    return {
+      email: account.email,
+      emailVerified: Boolean(account.emailVerifiedAt),
+      emailVerifiedAt: account.emailVerifiedAt,
+      message: account.emailVerifiedAt
+        ? 'Email của bạn đã được xác thực.'
+        : 'Hệ thống đã gửi link xác thực đến email của bạn.',
+    };
+  }
+
+  async verifyEmail(dto: VerifyRecruiterEmailDto): Promise<RecruiterEmailVerificationResult> {
+    const payload = await this.authService.verifyEmailVerificationToken(dto.token);
+
+    const account = await this.prisma.recruiterAccount.findFirst({
+      where: {
+        id: payload.sub,
+        email: payload.email,
+        status: AccountStatus.ACTIVE,
+      },
+      select: {
+        id: true,
+        email: true,
+        emailVerifiedAt: true,
+      },
+    });
+
+    if (!account) {
+      throw new UnauthorizedException('Token xác thực email không hợp lệ');
+    }
+
+    const verifiedAccount = account.emailVerifiedAt
+      ? account
+      : await this.prisma.recruiterAccount.update({
+          where: { id: account.id },
+          data: { emailVerifiedAt: new Date() },
+          select: {
+            email: true,
+            emailVerifiedAt: true,
+          },
+        });
+
+    return {
+      email: verifiedAccount.email,
+      emailVerified: true,
+      emailVerifiedAt: verifiedAccount.emailVerifiedAt as Date,
+    };
+  }
+
+  async requestPasswordReset(dto: RequestPasswordResetDto, locale?: string): Promise<PasswordResetRequestResponse> {
     const account = await this.prisma.recruiterAccount.findFirst({
       where: {
         email: dto.email.toLowerCase(),
@@ -106,13 +261,14 @@ export class RecruiterAuthService {
 
       await this.emailService.sendPasswordReset({
         to: account.email,
-        resetLink: this.buildPasswordResetLink('recruiter', token),
+        resetLink: this.buildPasswordResetLink('recruiter', token, locale),
         actor: 'recruiter',
+        locale,
       });
     }
 
     return {
-      message: 'Nếu email tồn tại, hệ thống đã gửi link đặt lại mật khẩu đến email của bạn.',
+      message: 'Hệ thống đã gửi link đặt lại mật khẩu đến email của bạn.',
     };
   }
 
@@ -142,10 +298,81 @@ export class RecruiterAuthService {
     return { message: 'Đặt lại mật khẩu thành công.' };
   }
 
-  private buildPasswordResetLink(actor: 'recruiter', token: string) {
+  private buildPasswordResetLink(actor: 'recruiter', token: string, locale?: string) {
     const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
-    const url = new URL(`/vi/${actor}/reset-password`, frontendUrl);
+    const lang = locale === 'en' ? 'en' : 'vi';
+    const url = new URL(`/${lang}/${actor}/reset-password`, frontendUrl);
     url.searchParams.set('token', token);
     return url.toString();
+  }
+
+  private buildEmailVerificationLink(token: string) {
+    const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
+    const url = new URL('/vi/recruiter/email-verification', frontendUrl);
+    url.searchParams.set('token', token);
+    return url.toString();
+  }
+
+  async loginOrRegisterGoogle(googleUser: {
+    providerUserId: string;
+    email: string;
+    fullName: string;
+  }): Promise<RecruiterLoginResponse> {
+    const { providerUserId, email, fullName } = googleUser;
+
+    if (!email) {
+      throw new UnauthorizedException('Không thể lấy email từ tài khoản Google.');
+    }
+
+    let account = await this.prisma.recruiterAccount.findFirst({
+      where: {
+        authProvider: AuthProvider.GOOGLE,
+        providerUserId: providerUserId,
+      },
+    });
+
+    if (!account) {
+      account = await this.prisma.recruiterAccount.findUnique({
+        where: { email: email.toLowerCase() },
+      });
+
+      if (account) {
+        account = await this.prisma.recruiterAccount.update({
+          where: { id: account.id },
+          data: {
+            authProvider: AuthProvider.GOOGLE,
+            providerUserId: providerUserId,
+            emailVerifiedAt: account.emailVerifiedAt || new Date(),
+          },
+        });
+      } else {
+        account = await this.prisma.recruiterAccount.create({
+          data: {
+            email: email.toLowerCase(),
+            authProvider: AuthProvider.GOOGLE,
+            providerUserId: providerUserId,
+            status: AccountStatus.ACTIVE,
+            emailVerifiedAt: new Date(),
+            profile: {
+              create: {
+                fullName: fullName || 'Google User',
+              },
+            },
+          },
+        });
+      }
+    }
+
+    if (account.status === AccountStatus.BANNED) {
+      throw new UnauthorizedException('Tài khoản của bạn đã bị khóa.');
+    }
+
+    return this.authService.signAccessToken({
+      id: account.id,
+      email: account.email,
+      role: ActorType.RECRUITER,
+      companyId: account.companyId,
+      recruiterRoleId: account.recruiterRoleId,
+    });
   }
 }

@@ -100,10 +100,7 @@ export class AdminDashboardService {
           total: activeJobPosts,
           currentWeek: currentWeekActiveJobPosts,
           previousWeek: previousWeekActiveJobPosts,
-          growthPercent: this.percentGrowth(
-            currentWeekActiveJobPosts,
-            previousWeekActiveJobPosts,
-          ),
+          growthPercent: this.percentGrowth(currentWeekActiveJobPosts, previousWeekActiveJobPosts),
         },
         pendingReview: {
           total: pendingCompanyRegistrations + pendingJobPosts,

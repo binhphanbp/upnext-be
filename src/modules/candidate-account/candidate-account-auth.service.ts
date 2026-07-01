@@ -105,6 +105,7 @@ export class CandidateAccountAuthService {
     const verificationToken = await this.authService.signEmailVerificationToken({
       id: account.id,
       email: account.email,
+      role: ActorType.CANDIDATE,
     });
     const verificationLink = this.buildEmailVerificationLink(verificationToken);
 

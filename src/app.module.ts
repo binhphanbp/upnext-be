@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { validateEnv } from './common/config/env.validation';
 import { CompaniesModule } from './modules/companies/companies.module';
@@ -51,6 +52,12 @@ import { SearchKeywordModule } from './modules/search-keyword/search-keyword.mod
       isGlobal: true,
       validate: validateEnv,
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10,
+      },
+    ]),
     CloudinaryModule,
     AuthModule,
     AdminUsersModule,

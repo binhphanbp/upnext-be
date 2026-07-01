@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class PasswordResetRequestResponse {
   @ApiProperty({
-    example: 'Nếu email tồn tại, hệ thống đã gửi link đặt lại mật khẩu đến email của bạn.',
+    example: 'Hệ thống đã gửi link đặt lại mật khẩu đến email của bạn.',
   })
   message: string;
 }

@@ -756,7 +756,9 @@ model RecruiterAccount {
     companyId       String?       @map("company_id") @db.Uuid
     recruiterRoleId String?       @map("recruiter_role_id") @db.Uuid
     email           String        @unique @db.VarChar(255)
-    passwordHash    String        @map("password_hash") @db.VarChar(255)
+    passwordHash    String?       @map("password_hash") @db.VarChar(255)
+    authProvider    AuthProvider  @default(DEFAULT) @map("auth_provider")
+    providerUserId  String?       @map("provider_user_id") @db.VarChar(255)
     status          AccountStatus @default(ACTIVE)
     emailVerifiedAt DateTime?     @map("email_verified_at")
     createdAt       DateTime      @default(now()) @map("created_at")
@@ -772,6 +774,7 @@ model RecruiterAccount {
     appeals        Appeal[]
     notificationTokens NotificationToken[]
 
+    @@unique([authProvider, providerUserId])
     @@index([companyId])
     @@index([recruiterRoleId])
     @@map("recruiter_accounts")
