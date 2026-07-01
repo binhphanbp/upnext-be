@@ -221,7 +221,7 @@ function getCategoryForSkill(name: string, categories: Record<string, { id: stri
 
   // Databases & Storage
   if (
-    /postgres|mysql|mongo|redis|prisma|database|db|sql|nosql|oracle|cassandra|mariadb|sqlite|dynamodb/i.test(
+    /postgres|postgresql|mysql|mongo|redis|prisma|database|db|sql|nosql|oracle|cassandra|mariadb|sqlite|dynamodb|snowflake|warehouse/i.test(
       lowerName,
     )
   ) {
@@ -230,7 +230,7 @@ function getCategoryForSkill(name: string, categories: Record<string, { id: stri
 
   // Cloud & DevOps
   if (
-    /aws|azure|gcp|docker|kubernetes|devops|ci\/cd|jenkins|terraform|ansible|cloud|k8s|argocd/i.test(
+    /aws|azure|gcp|docker|kubernetes|devops|ci\/cd|jenkins|terraform|ansible|cloud|k8s|argocd|linux|unix|nginx|kafka|rabbitmq|system admin|network|monitoring|vmware/i.test(
       lowerName,
     )
   ) {
@@ -239,7 +239,7 @@ function getCategoryForSkill(name: string, categories: Record<string, { id: stri
 
   // Artificial Intelligence & Data Science (using word boundaries for short names like ai, ml)
   if (
-    /data science|deep learning|machine learning|nlp|spark|hadoop|tableau|power bi|llm|gpt|openai|tensorflow|pytorch|blockchain/i.test(
+    /data science|data analysis|data engineering|data warehousing|etl|deep learning|machine learning|nlp|spark|hadoop|tableau|power bi|llm|gpt|openai|tensorflow|pytorch|blockchain/i.test(
       lowerName,
     ) ||
     /\b(ai|ml)\b/i.test(lowerName)
@@ -249,7 +249,7 @@ function getCategoryForSkill(name: string, categories: Record<string, { id: stri
 
   // Frameworks & Libraries
   if (
-    /react|next|vue|angular|nest|django|spring|express|laravel|symfony|asp\.net|\.net|winforms|jquery|flask|fastapi|nuxt|svelte/i.test(
+    /react|reactjs|react native|next|vue|angular|nest|node|django|spring|express|laravel|symfony|asp\.net|\.net|winforms|jquery|flask|fastapi|nuxt|svelte|flutter/i.test(
       lowerName,
     )
   ) {
@@ -268,7 +268,7 @@ function getCategoryForSkill(name: string, categories: Record<string, { id: stri
 
   // Design & Product
   if (
-    /figma|sketch|xd|photoshop|illustrator|ui\/ux|design|product management|product owner/i.test(
+    /figma|sketch|xd|photoshop|illustrator|ui\/ux|ui-ux|design|product management|product owner|business analysis|project management|agile|scrum/i.test(
       lowerName,
     )
   ) {
@@ -276,88 +276,578 @@ function getCategoryForSkill(name: string, categories: Record<string, { id: stri
   }
 
   // Testing & QA
-  if (/qa|test|jest|cypress|selenium|manual|automation|junit|mocha/i.test(lowerName)) {
+  if (
+    /qa|test|jest|cypress|selenium|playwright|manual|automation|junit|mocha|api testing/i.test(
+      lowerName,
+    )
+  ) {
     return categories['Testing & QA'].id;
   }
 
   return categories['Others'].id;
 }
 
-function getRandomLocationDetails(cityInput: string | null): {
+const inferredSkillNames = [
+  'API',
+  'Database',
+  'Cloud',
+  'RESTful API',
+  'Microservices',
+  'OOP',
+  'Design Patterns',
+  'System Design',
+  'System Architecture',
+  'Software Architecture',
+  'Solution Architecture',
+  'NodeJS',
+  'ReactJS',
+  'React Native',
+  'Flutter',
+  'ASP.NET',
+  'SQL Server',
+  'Oracle',
+  'Linux',
+  'Unix',
+  'Kafka',
+  'RabbitMQ',
+  'Nginx',
+  'Terraform',
+  'Jenkins',
+  'ETL',
+  'Spark',
+  'Data Analysis',
+  'Data Engineering',
+  'Data Warehousing',
+  'Power BI',
+  'Tableau',
+  'Snowflake',
+  'Business Analysis',
+  'UI/UX',
+  'Scrum',
+  'Selenium',
+  'Playwright',
+  'API Testing',
+  'Test Case',
+  'System Admin',
+  'Networking',
+  'Security',
+  'Cloud Security',
+  'SIEM',
+  'IAM',
+  'English',
+  'Mobile Development',
+  'CRM',
+  'User Research',
+  'Wireframing',
+  'Embedded',
+  'Hardware',
+  'C language',
+];
+
+const jobSkillInferenceRules: Array<{ name: string; pattern: RegExp }> = [
+  { name: 'TypeScript', pattern: /\btypescript\b|\bts\b/i },
+  { name: 'JavaScript', pattern: /\bjavascript\b|\bjs\b/i },
+  { name: 'Java', pattern: /\bjava\b/i },
+  { name: 'Python', pattern: /\bpython\b/i },
+  { name: 'Go', pattern: /\bgolang\b|\bgo\b/i },
+  { name: 'C#', pattern: /\bc#\b|c sharp/i },
+  { name: 'C++', pattern: /\bc\+\+\b/i },
+  { name: 'PHP', pattern: /\bphp\b/i },
+  { name: 'Kotlin', pattern: /\bkotlin\b/i },
+  { name: 'Swift', pattern: /\bswift\b/i },
+  { name: 'Rust', pattern: /\brust\b/i },
+  { name: 'NodeJS', pattern: /\bnode\.?js\b|\bnodejs\b/i },
+  { name: 'NestJS', pattern: /\bnest\.?js\b|\bnestjs\b/i },
+  { name: 'Express', pattern: /\bexpress\b/i },
+  { name: 'Spring Boot', pattern: /\bspring boot\b/i },
+  { name: '.NET', pattern: /\.net\b/i },
+  { name: 'ASP.NET', pattern: /\basp\.net\b/i },
+  { name: 'ReactJS', pattern: /\breact\.?js\b|\breactjs\b/i },
+  { name: 'React Native', pattern: /\breact native\b/i },
+  { name: 'Vue.js', pattern: /\bvue\.?js\b|\bvuejs\b/i },
+  { name: 'Angular', pattern: /\bangular\b/i },
+  { name: 'Next.js', pattern: /\bnext\.?js\b|\bnextjs\b/i },
+  { name: 'Django', pattern: /\bdjango\b/i },
+  { name: 'FastAPI', pattern: /\bfastapi\b/i },
+  { name: 'Laravel', pattern: /\blaravel\b/i },
+  { name: 'Flutter', pattern: /\bflutter\b/i },
+  { name: 'HTML', pattern: /\bhtml5?\b/i },
+  { name: 'CSS', pattern: /\bcss3?\b|tailwind/i },
+  { name: 'Tailwind CSS', pattern: /\btailwind\b/i },
+  { name: 'SQL', pattern: /\bsql\b/i },
+  { name: 'PostgreSQL', pattern: /\bpostgresql\b|\bpostgres\b/i },
+  { name: 'MySQL', pattern: /\bmysql\b/i },
+  { name: 'MongoDB', pattern: /\bmongodb\b|\bmongo\b/i },
+  { name: 'Redis', pattern: /\bredis\b/i },
+  { name: 'Oracle', pattern: /\boracle\b/i },
+  { name: 'SQL Server', pattern: /\bsql server\b|\bmssql\b/i },
+  { name: 'Elasticsearch', pattern: /\belasticsearch\b|\belastic search\b/i },
+  { name: 'AWS', pattern: /\baws\b|amazon web services/i },
+  { name: 'Azure', pattern: /\bazure\b/i },
+  { name: 'GCP', pattern: /\bgcp\b|google cloud/i },
+  { name: 'Docker', pattern: /\bdocker\b/i },
+  { name: 'Kubernetes', pattern: /\bkubernetes\b|\bk8s\b/i },
+  { name: 'Terraform', pattern: /\bterraform\b/i },
+  { name: 'Jenkins', pattern: /\bjenkins\b/i },
+  { name: 'CI/CD', pattern: /\bci\/cd\b|\bcicd\b|continuous integration|continuous delivery/i },
+  { name: 'Linux', pattern: /\blinux\b/i },
+  { name: 'Unix', pattern: /\bunix\b/i },
+  { name: 'Kafka', pattern: /\bkafka\b/i },
+  { name: 'RabbitMQ', pattern: /\brabbitmq\b|\brabbit mq\b/i },
+  { name: 'Nginx', pattern: /\bnginx\b/i },
+  { name: 'Git', pattern: /\bgit\b/i },
+  { name: 'QA', pattern: /\bqa\b|quality assurance/i },
+  { name: 'Manual Testing', pattern: /manual test|manual testing/i },
+  { name: 'QA Automation', pattern: /automation test|test automation|automated test/i },
+  { name: 'Selenium', pattern: /\bselenium\b/i },
+  { name: 'Playwright', pattern: /\bplaywright\b/i },
+  { name: 'Cypress', pattern: /\bcypress\b/i },
+  { name: 'Jest', pattern: /\bjest\b/i },
+  { name: 'API Testing', pattern: /api testing|postman/i },
+  { name: 'Machine Learning', pattern: /machine learning|\bml\b/i },
+  { name: 'Deep Learning', pattern: /deep learning/i },
+  { name: 'NLP', pattern: /\bnlp\b|natural language/i },
+  { name: 'LLM', pattern: /\bllm\b|large language|generative ai|genai/i },
+  { name: 'PyTorch', pattern: /\bpytorch\b/i },
+  { name: 'TensorFlow', pattern: /\btensorflow\b/i },
+  { name: 'Spark', pattern: /\bspark\b/i },
+  { name: 'ETL', pattern: /\betl\b|elt\b/i },
+  { name: 'Data Warehousing', pattern: /data warehouse|data warehousing/i },
+  { name: 'Power BI', pattern: /power bi/i },
+  { name: 'Tableau', pattern: /\btableau\b/i },
+  { name: 'Snowflake', pattern: /\bsnowflake\b/i },
+  { name: 'Project Management', pattern: /project management|project manager/i },
+  { name: 'Business Analysis', pattern: /business analysis|business analyst|\bba\b/i },
+  { name: 'Agile/Scrum', pattern: /\bagile\b/i },
+  { name: 'Scrum', pattern: /\bscrum\b/i },
+  { name: 'Product Management', pattern: /product management|product owner|product manager/i },
+  { name: 'UI/UX', pattern: /ui\/ux|ui-ux|user experience|user interface/i },
+  { name: 'Figma', pattern: /\bfigma\b/i },
+  { name: 'Security', pattern: /\bsecurity\b|cybersecurity|vulnerability|penetration/i },
+  { name: 'CRM', pattern: /\bcrm\b|customer relationship/i },
+  { name: 'User Research', pattern: /user research|ux research/i },
+  { name: 'Wireframing', pattern: /wireframe|wireframing|prototype|prototyping/i },
+  { name: 'Embedded', pattern: /\bembedded\b|firmware|microcontroller/i },
+  { name: 'Hardware', pattern: /\bhardware\b|iot|device/i },
+  { name: 'C language', pattern: /\bc language\b|embedded c/i },
+  { name: 'Cloud Security', pattern: /cloud security/i },
+  { name: 'SIEM', pattern: /\bsiem\b/i },
+  { name: 'IAM', pattern: /\biam\b|identity and access/i },
+  { name: 'Networking', pattern: /\bnetwork\b|networking|tcp\/ip|vpn|firewall/i },
+  { name: 'System Admin', pattern: /system admin|systems administrator|windows server|vmware/i },
+  { name: 'RESTful API', pattern: /restful|rest api|\bapi\b/i },
+  { name: 'Microservices', pattern: /microservice/i },
+  { name: 'OOP', pattern: /\boop\b|object oriented/i },
+  { name: 'Design Patterns', pattern: /design pattern/i },
+  { name: 'System Design', pattern: /system design/i },
+  { name: 'System Architecture', pattern: /system architecture/i },
+  { name: 'Software Architecture', pattern: /software architecture|technical architect/i },
+  { name: 'Solution Architecture', pattern: /solution architect|solution architecture/i },
+  { name: 'English', pattern: /\benglish\b/i },
+];
+
+function pushUniqueSkill(target: string[], skillName: string) {
+  if (!target.some((item) => item.toLowerCase() === skillName.toLowerCase())) {
+    target.push(skillName);
+  }
+}
+
+function inferJobSkillNames(input: {
+  title?: string | null;
+  categoryName?: string | null;
+  description?: string | null;
+  requirements?: string | null;
+  benefits?: string | null;
+  specializations?: Array<{ name?: string | null; slug?: string | null }>;
+}) {
+  const title = input.title || '';
+  const categoryName = input.categoryName || '';
+  const specializationText = (input.specializations || [])
+    .map((item) => `${item.name || ''} ${item.slug || ''}`)
+    .join(' ');
+  const searchableText = [
+    title,
+    categoryName,
+    specializationText,
+    input.description || '',
+    input.requirements || '',
+    input.benefits || '',
+  ].join(' ');
+  const context = `${title} ${categoryName} ${specializationText}`;
+  const inferred: string[] = [];
+
+  for (const rule of jobSkillInferenceRules) {
+    if (rule.pattern.test(searchableText)) {
+      pushUniqueSkill(inferred, rule.name);
+    }
+  }
+
+  if (/backend|back-end|server|api/i.test(context)) {
+    ['RESTful API', 'Database', 'OOP', 'Git'].forEach((name) => pushUniqueSkill(inferred, name));
+  }
+  if (/frontend|front-end|web developer|ui developer/i.test(context)) {
+    ['HTML', 'CSS', 'JavaScript', 'Git'].forEach((name) => pushUniqueSkill(inferred, name));
+  }
+  if (/fullstack|full-stack/i.test(context)) {
+    ['JavaScript', 'RESTful API', 'Database', 'Git'].forEach((name) =>
+      pushUniqueSkill(inferred, name),
+    );
+  }
+  if (/devops|cloud|infrastructure|system|network/i.test(context)) {
+    ['Linux', 'Docker', 'CI/CD', 'Cloud'].forEach((name) => pushUniqueSkill(inferred, name));
+  }
+  if (/data engineer/i.test(context)) {
+    ['SQL', 'Python', 'ETL', 'Data Warehousing'].forEach((name) => pushUniqueSkill(inferred, name));
+  } else if (/data analyst|business intelligence|\bbi\b/i.test(context)) {
+    ['SQL', 'Data Analysis', 'Power BI'].forEach((name) => pushUniqueSkill(inferred, name));
+  }
+  if (/\bai\b|machine learning|data science|researcher/i.test(context)) {
+    ['Python', 'Machine Learning', 'Deep Learning'].forEach((name) =>
+      pushUniqueSkill(inferred, name),
+    );
+  }
+  if (/qa|tester|quality/i.test(context)) {
+    ['QA', 'Manual Testing', 'QA Automation', 'API Testing'].forEach((name) =>
+      pushUniqueSkill(inferred, name),
+    );
+  }
+  if (/project manager|product owner|scrum master/i.test(context)) {
+    ['Project Management', 'Agile/Scrum', 'English'].forEach((name) =>
+      pushUniqueSkill(inferred, name),
+    );
+  }
+  if (/business analyst|\bba\b/i.test(context)) {
+    ['Business Analysis', 'SQL', 'Agile/Scrum', 'English'].forEach((name) =>
+      pushUniqueSkill(inferred, name),
+    );
+  }
+  if (/security/i.test(context)) {
+    ['Security', 'Networking', 'Cloud Security'].forEach((name) => pushUniqueSkill(inferred, name));
+  }
+  if (/mobile|android|ios/i.test(context)) {
+    ['Mobile Development', 'API', 'Git'].forEach((name) => pushUniqueSkill(inferred, name));
+  }
+  if (/product designer|ux researcher|ux designer|ui designer|product design/i.test(context)) {
+    ['Figma', 'UI/UX', 'Product Design', 'Wireframing', 'User Research'].forEach((name) =>
+      pushUniqueSkill(inferred, name),
+    );
+  }
+  if (/\bcrm\b|crm specialist/i.test(context)) {
+    ['CRM', 'SQL', 'Data Analysis', 'Business Analysis'].forEach((name) =>
+      pushUniqueSkill(inferred, name),
+    );
+  }
+  if (/embedded|firmware|hardware/i.test(context)) {
+    ['Embedded', 'C language', 'C++', 'Linux', 'Hardware'].forEach((name) =>
+      pushUniqueSkill(inferred, name),
+    );
+  }
+
+  return inferred;
+}
+
+const jobTextHeadingPatterns = [
+  'Responsibilities',
+  'Responsibility',
+  'Key Responsibilities',
+  'Key Accountabilities',
+  'Job Purpose',
+  'Expectations',
+  'Requirements',
+  'Required Skills',
+  'Required Qualifications',
+  'Must have',
+  'Nice to have',
+  'Qualifications',
+  'Education',
+  'Professional Experience',
+  'Technical Skills',
+  'Benefits',
+  'Salary & Allowances',
+  'Career Growth',
+  'Working Environment',
+  'What You Will Do',
+  "What You'll Do",
+  'What You Bring',
+  "What You'll Bring",
+  "Why You'll Love Working Here",
+  'YÊU CẦU CÔNG VIỆC',
+  'Yêu cầu công việc',
+  'Mô tả công việc',
+  'Trách nhiệm',
+  'Nhiệm vụ',
+  'Quyền lợi',
+  'Phúc lợi',
+  'Ưu tiên',
+  'Kinh nghiệm',
+  'Trình độ',
+  'Chế độ đãi ngộ',
+];
+
+const compactSentenceBoundaryPattern =
+  /([a-zàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ0-9\)])([.!?。])(?=([A-ZÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ]))/g;
+
+function formatJobRichText(text: string | null | undefined, fallbackHeading: string) {
+  if (!text) return null;
+
+  let normalized = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  if (!normalized) return null;
+
+  for (const heading of jobTextHeadingPatterns) {
+    const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    normalized = normalized.replace(
+      new RegExp(`([^\\n])(${escapedHeading})(:?)(?=\\s|[A-ZÀ-Ỵ]|$)`, 'g'),
+      '$1\n\n$2$3\n',
+    );
+  }
+
+  normalized = normalized
+    .replace(compactSentenceBoundaryPattern, '$1$2\n')
+    .replace(/([:：])(?=\s*[A-ZÀ-Ỵ])/g, '$1\n')
+    .replace(
+      /([.!?])\s+(?=(?:Develop|Design|Build|Implement|Maintain|Collaborate|Work|Participate|Support|Ensure|Manage|Lead|Review|Create|Optimize|Debug|Write|Analyze|Monitor|Report|Coordinate|Tham gia|Thực hiện|Phối hợp|Xây dựng|Thiết kế|Triển khai|Phát triển|Quản lý|Hỗ trợ|Đảm bảo|Nghiên cứu|Tối ưu|Kiểm tra|Báo cáo)\b)/g,
+      '$1\n',
+    )
+    .replace(/\s*[-•]\s+/g, '\n- ')
+    .trim();
+
+  const lines = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const formattedLines: string[] = [];
+
+  for (const line of lines) {
+    const isKnownHeading = jobTextHeadingPatterns.some(
+      (heading) => line.replace(/:$/, '').toLowerCase() === heading.toLowerCase(),
+    );
+    const isBullet = /^[-•]\s+/.test(line);
+    const isShortLabel = /^[A-ZÀ-Ỵ][^.!?]{2,70}:$/.test(line);
+
+    if (isKnownHeading) {
+      formattedLines.push('', line.replace(/:$/, ''));
+      continue;
+    }
+
+    if (isShortLabel) {
+      formattedLines.push('', line.replace(/:$/, ''));
+      continue;
+    }
+
+    if (isBullet) {
+      formattedLines.push(line.replace(/^•\s+/, '- '));
+      continue;
+    }
+
+    if (line.length > 260 && /;\s/.test(line)) {
+      const chunks = line
+        .split(/(?<=;)\s+/)
+        .map((chunk) => chunk.replace(/[;,]$/, '').trim())
+        .filter(Boolean);
+
+      if (chunks.length >= 3) {
+        chunks.forEach((chunk) => formattedLines.push(`- ${chunk}`));
+        continue;
+      }
+    }
+
+    formattedLines.push(shouldRenderJobLineAsBullet(line, fallbackHeading) ? `- ${line}` : line);
+  }
+
+  const body = formattedLines
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return `${fallbackHeading}\n\n${body}`;
+}
+
+function shouldRenderJobLineAsBullet(line: string, fallbackHeading: string) {
+  if (fallbackHeading !== 'Mô tả công việc') return true;
+
+  return /^(Develop|Design|Build|Implement|Maintain|Collaborate|Work|Participate|Support|Ensure|Manage|Lead|Review|Create|Optimize|Debug|Write|Analyze|Monitor|Report|Coordinate|Tham gia|Thực hiện|Phối hợp|Xây dựng|Thiết kế|Triển khai|Phát triển|Quản lý|Hỗ trợ|Đảm bảo|Nghiên cứu|Tối ưu|Kiểm tra|Báo cáo|Chuẩn hóa|Rà soát|Đọc|Bóc tách|Điều phối|Trao đổi|Sử dụng|Có khả năng)(?=\s|$)/.test(
+    line,
+  );
+}
+
+type SeedLocationDetail = {
+  city: string;
+  district: string;
+  address: string;
+};
+
+const vietnamLocationPools: Record<string, SeedLocationDetail[]> = {
+  hcm: [
+    { city: 'Hồ Chí Minh', district: 'Quận 1', address: 'Nguyễn Huệ' },
+    { city: 'Hồ Chí Minh', district: 'Quận Bình Thạnh', address: 'Điện Biên Phủ' },
+    { city: 'Hồ Chí Minh', district: 'Quận 3', address: 'Cách Mạng Tháng Tám' },
+    { city: 'Hồ Chí Minh', district: 'Thành phố Thủ Đức', address: 'Xa Lộ Hà Nội' },
+    { city: 'Hồ Chí Minh', district: 'Quận 7', address: 'Nguyễn Văn Linh' },
+    { city: 'Hồ Chí Minh', district: 'Quận Tân Bình', address: 'Cộng Hòa' },
+    { city: 'Hồ Chí Minh', district: 'Khu vực Thủ Dầu Một', address: 'Đại lộ Bình Dương' },
+    { city: 'Hồ Chí Minh', district: 'Khu vực Vũng Tàu', address: 'Ba Cu' },
+  ],
+  hanoi: [
+    { city: 'Hà Nội', district: 'Quận Cầu Giấy', address: 'Dịch Vọng Hậu' },
+    { city: 'Hà Nội', district: 'Quận Đống Đa', address: 'Chùa Bộc' },
+    { city: 'Hà Nội', district: 'Quận Ba Đình', address: 'Kim Mã' },
+    { city: 'Hà Nội', district: 'Quận Hai Bà Trưng', address: 'Đại Cồ Việt' },
+    { city: 'Hà Nội', district: 'Quận Hoàn Kiếm', address: 'Tràng Tiền' },
+    { city: 'Hà Nội', district: 'Quận Nam Từ Liêm', address: 'Phạm Hùng' },
+  ],
+  danang: [
+    { city: 'Đà Nẵng', district: 'Quận Hải Châu', address: 'Lê Duẩn' },
+    { city: 'Đà Nẵng', district: 'Quận Sơn Trà', address: 'Võ Nguyên Giáp' },
+    { city: 'Đà Nẵng', district: 'Quận Thanh Khê', address: 'Nguyễn Văn Linh' },
+    { city: 'Đà Nẵng', district: 'Quận Cẩm Lệ', address: 'Cách Mạng Tháng Tám' },
+  ],
+  cantho: [
+    { city: 'Cần Thơ', district: 'Quận Ninh Kiều', address: 'Đại lộ Hòa Bình' },
+    { city: 'Cần Thơ', district: 'Quận Cái Răng', address: 'Quốc lộ 1A' },
+    { city: 'Cần Thơ', district: 'Quận Bình Thủy', address: 'Lê Hồng Phong' },
+  ],
+  haiphong: [
+    { city: 'Hải Phòng', district: 'Quận Ngô Quyền', address: 'Lê Hồng Phong' },
+    { city: 'Hải Phòng', district: 'Quận Hồng Bàng', address: 'Điện Biên Phủ' },
+    { city: 'Hải Phòng', district: 'Quận Lê Chân', address: 'Tô Hiệu' },
+  ],
+  dongnai: [
+    { city: 'Đồng Nai', district: 'Thành phố Biên Hòa', address: 'Võ Thị Sáu' },
+    { city: 'Đồng Nai', district: 'Huyện Long Thành', address: 'Quốc lộ 51' },
+    { city: 'Đồng Nai', district: 'Thành phố Long Khánh', address: 'Hùng Vương' },
+  ],
+  bacninh: [
+    { city: 'Bắc Ninh', district: 'Thành phố Bắc Ninh', address: 'Lý Thái Tổ' },
+    { city: 'Bắc Ninh', district: 'Thành phố Từ Sơn', address: 'Trần Phú' },
+    { city: 'Bắc Ninh', district: 'Huyện Tiên Du', address: 'KCN Tiên Sơn' },
+  ],
+  hue: [
+    { city: 'Huế', district: 'Khu vực Thuận Hóa', address: 'Lê Lợi' },
+    { city: 'Huế', district: 'Khu vực Hương Thủy', address: 'Nguyễn Tất Thành' },
+  ],
+  khanhhoa: [
+    { city: 'Khánh Hòa', district: 'Thành phố Nha Trang', address: 'Trần Phú' },
+    { city: 'Khánh Hòa', district: 'Thành phố Cam Ranh', address: 'Nguyễn Tất Thành' },
+  ],
+  lamdong: [
+    { city: 'Lâm Đồng', district: 'Thành phố Đà Lạt', address: 'Trần Phú' },
+    { city: 'Lâm Đồng', district: 'Thành phố Bảo Lộc', address: 'Nguyễn Công Trứ' },
+  ],
+  tayninh: [
+    { city: 'Tây Ninh', district: 'Khu vực Tây Ninh', address: 'Cách Mạng Tháng Tám' },
+    { city: 'Tây Ninh', district: 'Khu vực Tân An', address: 'Hùng Vương' },
+    { city: 'Tây Ninh', district: 'Khu vực Đức Hòa', address: 'Tỉnh lộ 824' },
+  ],
+  quangninh: [
+    { city: 'Quảng Ninh', district: 'Thành phố Hạ Long', address: 'Hạ Long' },
+    { city: 'Quảng Ninh', district: 'Thành phố Cẩm Phả', address: 'Trần Phú' },
+  ],
+  thainguyen: [
+    { city: 'Thái Nguyên', district: 'Thành phố Thái Nguyên', address: 'Hoàng Văn Thụ' },
+    { city: 'Thái Nguyên', district: 'Thành phố Phổ Yên', address: 'KCN Yên Bình' },
+  ],
+};
+
+const fallbackLocationKeys = [
+  'hcm',
+  'hanoi',
+  'danang',
+  'cantho',
+  'haiphong',
+  'dongnai',
+  'bacninh',
+  'hue',
+  'khanhhoa',
+  'lamdong',
+  'tayninh',
+  'quangninh',
+  'thainguyen',
+];
+
+function getStableIndex(seed: string, length: number) {
+  return Math.abs(createHash('md5').update(seed).digest().readInt32BE(0)) % length;
+}
+
+function getLocationKey(cityInput: string | null) {
+  const cleanCity = (cityInput || '').trim().toLowerCase();
+
+  if (
+    cleanCity.includes('ho chi minh') ||
+    cleanCity.includes('hcm') ||
+    cleanCity.includes('sai gon')
+  ) {
+    return 'hcm';
+  }
+  if (cleanCity.includes('ha noi') || cleanCity.includes('hanoi')) return 'hanoi';
+  if (cleanCity.includes('da nang') || cleanCity.includes('danang')) return 'danang';
+  if (cleanCity.includes('can tho') || cleanCity.includes('cantho')) return 'cantho';
+  if (cleanCity.includes('hai phong') || cleanCity.includes('haiphong')) return 'haiphong';
+  if (
+    cleanCity.includes('binh duong') ||
+    cleanCity.includes('vung tau') ||
+    cleanCity.includes('ba ria')
+  ) {
+    return 'hcm';
+  }
+  if (cleanCity.includes('dong nai') || cleanCity.includes('bien hoa')) return 'dongnai';
+  if (cleanCity.includes('bac ninh')) return 'bacninh';
+  if (cleanCity.includes('hue') || cleanCity.includes('thua thien')) return 'hue';
+  if (cleanCity.includes('khanh hoa') || cleanCity.includes('nha trang')) return 'khanhhoa';
+  if (cleanCity.includes('lam dong') || cleanCity.includes('da lat')) return 'lamdong';
+  if (cleanCity.includes('tay ninh') || cleanCity.includes('long an')) return 'tayninh';
+  if (cleanCity.includes('quang ninh') || cleanCity.includes('ha long')) return 'quangninh';
+  if (cleanCity.includes('thai nguyen')) return 'thainguyen';
+
+  return fallbackLocationKeys[
+    getStableIndex(cleanCity || 'vietnam-location', fallbackLocationKeys.length)
+  ];
+}
+
+function getRandomLocationDetails(
+  cityInput: string | null,
+  seedInput = '',
+): {
   city: string;
   district: string;
   address: string;
 } {
-  const cleanCity = (cityInput || '').trim().toLowerCase();
-
-  const hanoiDetails = [
-    { district: 'Quận Cầu Giấy', address: 'Dịch Vọng Hậu' },
-    { district: 'Quận Đống Đa', address: 'Chùa Bộc' },
-    { district: 'Quận Ba Đình', address: 'Kim Mã' },
-    { district: 'Quận Hai Bà Trưng', address: 'Đại Cồ Việt' },
-    { district: 'Quận Hoàn Kiếm', address: 'Tràng Tiền' },
-    { district: 'Quận Thanh Xuân', address: 'Nguyễn Trãi' },
-  ];
-
-  const hcmDetails = [
-    { district: 'Quận 1', address: 'Nguyễn Huệ' },
-    { district: 'Quận Bình Thạnh', address: 'Điện Biên Phủ' },
-    { district: 'Quận 3', address: 'Cách Mạng Tháng Tám' },
-    { district: 'Quận 2', address: 'Xa Lộ Hà Nội' },
-    { district: 'Quận 7', address: 'Nguyễn Văn Linh' },
-    { district: 'Quận Tân Bình', address: 'Cộng Hòa' },
-  ];
-
-  const danangDetails = [
-    { district: 'Quận Hải Châu', address: 'Lê Duẩn' },
-    { district: 'Quận Sơn Trà', address: 'Võ Nguyên Giáp' },
-    { district: 'Quận Thanh Khê', address: 'Nguyễn Văn Linh' },
-    { district: 'Quận Cẩm Lệ', address: 'Cách Mạng Tháng Tám' },
-  ];
-
-  const canthoDetails = [
-    { district: 'Quận Ninh Kiều', address: 'Đại Lộ Hòa Bình' },
-    { district: 'Quận Cái Răng', address: 'Quốc Lộ 1A' },
-    { district: 'Quận Bình Thủy', address: 'Lê Hồng Phong' },
-  ];
-
-  let pool = hcmDetails;
-  let cityName = 'Hồ Chí Minh';
-
-  if (cleanCity.includes('hanoi') || cleanCity.includes('ha noi')) {
-    pool = hanoiDetails;
-    cityName = 'Hà Nội';
-  } else if (cleanCity.includes('da nang') || cleanCity.includes('danang')) {
-    pool = danangDetails;
-    cityName = 'Đà Nẵng';
-  } else if (cleanCity.includes('can tho') || cleanCity.includes('cantho')) {
-    pool = canthoDetails;
-    cityName = 'Cần Thơ';
-  } else if (
-    cleanCity.includes('ho chi minh') ||
-    cleanCity.includes('hcm') ||
-    cleanCity.includes('gia dinh')
-  ) {
-    pool = hcmDetails;
-    cityName = 'Hồ Chí Minh';
-  } else {
-    if (Math.random() > 0.5) {
-      pool = hanoiDetails;
-      cityName = 'Hà Nội';
-    } else {
-      pool = hcmDetails;
-      cityName = 'Hồ Chí Minh';
-    }
-  }
-
-  const randomDetail = pool[Math.floor(Math.random() * pool.length)];
-  const streetNumber = Math.floor(Math.random() * 299) + 1;
+  const locationKey = getLocationKey(cityInput);
+  const pool = vietnamLocationPools[locationKey];
+  const seed = `${cityInput || 'vietnam-location'}:${seedInput || locationKey}`;
+  const randomDetail = pool[getStableIndex(seed, pool.length)];
+  const streetNumber = getStableIndex(`${seed}:street-number`, 299) + 1;
 
   return {
-    city: cityName,
+    city: randomDetail.city,
     district: randomDetail.district,
     address: `${streetNumber} ${randomDetail.address}`,
   };
+}
+
+const seedLogoColors = [
+  '2563EB',
+  '0F766E',
+  '7C3AED',
+  'C2410C',
+  'BE123C',
+  '047857',
+  '4338CA',
+  'B45309',
+  '0369A1',
+  '4D7C0F',
+];
+
+function getCompanyLogoUrl(name: string, seed: string) {
+  const background = seedLogoColors[getStableIndex(seed, seedLogoColors.length)];
+  const encodedName = encodeURIComponent(name || seed || 'Company');
+
+  return `https://ui-avatars.com/api/?name=${encodedName}&background=${background}&color=fff&size=160&bold=true&format=png`;
 }
 
 async function cleanHomeSeedData() {
@@ -1255,61 +1745,64 @@ async function main() {
 
   const skills = Object.fromEntries(
     await Promise.all(
-      [
-        'TypeScript',
-        'NestJS',
-        'Prisma',
-        'React',
-        'AWS',
-        'AI',
-        'QA',
-        'Figma',
-        'Node.js',
-        'Express',
-        'JavaScript',
-        'Java',
-        'Spring Boot',
-        'Python',
-        'Django',
-        'FastAPI',
-        'Go',
-        'Rust',
-        'C#',
-        '.NET',
-        'PHP',
-        'Laravel',
-        'HTML',
-        'CSS',
-        'Vue.js',
-        'Angular',
-        'Next.js',
-        'Tailwind CSS',
-        'SQL',
-        'PostgreSQL',
-        'MySQL',
-        'MongoDB',
-        'Redis',
-        'Elasticsearch',
-        'Docker',
-        'Kubernetes',
-        'GCP',
-        'Azure',
-        'CI/CD',
-        'Git',
-        'QA Automation',
-        'Manual Testing',
-        'Cypress',
-        'Jest',
-        'Machine Learning',
-        'Deep Learning',
-        'NLP',
-        'PyTorch',
-        'TensorFlow',
-        'LLM',
-        'LangChain',
-        'Agile/Scrum',
-        'Project Management',
-      ].map(async (name) => {
+      Array.from(
+        new Set([
+          'TypeScript',
+          'NestJS',
+          'Prisma',
+          'React',
+          'AWS',
+          'AI',
+          'QA',
+          'Figma',
+          'Node.js',
+          'Express',
+          'JavaScript',
+          'Java',
+          'Spring Boot',
+          'Python',
+          'Django',
+          'FastAPI',
+          'Go',
+          'Rust',
+          'C#',
+          '.NET',
+          'PHP',
+          'Laravel',
+          'HTML',
+          'CSS',
+          'Vue.js',
+          'Angular',
+          'Next.js',
+          'Tailwind CSS',
+          'SQL',
+          'PostgreSQL',
+          'MySQL',
+          'MongoDB',
+          'Redis',
+          'Elasticsearch',
+          'Docker',
+          'Kubernetes',
+          'GCP',
+          'Azure',
+          'CI/CD',
+          'Git',
+          'QA Automation',
+          'Manual Testing',
+          'Cypress',
+          'Jest',
+          'Machine Learning',
+          'Deep Learning',
+          'NLP',
+          'PyTorch',
+          'TensorFlow',
+          'LLM',
+          'LangChain',
+          'Agile/Scrum',
+          'Project Management',
+          ...inferredSkillNames,
+        ]),
+      ).map(async (name) => {
         const categoryId = getCategoryForSkill(name, categories);
         const skill = await prisma.skill.upsert({
           where: { name },
@@ -1429,13 +1922,6 @@ async function main() {
     };
   });
 
-  const logoUrls: Record<string, string> = {
-    alpha: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&h=150&fit=crop&q=80',
-    beta: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=150&h=150&fit=crop&q=80',
-    gamma: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=150&h=150&fit=crop&q=80',
-    delta: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=150&h=150&fit=crop&q=80',
-  };
-
   const coverUrls: Record<string, string> = {
     alpha: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=400&fit=crop&q=80',
     beta: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=800&h=400&fit=crop&q=80',
@@ -1455,8 +1941,7 @@ async function main() {
         originalName: `${company.key}-logo.png`,
         mimeType: 'image/png',
         sizeBytes: BigInt(2048),
-        publicUrl:
-          logoUrls[company.key] || `https://cdn.seed-home-test.local/${company.key}/logo.png`,
+        publicUrl: getCompanyLogoUrl(company.name, company.key),
       },
       {
         id: company.coverFileId,
@@ -2467,8 +2952,8 @@ async function main() {
       experienceLevelKey: 'senior',
       jobCategoryKey: 'data',
       workMode: WorkingModel.ONSITE,
-      city: 'Ho Chi Minh City',
-      district: 'District 3',
+      city: 'Binh Duong',
+      district: 'Thu Dau Mot',
       salaryMin: 30000000,
       salaryMax: 45000000,
       salaryIsNegotiable: false,
@@ -2484,8 +2969,8 @@ async function main() {
       experienceLevelKey: 'mid',
       jobCategoryKey: 'operations',
       workMode: WorkingModel.REMOTE,
-      city: 'Ho Chi Minh City',
-      district: 'Phu Nhuan',
+      city: 'Dong Nai',
+      district: 'Bien Hoa',
       salaryMin: 15000000,
       salaryMax: 22000000,
       salaryIsNegotiable: false,
@@ -2501,8 +2986,8 @@ async function main() {
       experienceLevelKey: 'junior',
       jobCategoryKey: 'backend',
       workMode: WorkingModel.HYBRID,
-      city: 'Ho Chi Minh City',
-      district: 'Binh Thanh',
+      city: 'Hai Phong',
+      district: 'Ngo Quyen',
       salaryMin: 12000000,
       salaryMax: 20000000,
       salaryIsNegotiable: false,
@@ -2535,8 +3020,8 @@ async function main() {
       experienceLevelKey: 'fresher',
       jobCategoryKey: 'design',
       workMode: WorkingModel.REMOTE,
-      city: 'Da Nang',
-      district: 'Thanh Khe',
+      city: 'Hue',
+      district: 'Hue City',
       salaryMin: 12000000,
       salaryMax: 16000000,
       salaryIsNegotiable: false,
@@ -2552,8 +3037,8 @@ async function main() {
       experienceLevelKey: 'lead',
       jobCategoryKey: 'operations',
       workMode: WorkingModel.ONSITE,
-      city: 'Da Nang',
-      district: 'Son Tra',
+      city: 'Khanh Hoa',
+      district: 'Nha Trang',
       salaryMin: 45000000,
       salaryMax: 65000000,
       salaryIsNegotiable: false,
@@ -2569,8 +3054,8 @@ async function main() {
       experienceLevelKey: 'fresher',
       jobCategoryKey: 'backend',
       workMode: WorkingModel.REMOTE,
-      city: 'Da Nang',
-      district: 'Ngu Hanh Son',
+      city: 'Lam Dong',
+      district: 'Da Lat',
       salaryMin: null,
       salaryMax: null,
       salaryIsNegotiable: true,
@@ -2603,8 +3088,8 @@ async function main() {
       experienceLevelKey: 'junior',
       jobCategoryKey: 'frontend',
       workMode: WorkingModel.REMOTE,
-      city: 'Ha Noi',
-      district: 'Dong Da',
+      city: 'Bac Ninh',
+      district: 'Tu Son',
       salaryMin: 14000000,
       salaryMax: 22000000,
       salaryIsNegotiable: false,
@@ -2620,8 +3105,8 @@ async function main() {
       experienceLevelKey: 'intern',
       jobCategoryKey: 'operations',
       workMode: WorkingModel.ONSITE,
-      city: 'Ha Noi',
-      district: 'Ba Dinh',
+      city: 'Thai Nguyen',
+      district: 'Thai Nguyen City',
       salaryMin: 3000000,
       salaryMax: 5000000,
       salaryIsNegotiable: false,
@@ -2637,8 +3122,8 @@ async function main() {
       experienceLevelKey: 'mid',
       jobCategoryKey: 'design',
       workMode: WorkingModel.REMOTE,
-      city: 'Ha Noi',
-      district: 'Hoan Kiem',
+      city: 'Quang Ninh',
+      district: 'Ha Long',
       salaryMin: null,
       salaryMax: null,
       salaryIsNegotiable: true,
@@ -2671,8 +3156,8 @@ async function main() {
       experienceLevelKey: 'intern',
       jobCategoryKey: 'operations',
       workMode: WorkingModel.HYBRID,
-      city: 'Can Tho',
-      district: 'Binh Thuy',
+      city: 'Ba Ria - Vung Tau',
+      district: 'Vung Tau',
       salaryMin: 4000000,
       salaryMax: 6000000,
       salaryIsNegotiable: false,
@@ -2688,8 +3173,8 @@ async function main() {
       experienceLevelKey: 'mid',
       jobCategoryKey: 'operations',
       workMode: WorkingModel.ONSITE,
-      city: 'Can Tho',
-      district: 'Cai Rang',
+      city: 'Long An',
+      district: 'Tan An',
       salaryMin: 15000000,
       salaryMax: 21000000,
       salaryIsNegotiable: false,
@@ -2786,70 +3271,15 @@ async function main() {
   });
 
   const jobLocations = jobs.map((job) => {
-    let cleanCity = job.city as string;
-    let cleanDistrict = job.district as string;
-
-    if (cleanCity === 'Ho Chi Minh City') cleanCity = 'Hồ Chí Minh';
-    else if (cleanCity === 'Ha Noi') cleanCity = 'Hà Nội';
-    else if (cleanCity === 'Da Nang') cleanCity = 'Đà Nẵng';
-    else if (cleanCity === 'Can Tho') cleanCity = 'Cần Thơ';
-
-    if (cleanDistrict.startsWith('District ')) {
-      cleanDistrict = cleanDistrict.replace('District ', 'Quận ');
-    } else if (cleanDistrict === 'Phu Nhuan') {
-      cleanDistrict = 'Quận Phú Nhuận';
-    } else if (cleanDistrict === 'Binh Thanh') {
-      cleanDistrict = 'Quận Bình Thạnh';
-    } else if (cleanDistrict === 'Hai Chau') {
-      cleanDistrict = 'Quận Hải Châu';
-    } else if (cleanDistrict === 'Thanh Khe') {
-      cleanDistrict = 'Quận Thanh Khê';
-    } else if (cleanDistrict === 'Son Tra') {
-      cleanDistrict = 'Quận Sơn Trà';
-    } else if (cleanDistrict === 'Ngu Hanh Son') {
-      cleanDistrict = 'Quận Ngũ Hành Sơn';
-    } else if (cleanDistrict === 'Ba Dinh') {
-      cleanDistrict = 'Quận Ba Đình';
-    } else if (cleanDistrict === 'Cau Giay') {
-      cleanDistrict = 'Quận Cầu Giấy';
-    } else if (cleanDistrict === 'Hai Ba Trung') {
-      cleanDistrict = 'Quận Hai Bà Trưng';
-    } else if (cleanDistrict === 'Dong Da') {
-      cleanDistrict = 'Quận Đống Đa';
-    } else if (cleanDistrict === 'Ninh Kieu') {
-      cleanDistrict = 'Quận Ninh Kiều';
-    } else if (cleanDistrict === 'Binh Thuy') {
-      cleanDistrict = 'Quận Bình Thủy';
-    } else if (cleanDistrict === 'Cai Rang') {
-      cleanDistrict = 'Quận Cái Răng';
-    } else if (cleanDistrict === 'O Mon') {
-      cleanDistrict = 'Quận Ô Môn';
-    }
-
-    const streetNumber = Math.floor(Math.random() * 290) + 1;
-    const streetNames: Record<string, string[]> = {
-      'Hồ Chí Minh': [
-        'Nguyễn Huệ',
-        'Điện Biên Phủ',
-        'Cách Mạng Tháng Tám',
-        'Xa Lộ Hà Nội',
-        'Nguyễn Văn Linh',
-        'Cộng Hòa',
-      ],
-      'Hà Nội': ['Dịch Vọng Hậu', 'Chùa Bộc', 'Kim Mã', 'Đại Cồ Việt', 'Tràng Tiền', 'Nguyễn Trãi'],
-      'Đà Nẵng': ['Lê Duẩn', 'Võ Nguyên Giáp', 'Nguyễn Văn Linh', 'Cách Mạng Tháng Tám'],
-      'Cần Thơ': ['Đại Lộ Hòa Bình', 'Quốc Lộ 1A', 'Lê Hồng Phong'],
-    };
-    const streets = streetNames[cleanCity] || ['Nguyễn Trãi'];
-    const randomStreet = streets[Math.floor(Math.random() * streets.length)];
+    const locationDetails = getRandomLocationDetails(job.city as string, job.title);
 
     return {
       id: randomUUID(),
       jobPostId: job.id,
       country: 'Vietnam',
-      city: cleanCity,
-      district: cleanDistrict,
-      address: `${streetNumber} Đường ${randomStreet}`,
+      city: locationDetails.city,
+      district: locationDetails.district,
+      address: `${locationDetails.address}, ${locationDetails.district}`,
       workingModel: job.workMode,
       createdAt: job.createdAt,
     };
@@ -2877,8 +3307,21 @@ async function main() {
 
   await prisma.jobPostSkill.createMany({
     data: jobs.flatMap((job) =>
-      job.skills
+      Array.from(
+        new Set([
+          ...job.skills,
+          ...inferJobSkillNames({
+            title: job.title,
+            description: jobDetailsMap[job.title]?.description,
+            requirements: jobDetailsMap[job.title]?.requirements,
+            benefits: jobDetailsMap[job.title]?.benefits,
+            categoryName: job.jobCategoryKey,
+            specializations: job.specializations.map((slug) => ({ slug })),
+          }),
+        ]),
+      )
         .filter((skillName) => skillName in skills)
+        .slice(0, 8)
         .map((skillName) => ({
           jobPostId: job.id,
           skillId: skills[skillName as keyof typeof skills].id,
@@ -4126,6 +4569,7 @@ async function importItviecData(
     if (!item.Slug || !item.Name) continue;
 
     const logoFileId = randomUUID();
+    const logoUrl = item.Logo as string;
     await prisma.fileAsset.create({
       data: {
         id: logoFileId,
@@ -4136,7 +4580,7 @@ async function importItviecData(
         originalName: `${item.Slug}-logo`,
         mimeType: 'image/png',
         sizeBytes: BigInt(0),
-        publicUrl: item.Logo || null,
+        publicUrl: logoUrl,
       },
     });
 
@@ -4243,7 +4687,7 @@ async function importItviecData(
         id: recruiterProfileId,
         recruiterAccountId: recruiterId,
         fullName: `${item.Name} Recruiter`,
-        avatarUrl: (item.Logo as string | undefined) || null,
+        avatarUrl: logoUrl,
       },
     });
 
@@ -4320,9 +4764,9 @@ async function importItviecData(
         employmentTypeId: employmentTypeId,
         title: job.jobPost.title,
         slug: jobSlug,
-        description: job.jobPost.description || '',
-        requirements: job.jobPost.requirements || null,
-        benefits: job.jobPost.benefits || null,
+        description: formatJobRichText(job.jobPost.description, 'Mô tả công việc') || '',
+        requirements: formatJobRichText(job.jobPost.requirements, 'Yêu cầu ứng viên'),
+        benefits: formatJobRichText(job.jobPost.benefits, 'Quyền lợi'),
         salaryMin: job.jobPost.salaryMin != null ? job.jobPost.salaryMin : null,
         salaryMax: job.jobPost.salaryMax != null ? job.jobPost.salaryMax : null,
         salaryCurrency: job.jobPost.salaryCurrency || 'VND',
@@ -4343,41 +4787,8 @@ async function importItviecData(
         if (location.workingModel === 'REMOTE') workingModel = WorkingModel.REMOTE;
         else if (location.workingModel === 'HYBRID') workingModel = WorkingModel.HYBRID;
 
-        const locDetails = getRandomLocationDetails(location.city);
+        const locDetails = getRandomLocationDetails(location.city, job.jobPost.title);
         const locationId = randomUUID();
-        const addressesByCity: Record<string, string[]> = {
-          'Da Nang': [
-            'Lô C, Đường số 2, KCN An Đồn, Quận Sơn Trà',
-            'Lầu 4, Tòa nhà Indochina, 74 Bạch Đằng, Quận Hải Châu',
-            'Tầng 2, 103 Nguyễn Hữu Thọ, Quận Hải Châu',
-          ],
-          'Ha Noi': [
-            'Tầng 5, Tòa nhà HITC, 239 Xuân Thủy, Cầu Giấy',
-            'Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Nam Từ Liêm',
-            'Tầng 3, Tòa nhà Ladeco, 266 Đội Cấn, Ba Đình',
-          ],
-          'Ho Chi Minh': [
-            'Tầng 12, Tòa nhà Viettel, 285 Cách Mạng Tháng Tám, Quận 10',
-            'Tòa nhà Deutsches Haus, 33 Lê Duẩn, Bến Nghé, Quận 1',
-            'Tầng 6, Landmark 81, 720A Điện Biên Phủ, Bình Thạnh',
-          ],
-          'Can Tho': [
-            'Số 1, Đại lộ Hòa Bình, Quận Ninh Kiều',
-            'Khu Dân Cư Hồng Phát, An Bình, Ninh Kiều',
-            'Tầng 2, Tòa nhà STS, 11B Hòa Bình, Tân An, Ninh Kiều',
-          ],
-        };
-        const cityKey = location.city || 'Ho Chi Minh';
-        const cityList = addressesByCity[cityKey] || addressesByCity['Ho Chi Minh'];
-        const address =
-          cityList[
-            Math.abs(
-              createHash('md5')
-                .update(job.jobPost.title + locationId)
-                .digest()
-                .readInt32BE(0),
-            ) % cityList.length
-          ];
 
         await prisma.companyLocation.create({
           data: {
@@ -4399,9 +4810,41 @@ async function importItviecData(
       }
     }
 
-    if (job.skills && Array.isArray(job.skills)) {
+    const originalSkillItems =
+      job.skills && Array.isArray(job.skills)
+        ? job.skills.filter((skillItem) => Boolean(skillItem.name))
+        : [];
+    const inferredSkillItems = inferJobSkillNames({
+      title: job.jobPost.title,
+      categoryName: job.jobPost.jobCategoryName,
+      description: job.jobPost.description,
+      requirements: job.jobPost.requirements,
+      benefits: job.jobPost.benefits,
+      specializations: job.specializations,
+    }).map((name) => ({
+      name,
+      minYearsExperience: null,
+      inferred: true,
+    }));
+    const combinedSkillItems: Array<
+      ImportedItviecSkill & {
+        inferred?: boolean;
+      }
+    > = [];
+    const addedSkillNames = new Set<string>();
+
+    for (const skillItem of [...originalSkillItems, ...inferredSkillItems]) {
+      if (!skillItem.name) continue;
+      const normalizedName = skillItem.name.toLowerCase();
+      if (addedSkillNames.has(normalizedName)) continue;
+      addedSkillNames.add(normalizedName);
+      combinedSkillItems.push(skillItem);
+      if (combinedSkillItems.length >= 8) break;
+    }
+
+    if (combinedSkillItems.length > 0) {
       const addedSkillIds = new Set<string>();
-      for (const skillItem of job.skills) {
+      for (const skillItem of combinedSkillItems) {
         if (!skillItem.name) continue;
 
         const categoryId = getCategoryForSkill(skillItem.name, categories);
@@ -4420,7 +4863,7 @@ async function importItviecData(
             skillId: skill.id,
             minYearsExperience:
               skillItem.minYearsExperience != null ? skillItem.minYearsExperience : null,
-            priority: SkillPriority.REQUIRED,
+            priority: skillItem.inferred ? SkillPriority.NICE_TO_HAVE : SkillPriority.REQUIRED,
           },
         });
       }

@@ -11,16 +11,25 @@ import { CreateInterviewDto } from './dto/create-interview.dto';
 import { RescheduleInterviewDto } from './dto/reschedule-interview.dto';
 import { CancelInterviewDto } from './dto/cancel-interview.dto';
 import { UpdateInterviewResultDto } from './dto/update-interview-result.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class InterviewsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async create(dto: CreateInterviewDto, user: AuthenticatedUser) {
     const application = await this.prisma.application.findUnique({
       where: { id: dto.applicationId },
       include: {
         jobPost: true,
+        candidateProfile: {
+          select: {
+            candidateAccountId: true,
+          },
+        },
       },
     });
 
@@ -72,8 +81,8 @@ export class InterviewsService {
       recruiterProfileId = profile.id;
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const interview = await tx.interview.create({
+    const interview = await this.prisma.$transaction(async (tx) => {
+      const createdInterview = await tx.interview.create({
         data: {
           applicationId: dto.applicationId,
           recruiterProfileId: recruiterProfileId,
@@ -92,7 +101,7 @@ export class InterviewsService {
 
       await tx.interviewLog.create({
         data: {
-          interviewId: interview.id,
+          interviewId: createdInterview.id,
           newStatus: InterviewStatus.SCHEDULED,
           actorType: user.role,
           actorId: user.id,
@@ -100,8 +109,21 @@ export class InterviewsService {
         },
       });
 
-      return interview;
+      return createdInterview;
     });
+
+    if (application.candidateProfile?.candidateAccountId) {
+      this.notificationsService.createNotification({
+        recipientId: application.candidateProfile.candidateAccountId,
+        recipientType: ActorType.CANDIDATE,
+        title: 'Lịch hẹn phỏng vấn mới',
+        body: `Bạn có một lịch hẹn phỏng vấn mới cho vị trí ${application.jobPost.title}.`,
+        targetType: 'INTERVIEW',
+        targetId: interview.id,
+      }).catch(() => {});
+    }
+
+    return interview;
   }
 
   async findOne(id: string, user: AuthenticatedUser) {
@@ -191,7 +213,16 @@ export class InterviewsService {
         application: {
           include: {
             jobPost: true,
-            candidateProfile: true,
+            candidateProfile: {
+              select: {
+                candidateAccountId: true,
+              },
+            },
+          },
+        },
+        recruiterProfile: {
+          select: {
+            recruiterAccountId: true,
           },
         },
       },
@@ -216,8 +247,8 @@ export class InterviewsService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.interview.update({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updatedInterview = await tx.interview.update({
         where: { id },
         data: {
           scheduledStartAt: new Date(dto.scheduledStartAt),
@@ -242,8 +273,27 @@ export class InterviewsService {
         },
       });
 
-      return updated;
+      return updatedInterview;
     });
+
+    const isCandidate = user.role === ActorType.CANDIDATE;
+    const recipientId = isCandidate
+      ? interview.recruiterProfile?.recruiterAccountId
+      : interview.application.candidateProfile?.candidateAccountId;
+    const recipientType = isCandidate ? ActorType.RECRUITER : ActorType.CANDIDATE;
+
+    if (recipientId) {
+      this.notificationsService.createNotification({
+        recipientId,
+        recipientType,
+        title: 'Lịch phỏng vấn thay đổi',
+        body: `Lịch phỏng vấn vị trí ${interview.application.jobPost.title} đã được dời thời gian.`,
+        targetType: 'INTERVIEW',
+        targetId: id,
+      }).catch(() => {});
+    }
+
+    return updated;
   }
 
   async cancel(id: string, dto: CancelInterviewDto, user: AuthenticatedUser) {
@@ -253,7 +303,16 @@ export class InterviewsService {
         application: {
           include: {
             jobPost: true,
-            candidateProfile: true,
+            candidateProfile: {
+              select: {
+                candidateAccountId: true,
+              },
+            },
+          },
+        },
+        recruiterProfile: {
+          select: {
+            recruiterAccountId: true,
           },
         },
       },
@@ -272,8 +331,8 @@ export class InterviewsService {
       throw new BadRequestException('Cannot cancel a cancelled or completed interview');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.interview.update({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updatedInterview = await tx.interview.update({
         where: { id },
         data: {
           status: InterviewStatus.CANCELLED,
@@ -291,8 +350,27 @@ export class InterviewsService {
         },
       });
 
-      return updated;
+      return updatedInterview;
     });
+
+    const isCandidate = user.role === ActorType.CANDIDATE;
+    const recipientId = isCandidate
+      ? interview.recruiterProfile?.recruiterAccountId
+      : interview.application.candidateProfile?.candidateAccountId;
+    const recipientType = isCandidate ? ActorType.RECRUITER : ActorType.CANDIDATE;
+
+    if (recipientId) {
+      this.notificationsService.createNotification({
+        recipientId,
+        recipientType,
+        title: 'Lịch phỏng vấn bị hủy',
+        body: `Lịch phỏng vấn vị trí ${interview.application.jobPost.title} đã bị hủy.`,
+        targetType: 'INTERVIEW',
+        targetId: id,
+      }).catch(() => {});
+    }
+
+    return updated;
   }
 
   async updateResult(id: string, dto: UpdateInterviewResultDto, user: AuthenticatedUser) {
@@ -302,7 +380,11 @@ export class InterviewsService {
         application: {
           include: {
             jobPost: true,
-            candidateProfile: true,
+            candidateProfile: {
+              select: {
+                candidateAccountId: true,
+              },
+            },
           },
         },
       },
@@ -328,13 +410,13 @@ export class InterviewsService {
       throw new BadRequestException('Cannot update result of a cancelled interview');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const feedback = dto.feedbackNote ? `[Feedback]: ${dto.feedbackNote}` : '';
       const updatedNote = interview.recruiterNote
         ? `${interview.recruiterNote}\n${feedback}`.trim()
         : feedback;
 
-      const updated = await tx.interview.update({
+      const updatedInterview = await tx.interview.update({
         where: { id },
         data: {
           result: dto.result,
@@ -354,8 +436,21 @@ export class InterviewsService {
         },
       });
 
-      return updated;
+      return updatedInterview;
     });
+
+    if (interview.application.candidateProfile?.candidateAccountId) {
+      this.notificationsService.createNotification({
+        recipientId: interview.application.candidateProfile.candidateAccountId,
+        recipientType: ActorType.CANDIDATE,
+        title: 'Kết quả phỏng vấn',
+        body: `Kết quả phỏng vấn vị trí ${interview.application.jobPost.title} của bạn đã được cập nhật thành: ${dto.result}.`,
+        targetType: 'INTERVIEW',
+        targetId: id,
+      }).catch(() => {});
+    }
+
+    return updated;
   }
 
   private checkAccessPermission(interview: any, user: AuthenticatedUser) {

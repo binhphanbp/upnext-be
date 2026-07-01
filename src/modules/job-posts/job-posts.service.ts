@@ -345,12 +345,59 @@ export class JobPostsService {
 
   private publicJobPostInclude() {
     return {
-      company: true,
+      company: {
+        select: {
+          id: true,
+          logoFileId: true,
+          type: true,
+          name: true,
+          slug: true,
+          taxCode: true,
+          address: true,
+          email: true,
+          phone: true,
+          website: true,
+          description: true,
+          companySize: true,
+          verificationStatus: true,
+          reputationScore: true,
+          status: true,
+          lockedReason: true,
+          lockedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          logoFile: {
+            select: {
+              id: true,
+              publicUrl: true,
+              mimeType: true,
+              originalName: true,
+            },
+          },
+        },
+      },
       jobCategory: true,
       employmentType: true,
       experienceLevel: true,
       jobPostSkills: { include: { skill: true } },
-      jobPostLocations: { include: { jobLocation: true } },
+      jobPostLocations: {
+        include: {
+          jobLocation: {
+            select: {
+              id: true,
+              country: true,
+              workingModel: true,
+              city: true,
+              district: true,
+              address: true,
+              latitude: true,
+              longitude: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+        },
+      },
       jobPostSpecializations: { include: { specialization: true } },
     } satisfies Prisma.JobPostInclude;
   }
