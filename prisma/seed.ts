@@ -1666,7 +1666,7 @@ async function main() {
       email: def.email,
       fullName: def.fullName,
       roleCode: def.roleCode,
-      createdAt: addDays(now, - (def.companyIndex % 5) * 3),
+      createdAt: addDays(now, -(def.companyIndex % 5) * 3),
     };
   });
 
@@ -1790,7 +1790,7 @@ async function main() {
       cvVersionId,
       email: `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName)}@gmail.com`,
       fullName,
-      createdAt: addDays(now, - (index % 30)),
+      createdAt: addDays(now, -(index % 30)),
     };
   });
 

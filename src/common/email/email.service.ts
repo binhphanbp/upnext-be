@@ -60,14 +60,53 @@ export class EmailService {
     });
   }
 
+  async sendRecruiterEmailVerification(params: {
+    to: string;
+    recruiterName?: string | null;
+    verificationLink: string;
+  }) {
+    const html = this.renderTemplate('recruiter-email-verification.html', {
+      recruiterName: params.recruiterName?.trim() || params.to,
+      verificationLink: params.verificationLink,
+    });
+
+    await this.sendMail({
+      to: params.to,
+      subject: 'Xác thực email nhà tuyển dụng UpNext',
+      text: `Nhấn vào link để xác thực email: ${params.verificationLink}`,
+      html,
+      attachments: [
+        {
+          filename: 'upnext-logo.png',
+          path: this.resolveEmailAssetPath('upnext-logo.png'),
+          cid: 'upnext-logo',
+        },
+        {
+          filename: 'hero-banner.png',
+          path: this.resolveEmailAssetPath('hero-banner.png'),
+          cid: 'hero-banner',
+        },
+      ],
+      fallbackLog: `Recruiter email verification link for ${params.to}: ${params.verificationLink}`,
+    });
+  }
+
   async sendPasswordReset(params: {
     to: string;
     resetLink: string;
     actor: 'candidate' | 'recruiter';
+    locale?: string;
   }) {
-    const html = this.renderTemplate('password-reset.html', {
+    const lang = params.locale === 'en' ? 'en' : 'vi';
+    const templateName = `password-reset-${lang}.html`;
+    const subject = lang === 'en' ? 'Reset your UpNext Password' : 'Đặt lại mật khẩu UpNext';
+    const bodyText = lang === 'en' 
+      ? `Click the link to reset your password: ${params.resetLink}` 
+      : `Nhấn vào link để đặt lại mật khẩu: ${params.resetLink}`;
+
+    const html = this.renderTemplate(templateName, {
       resetLink: params.resetLink,
-      sentDate: this.formatSentDate(),
+      sentDate: this.formatSentDate(lang),
       privacyLink: this.resolveFrontendLink('/privacy'),
       unsubscribeLink: this.resolveFrontendLink('/unsubscribe'),
       termsLink: this.resolveFrontendLink('/terms'),
@@ -75,9 +114,21 @@ export class EmailService {
 
     await this.sendMail({
       to: params.to,
-      subject: 'Đặt lại mật khẩu UpNext',
-      text: `Nhấn vào link để đặt lại mật khẩu: ${params.resetLink}`,
+      subject,
+      text: bodyText,
       html,
+      attachments: [
+        {
+          filename: 'upnext-logo.png',
+          path: this.resolveEmailAssetPath('upnext-logo.png'),
+          cid: 'upnext-logo',
+        },
+        {
+          filename: 'rotation-lock.png',
+          path: this.resolveEmailAssetPath('rotation-lock.png'),
+          cid: 'rotation-lock',
+        },
+      ],
       fallbackLog: `${params.actor} password reset link for ${params.to}: ${params.resetLink}`,
     });
   }
@@ -158,8 +209,9 @@ export class EmailService {
     return new URL(path, frontendUrl).toString();
   }
 
-  private formatSentDate() {
-    return new Intl.DateTimeFormat('vi-VN', {
+  private formatSentDate(locale?: string) {
+    const formatLocale = locale === 'en' ? 'en-US' : 'vi-VN';
+    return new Intl.DateTimeFormat(formatLocale, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',

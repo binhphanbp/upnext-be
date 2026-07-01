@@ -15,6 +15,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { CandidateAccountAuthService } from './candidate-account-auth.service';
 import { VerifyCandidateEmailDto } from './dto/verify-candidate-email.dto';
 import {
@@ -23,6 +24,7 @@ import {
 } from './entities/email-verification.entity';
 
 @ApiTags('Candidate - Account')
+@UseGuards(ThrottlerGuard)
 @Controller('candidate-accounts/email-verification')
 export class CandidateAccountEmailVerificationController {
   constructor(private readonly candidateAccountAuthService: CandidateAccountAuthService) {}

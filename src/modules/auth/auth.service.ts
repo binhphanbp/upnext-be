@@ -51,11 +51,11 @@ export class AuthService {
     };
   }
 
-  async signEmailVerificationToken(user: { id: string; email: string }) {
+  async signEmailVerificationToken(user: { id: string; email: string; role: ActorType }) {
     const payload: EmailVerificationTokenPayload = {
       sub: user.id,
       email: user.email,
-      role: ActorType.CANDIDATE,
+      role: user.role,
       purpose: 'email-verification',
     };
 
@@ -68,7 +68,10 @@ export class AuthService {
     try {
       const payload = await this.jwtService.verifyAsync<EmailVerificationTokenPayload>(token);
 
-      if (payload.role !== ActorType.CANDIDATE || payload.purpose !== 'email-verification') {
+      if (
+        (payload.role !== ActorType.CANDIDATE && payload.role !== ActorType.RECRUITER) ||
+        payload.purpose !== 'email-verification'
+      ) {
         throw new UnauthorizedException('Token xác thực email không hợp lệ');
       }
 
