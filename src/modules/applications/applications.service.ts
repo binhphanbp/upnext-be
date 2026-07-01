@@ -8,16 +8,21 @@ import {
 import { ActorType, ApplicationStatus, JobStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ApplyJobDto } from './dto/apply-job.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ApplicationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async applyJob(candidateAccountId: string, dto: ApplyJobDto) {
     const candidateAccount = await this.prisma.candidateAccount.findUnique({
       where: { id: candidateAccountId },
       select: {
         emailVerifiedAt: true,
+        fullName: true,
         profile: true,
       },
     });
@@ -69,8 +74,8 @@ export class ApplicationsService {
       throw new ConflictException('You have already applied to this job');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const app = await tx.application.create({
+    const app = await this.prisma.$transaction(async (tx) => {
+      const createdApp = await tx.application.create({
         data: {
           jobPostId: dto.jobPostId,
           candidateProfileId: profile.id,
@@ -82,7 +87,7 @@ export class ApplicationsService {
 
       await tx.applicationStatusLog.create({
         data: {
-          applicationId: app.id,
+          applicationId: createdApp.id,
           actorType: ActorType.CANDIDATE,
           actorId: candidateAccountId,
           oldStatus: null,
@@ -91,8 +96,21 @@ export class ApplicationsService {
         },
       });
 
-      return app;
+      return createdApp;
     });
+
+    if (jobPost.createdByRecruiterId) {
+      this.notificationsService.createNotification({
+        recipientId: jobPost.createdByRecruiterId,
+        recipientType: ActorType.RECRUITER,
+        title: 'Có hồ sơ ứng tuyển mới',
+        body: `${candidateAccount.fullName} đã nộp hồ sơ ứng tuyển vào vị trí ${jobPost.title}.`,
+        targetType: 'APPLICATION',
+        targetId: app.id,
+      }).catch(() => {});
+    }
+
+    return app;
   }
 
   async withdrawApplication(candidateAccountId: string, id: string) {
@@ -361,6 +379,11 @@ export class ApplicationsService {
       where: { id },
       include: {
         jobPost: true,
+        candidateProfile: {
+          select: {
+            candidateAccountId: true,
+          },
+        },
       },
     });
     if (!application) {
@@ -371,8 +394,8 @@ export class ApplicationsService {
       throw new ForbiddenException('You do not have permission to manage this application');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const updatedApp = await tx.application.update({
+    const updatedApp = await this.prisma.$transaction(async (tx) => {
+      const app = await tx.application.update({
         where: { id },
         data: { status },
       });
@@ -388,7 +411,20 @@ export class ApplicationsService {
         },
       });
 
-      return updatedApp;
+      return app;
     });
+
+    if (application.candidateProfile?.candidateAccountId) {
+      this.notificationsService.createNotification({
+        recipientId: application.candidateProfile.candidateAccountId,
+        recipientType: ActorType.CANDIDATE,
+        title: 'Trạng thái hồ sơ thay đổi',
+        body: `Hồ sơ ứng tuyển vị trí ${application.jobPost.title} của bạn đã được cập nhật thành: ${status}.`,
+        targetType: 'APPLICATION',
+        targetId: id,
+      }).catch(() => {});
+    }
+
+    return updatedApp;
   }
 }
