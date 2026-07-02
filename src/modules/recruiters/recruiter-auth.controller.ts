@@ -66,8 +66,8 @@ export class RecruiterAuthController {
       const result = await this.recruiterAuthService.loginOrRegisterGoogle(googleUser);
       const { accessToken } = result;
       return res.redirect(`${frontendUrl}/${locale}/recruiter/auth/callback?token=${accessToken}`);
-    } catch (error: any) {
-      const message = error.message || 'Đăng nhập thất bại';
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Đăng nhập thất bại';
       return res.redirect(
         `${frontendUrl}/${locale}/recruiter/login?error=${encodeURIComponent(message)}`,
       );
