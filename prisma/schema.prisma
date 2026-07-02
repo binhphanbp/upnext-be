@@ -269,6 +269,15 @@ enum MockInterviewStatus {
     CANCELED  @map("canceled")
 }
 
+enum EducationLevel {
+    ANY          @map("any")
+    HIGH_SCHOOL  @map("high_school")
+    VOCATIONAL   @map("vocational")
+    COLLEGE      @map("college")
+    BACHELOR     @map("bachelor")
+    POSTGRADUATE @map("postgraduate")
+}
+
 // =========================
 // Candidate module
 // =========================
@@ -834,6 +843,7 @@ model JobPost {
     description          String           @db.Text
     requirements         String?          @db.Text
     benefits             String?          @db.Text
+    educationLevel       EducationLevel   @default(ANY) @map("education_level")
     salaryMin            Decimal?         @map("salary_min") @db.Decimal(12, 2)
     salaryMax            Decimal?         @map("salary_max") @db.Decimal(12, 2)
     salaryCurrency       String           @default("VND") @map("salary_currency") @db.VarChar(10)

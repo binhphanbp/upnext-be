@@ -7,6 +7,7 @@ import {
   CompanyVerificationStatus,
   CvSource,
   CvStatus,
+  EducationLevel,
   FilePurpose,
   FileVisibility,
   InterviewResult,
@@ -2943,6 +2944,7 @@ async function main() {
       applications: [0, 1, 2, 3, 4],
       skills: ['TypeScript', 'NestJS', 'Prisma'],
       specializations: ['backend', 'cloud'],
+      educationLevel: EducationLevel.BACHELOR,
     },
     {
       title: 'Data Engineer',
@@ -3253,6 +3255,7 @@ async function main() {
       benefits:
         jobDetailsMap[job.title]?.benefits ||
         'Competitive benefits, learning budget, and remote-friendly work.',
+      educationLevel: (job as any).educationLevel || EducationLevel.ANY,
       salaryMin: job.salaryMin,
       salaryMax: job.salaryMax,
       salaryCurrency: 'VND',
