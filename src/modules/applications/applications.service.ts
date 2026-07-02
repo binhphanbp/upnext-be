@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ActorType, ApplicationStatus, JobStatus } from '@prisma/client';
+import { ActorType, ApplicationStatus, JobStatus, InterviewStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -365,6 +365,231 @@ export class ApplicationsService {
       },
       orderBy: { submittedAt: 'desc' },
     });
+  }
+
+  async getRecruiterPipeline(
+    recruiterId: string,
+    query?: {
+      search?: string;
+      jobPostId?: string;
+      stageId?: string;
+    },
+  ) {
+    const recruiter = await this.prisma.recruiterAccount.findUnique({
+      where: { id: recruiterId },
+    });
+    if (!recruiter) {
+      throw new NotFoundException('Recruiter account not found');
+    }
+    if (!recruiter.companyId) {
+      throw new BadRequestException('Recruiter does not belong to any company');
+    }
+
+    const whereClause: any = {
+      jobPost: {
+        companyId: recruiter.companyId,
+      },
+    };
+
+    if (query?.jobPostId) {
+      whereClause.jobPostId = query.jobPostId;
+    }
+
+    if (query?.stageId) {
+      const pipelineStageToApplicationStatuses = {
+        applied: ['SUBMITTED'],
+        screening: ['VIEWED'],
+        technical_test: ['SHORTLISTED'],
+        interview: ['INTERVIEWING'],
+        offering: ['OFFERED'],
+        hired: ['HIRED'],
+        rejected: ['REJECTED', 'WITHDRAWN'],
+      } as const;
+
+      const statuses = pipelineStageToApplicationStatuses[query.stageId as keyof typeof pipelineStageToApplicationStatuses];
+      if (statuses) {
+        whereClause.status = { in: statuses };
+      }
+    }
+
+    if (query?.search) {
+      const searchPattern = query.search;
+      whereClause.OR = [
+        {
+          candidateProfile: {
+            account: {
+              fullName: { contains: searchPattern, mode: 'insensitive' },
+            },
+          },
+        },
+        {
+          candidateProfile: {
+            account: {
+              email: { contains: searchPattern, mode: 'insensitive' },
+            },
+          },
+        },
+        {
+          jobPost: {
+            title: { contains: searchPattern, mode: 'insensitive' },
+          },
+        },
+        {
+          candidateProfile: {
+            skills: {
+              some: {
+                skill: {
+                  name: { contains: searchPattern, mode: 'insensitive' },
+                },
+              },
+            },
+          },
+        },
+      ];
+    }
+
+    const applications = await this.prisma.application.findMany({
+      where: whereClause,
+      include: {
+        candidateProfile: {
+          include: {
+            account: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+            skills: {
+              include: {
+                skill: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+            experiences: true,
+          },
+        },
+        jobPost: {
+          include: {
+            jobPostSkills: {
+              include: {
+                skill: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        interviews: {
+          where: {
+            status: { in: [InterviewStatus.SCHEDULED, InterviewStatus.RESCHEDULED] },
+          },
+          orderBy: {
+            scheduledStartAt: 'asc',
+          },
+          take: 1,
+          include: {
+            recruiterProfile: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const applicationStatusToPipelineStage = {
+      SUBMITTED: 'applied',
+      VIEWED: 'screening',
+      SHORTLISTED: 'technical_test',
+      INTERVIEWING: 'interview',
+      OFFERED: 'offering',
+      HIRED: 'hired',
+      REJECTED: 'rejected',
+      WITHDRAWN: 'rejected',
+    } as const;
+
+    const candidates = applications.map((app) => {
+      // Name fallback
+      const name = app.candidateProfile.account.fullName || app.candidateProfile.account.email;
+
+      // Tech Stack derivation
+      let techStack: string[] = [];
+      if (app.candidateProfile.skills && app.candidateProfile.skills.length > 0) {
+        techStack = app.candidateProfile.skills.map((s) => s.skill.name);
+      } else if (app.jobPost.jobPostSkills && app.jobPost.jobPostSkills.length > 0) {
+        techStack = app.jobPost.jobPostSkills.map((s) => s.skill.name);
+      }
+
+      // Experience calculation
+      let totalMonths = 0;
+      for (const exp of app.candidateProfile.experiences) {
+        const start = exp.startDate ? new Date(exp.startDate) : new Date();
+        const end = exp.isCurrent || !exp.endDate ? new Date() : new Date(exp.endDate);
+        const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+        totalMonths += Math.max(0, diffMonths);
+      }
+      const experienceYears = totalMonths > 0 ? Math.round(totalMonths / 12) : 0;
+
+      // Interview derivation
+      const interviewObj = app.interviews[0];
+      const interview = interviewObj
+        ? {
+            id: interviewObj.id,
+            scheduledAt: interviewObj.scheduledStartAt.toISOString(),
+            interviewerName: interviewObj.recruiterProfile?.fullName || null,
+            mode: interviewObj.type,
+          }
+        : null;
+
+      const stageId = applicationStatusToPipelineStage[app.status] || 'applied';
+
+      return {
+        id: app.id,
+        applicationId: app.id,
+        candidateId: app.candidateProfile.id,
+        name,
+        role: app.jobPost.title,
+        stageId,
+        avatarUrl: null,
+        location: app.candidateProfile.address || null,
+        experienceYears,
+        techStack,
+        scores: [],
+        lastUpdatedAt: app.updatedAt.toISOString(),
+        interview,
+      };
+    });
+
+    const totalCandidates = candidates.length;
+    const inInterview = candidates.filter((c) => c.stageId === 'interview').length;
+    const offersSent = candidates.filter((c) => c.stageId === 'offering').length;
+    const hiredCount = candidates.filter((c) => c.stageId === 'hired').length;
+    const passRate = totalCandidates > 0 ? Math.round((hiredCount / totalCandidates) * 100) : 0;
+
+    const stages = [
+      { id: 'applied', title: 'Applied', description: 'New applications received' },
+      { id: 'screening', title: 'Screening', description: 'Initial resume & profile review' },
+      { id: 'technical_test', title: 'Technical Test', description: 'Coding challenge and assessment' },
+      { id: 'interview', title: 'Interview', description: 'Technical & cultural interview phases' },
+      { id: 'offering', title: 'Offering', description: 'Salary negotiation & job offer extended' },
+      { id: 'hired', title: 'Hired', description: 'Successfully signed and hired' },
+      { id: 'rejected', title: 'Rejected', description: 'Unsuitable candidates for this position' },
+    ];
+
+    return {
+      stages,
+      candidates,
+      metrics: {
+        totalCandidates,
+        inInterview,
+        offersSent,
+        passRate,
+      },
+    };
   }
 
   async updateStatus(recruiterId: string, id: string, status: ApplicationStatus, note?: string) {
