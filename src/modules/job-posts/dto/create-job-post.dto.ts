@@ -1,6 +1,6 @@
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SalaryPeriod } from '@prisma/client';
+import { EducationLevel, SalaryPeriod } from '@prisma/client';
 
 export class CreateJobPostDto {
   @ApiProperty({
@@ -118,4 +118,14 @@ export class CreateJobPostDto {
   @IsUUID()
   @IsOptional()
   employmentTypeId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Trình độ học vấn yêu cầu.',
+    enum: EducationLevel,
+    default: EducationLevel.ANY,
+    example: EducationLevel.BACHELOR,
+  })
+  @IsEnum(EducationLevel)
+  @IsOptional()
+  educationLevel?: EducationLevel;
 }
