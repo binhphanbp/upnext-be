@@ -59,11 +59,18 @@ export class RecruiterAuthController {
   @UseGuards(RecruiterGoogleAuthGuard)
   @ApiOperation({ summary: 'Callback xử lý đăng nhập Google Recruiter từ Backend và redirect về Frontend' })
   async googleAuthCallback(@Req() req: any, @Res() res: Response) {
-    const googleUser = req.user as { providerUserId: string; email: string; fullName: string };
-    const result = await this.recruiterAuthService.loginOrRegisterGoogle(googleUser);
-    const { accessToken } = result;
     const locale = req.query.state === 'en' ? 'en' : 'vi';
     const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
-    return res.redirect(`${frontendUrl}/${locale}/recruiter/auth/callback?token=${accessToken}`);
+    try {
+      const googleUser = req.user as { providerUserId: string; email: string; fullName: string };
+      const result = await this.recruiterAuthService.loginOrRegisterGoogle(googleUser);
+      const { accessToken } = result;
+      return res.redirect(`${frontendUrl}/${locale}/recruiter/auth/callback?token=${accessToken}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Đăng nhập thất bại';
+      return res.redirect(
+        `${frontendUrl}/${locale}/recruiter/login?error=${encodeURIComponent(message)}`,
+      );
+    }
   }
 }

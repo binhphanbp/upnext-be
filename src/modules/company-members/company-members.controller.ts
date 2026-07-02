@@ -31,6 +31,9 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { CompanyMembersService } from './company-members.service';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
+import { Public } from '../../common/decorators/public.decorator';
+import { AcceptInvitationAndSetPasswordDto } from './dto/accept-invitation-and-set-password.dto';
+import { UpdateMemberStatusDto } from './dto/update-member-status.dto';
 import {
   CompanyMember,
   CompanyMemberInvitation,
@@ -116,6 +119,40 @@ export class CompanyMembersController {
     return this.companyMembersService.acceptInvitation(id, user);
   }
 
+  @Public()
+  @ApiOperation({
+    summary: 'Xem thông tin lời mời vào công ty',
+    description: 'Xem chi tiết lời mời bằng UUID mà không cần đăng nhập.',
+  })
+  @ApiParam({ name: 'id', description: 'Company member (invitation) UUID' })
+  @ApiOkResponse({
+    description: 'Invitation details retrieved successfully',
+  })
+  @ApiNotFoundResponse({ description: 'Invitation not found' })
+  @Get('company-members/invitations/:id')
+  getInvitation(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.companyMembersService.getInvitation(id);
+  }
+
+  @Public()
+  @ApiOperation({
+    summary: 'Chấp nhận lời mời và đặt mật khẩu mới',
+    description: 'Dành cho thành viên được mời chưa có mật khẩu.',
+  })
+  @ApiParam({ name: 'id', description: 'Company member (invitation) UUID' })
+  @ApiOkResponse({
+    description: 'Invitation accepted and password set successfully',
+  })
+  @ApiBadRequestResponse({ description: 'Invalid payload or password already set' })
+  @ApiNotFoundResponse({ description: 'Invitation not found' })
+  @Post('company-members/invitations/:id/accept-and-set-password')
+  acceptAndSetPassword(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: AcceptInvitationAndSetPasswordDto,
+  ) {
+    return this.companyMembersService.acceptAndSetPassword(id, dto);
+  }
+
   @ApiOperation({
     summary: 'Cập nhật vai trò thành viên',
     description: 'Đổi vai trò của thành viên trong công ty.',
@@ -136,6 +173,27 @@ export class CompanyMembersController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.companyMembersService.updateMemberRole(id, dto, user);
+  }
+
+  @ApiOperation({
+    summary: 'Cập nhật trạng thái hoạt động thành viên',
+    description: 'Khóa hoặc mở khóa thành viên trong công ty.',
+  })
+  @ApiParam({ name: 'id', description: 'Company member UUID' })
+  @ApiOkResponse({
+    description: 'Member status updated successfully',
+  })
+  @ApiBadRequestResponse({ description: 'Invalid request payload' })
+  @ApiNotFoundResponse({ description: 'Member not found' })
+  @Patch('company-members/:id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  updateStatus(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateMemberStatusDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companyMembersService.updateMemberStatus(id, dto.status, user);
   }
 
   @ApiOperation({
