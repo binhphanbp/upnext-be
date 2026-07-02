@@ -3,12 +3,33 @@ import { Prisma } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { PaginationQueryDto, toPagination } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CreateCandidateAccountDto } from './dto/create-candidate-account.dto';
 import { UpdateCandidateAccountStatusDto } from './dto/update-candidate-account-status.dto';
 import { UpdateMyCandidateAccountDto } from './dto/update-my-candidate-account.dto';
 
 @Injectable()
 export class CandidateAccountService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async create(dto: CreateCandidateAccountDto) {
+    try {
+      return await this.prisma.candidateAccount.create({
+        data: {
+          fullName: dto.fullName,
+          email: dto.email.toLowerCase(),
+          passwordHash: dto.password ? await hash(dto.password, 10) : undefined,
+          authProvider: dto.authProvider || 'DEFAULT',
+          providerUserId: dto.providerUserId,
+          candidateAccountStatus: (dto.candidateAccountStatus as any) || 'ACTIVE',
+          emailVerifiedAt: new Date(),
+        },
+        select: this.defaultSelect,
+      });
+    } catch (error) {
+      this.handleKnownError(error);
+      throw error;
+    }
+  }
 
   async findAll(query: PaginationQueryDto) {
     const where: Prisma.CandidateAccountWhereInput = query.q

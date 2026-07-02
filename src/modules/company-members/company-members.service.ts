@@ -6,12 +6,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CompanyMemberStatus, ActorType, CompanyVerificationStatus } from '@prisma/client';
+import { CompanyMemberStatus, ActorType, CompanyVerificationStatus, AccountStatus } from '@prisma/client';
 import { EmailService } from '../../common/email/email.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { AuthService } from '../auth/auth.service';
+import { AcceptInvitationAndSetPasswordDto } from './dto/accept-invitation-and-set-password.dto';
 
 @Injectable()
 export class CompanyMembersService {
@@ -19,6 +21,7 @@ export class CompanyMembersService {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
+    private readonly authService: AuthService,
   ) {}
 
   // ─── Members ─────────────────────────────────────────────────────────────
@@ -26,7 +29,7 @@ export class CompanyMembersService {
   async listMembers(companyId: string) {
     await this.ensureCompanyExists(companyId);
 
-    return this.prisma.companyMember.findMany({
+    const members = await this.prisma.companyMember.findMany({
       where: { companyId },
       orderBy: { joinedAt: 'asc' },
       include: {
@@ -40,6 +43,17 @@ export class CompanyMembersService {
         },
         role: { select: { id: true, code: true, name: true } },
       },
+    });
+
+    return members.map((m) => {
+      let status = m.status;
+      if (m.recruiterAccount?.status === 'BANNED') {
+        status = 'SUSPENDED' as any;
+      }
+      return {
+        ...m,
+        status,
+      };
     });
   }
 
@@ -165,9 +179,23 @@ export class CompanyMembersService {
       }
     }
 
+    let targetAccount = recruiterAccount;
+
+    if (!targetAccount) {
+      targetAccount = await this.prisma.recruiterAccount.create({
+        data: {
+          email: invitedEmail,
+          passwordHash: null,
+          status: AccountStatus.ACTIVE,
+          emailVerifiedAt: new Date(),
+        },
+        select: { id: true, email: true, companyId: true },
+      });
+    }
+
     const invitation = await this.prisma.companyMember.create({
       data: {
-        recruiterAccountId: recruiterAccount?.id ?? null,
+        recruiterAccountId: targetAccount.id,
         invitedEmail,
         companyId,
         roleId: dto.roleId ?? null,
@@ -448,5 +476,155 @@ export class CompanyMembersService {
     const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
     const url = new URL(`/recruiter/company-invitations/${invitationId}`, frontendUrl);
     return url.toString();
+  }
+
+  async getInvitation(id: string) {
+    const member = await this.prisma.companyMember.findUnique({
+      where: { id },
+      include: {
+        company: { select: { name: true } },
+        role: { select: { name: true } },
+        recruiterAccount: { select: { email: true, passwordHash: true } },
+      },
+    });
+
+    if (!member || member.status !== CompanyMemberStatus.INVITED) {
+      throw new NotFoundException('Lời mời không tồn tại hoặc đã được xử lý.');
+    }
+
+    return {
+      id: member.id,
+      invitedEmail: member.invitedEmail ?? member.recruiterAccount?.email,
+      companyName: member.company.name,
+      roleName: member.role?.name ?? null,
+      hasPassword: member.recruiterAccount ? member.recruiterAccount.passwordHash !== null : false,
+    };
+  }
+
+  async acceptAndSetPassword(id: string, dto: AcceptInvitationAndSetPasswordDto) {
+    const member = await this.prisma.companyMember.findUnique({
+      where: { id },
+      include: {
+        recruiterAccount: true,
+      },
+    });
+
+    if (!member || member.status !== CompanyMemberStatus.INVITED) {
+      throw new NotFoundException('Lời mời không tồn tại hoặc đã được xử lý.');
+    }
+
+    const account = member.recruiterAccount;
+    if (!account) {
+      throw new NotFoundException('Không tìm thấy tài khoản liên kết với lời mời.');
+    }
+
+    if (account.passwordHash) {
+      throw new BadRequestException('Tài khoản đã thiết lập mật khẩu trước đó. Vui lòng đăng nhập để chấp nhận lời mời.');
+    }
+
+    const hashedPassword = await this.authService.hashPassword(dto.password);
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Update recruiterAccount password & company info
+      await tx.recruiterAccount.update({
+        where: { id: account.id },
+        data: {
+          passwordHash: hashedPassword,
+          companyId: member.companyId,
+          recruiterRoleId: member.roleId ?? undefined,
+        },
+      });
+
+      // 2. Update companyMember status
+      await tx.companyMember.update({
+        where: { id: member.id },
+        data: {
+          status: CompanyMemberStatus.ACTIVE,
+          joinedAt: new Date(),
+        },
+      });
+
+      // 3. Return access token so they are immediately logged in
+      return this.authService.signAccessToken({
+        id: account.id,
+        email: account.email,
+        role: ActorType.RECRUITER,
+        companyId: member.companyId,
+        recruiterRoleId: member.roleId,
+      });
+    });
+  }
+
+  async updateMemberStatus(
+    memberId: string,
+    status: 'ACTIVE' | 'SUSPENDED',
+    currentUser: AuthenticatedUser,
+  ) {
+    const member = await this.prisma.companyMember.findUnique({
+      where: { id: memberId },
+      include: { role: true },
+    });
+
+    if (!member) {
+      throw new NotFoundException(`Company member ${memberId} not found`);
+    }
+
+    // 1. Cannot suspend the owner of the company
+    if (member.role?.code === 'OWNER') {
+      throw new ForbiddenException('Cannot suspend/lock the company Owner.');
+    }
+
+    // 2. Check permission (must be OWNER or HR in the company)
+    if (currentUser.role !== ActorType.ADMIN) {
+      const currentUserMember = await this.prisma.companyMember.findFirst({
+        where: { recruiterAccountId: currentUser.id, companyId: member.companyId },
+        include: { role: true },
+      });
+
+      if (
+        !currentUserMember ||
+        (currentUserMember.role?.code !== 'OWNER' && currentUserMember.role?.code !== 'HR')
+      ) {
+        throw new ForbiddenException('You do not have permission to manage member status.');
+      }
+
+      // HR cannot lock another HR member
+      if (currentUserMember.role?.code === 'HR' && member.role?.code === 'HR') {
+        throw new ForbiddenException('HR members cannot lock other HR members.');
+      }
+    }
+
+    // 3. Update status in transaction
+    return this.prisma.$transaction(async (tx) => {
+      if (member.recruiterAccountId) {
+        const accountStatus = status === 'SUSPENDED' ? 'BANNED' : 'ACTIVE';
+        await tx.recruiterAccount.update({
+          where: { id: member.recruiterAccountId },
+          data: { status: accountStatus },
+        });
+      }
+
+      const updated = await tx.companyMember.findUnique({
+        where: { id: memberId },
+        include: {
+          recruiterAccount: {
+            select: {
+              id: true,
+              email: true,
+              status: true,
+              profile: { select: { fullName: true, avatarUrl: true } },
+            },
+          },
+          role: { select: { id: true, code: true, name: true } },
+        },
+      });
+
+      if (!updated) return null;
+
+      return {
+        ...updated,
+        status: status === 'SUSPENDED' ? 'SUSPENDED' : updated.status,
+      };
+    });
   }
 }

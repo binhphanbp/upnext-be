@@ -141,15 +141,25 @@ export class EmailService {
   }) {
     const roleText = params.roleName ? ` với vai trò ${params.roleName}` : '';
 
+    const html = this.renderTemplate('company-invitation.html', {
+      companyName: params.companyName,
+      roleText,
+      invitationLink: params.invitationLink,
+      sentDate: this.formatSentDate(),
+    });
+
     await this.sendMail({
       to: params.to,
       subject: `Lời mời tham gia ${params.companyName} trên UpNext`,
       text: `Bạn được mời tham gia ${params.companyName}${roleText}. Nhấn vào link để xem lời mời: ${params.invitationLink}`,
-      html: `
-        <p>Bạn được mời tham gia <strong>${params.companyName}</strong>${roleText} trên UpNext.</p>
-        <p>Nhấn vào link bên dưới để xem và chấp nhận lời mời:</p>
-        <p><a href="${params.invitationLink}">${params.invitationLink}</a></p>
-      `,
+      html,
+      attachments: [
+        {
+          filename: 'upnext-logo.png',
+          path: this.resolveEmailAssetPath('upnext-logo.png'),
+          cid: 'upnext-logo',
+        },
+      ],
       fallbackLog: `Company invitation for ${params.to}: ${params.invitationLink}`,
     });
   }
