@@ -677,6 +677,53 @@ function shouldRenderJobLineAsBullet(line: string, fallbackHeading: string) {
   );
 }
 
+function formatJobAsHtmlDropdown(text: string | null | undefined, fallbackHeading: string) {
+  if (!text) return '';
+
+  const formatted = formatJobRichText(text, fallbackHeading);
+  if (!formatted) return '';
+
+  const cleanText = formatted.replace(new RegExp(`^${fallbackHeading}\\s*`), '').trim();
+
+  const lines = cleanText.split('\n').map((l) => l.trim()).filter(Boolean);
+  let htmlContent = '';
+  let insideList = false;
+
+  for (const line of lines) {
+    if (line.startsWith('-')) {
+      if (!insideList) {
+        htmlContent += '<ul style="margin-top: 6px; margin-bottom: 6px; padding-left: 20px; list-style-type: disc;">';
+        insideList = true;
+      }
+      htmlContent += `<li style="margin-bottom: 5px;">${line.substring(1).trim()}</li>`;
+    } else {
+      if (insideList) {
+        htmlContent += '</ul>';
+        insideList = false;
+      }
+      if (line.endsWith(':') || line.length < 50) {
+        htmlContent += `<p style="margin-top: 10px; margin-bottom: 4px; font-weight: bold; color: #0f172a;">${line}</p>`;
+      } else {
+        htmlContent += `<p style="margin-bottom: 6px; color: #334155;">${line}</p>`;
+      }
+    }
+  }
+  if (insideList) {
+    htmlContent += '</ul>';
+  }
+
+  return `
+<details style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px; background-color: #f8fafc; font-family: sans-serif;">
+  <summary style="font-weight: bold; cursor: pointer; outline: none; color: #0f172a; font-size: 15px; user-select: none;">
+    ${fallbackHeading}
+  </summary>
+  <div style="margin-top: 8px; font-size: 14px; line-height: 1.6;">
+    ${htmlContent}
+  </div>
+</details>
+  `.trim();
+}
+
 type SeedLocationDetail = {
   city: string;
   district: string;
@@ -1851,6 +1898,19 @@ async function main() {
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const futureDeadline = addDays(now, 45);
 
+  const companiesPath = path.join(__dirname, 'data/companies_detailed.json');
+  let companiesWithLogo: any[] = [];
+  if (fs.existsSync(companiesPath)) {
+    try {
+      const companiesData = JSON.parse(fs.readFileSync(companiesPath, 'utf-8')) as any[];
+      companiesWithLogo = companiesData.filter(
+        (item) => item.Slug && item.Name && item.Logo && typeof item.Logo === 'string' && item.Logo.trim() !== '',
+      );
+    } catch (e) {
+      console.warn('Error reading companies_detailed.json:', e);
+    }
+  }
+
   const companyDefinitions = [
     {
       key: 'alpha',
@@ -1942,7 +2002,16 @@ async function main() {
         originalName: `${company.key}-logo.png`,
         mimeType: 'image/png',
         sizeBytes: BigInt(2048),
-        publicUrl: getCompanyLogoUrl(company.name, company.key),
+        publicUrl:
+          company.key === 'alpha' && companiesWithLogo[0]
+            ? companiesWithLogo[0].Logo
+            : company.key === 'beta' && companiesWithLogo[1]
+              ? companiesWithLogo[1].Logo
+              : company.key === 'gamma' && companiesWithLogo[2]
+                ? companiesWithLogo[2].Logo
+                : company.key === 'delta' && companiesWithLogo[3]
+                  ? companiesWithLogo[3].Logo
+                  : getCompanyLogoUrl(company.name, company.key),
       },
       {
         id: company.coverFileId,
@@ -3248,13 +3317,13 @@ async function main() {
       title: job.title,
       slug: job.slug,
       description:
-        jobDetailsMap[job.title]?.description ||
-        `${job.title} role. Join our team to build the future of hiring products.`,
+        formatJobAsHtmlDropdown(jobDetailsMap[job.title]?.description ||
+        `${job.title} role. Join our team to build the future of hiring products.`, 'Mô tả công việc') || '',
       requirements:
-        jobDetailsMap[job.title]?.requirements || 'Requirements matching the position profile.',
+        formatJobAsHtmlDropdown(jobDetailsMap[job.title]?.requirements || 'Requirements matching the position profile.', 'Yêu cầu ứng viên') || '',
       benefits:
-        jobDetailsMap[job.title]?.benefits ||
-        'Competitive benefits, learning budget, and remote-friendly work.',
+        formatJobAsHtmlDropdown(jobDetailsMap[job.title]?.benefits ||
+        'Competitive benefits, learning budget, and remote-friendly work.', 'Quyền lợi') || '',
       educationLevel: (job as any).educationLevel || EducationLevel.ANY,
       salaryMin: job.salaryMin,
       salaryMax: job.salaryMax,
@@ -4551,7 +4620,14 @@ async function importItviecData(
   const jobsData = JSON.parse(fs.readFileSync(jobsPath, 'utf-8')) as { jobs: ImportedItviecJob[] };
   const companiesData = JSON.parse(fs.readFileSync(companiesPath, 'utf-8')) as any[];
 
-  console.log(`Loaded ${companiesData.length} companies and ${jobsData.jobs.length} jobs.`);
+  const companiesWithLogo = companiesData.filter(
+    (item) => item.Slug && item.Name && item.Logo && typeof item.Logo === 'string' && item.Logo.trim() !== '',
+  );
+  const companiesToImport = companiesWithLogo.length >= 54
+    ? companiesWithLogo.slice(4, 54)
+    : companiesWithLogo.slice(0, Math.min(50, companiesWithLogo.length));
+
+  console.log(`Loaded ${companiesData.length} companies. Importing ${companiesToImport.length} companies with logos and ${jobsData.jobs.length} jobs.`);
 
   const companyTypesBySlug = new Map<string, string>();
   const companySizesBySlug = new Map<string, string>();
@@ -4568,7 +4644,7 @@ async function importItviecData(
   console.log('Importing companies...');
   const companySlugToDetails = new Map<string, { companyId: string; recruiterId: string }>();
 
-  for (const item of companiesData) {
+  for (const item of companiesToImport) {
     if (!item.Slug || !item.Name) continue;
 
     const logoFileId = randomUUID();
@@ -4718,6 +4794,7 @@ async function importItviecData(
   const futureDeadline = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000);
 
   for (const job of jobsData.jobs) {
+    if (importedJobsCount >= 50) break;
     if (!job.company?.slug || !job.jobPost?.title) continue;
 
     const details = companySlugToDetails.get(job.company.slug as string);
@@ -4775,9 +4852,9 @@ async function importItviecData(
         employmentTypeId: employmentTypeId,
         title: job.jobPost.title,
         slug: jobSlug,
-        description: formatJobRichText(job.jobPost.description, 'Mô tả công việc') || '',
-        requirements: formatJobRichText(job.jobPost.requirements, 'Yêu cầu ứng viên'),
-        benefits: formatJobRichText(job.jobPost.benefits, 'Quyền lợi'),
+        description: job.jobPost.description || '',
+        requirements: job.jobPost.requirements || null,
+        benefits: job.jobPost.benefits || null,
         salaryMin: job.jobPost.salaryMin != null ? job.jobPost.salaryMin : null,
         salaryMax: job.jobPost.salaryMax != null ? job.jobPost.salaryMax : null,
         salaryCurrency: job.jobPost.salaryCurrency || 'VND',
