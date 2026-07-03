@@ -713,7 +713,7 @@ function formatJobAsHtmlDropdown(text: string | null | undefined, fallbackHeadin
   }
 
   return `
-<details style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px; background-color: #f8fafc; font-family: sans-serif;">
+<details open style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px; background-color: #f8fafc; font-family: sans-serif;">
   <summary style="font-weight: bold; cursor: pointer; outline: none; color: #0f172a; font-size: 15px; user-select: none;">
     ${fallbackHeading}
   </summary>
@@ -2171,8 +2171,8 @@ async function main() {
     {
       companyIndex: 0,
       roleCode: 'OWNER',
-      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.owner@upnext.dev`,
-      fullName: `Alpha Owner`,
+      email: 'phanquocduy1312@gmail.com',
+      fullName: `Phan Quoc Duy`,
     },
     {
       companyIndex: 0,
@@ -2232,6 +2232,7 @@ async function main() {
       recruiterRoleId: seededRoles[recruiter.roleCode].id,
       email: recruiter.email,
       passwordHash,
+      emailVerifiedAt: recruiter.createdAt,
       createdAt: recruiter.createdAt,
       updatedAt: recruiter.createdAt,
     })),
