@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EducationLevel, SalaryPeriod } from '@prisma/client';
 
@@ -64,6 +64,7 @@ export class CreateJobPostDto {
     default: SalaryPeriod.MONTH,
     example: SalaryPeriod.MONTH,
   })
+  @IsEnum(SalaryPeriod)
   @IsOptional()
   salaryPeriod?: SalaryPeriod;
 
@@ -128,4 +129,12 @@ export class CreateJobPostDto {
   @IsEnum(EducationLevel)
   @IsOptional()
   educationLevel?: EducationLevel;
+
+  @ApiPropertyOptional({
+    description: 'Hạn nộp hồ sơ tin tuyển dụng (định dạng ISO 8601).',
+    example: '2026-07-31T17:00:00.000Z',
+  })
+  @IsDateString()
+  @IsOptional()
+  expiredAt?: string;
 }

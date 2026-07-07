@@ -120,6 +120,20 @@ export class CompaniesService {
           },
         },
         jobPosts: {
+          include: {
+            employmentType: true,
+            experienceLevel: true,
+            jobPostLocations: {
+              include: {
+                jobLocation: true,
+              },
+            },
+            jobPostSkills: {
+              include: {
+                skill: true,
+              },
+            },
+          },
           orderBy: { createdAt: 'desc' },
           take: 10,
         },

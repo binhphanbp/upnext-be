@@ -67,4 +67,10 @@ export class CreateCompanyDto {
   @IsString()
   @MaxLength(80)
   companySize?: string;
+
+  @ApiPropertyOptional({ maxLength: 150, example: 'Thứ 2 - Thứ 6' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  workingDays?: string;
 }

@@ -8,11 +8,11 @@
     "assets": [
       {
         "include": "common/email/templates/**/*",
-        "outDir": "dist/src"
+        "outDir": "dist"
       },
       {
         "include": "common/email/assets/**/*",
-        "outDir": "dist/src"
+        "outDir": "dist"
       }
     ]
   }

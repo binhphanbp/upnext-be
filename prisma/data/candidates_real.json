@@ -1,0 +1,755 @@
+[
+  {
+    "fullName": "Nguyễn Quốc Vương",
+    "email": "nguyenquocvuong.dev@gmail.com",
+    "authProvider": "DEFAULT",
+    "providerUserId": null,
+    "candidateAccountStatus": "ACTIVE",
+    "emailVerifiedAt": "2026-07-07T08:15:03.126Z",
+    "profile": {
+      "phoneNumber": "0987654321",
+      "gender": "MALE",
+      "address": "Cầu Giấy, Hà Nội",
+      "birthdate": "1999-10-15T00:00:00.000Z",
+      "description": "Backend Developer với hơn 2 năm kinh nghiệm phát triển RESTful API, hệ thống xác thực, phân quyền và tối ưu cơ sở dữ liệu. Có kinh nghiệm làm việc với Java, Spring Boot, PostgreSQL, Docker, JWT, WebSocket và quy trình Agile/Scrum. Từng tham gia xây dựng hệ thống quản lý đào tạo, module người dùng, phân quyền theo vai trò và thông báo realtime. Định hướng phát triển lên Senior Backend Engineer trong các hệ thống enterprise, platform hoặc sản phẩm có tải cao.",
+      "jobSearchStatus": "OPEN_TO_WORK",
+      "profileVisibility": "PUBLIC",
+      "cvFile": {
+        "ownerType": "candidate",
+        "purpose": "CANDIDATE_CV",
+        "visibility": "PRIVATE",
+        "storageKey": "candidates/nguyen-quoc-vuong/cv/nguyen-quoc-vuong-backend-developer.pdf",
+        "originalName": "Nguyen-Quoc-Vuong-Backend-Developer-CV.pdf",
+        "mimeType": "application/pdf",
+        "sizeBytes": 286000,
+        "publicUrl": null,
+        "downloadUrl": "/api/recruiter/candidates/nguyen-quoc-vuong/cv"
+      },
+      "jobPreference": {
+        "desiredPosition": "Backend Developer",
+        "desiredSalaryMin": "25000000",
+        "desiredSalaryMax": "35000000",
+        "salaryCurrency": "VND",
+        "workingModel": "HYBRID",
+        "desiredLevel": {
+          "name": "Junior",
+          "code": "junior"
+        },
+        "noticePeriodDays": 30,
+        "isRelocate": true
+      },
+      "educations": [
+        {
+          "schoolName": "Hanoi University of Science and Technology",
+          "degree": "Bachelor of Engineering",
+          "major": "Software Engineering",
+          "startDate": "2019-09-05T00:00:00.000Z",
+          "endDate": "2023-06-20T00:00:00.000Z",
+          "isCurrent": false,
+          "gpa": "3.2",
+          "description": "Tập trung vào lập trình hướng đối tượng, cấu trúc dữ liệu, giải thuật, cơ sở dữ liệu, hệ điều hành, mạng máy tính và phát triển phần mềm. Đồ án tốt nghiệp xây dựng hệ thống quản lý tác vụ nội bộ với Spring Boot và PostgreSQL.",
+          "sortOrder": 0
+        },
+        {
+          "schoolName": "Hanoi - Amsterdam High School for the Gifted",
+          "degree": "High School Diploma",
+          "major": "Math & IT",
+          "startDate": "2016-09-05T00:00:00.000Z",
+          "endDate": "2019-05-25T00:00:00.000Z",
+          "isCurrent": false,
+          "gpa": "3.8",
+          "description": "Tham gia câu lạc bộ Tin học, có nền tảng tốt về toán rời rạc, tư duy thuật toán và lập trình cơ bản.",
+          "sortOrder": 1
+        }
+      ],
+      "experiences": [
+        {
+          "companyName": "SIS Train",
+          "positionTitle": "Backend Developer",
+          "employmentType": "Full-time",
+          "startDate": "2024-03-01T00:00:00.000Z",
+          "endDate": null,
+          "isCurrent": true,
+          "description": "• Phát triển RESTful API bằng Spring Boot cho hệ thống quản lý đào tạo nội bộ.\n• Xây dựng module xác thực JWT, refresh token, phân quyền theo vai trò admin/teacher/student.\n• Thiết kế database schema cho module lớp học, học viên, lịch học và lịch sử thao tác.\n• Tối ưu truy vấn PostgreSQL, thêm index và refactor query giúp giảm thời gian phản hồi API khoảng 30%.\n• Tích hợp WebSocket cho thông báo realtime khi có lịch học mới, thay đổi trạng thái lớp hoặc cập nhật điểm danh.\n• Viết unit test cho service layer, kiểm thử API bằng Postman và viết tài liệu API cho frontend.\n• Phối hợp với frontend để xử lý lỗi validation, phân trang, filter và các edge case trong nghiệp vụ.",
+          "technologies": "Java, Spring Boot, PostgreSQL, JWT, WebSocket, Docker, Git, Postman",
+          "sortOrder": 0
+        },
+        {
+          "companyName": "SIS Train",
+          "positionTitle": "Backend Developer Intern",
+          "employmentType": "Internship",
+          "startDate": "2023-10-01T00:00:00.000Z",
+          "endDate": "2024-03-01T00:00:00.000Z",
+          "isCurrent": false,
+          "description": "• Hỗ trợ phát triển API cho module quản lý người dùng, lớp học và tài liệu học tập.\n• Viết các endpoint CRUD cơ bản, xử lý request validation và mapping DTO.\n• Sửa lỗi liên quan đến phân trang, search, sort và response format.\n• Viết test case cơ bản cho API, kiểm thử bằng Postman và cập nhật tài liệu kỹ thuật.\n• Học quy trình làm việc với Git branch, pull request, code review và sprint planning.",
+          "technologies": "Java, Spring Boot, MySQL, Postman, Git",
+          "sortOrder": 1
+        }
+      ],
+      "skills": [
+        { "name": "Java", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2.5", "sortOrder": 0 },
+        { "name": "Spring Boot", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2", "sortOrder": 1 },
+        { "name": "RESTful API", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2", "sortOrder": 2 },
+        { "name": "PostgreSQL", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 3 },
+        { "name": "MySQL", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 4 },
+        { "name": "Docker", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1", "sortOrder": 5 },
+        { "name": "JWT", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 6 },
+        { "name": "WebSocket", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1", "sortOrder": 7 },
+        { "name": "Git", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 8 },
+        { "name": "Node.js", "proficiencyLevel": "BASIC", "yearsOfExperience": "0.8", "sortOrder": 9 }
+      ],
+      "projects": [
+        {
+          "name": "Task Manager API",
+          "role": "Solo Backend Developer",
+          "description": "Xây dựng RESTful API quản lý công việc cá nhân, hỗ trợ đăng ký, đăng nhập, JWT authentication, CRUD task, filter theo trạng thái, deadline và mức độ ưu tiên. Dự án tập trung vào clean architecture, error handling và tài liệu API.",
+          "projectUrl": "https://github.com/nguyenquocvuong-dev/task-manager-api",
+          "technologies": "Java, Spring Boot, PostgreSQL, Docker, JWT",
+          "deployUrl": null,
+          "startDate": "2023-05-01T00:00:00.000Z",
+          "endDate": "2023-07-01T00:00:00.000Z",
+          "sortOrder": 0
+        },
+        {
+          "name": "Realtime Classroom Notification",
+          "role": "Backend Developer",
+          "description": "Module thông báo realtime cho hệ thống lớp học, gửi notification khi giáo viên cập nhật lịch, thay đổi trạng thái lớp hoặc thêm tài liệu mới. Thiết kế WebSocket channel theo từng lớp và lưu lịch sử thông báo vào database.",
+          "projectUrl": null,
+          "technologies": "Java, Spring Boot, WebSocket, PostgreSQL",
+          "deployUrl": null,
+          "startDate": "2024-04-01T00:00:00.000Z",
+          "endDate": "2024-06-01T00:00:00.000Z",
+          "sortOrder": 1
+        }
+      ],
+      "certifications": [
+        {
+          "name": "Java Programming and Software Engineering Fundamentals",
+          "organization": "Coursera",
+          "issuedDate": "2023-08-15T00:00:00.000Z",
+          "expiredDate": null,
+          "credentialUrl": null,
+          "sortOrder": 0
+        },
+        {
+          "name": "Docker for Java Developers",
+          "organization": "Udemy",
+          "issuedDate": "2024-02-10T00:00:00.000Z",
+          "expiredDate": null,
+          "credentialUrl": null,
+          "sortOrder": 1
+        }
+      ],
+      "languages": [
+        { "language": "Vietnamese", "proficiency": "Native" },
+        { "language": "English", "proficiency": "Intermediate" }
+      ],
+      "links": [
+        { "type": "GitHub", "url": "https://github.com/nguyenquocvuong-dev" },
+        { "type": "LinkedIn", "url": "https://linkedin.com/in/nguyenquocvuong-dev" }
+      ]
+    }
+  },
+  {
+    "fullName": "Trần Minh Anh",
+    "email": "tranminhanh.data@gmail.com",
+    "authProvider": "DEFAULT",
+    "providerUserId": null,
+    "candidateAccountStatus": "ACTIVE",
+    "emailVerifiedAt": "2026-07-07T08:20:00.000Z",
+    "profile": {
+      "phoneNumber": "0912345678",
+      "gender": "FEMALE",
+      "address": "Quận 7, TP. Hồ Chí Minh",
+      "birthdate": "1998-04-22T00:00:00.000Z",
+      "description": "Product Data Analyst với hơn 3 năm kinh nghiệm phân tích hành vi người dùng, xây dựng dashboard sản phẩm, phân tích cohort, funnel, retention và A/B testing. Có khả năng làm việc trực tiếp với Product Manager, Marketing và Engineering để chuyển đổi dữ liệu thành insight phục vụ quyết định sản phẩm. Thành thạo SQL, Power BI, BigQuery, Excel và có kinh nghiệm Python cho xử lý dữ liệu.",
+      "jobSearchStatus": "OPEN_TO_WORK",
+      "profileVisibility": "PUBLIC",
+      "cvFile": {
+        "ownerType": "candidate",
+        "purpose": "CANDIDATE_CV",
+        "visibility": "PRIVATE",
+        "storageKey": "candidates/tran-minh-anh/cv/tran-minh-anh-product-data-analyst.pdf",
+        "originalName": "Tran-Minh-Anh-Product-Data-Analyst-CV.pdf",
+        "mimeType": "application/pdf",
+        "sizeBytes": 318000,
+        "publicUrl": null,
+        "downloadUrl": "/api/recruiter/candidates/tran-minh-anh/cv"
+      },
+      "jobPreference": {
+        "desiredPosition": "Product Data Analyst",
+        "desiredSalaryMin": "28000000",
+        "desiredSalaryMax": "42000000",
+        "salaryCurrency": "VND",
+        "workingModel": "HYBRID",
+        "desiredLevel": {
+          "name": "Mid-level",
+          "code": "mid"
+        },
+        "noticePeriodDays": 30,
+        "isRelocate": false
+      },
+      "educations": [
+        {
+          "schoolName": "University of Economics Ho Chi Minh City",
+          "degree": "Bachelor",
+          "major": "Business Analytics",
+          "startDate": "2016-09-01T00:00:00.000Z",
+          "endDate": "2020-06-30T00:00:00.000Z",
+          "isCurrent": false,
+          "gpa": "3.4",
+          "description": "Học chuyên sâu về thống kê ứng dụng, phân tích dữ liệu kinh doanh, trực quan hóa dữ liệu, nghiên cứu thị trường và mô hình ra quyết định.",
+          "sortOrder": 0
+        },
+        {
+          "schoolName": "Google Career Certificates",
+          "degree": "Professional Certificate",
+          "major": "Data Analytics",
+          "startDate": "2021-01-01T00:00:00.000Z",
+          "endDate": "2021-07-01T00:00:00.000Z",
+          "isCurrent": false,
+          "gpa": null,
+          "description": "Hoàn thành chương trình phân tích dữ liệu với các nội dung về data cleaning, SQL, dashboard, visualization và case study.",
+          "sortOrder": 1
+        }
+      ],
+      "experiences": [
+        {
+          "companyName": "RetailX Vietnam",
+          "positionTitle": "Product Data Analyst",
+          "employmentType": "Full-time",
+          "startDate": "2023-01-01T00:00:00.000Z",
+          "endDate": null,
+          "isCurrent": true,
+          "description": "• Xây dựng dashboard theo dõi activation, retention, conversion, churn và campaign performance.\n• Phân tích cohort người dùng để xác định nhóm có rủi ro rời bỏ cao và đề xuất cải thiện onboarding.\n• Thiết kế tracking plan cho tính năng mới cùng Product Manager và kiểm tra chất lượng event tracking sau release.\n• Phân tích A/B testing cho luồng đăng ký, onboarding và promotion placement.\n• Làm việc với Data Engineer để chuẩn hóa data mart cho product analytics.\n• Chuẩn bị báo cáo hàng tuần cho Product Lead về user behavior, funnel drop-off và growth opportunity.",
+          "technologies": "SQL, Power BI, BigQuery, Excel, Python, GA4",
+          "sortOrder": 0
+        },
+        {
+          "companyName": "FinData Lab",
+          "positionTitle": "Business Intelligence Analyst",
+          "employmentType": "Full-time",
+          "startDate": "2020-08-01T00:00:00.000Z",
+          "endDate": "2022-12-01T00:00:00.000Z",
+          "isCurrent": false,
+          "description": "• Chuẩn hóa báo cáo doanh thu, traffic, campaign và customer segmentation.\n• Tự động hóa báo cáo định kỳ bằng SQL và dashboard, giảm thời gian tổng hợp thủ công khoảng 50%.\n• Làm việc với marketing team để phân tích hiệu quả kênh acquisition và đề xuất phân bổ ngân sách.\n• Thực hiện phân tích funnel cho landing page, form đăng ký và chiến dịch email marketing.",
+          "technologies": "SQL, Tableau, Google Analytics, Excel, Google Sheets",
+          "sortOrder": 1
+        }
+      ],
+      "skills": [
+        { "name": "SQL", "proficiencyLevel": "EXPERT", "yearsOfExperience": "3", "sortOrder": 0 },
+        { "name": "Data Analysis", "proficiencyLevel": "EXPERT", "yearsOfExperience": "3", "sortOrder": 1 },
+        { "name": "Product Analytics", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2", "sortOrder": 2 },
+        { "name": "Power BI", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2.5", "sortOrder": 3 },
+        { "name": "BigQuery", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2", "sortOrder": 4 },
+        { "name": "Python", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 5 },
+        { "name": "A/B Testing", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 6 },
+        { "name": "Cohort Analysis", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2", "sortOrder": 7 },
+        { "name": "Excel", "proficiencyLevel": "EXPERT", "yearsOfExperience": "4", "sortOrder": 8 },
+        { "name": "GA4", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 9 }
+      ],
+      "projects": [
+        {
+          "name": "User Retention Dashboard",
+          "role": "Product Data Analyst",
+          "description": "Xây dựng dashboard theo dõi retention D1/D7/D30, phân tích cohort theo nguồn traffic, loại thiết bị và hành vi kích hoạt tài khoản. Dashboard giúp Product Manager phát hiện nhóm người dùng rời bỏ sau ngày đầu và đưa ra cải tiến onboarding.",
+          "projectUrl": null,
+          "technologies": "SQL, Power BI, BigQuery",
+          "deployUrl": null,
+          "startDate": "2023-03-01T00:00:00.000Z",
+          "endDate": "2023-06-01T00:00:00.000Z",
+          "sortOrder": 0
+        },
+        {
+          "name": "Promotion A/B Testing Analysis",
+          "role": "Data Analyst",
+          "description": "Phân tích thử nghiệm A/B về vị trí hiển thị promotion trên trang sản phẩm. Đánh giá tác động tới conversion rate, average order value và repeat purchase.",
+          "projectUrl": null,
+          "technologies": "SQL, Python, Excel",
+          "deployUrl": null,
+          "startDate": "2023-09-01T00:00:00.000Z",
+          "endDate": "2023-10-15T00:00:00.000Z",
+          "sortOrder": 1
+        }
+      ],
+      "certifications": [
+        {
+          "name": "Google Data Analytics Professional Certificate",
+          "organization": "Google / Coursera",
+          "issuedDate": "2022-04-10T00:00:00.000Z",
+          "expiredDate": null,
+          "credentialUrl": null,
+          "sortOrder": 0
+        },
+        {
+          "name": "Microsoft Power BI Data Analyst Associate",
+          "organization": "Microsoft",
+          "issuedDate": "2023-05-20T00:00:00.000Z",
+          "expiredDate": null,
+          "credentialUrl": null,
+          "sortOrder": 1
+        }
+      ],
+      "languages": [
+        { "language": "Vietnamese", "proficiency": "Native" },
+        { "language": "English", "proficiency": "Upper-Intermediate" }
+      ],
+      "links": [
+        { "type": "LinkedIn", "url": "https://linkedin.com/in/tranminhanh-data" },
+        { "type": "Portfolio", "url": "https://tranminhanh-data.com" }
+      ]
+    }
+  },
+  {
+    "fullName": "Lê Hoàng Nam",
+    "email": "lehoangnam.pm@gmail.com",
+    "authProvider": "DEFAULT",
+    "providerUserId": null,
+    "candidateAccountStatus": "ACTIVE",
+    "emailVerifiedAt": "2026-07-07T08:25:00.000Z",
+    "profile": {
+      "phoneNumber": "0934567890",
+      "gender": "MALE",
+      "address": "Bình Thạnh, TP. Hồ Chí Minh",
+      "birthdate": "1995-08-12T00:00:00.000Z",
+      "description": "Product Manager với hơn 5 năm kinh nghiệm trong e-commerce, marketplace và seller operation. Mạnh về xây dựng roadmap, viết PRD, tối ưu checkout funnel, promotion flow, seller tools và phối hợp cross-functional giữa Product, Design, Engineering, Operation, Marketing. Có kinh nghiệm theo dõi GMV impact, conversion rate, cart abandonment, issue rate và customer feedback sau release.",
+      "jobSearchStatus": "OPEN_TO_WORK",
+      "profileVisibility": "PUBLIC",
+      "cvFile": {
+        "ownerType": "candidate",
+        "purpose": "CANDIDATE_CV",
+        "visibility": "PRIVATE",
+        "storageKey": "candidates/le-hoang-nam/cv/le-hoang-nam-ecommerce-product-manager.pdf",
+        "originalName": "Le-Hoang-Nam-Ecommerce-Product-Manager-CV.pdf",
+        "mimeType": "application/pdf",
+        "sizeBytes": 352000,
+        "publicUrl": null,
+        "downloadUrl": "/api/recruiter/candidates/le-hoang-nam/cv"
+      },
+      "jobPreference": {
+        "desiredPosition": "E-commerce Product Manager",
+        "desiredSalaryMin": "45000000",
+        "desiredSalaryMax": "70000000",
+        "salaryCurrency": "VND",
+        "workingModel": "HYBRID",
+        "desiredLevel": {
+          "name": "Senior",
+          "code": "senior"
+        },
+        "noticePeriodDays": 45,
+        "isRelocate": false
+      },
+      "educations": [
+        {
+          "schoolName": "Foreign Trade University",
+          "degree": "Bachelor",
+          "major": "International Business",
+          "startDate": "2013-09-01T00:00:00.000Z",
+          "endDate": "2017-06-30T00:00:00.000Z",
+          "isCurrent": false,
+          "gpa": "3.3",
+          "description": "Tập trung vào thương mại, vận hành kinh doanh, marketing, nghiên cứu thị trường và phân tích chiến lược cạnh tranh.",
+          "sortOrder": 0
+        },
+        {
+          "schoolName": "Product School",
+          "degree": "Certificate",
+          "major": "Product Management",
+          "startDate": "2020-01-01T00:00:00.000Z",
+          "endDate": "2020-04-01T00:00:00.000Z",
+          "isCurrent": false,
+          "gpa": null,
+          "description": "Hoàn thành chương trình product management về product discovery, roadmap, metrics, prioritization và stakeholder management.",
+          "sortOrder": 1
+        }
+      ],
+      "experiences": [
+        {
+          "companyName": "MarketHub Vietnam",
+          "positionTitle": "Senior Product Manager",
+          "employmentType": "Full-time",
+          "startDate": "2022-02-01T00:00:00.000Z",
+          "endDate": null,
+          "isCurrent": true,
+          "description": "• Phụ trách roadmap cho checkout, promotion, seller tools và campaign operation.\n• Giảm tỷ lệ bỏ giỏ hàng 12% thông qua tối ưu payment step, voucher validation và thông báo lỗi rõ ràng hơn.\n• Viết PRD, user story, acceptance criteria và quản lý backlog cho 3 squad kỹ thuật.\n• Phối hợp với Data Analyst để theo dõi conversion rate, GMV impact, order success rate và issue rate sau release.\n• Làm việc với Operations để xử lý feedback từ seller, giảm thời gian thao tác thủ công trong xử lý campaign.\n• Tham gia discovery, phỏng vấn người dùng và phân tích hành vi để đề xuất cải tiến trải nghiệm mua hàng.",
+          "technologies": "Jira, Figma, SQL, GA4, Metabase, Confluence",
+          "sortOrder": 0
+        },
+        {
+          "companyName": "ShopPlus",
+          "positionTitle": "Product Executive",
+          "employmentType": "Full-time",
+          "startDate": "2018-06-01T00:00:00.000Z",
+          "endDate": "2022-01-01T00:00:00.000Z",
+          "isCurrent": false,
+          "description": "• Hỗ trợ phát triển các tính năng về order management, promotion, seller onboarding và customer support tools.\n• Làm việc với Operation để thu thập feedback từ seller và chuyển hóa thành requirement.\n• Phân tích dữ liệu campaign, voucher usage và seller performance để đề xuất cải tiến.\n• Hỗ trợ QA kiểm tra tính năng mới và chuẩn bị tài liệu hướng dẫn nội bộ.",
+          "technologies": "Excel, SQL, Jira, Confluence, Figma",
+          "sortOrder": 1
+        }
+      ],
+      "skills": [
+        { "name": "Product Management", "proficiencyLevel": "EXPERT", "yearsOfExperience": "5", "sortOrder": 0 },
+        { "name": "E-commerce", "proficiencyLevel": "EXPERT", "yearsOfExperience": "5", "sortOrder": 1 },
+        { "name": "Marketplace", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "4", "sortOrder": 2 },
+        { "name": "Business Analysis", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "4", "sortOrder": 3 },
+        { "name": "SQL", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 4 },
+        { "name": "Agile", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "4", "sortOrder": 5 },
+        { "name": "User Research", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 6 },
+        { "name": "Figma", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 7 },
+        { "name": "Jira", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "5", "sortOrder": 8 },
+        { "name": "A/B Testing", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 9 }
+      ],
+      "projects": [
+        {
+          "name": "Checkout Funnel Optimization",
+          "role": "Product Manager",
+          "description": "Tối ưu luồng checkout bằng cách giảm số bước nhập thông tin, cải thiện hiển thị lỗi voucher/payment và bổ sung logic lưu thông tin giao hàng. Sau release, tỷ lệ bỏ giỏ hàng giảm và order success rate tăng rõ rệt.",
+          "projectUrl": null,
+          "technologies": "SQL, Jira, Figma, Metabase, GA4",
+          "deployUrl": null,
+          "startDate": "2022-07-01T00:00:00.000Z",
+          "endDate": "2022-12-01T00:00:00.000Z",
+          "sortOrder": 0
+        },
+        {
+          "name": "Seller Campaign Registration Tool",
+          "role": "Product Manager",
+          "description": "Xây dựng công cụ cho seller đăng ký tham gia campaign, kiểm tra điều kiện sản phẩm, giá khuyến mãi và trạng thái duyệt. Giảm đáng kể thao tác thủ công của team vận hành.",
+          "projectUrl": null,
+          "technologies": "Jira, Figma, SQL, Confluence",
+          "deployUrl": null,
+          "startDate": "2023-02-01T00:00:00.000Z",
+          "endDate": "2023-08-01T00:00:00.000Z",
+          "sortOrder": 1
+        }
+      ],
+      "certifications": [
+        {
+          "name": "Agile Product Management",
+          "organization": "Udemy",
+          "issuedDate": "2021-09-20T00:00:00.000Z",
+          "expiredDate": null,
+          "credentialUrl": null,
+          "sortOrder": 0
+        },
+        {
+          "name": "Product Analytics Micro-Certification",
+          "organization": "Product School",
+          "issuedDate": "2022-03-15T00:00:00.000Z",
+          "expiredDate": null,
+          "credentialUrl": null,
+          "sortOrder": 1
+        }
+      ],
+      "languages": [
+        { "language": "Vietnamese", "proficiency": "Native" },
+        { "language": "English", "proficiency": "Advanced" }
+      ],
+      "links": [
+        { "type": "LinkedIn", "url": "https://linkedin.com/in/lehoangnam-pm" },
+        { "type": "Portfolio", "url": "https://lehoangnam-product.com" }
+      ]
+    }
+  },
+  {
+    "fullName": "Phạm Gia Hân",
+    "email": "phamgiahan.ops@gmail.com",
+    "authProvider": "DEFAULT",
+    "providerUserId": null,
+    "candidateAccountStatus": "ACTIVE",
+    "emailVerifiedAt": "2026-07-07T08:30:00.000Z",
+    "profile": {
+      "phoneNumber": "0908123456",
+      "gender": "FEMALE",
+      "address": "Ba Đình, Hà Nội",
+      "birthdate": "1997-02-18T00:00:00.000Z",
+      "description": "Seller Operations Analyst với hơn 3 năm kinh nghiệm trong thương mại điện tử, seller performance, campaign operation và phân tích dữ liệu vận hành. Có kinh nghiệm theo dõi order issue, cancellation rate, late shipment, campaign participation và seller growth. Thành thạo Excel, Google Sheets, dashboard báo cáo, SQL cơ bản và phối hợp với Seller Management, Marketing, Logistics, Product để cải thiện hiệu quả vận hành.",
+      "jobSearchStatus": "OPEN_TO_WORK",
+      "profileVisibility": "PUBLIC",
+      "cvFile": {
+        "ownerType": "candidate",
+        "purpose": "CANDIDATE_CV",
+        "visibility": "PRIVATE",
+        "storageKey": "candidates/pham-gia-han/cv/pham-gia-han-seller-operations-analyst.pdf",
+        "originalName": "Pham-Gia-Han-Seller-Operations-Analyst-CV.pdf",
+        "mimeType": "application/pdf",
+        "sizeBytes": 304000,
+        "publicUrl": null,
+        "downloadUrl": "/api/recruiter/candidates/pham-gia-han/cv"
+      },
+      "jobPreference": {
+        "desiredPosition": "Seller Operations Analyst",
+        "desiredSalaryMin": "22000000",
+        "desiredSalaryMax": "35000000",
+        "salaryCurrency": "VND",
+        "workingModel": "ONSITE",
+        "desiredLevel": {
+          "name": "Mid-level",
+          "code": "mid"
+        },
+        "noticePeriodDays": 30,
+        "isRelocate": false
+      },
+      "educations": [
+        {
+          "schoolName": "National Economics University",
+          "degree": "Bachelor",
+          "major": "E-commerce",
+          "startDate": "2015-09-01T00:00:00.000Z",
+          "endDate": "2019-06-30T00:00:00.000Z",
+          "isCurrent": false,
+          "gpa": "3.1",
+          "description": "Tập trung vào thương mại điện tử, marketing số, quản trị vận hành, hành vi người tiêu dùng và phân tích dữ liệu kinh doanh.",
+          "sortOrder": 0
+        },
+        {
+          "schoolName": "Vietnam E-commerce Training Center",
+          "degree": "Certificate",
+          "major": "Marketplace Operations",
+          "startDate": "2020-04-01T00:00:00.000Z",
+          "endDate": "2020-06-01T00:00:00.000Z",
+          "isCurrent": false,
+          "gpa": null,
+          "description": "Hoàn thành khóa học về vận hành gian hàng, campaign, order fulfillment, seller support và chỉ số marketplace.",
+          "sortOrder": 1
+        }
+      ],
+      "experiences": [
+        {
+          "companyName": "MegaMall Vietnam",
+          "positionTitle": "Seller Operations Analyst",
+          "employmentType": "Full-time",
+          "startDate": "2022-08-01T00:00:00.000Z",
+          "endDate": null,
+          "isCurrent": true,
+          "description": "• Theo dõi seller performance, order issue, cancellation rate, late shipment và campaign participation.\n• Xây dựng dashboard cảnh báo seller có rủi ro vận hành, giúp team Seller Management ưu tiên xử lý đúng nhóm.\n• Phối hợp với Marketing và Seller Management trong các campaign lớn, đảm bảo seller đăng ký đúng điều kiện và cập nhật giá đúng hạn.\n• Phân tích nguyên nhân seller không đạt KPI về giao hàng, tồn kho hoặc tỷ lệ xử lý đơn.\n• Đề xuất cải tiến quy trình kiểm tra sản phẩm campaign, giảm thao tác thủ công trong khâu tổng hợp dữ liệu.\n• Chuẩn bị báo cáo tuần/tháng về seller growth, seller quality và operational bottleneck.",
+          "technologies": "Excel, SQL, Looker Studio, Google Sheets, Metabase",
+          "sortOrder": 0
+        },
+        {
+          "companyName": "ShopCare Services",
+          "positionTitle": "E-commerce Operations Executive",
+          "employmentType": "Full-time",
+          "startDate": "2019-08-01T00:00:00.000Z",
+          "endDate": "2022-07-01T00:00:00.000Z",
+          "isCurrent": false,
+          "description": "• Theo dõi đơn hàng, hỗ trợ seller xử lý tồn kho, giá khuyến mãi và vấn đề vận chuyển.\n• Tổng hợp báo cáo vận hành hằng ngày cho team lead.\n• Phối hợp với customer service xử lý khiếu nại về đơn hàng và trạng thái giao hàng.\n• Hỗ trợ onboarding seller mới, hướng dẫn cập nhật sản phẩm và tham gia chương trình khuyến mãi.",
+          "technologies": "Excel, Google Sheets, CRM, Marketplace Seller Center",
+          "sortOrder": 1
+        }
+      ],
+      "skills": [
+        { "name": "Operations", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 0 },
+        { "name": "Data Analysis", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2.5", "sortOrder": 1 },
+        { "name": "Excel", "proficiencyLevel": "EXPERT", "yearsOfExperience": "4", "sortOrder": 2 },
+        { "name": "Google Sheets", "proficiencyLevel": "EXPERT", "yearsOfExperience": "4", "sortOrder": 3 },
+        { "name": "SQL", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1", "sortOrder": 4 },
+        { "name": "E-commerce", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 5 },
+        { "name": "Seller Management", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 6 },
+        { "name": "Looker Studio", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 7 },
+        { "name": "Business Analysis", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 8 }
+      ],
+      "projects": [
+        {
+          "name": "Seller Quality Monitoring Dashboard",
+          "role": "Operations Analyst",
+          "description": "Xây dựng dashboard theo dõi seller quality dựa trên late shipment rate, cancellation rate, complaint rate và campaign compliance. Dashboard giúp team vận hành phát hiện seller có rủi ro và triển khai hành động cải thiện.",
+          "projectUrl": null,
+          "technologies": "SQL, Looker Studio, Google Sheets",
+          "deployUrl": null,
+          "startDate": "2023-01-01T00:00:00.000Z",
+          "endDate": "2023-04-01T00:00:00.000Z",
+          "sortOrder": 0
+        },
+        {
+          "name": "Campaign Seller Readiness Checklist",
+          "role": "Operations Executive",
+          "description": "Thiết kế checklist kiểm tra seller trước campaign gồm giá, tồn kho, hình ảnh sản phẩm, SLA xử lý đơn và lịch tham gia. Quy trình giúp giảm lỗi vận hành trong các đợt campaign lớn.",
+          "projectUrl": null,
+          "technologies": "Excel, Google Sheets, Seller Center",
+          "deployUrl": null,
+          "startDate": "2022-10-01T00:00:00.000Z",
+          "endDate": "2022-12-01T00:00:00.000Z",
+          "sortOrder": 1
+        }
+      ],
+      "certifications": [
+        {
+          "name": "E-commerce Operations Fundamentals",
+          "organization": "Vietnam E-commerce Association",
+          "issuedDate": "2021-03-10T00:00:00.000Z",
+          "expiredDate": null,
+          "credentialUrl": null,
+          "sortOrder": 0
+        },
+        {
+          "name": "Advanced Excel for Business Analytics",
+          "organization": "Udemy",
+          "issuedDate": "2022-05-12T00:00:00.000Z",
+          "expiredDate": null,
+          "credentialUrl": null,
+          "sortOrder": 1
+        }
+      ],
+      "languages": [
+        { "language": "Vietnamese", "proficiency": "Native" },
+        { "language": "English", "proficiency": "Intermediate" }
+      ],
+      "links": [
+        { "type": "LinkedIn", "url": "https://linkedin.com/in/phamgiahan-ops" }
+      ]
+    }
+  },
+  {
+    "fullName": "Đỗ Minh Khang",
+    "email": "dominhkhang.backend@gmail.com",
+    "authProvider": "DEFAULT",
+    "providerUserId": null,
+    "candidateAccountStatus": "ACTIVE",
+    "emailVerifiedAt": "2026-07-07T08:35:00.000Z",
+    "profile": {
+      "phoneNumber": "0966123456",
+      "gender": "MALE",
+      "address": "Quận 7, TP. Hồ Chí Minh",
+      "birthdate": "1996-11-03T00:00:00.000Z",
+      "description": "Backend Engineer với hơn 4 năm kinh nghiệm xây dựng microservices, event-driven architecture và hệ thống marketplace có lưu lượng lớn. Có kinh nghiệm với Go, Java, Kafka, Redis, PostgreSQL, Docker, observability và tối ưu API latency. Từng tham gia phát triển service matching, order lifecycle, dispatching và hệ thống xử lý event bất đồng bộ cho nền tảng giao nhận.",
+      "jobSearchStatus": "OPEN_TO_WORK",
+      "profileVisibility": "PUBLIC",
+      "cvFile": {
+        "ownerType": "candidate",
+        "purpose": "CANDIDATE_CV",
+        "visibility": "PRIVATE",
+        "storageKey": "candidates/do-minh-khang/cv/do-minh-khang-backend-engineer-marketplace.pdf",
+        "originalName": "Do-Minh-Khang-Backend-Engineer-Marketplace-CV.pdf",
+        "mimeType": "application/pdf",
+        "sizeBytes": 371000,
+        "publicUrl": null,
+        "downloadUrl": "/api/recruiter/candidates/do-minh-khang/cv"
+      },
+      "jobPreference": {
+        "desiredPosition": "Backend Engineer - Marketplace Platform",
+        "desiredSalaryMin": "40000000",
+        "desiredSalaryMax": "65000000",
+        "salaryCurrency": "VND",
+        "workingModel": "HYBRID",
+        "desiredLevel": {
+          "name": "Mid-level",
+          "code": "mid"
+        },
+        "noticePeriodDays": 30,
+        "isRelocate": false
+      },
+      "educations": [
+        {
+          "schoolName": "University of Information Technology - VNUHCM",
+          "degree": "Bachelor",
+          "major": "Computer Science",
+          "startDate": "2014-09-01T00:00:00.000Z",
+          "endDate": "2018-06-30T00:00:00.000Z",
+          "isCurrent": false,
+          "gpa": "3.2",
+          "description": "Tập trung vào cấu trúc dữ liệu, giải thuật, hệ điều hành, mạng máy tính, cơ sở dữ liệu và kiến trúc phần mềm.",
+          "sortOrder": 0
+        },
+        {
+          "schoolName": "Cloud Native Training Program",
+          "degree": "Certificate",
+          "major": "Microservices & Distributed Systems",
+          "startDate": "2021-02-01T00:00:00.000Z",
+          "endDate": "2021-05-01T00:00:00.000Z",
+          "isCurrent": false,
+          "gpa": null,
+          "description": "Hoàn thành chương trình về microservices, message broker, containerization, monitoring và deployment.",
+          "sortOrder": 1
+        }
+      ],
+      "experiences": [
+        {
+          "companyName": "MoveNow Technology",
+          "positionTitle": "Backend Engineer",
+          "employmentType": "Full-time",
+          "startDate": "2021-06-01T00:00:00.000Z",
+          "endDate": null,
+          "isCurrent": true,
+          "description": "• Phát triển service matching và order lifecycle cho nền tảng giao nhận.\n• Thiết kế event-driven flow cho trạng thái đơn hàng, tài xế nhận chuyến và cập nhật vị trí.\n• Xử lý luồng event bất đồng bộ bằng Kafka và Redis Stream.\n• Tối ưu API latency từ khoảng 450ms xuống dưới 180ms cho các endpoint chính.\n• Thiết kế monitoring dashboard, log correlation và alert cho service quan trọng.\n• Làm việc với Product, Mobile và Operations để xử lý edge case trong dispatching và cancellation.\n• Review code, viết integration test và cải thiện độ ổn định của service trong giờ cao điểm.",
+          "technologies": "Go, Java, Kafka, Redis, PostgreSQL, Docker, Prometheus, Grafana",
+          "sortOrder": 0
+        },
+        {
+          "companyName": "ByteCart Solutions",
+          "positionTitle": "Junior Backend Developer",
+          "employmentType": "Full-time",
+          "startDate": "2019-07-01T00:00:00.000Z",
+          "endDate": "2021-05-01T00:00:00.000Z",
+          "isCurrent": false,
+          "description": "• Phát triển API cho hệ thống quản lý đơn hàng và tồn kho.\n• Làm việc với PostgreSQL, Redis cache và background job.\n• Hỗ trợ refactor một số module từ monolith sang service nhỏ hơn.\n• Viết tài liệu API, xử lý bug production và phối hợp với QA trong release.",
+          "technologies": "Java, Spring Boot, PostgreSQL, Redis, Docker",
+          "sortOrder": 1
+        }
+      ],
+      "skills": [
+        { "name": "Go", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 0 },
+        { "name": "Java", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 1 },
+        { "name": "Microservices", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 2 },
+        { "name": "Distributed Systems", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 3 },
+        { "name": "Kafka", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 4 },
+        { "name": "Redis", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 5 },
+        { "name": "PostgreSQL", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "4", "sortOrder": 6 },
+        { "name": "RESTful API", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "4", "sortOrder": 7 },
+        { "name": "Docker", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 8 },
+        { "name": "Prometheus", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 9 }
+      ],
+      "projects": [
+        {
+          "name": "Driver Matching Service",
+          "role": "Backend Engineer",
+          "description": "Service matching tài xế với đơn hàng dựa trên vị trí, trạng thái hoạt động, khoảng cách và khả năng nhận chuyến. Hệ thống sử dụng Redis để cache vị trí và Kafka để phát event trạng thái đơn.",
+          "projectUrl": null,
+          "technologies": "Go, Redis, Kafka, PostgreSQL, Docker",
+          "deployUrl": null,
+          "startDate": "2022-01-01T00:00:00.000Z",
+          "endDate": "2022-08-01T00:00:00.000Z",
+          "sortOrder": 0
+        },
+        {
+          "name": "Order Lifecycle Event Pipeline",
+          "role": "Backend Engineer",
+          "description": "Thiết kế pipeline xử lý event vòng đời đơn hàng, bao gồm created, accepted, picked_up, delivered, canceled và refunded. Bổ sung retry mechanism và dead-letter queue cho event lỗi.",
+          "projectUrl": null,
+          "technologies": "Kafka, Go, PostgreSQL, Grafana",
+          "deployUrl": null,
+          "startDate": "2023-03-01T00:00:00.000Z",
+          "endDate": "2023-09-01T00:00:00.000Z",
+          "sortOrder": 1
+        }
+      ],
+      "certifications": [
+        {
+          "name": "Microservices Architecture and Implementation",
+          "organization": "Udemy",
+          "issuedDate": "2021-08-20T00:00:00.000Z",
+          "expiredDate": null,
+          "credentialUrl": null,
+          "sortOrder": 0
+        },
+        {
+          "name": "Kafka for Developers",
+          "organization": "Confluent Training",
+          "issuedDate": "2022-06-15T00:00:00.000Z",
+          "expiredDate": null,
+          "credentialUrl": null,
+          "sortOrder": 1
+        }
+      ],
+      "languages": [
+        { "language": "Vietnamese", "proficiency": "Native" },
+        { "language": "English", "proficiency": "Upper-Intermediate" }
+      ],
+      "links": [
+        { "type": "GitHub", "url": "https://github.com/dominhkhang-backend" },
+        { "type": "LinkedIn", "url": "https://linkedin.com/in/dominhkhang-backend" }
+      ]
+    }
+  }
+]

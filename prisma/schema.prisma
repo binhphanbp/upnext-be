@@ -688,6 +688,7 @@ model Company {
     description           String?                   @db.Text
     benefits              String?                   @db.Text
     companySize           String?                   @map("company_size") @db.VarChar(80)
+    workingDays           String?                   @map("working_days") @db.VarChar(150)
     verificationStatus    CompanyVerificationStatus @default(UNVERIFIED) @map("verification_status")
     reputationScore       Decimal                   @default(0) @map("reputation_score") @db.Decimal(6, 2)
     status                CompanyStatus             @default(ACTIVE)
@@ -843,6 +844,7 @@ model JobPost {
     description          String           @db.Text
     requirements         String?          @db.Text
     benefits             String?          @db.Text
+    workingDays          String?          @map("working_days") @db.VarChar(100)
     educationLevel       EducationLevel   @default(ANY) @map("education_level")
     salaryMin            Decimal?         @map("salary_min") @db.Decimal(12, 2)
     salaryMax            Decimal?         @map("salary_max") @db.Decimal(12, 2)
