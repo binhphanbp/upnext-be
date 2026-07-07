@@ -72,6 +72,9 @@ export class Company {
   @ApiPropertyOptional({ example: '51-200 nhân sự' })
   companySize?: string | null;
 
+  @ApiPropertyOptional({ example: 'Thứ 2 - Thứ 6' })
+  workingDays?: string | null;
+
   @ApiProperty({
     enum: CompanyVerificationStatus,
     example: CompanyVerificationStatus.UNVERIFIED,

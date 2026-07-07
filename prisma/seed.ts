@@ -10,11 +10,15 @@ import {
   EducationLevel,
   FilePurpose,
   FileVisibility,
+  Gender,
   InterviewResult,
   InterviewStatus,
+  JobSearchStatus,
   JobStatus,
+  ModerationStatus,
   Prisma,
   PrismaClient,
+  ProfileVisibility,
   SalaryPeriod,
   SkillPriority,
   WorkingModel,
@@ -938,11 +942,46 @@ async function cleanHomeSeedData() {
     },
   });
 
+  const backupPath = path.join(__dirname, 'data/companies_real.json');
+  let realCompanyIds: string[] = [];
+  let realRecruiterIds: string[] = [];
+  let realRecruiterEmails: string[] = [];
+  if (fs.existsSync(backupPath)) {
+    try {
+      const backupData = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+      if (backupData.companies) {
+        realCompanyIds = backupData.companies.map((c: any) => c.id);
+      }
+      if (backupData.recruiters) {
+        realRecruiterIds = backupData.recruiters.map((r: any) => r.id);
+        realRecruiterEmails = backupData.recruiters.map((r: any) => r.email);
+      }
+    } catch (e) {}
+  }
+
+  const backupCandidatesPath = path.join(__dirname, 'data/candidates_real.json');
+  let realCandidateEmails: string[] = [];
+  if (fs.existsSync(backupCandidatesPath)) {
+    try {
+      const candidatesRealRaw = JSON.parse(fs.readFileSync(backupCandidatesPath, 'utf8'));
+      realCandidateEmails = candidatesRealRaw.map((c: any) => c.email);
+    } catch (e) {}
+  }
+
   const candidateAccounts = await prisma.candidateAccount.findMany({
     where: {
-      email: {
-        startsWith: SEED_EMAIL_PREFIX,
-      },
+      OR: [
+        {
+          email: {
+            startsWith: SEED_EMAIL_PREFIX,
+          },
+        },
+        {
+          email: {
+            in: realCandidateEmails,
+          },
+        },
+      ],
     },
     select: {
       id: true,
@@ -960,9 +999,23 @@ async function cleanHomeSeedData() {
 
   const recruiterAccounts = await prisma.recruiterAccount.findMany({
     where: {
-      email: {
-        startsWith: `${SEED_EMAIL_PREFIX}recruiter.`,
-      },
+      OR: [
+        {
+          email: {
+            startsWith: `${SEED_EMAIL_PREFIX}recruiter.`,
+          },
+        },
+        {
+          id: {
+            in: realRecruiterIds,
+          },
+        },
+        {
+          email: {
+            in: realRecruiterEmails,
+          },
+        },
+      ],
     },
     select: {
       id: true,
@@ -982,6 +1035,11 @@ async function cleanHomeSeedData() {
         {
           createdByRecruiterId: {
             in: recruiterIds,
+          },
+        },
+        {
+          companyId: {
+            in: realCompanyIds,
           },
         },
       ],
@@ -1154,18 +1212,41 @@ async function cleanHomeSeedData() {
 
   await prisma.recruiterAccount.deleteMany({
     where: {
-      email: {
-        startsWith: `${SEED_EMAIL_PREFIX}recruiter.`,
-      },
+      OR: [
+        {
+          email: {
+            startsWith: `${SEED_EMAIL_PREFIX}recruiter.`,
+          },
+        },
+        {
+          id: {
+            in: realRecruiterIds,
+          },
+        },
+        {
+          email: {
+            in: realRecruiterEmails,
+          },
+        },
+      ],
     },
   });
 
   await prisma.invoice.deleteMany({
     where: {
       company: {
-        taxCode: {
-          startsWith: SEED_TAX_CODE_PREFIX,
-        },
+        OR: [
+          {
+            taxCode: {
+              startsWith: SEED_TAX_CODE_PREFIX,
+            },
+          },
+          {
+            id: {
+              in: realCompanyIds,
+            },
+          },
+        ],
       },
     },
   });
@@ -1173,9 +1254,18 @@ async function cleanHomeSeedData() {
   await prisma.companySubscription.deleteMany({
     where: {
       company: {
-        taxCode: {
-          startsWith: SEED_TAX_CODE_PREFIX,
-        },
+        OR: [
+          {
+            taxCode: {
+              startsWith: SEED_TAX_CODE_PREFIX,
+            },
+          },
+          {
+            id: {
+              in: realCompanyIds,
+            },
+          },
+        ],
       },
     },
   });
@@ -1192,25 +1282,67 @@ async function cleanHomeSeedData() {
 
   await prisma.company.deleteMany({
     where: {
-      taxCode: {
-        startsWith: SEED_TAX_CODE_PREFIX,
-      },
+      OR: [
+        {
+          taxCode: {
+            startsWith: SEED_TAX_CODE_PREFIX,
+          },
+        },
+        {
+          id: {
+            in: realCompanyIds,
+          },
+        },
+      ],
     },
   });
 
   await prisma.candidateAccount.deleteMany({
     where: {
-      email: {
-        startsWith: SEED_EMAIL_PREFIX,
-      },
+      OR: [
+        {
+          email: {
+            startsWith: SEED_EMAIL_PREFIX,
+          },
+        },
+        {
+          email: {
+            in: realCandidateEmails,
+          },
+        },
+      ],
     },
   });
 
+  let realFileAssetIds: string[] = [];
+  if (fs.existsSync(backupPath)) {
+    try {
+      const backupData = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+      if (backupData.fileAssets) {
+        realFileAssetIds = backupData.fileAssets.map((asset: any) => asset.id);
+      }
+    } catch (e) {}
+  }
+
   await prisma.fileAsset.deleteMany({
     where: {
-      storageKey: {
-        startsWith: SEED_STORAGE_PREFIX,
-      },
+      OR: [
+        {
+          storageKey: {
+            startsWith: SEED_STORAGE_PREFIX,
+          },
+        },
+        {
+          storageKey: {
+            startsWith: 'imported/',
+          },
+        },
+        {
+          id: {
+            in: realFileAssetIds,
+          },
+        },
+      ],
     },
   });
 
@@ -1911,192 +2043,74 @@ async function main() {
     }
   }
 
-  const companyDefinitions = [
-    {
-      key: 'alpha',
-      name: 'Northstar Product Studio',
-      type: CompanyType.PRODUCT,
-      description: 'Builds SaaS hiring products for regional employers.',
-      companySize: '100-199',
-      city: 'Hồ Chí Minh',
-      applicationsWeight: 11,
-    },
-    {
-      key: 'beta',
-      name: 'Bluewave Outsourcing',
-      type: CompanyType.OUTSOURCING,
-      description: 'Delivers distributed product teams for fast-growing startups.',
-      companySize: '200-499',
-      city: 'Đà Nẵng',
-      applicationsWeight: 8,
-    },
-    {
-      key: 'gamma',
-      name: 'Orbit AI Labs',
-      type: CompanyType.STARTUP,
-      description: 'Applies AI workflows to recruiting and talent analytics.',
-      companySize: '50-99',
-      city: 'Hà Nội',
-      applicationsWeight: 5,
-    },
-    {
-      key: 'delta',
-      name: 'Vertex Commerce Tech',
-      type: CompanyType.PRODUCT,
-      description: 'Builds commerce operations tools and internal platforms.',
-      companySize: '100-199',
-      city: 'Cần Thơ',
-      applicationsWeight: 3,
-    },
-  ] as const;
+  const backupPath = path.join(__dirname, 'data/companies_real.json');
+  if (!fs.existsSync(backupPath)) {
+    throw new Error('prisma/data/companies_real.json is required for seeding real companies.');
+  }
+  const backupData = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
 
-  const companies = companyDefinitions.map((definition) => {
-    const companyId = randomUUID();
-    const logoFileId = randomUUID();
-    const coverFileId = randomUUID();
-    const businessLicenseFileId = definition.key !== 'beta' ? randomUUID() : null;
-
+  const companies = backupData.companies.map((c: any, index: number) => {
+    let key = c.slug;
+    if (index === 0) key = 'alpha';
+    else if (index === 1) key = 'beta';
+    else if (index === 2) key = 'gamma';
+    else if (index === 3) key = 'delta';
     return {
-      ...definition,
-      id: companyId,
-      logoFileId,
-      coverFileId,
-      businessLicenseFileId,
-      taxCode: `${SEED_TAX_CODE_PREFIX}${definition.key.toUpperCase()}`,
-      slug: toSlug(definition.name),
-      email:
-        definition.key === 'alpha'
-          ? 'hr@northstar.dev'
-          : definition.key === 'beta'
-            ? 'contact@bluewave.com'
-            : definition.key === 'gamma'
-              ? 'jobs@orbitai.vn'
-              : 'support@vertex.tech',
-      website:
-        definition.key === 'alpha'
-          ? 'https://northstar.dev'
-          : definition.key === 'beta'
-            ? 'https://bluewave.com'
-            : definition.key === 'gamma'
-              ? 'https://orbitai.vn'
-              : 'https://vertex.tech',
+      ...c,
+      key
     };
   });
 
-  const coverUrls: Record<string, string> = {
-    alpha: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=400&fit=crop&q=80',
-    beta: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=800&h=400&fit=crop&q=80',
-    gamma: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=400&fit=crop&q=80',
-    delta: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=400&fit=crop&q=80',
-  };
+  const fileAssetsData = backupData.fileAssets.map((asset: any) => ({
+    id: asset.id,
+    ownerType: asset.ownerType,
+    ownerId: asset.ownerId,
+    purpose: asset.purpose,
+    visibility: asset.visibility,
+    storageKey: asset.storageKey,
+    originalName: asset.originalName,
+    mimeType: asset.mimeType,
+    sizeBytes: BigInt(asset.sizeBytes),
+    publicUrl: asset.publicUrl,
+    createdAt: new Date(asset.createdAt),
+    updatedAt: new Date(asset.updatedAt)
+  }));
 
-  const fileAssetsData = companies.flatMap((company) => {
-    const assets: Prisma.FileAssetCreateManyInput[] = [
-      {
-        id: company.logoFileId,
-        ownerType: 'company',
-        ownerId: company.id,
-        purpose: FilePurpose.COMPANY_LOGO,
-        visibility: FileVisibility.PUBLIC,
-        storageKey: `${SEED_STORAGE_PREFIX}companies/${company.key}/logo.png`,
-        originalName: `${company.key}-logo.png`,
-        mimeType: 'image/png',
-        sizeBytes: BigInt(2048),
-        publicUrl:
-          company.key === 'alpha' && companiesWithLogo[0]
-            ? companiesWithLogo[0].Logo
-            : company.key === 'beta' && companiesWithLogo[1]
-              ? companiesWithLogo[1].Logo
-              : company.key === 'gamma' && companiesWithLogo[2]
-                ? companiesWithLogo[2].Logo
-                : company.key === 'delta' && companiesWithLogo[3]
-                  ? companiesWithLogo[3].Logo
-                  : getCompanyLogoUrl(company.name, company.key),
-      },
-      {
-        id: company.coverFileId,
-        ownerType: 'company_cover',
-        ownerId: company.id,
-        purpose: FilePurpose.OTHER,
-        visibility: FileVisibility.PUBLIC,
-        storageKey: `${SEED_STORAGE_PREFIX}companies/${company.key}/cover.png`,
-        originalName: `${company.key}-cover.png`,
-        mimeType: 'image/png',
-        sizeBytes: BigInt(4096),
-        publicUrl:
-          coverUrls[company.key] || `https://cdn.seed-home-test.local/${company.key}/cover.png`,
-      },
-    ];
-
-    if (company.businessLicenseFileId) {
-      assets.push({
-        id: company.businessLicenseFileId,
-        ownerType: 'company',
-        ownerId: company.id,
-        purpose: FilePurpose.BUSINESS_LICENSE,
-        visibility: FileVisibility.PRIVATE,
-        storageKey: `${SEED_STORAGE_PREFIX}companies/${company.key}/business_license.pdf`,
-        originalName: `${company.key}-business-license.pdf`,
-        mimeType: 'application/pdf',
-        sizeBytes: BigInt(1024 * 150),
-        publicUrl: `https://cdn.seed-home-test.local/${company.key}/business_license.pdf`,
-      });
-    }
-
-    return assets;
-  });
+  const existingCount = await prisma.fileAsset.count();
+  console.log('FileAsset count in DB right before insert:', existingCount);
+  if (existingCount > 0) {
+    const existing = await prisma.fileAsset.findMany({ select: { id: true } });
+    console.log('Existing FileAsset IDs in DB:', existing.map(x => x.id));
+  }
 
   await prisma.fileAsset.createMany({
-    data: fileAssetsData,
+    data: fileAssetsData
   });
 
   await prisma.company.createMany({
-    data: companies.map((company, index) => {
-      let verificationStatus: CompanyVerificationStatus = CompanyVerificationStatus.VERIFIED;
-      let reputationScore: Prisma.Decimal = new Prisma.Decimal(95.0);
-      let lockedReason: string | null = null;
-
-      if (company.key === 'beta') {
-        verificationStatus = CompanyVerificationStatus.UNVERIFIED;
-        reputationScore = new Prisma.Decimal(15.0);
-      } else if (company.key === 'gamma') {
-        verificationStatus = CompanyVerificationStatus.PENDING;
-        reputationScore = new Prisma.Decimal(35.0);
-      } else if (company.key === 'delta') {
-        verificationStatus = CompanyVerificationStatus.REJECTED;
-        reputationScore = new Prisma.Decimal(10.0);
-        lockedReason = 'Giấy phép đăng ký kinh doanh không hợp lệ hoặc đã quá hạn hiệu lực.';
-      }
-
-      return {
-        id: company.id,
-        slug: company.slug,
-        logoFileId: company.logoFileId,
-        businessLicenseFileId: company.businessLicenseFileId,
-        type: company.type,
-        name: company.name,
-        taxCode: company.taxCode,
-        address: `${company.city}, Vietnam`,
-        email: company.email,
-        phone:
-          company.key === 'alpha'
-            ? '02839251001'
-            : company.key === 'beta'
-              ? '02363888202'
-              : company.key === 'gamma'
-                ? '02437933003'
-                : '02923838404',
-        website: company.website,
-        description: company.description,
-        companySize: company.companySize,
-        verificationStatus,
-        reputationScore,
-        lockedReason,
-        status: CompanyStatus.ACTIVE,
-        createdAt: addDays(lastMonthStart, index),
-        updatedAt: addDays(lastMonthStart, index),
-      };
-    }),
+    data: companies.map((c: any) => ({
+      id: c.id,
+      slug: c.slug,
+      logoFileId: c.logoFileId,
+      businessLicenseFileId: c.businessLicenseFileId,
+      type: c.type,
+      name: c.name,
+      taxCode: c.taxCode,
+      address: c.address,
+      email: c.email,
+      phone: c.phone,
+      website: c.website,
+      description: c.description,
+      benefits: c.benefits,
+      companySize: c.companySize,
+      workingDays: c.workingDays || 'Thứ 2 - Thứ 6',
+      verificationStatus: c.verificationStatus,
+      reputationScore: new Prisma.Decimal(c.reputationScore),
+      lockedReason: c.lockedReason,
+      status: c.status,
+      createdAt: new Date(c.createdAt),
+      updatedAt: new Date(c.updatedAt),
+    }))
   });
 
   await prisma.companyReputationActivity.createMany({
@@ -2167,74 +2181,34 @@ async function main() {
     ],
   });
 
-  const recruiterDefinitions = [
-    {
-      companyIndex: 0,
-      roleCode: 'OWNER',
-      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.owner@upnext.dev`,
-      fullName: `Alpha Owner`,
-    },
-    {
-      companyIndex: 0,
-      roleCode: 'HR',
-      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.admin@upnext.dev`,
-      fullName: `Alpha Admin`,
-    },
-    {
-      companyIndex: 0,
-      roleCode: 'HR',
-      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.recruiter@upnext.dev`,
-      fullName: `Alpha Recruiter`,
-    },
-    {
-      companyIndex: 0,
-      roleCode: 'TECHLEAD',
-      email: `${SEED_EMAIL_PREFIX}recruiter.alpha.interviewer@upnext.dev`,
-      fullName: `Alpha Interviewer`,
-    },
-    {
-      companyIndex: 1,
-      roleCode: 'OWNER',
-      email: `${SEED_EMAIL_PREFIX}recruiter.tri.pham@bluewave.com`,
-      fullName: `Phạm Minh Trí`,
-    },
-    {
-      companyIndex: 2,
-      roleCode: 'OWNER',
-      email: `${SEED_EMAIL_PREFIX}recruiter.mai.do@orbitai.vn`,
-      fullName: `Đỗ Thị Mai`,
-    },
-    {
-      companyIndex: 3,
-      roleCode: 'OWNER',
-      email: `${SEED_EMAIL_PREFIX}recruiter.khang.hoang@vertex.tech`,
-      fullName: `Hoàng Văn Khang`,
-    },
-  ];
-
-  const recruiters = recruiterDefinitions.map((def) => {
-    const company = companies[def.companyIndex];
+  const recruiters = backupData.recruiters.map((rec: any) => {
+    let roleCode = 'HR';
+    if (rec.email === 'hr@fptsoftware.com' || rec.email === 'admin@fptsoftware.com' || rec.email.includes('owner') || (!rec.email.includes('interviewer') && !rec.email.includes('recruiter@'))) {
+      roleCode = 'OWNER';
+    } else if (rec.email.includes('interviewer')) {
+      roleCode = 'TECHLEAD';
+    }
     return {
-      id: randomUUID(),
-      profileId: randomUUID(),
-      companyId: company.id,
-      email: def.email,
-      fullName: def.fullName,
-      roleCode: def.roleCode,
-      createdAt: addDays(now, -(def.companyIndex % 5) * 3),
+      id: rec.id,
+      profileId: rec.profile ? rec.profile.id : randomUUID(),
+      companyId: rec.companyId,
+      email: rec.email,
+      fullName: rec.profile ? rec.profile.fullName : 'Recruiter',
+      roleCode: roleCode,
+      createdAt: new Date(rec.createdAt),
     };
   });
 
   await prisma.recruiterAccount.createMany({
-    data: recruiters.map((recruiter) => ({
+    data: recruiters.map((recruiter: any) => ({
       id: recruiter.id,
       companyId: recruiter.companyId,
       recruiterRoleId: seededRoles[recruiter.roleCode].id,
       email: recruiter.email,
-      passwordHash,
+      passwordHash: recruiter.passwordHash || passwordHash,
       createdAt: recruiter.createdAt,
       updatedAt: recruiter.createdAt,
-    })),
+    }))
   });
 
   const avatarUrls = [
@@ -2247,24 +2221,27 @@ async function main() {
   ];
 
   await prisma.recruiterProfile.createMany({
-    data: recruiters.map((recruiter, idx) => ({
-      id: recruiter.profileId,
-      recruiterAccountId: recruiter.id,
-      fullName: recruiter.fullName,
-      avatarUrl: avatarUrls[idx % avatarUrls.length],
-      createdAt: recruiter.createdAt,
-      updatedAt: recruiter.createdAt,
-    })),
+    data: recruiters.map((recruiter: any, idx: number) => {
+      const backupRec = backupData.recruiters.find((r: any) => r.id === recruiter.id);
+      return {
+        id: recruiter.profileId,
+        recruiterAccountId: recruiter.id,
+        fullName: recruiter.fullName,
+        avatarUrl: backupRec?.profile?.avatarUrl || avatarUrls[idx % avatarUrls.length],
+        createdAt: recruiter.createdAt,
+        updatedAt: recruiter.createdAt,
+      };
+    })
   });
 
   await prisma.companyMember.createMany({
-    data: recruiters.map((recruiter) => ({
+    data: recruiters.map((recruiter: any) => ({
       recruiterAccountId: recruiter.id,
       companyId: recruiter.companyId,
       roleId: seededRoles[recruiter.roleCode].id,
       createdAt: recruiter.createdAt,
       updatedAt: recruiter.createdAt,
-    })),
+    }))
   });
 
   const vietnameseNames = [
@@ -2330,22 +2307,62 @@ async function main() {
     'Lương Gia Khánh',
   ];
 
-  const candidates = Array.from({ length: 60 }, (_, index) => {
+  const backupCandidatesPath = path.join(__dirname, 'data/candidates_real.json');
+  if (!fs.existsSync(backupCandidatesPath)) {
+    throw new Error('prisma/data/candidates_real.json is required for seeding real candidates.');
+  }
+  const candidatesRealRaw = JSON.parse(fs.readFileSync(backupCandidatesPath, 'utf8'));
+
+  const detailedNames = [
+    'Nguyễn Quốc Vương',
+    'Trần Minh Anh',
+    'Lê Hoàng Nam',
+    'Phạm Gia Hân',
+    'Đỗ Minh Khang',
+    'Vũ Hoàng Nam',
+    'Ngô Bích Thủy',
+    'Bùi Tiến Dũng',
+    'Nguyễn Minh Triết',
+    'Hoàng Kim Oanh'
+  ];
+
+  const candidates = Array.from({ length: 5 }, (_, index) => {
     const accountId = randomUUID();
     const profileId = randomUUID();
     const cvId = randomUUID();
     const cvVersionId = randomUUID();
-    const fullName = vietnameseNames[index % vietnameseNames.length];
+    const cvFileAssetId = randomUUID();
 
+    if (index < 5) {
+      const real = candidatesRealRaw[index];
+      return {
+        index,
+        accountId,
+        profileId,
+        cvId,
+        cvVersionId,
+        cvFileAssetId,
+        fullName: real.fullName,
+        email: real.email,
+        createdAt: addDays(now, -(index % 30)),
+        realCandidate: real,
+      };
+    }
+
+    const fullName = index < 10 ? detailedNames[index] : vietnameseNames[(index - 10) % vietnameseNames.length];
     return {
       index,
       accountId,
       profileId,
       cvId,
       cvVersionId,
-      email: `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName)}@gmail.com`,
+      cvFileAssetId: null,
       fullName,
+      email: index < 10
+        ? `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName).replace(/[^a-z0-9]/g, '-')}.candidate@gmail.com`
+        : `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName)}@gmail.com`,
       createdAt: addDays(now, -(index % 30)),
+      realCandidate: null,
     };
   });
 
@@ -2361,54 +2378,142 @@ async function main() {
     })),
   });
 
+  const fileAssetsToCreate: any[] = [];
+  
   await prisma.candidateProfile.createMany({
     data: candidates.map((candidate) => {
       const idx = candidate.index;
-      const roleIdx = idx % 8;
+      
+      if (candidate.realCandidate) {
+        const real = candidate.realCandidate;
+        
+        // Add FileAsset for candidate CV if present
+        if (real.profile.cvFile) {
+          const cvFile = real.profile.cvFile;
+          fileAssetsToCreate.push({
+            id: candidate.cvFileAssetId,
+            ownerType: cvFile.ownerType,
+            ownerId: candidate.accountId,
+            purpose: 'CV',
+            visibility: cvFile.visibility,
+            storageKey: SEED_STORAGE_PREFIX + cvFile.storageKey,
+            originalName: cvFile.originalName,
+            mimeType: cvFile.mimeType,
+            sizeBytes: BigInt(cvFile.sizeBytes),
+            publicUrl: cvFile.publicUrl,
+            createdAt: candidate.createdAt,
+            updatedAt: candidate.createdAt,
+          });
+        }
+
+        return {
+          id: candidate.profileId,
+          candidateAccountId: candidate.accountId,
+          phoneNumber: real.profile.phoneNumber,
+          gender: real.profile.gender as Gender,
+          address: real.profile.address,
+          birthdate: real.profile.birthdate ? new Date(real.profile.birthdate) : null,
+          description: real.profile.description,
+          jobSearchStatus: real.profile.jobSearchStatus as JobSearchStatus,
+          profileVisibility: real.profile.profileVisibility as ProfileVisibility,
+          createdAt: candidate.createdAt,
+          updatedAt: candidate.createdAt,
+        };
+      }
+
       let description = 'Software Engineer';
-      if (roleIdx === 0) {
-        description =
-          'Sinh viên năm cuối chuyên ngành Khoa học Máy tính, có kiến thức tốt về cấu trúc dữ liệu, giải thuật và lập trình backend (Node.js/Express). Đang tìm kiếm cơ hội thực tập để phát triển kỹ năng.';
-      } else if (roleIdx === 1) {
-        description =
-          'Frontend Developer mới tốt nghiệp. Đam mê thiết kế giao diện tinh tế, phản hồi nhanh và tối ưu hóa trải nghiệm người dùng. Thành thạo HTML, CSS, JavaScript và React.';
-      } else if (roleIdx === 2) {
-        description =
-          'Junior Fullstack Developer với hơn 1.5 năm kinh nghiệm thực tế phát triển các ứng dụng web bằng React và Node.js. Tư duy giải quyết vấn đề tốt và khả năng làm việc độc lập.';
-      } else if (roleIdx === 3) {
-        description =
-          'DevOps Engineer giàu kinh nghiệm trong thiết lập hạ tầng Cloud (AWS), tự động hóa quy trình CI/CD và triển khai ứng dụng bằng Docker/Kubernetes.';
-      } else if (roleIdx === 4) {
-        description =
-          'Senior AI & Data Engineer với hơn 5 năm kinh nghiệm. Chuyên sâu về Machine Learning, NLP và tích hợp các công nghệ Generative AI/LLMs vào sản phẩm thực tế.';
-      } else if (roleIdx === 5) {
-        description =
-          'Technical Lead với hơn 7 năm kinh nghiệm thiết kế kiến trúc hệ thống và dẫn dắt đội ngũ phát triển sản phẩm. Thế mạnh về Microservices, Cloud Computing và bảo mật.';
-      } else if (roleIdx === 6) {
-        description =
-          'Engineering Manager có kinh nghiệm quản lý và phát triển các đội nhóm kỹ thuật. Tối ưu hóa quy trình Agile/Scrum, kết nối các mục tiêu kinh doanh và công nghệ.';
-      } else if (roleIdx === 7) {
-        description =
-          'Chuyên viên QA/QC kiểm thử phần mềm, thành thạo lập kế hoạch test, viết test case, thực hiện cả Manual Testing và Automation Testing (Selenium, Cypress).';
+      let phoneNumber: string | null = null;
+      let gender: Gender | null = null;
+      let birthdate: Date | null = null;
+      let jobSearchStatus: JobSearchStatus = JobSearchStatus.NOT_LOOKING;
+      let address = idx % 2 === 0 ? 'Hồ Chí Minh' : 'Hà Nội';
+
+      if (idx === 5) {
+        description = 'Technical Lead với hơn 7 năm kinh nghiệm thiết kế hệ thống Microservices quy mô lớn. Có kiến thức chuyên sâu về Spring Boot, NestJS, gRPC, Message Broker (Kafka) và kiến trúc High Availability trên môi trường Cloud.';
+        phoneNumber = '(+84) 93 444 5555';
+        gender = Gender.MALE;
+        birthdate = new Date('1994-02-18');
+        jobSearchStatus = JobSearchStatus.NOT_LOOKING;
+        address = 'Hồ Chí Minh, Việt Nam';
+      } else if (idx === 6) {
+        description = 'Engineering Manager có kỹ năng lãnh đạo xuất sắc và am hiểu Agile/Scrum. Quản lý thành công các dự án phần mềm đa quốc gia, tập trung vào nâng cao năng suất nhóm, phát triển con người và tối ưu hóa quy trình release.';
+        phoneNumber = '(+84) 94 555 6666';
+        gender = Gender.FEMALE;
+        birthdate = new Date('1992-07-30');
+        jobSearchStatus = JobSearchStatus.NOT_LOOKING;
+        address = 'Hồ Chí Minh, Việt Nam';
+      } else if (idx === 7) {
+        description = 'QA Automation Engineer với 3 năm kinh nghiệm lập kịch bản test tự động bằng Selenium và Cypress. Chuyên sâu về API Testing, Performance Testing (JMeter) và tích hợp kiểm thử tự động vào quy trình CI/CD.';
+        phoneNumber = '(+84) 95 666 7777';
+        gender = Gender.MALE;
+        birthdate = new Date('1997-09-08');
+        jobSearchStatus = JobSearchStatus.OPEN_TO_WORK;
+        address = 'Hà Nội, Việt Nam';
+      } else if (idx === 8) {
+        description = 'Mobile App Developer đam mê tạo ra các ứng dụng di động tuyệt đẹp và mượt mà trên iOS & Android. Thành thạo React Native, Flutter và Swift. Tích hợp tốt các dịch vụ RESTful API và lưu trữ offline.';
+        phoneNumber = '(+84) 92 777 8888';
+        gender = Gender.MALE;
+        birthdate = new Date('1999-12-25');
+        jobSearchStatus = JobSearchStatus.OPEN_TO_WORK;
+        address = 'Hồ Chí Minh, Việt Nam';
+      } else if (idx === 9) {
+        description = 'Product Designer (UI/UX) với gu thẩm mỹ tinh tế và tư duy đặt người dùng làm trung tâm. Kinh nghiệm thực hiện nghiên cứu người dùng, thiết kế wireframes, prototypes và design systems đồng nhất trên Figma.';
+        phoneNumber = '(+84) 98 888 9999';
+        gender = Gender.FEMALE;
+        birthdate = new Date('2000-05-14');
+        jobSearchStatus = JobSearchStatus.OPEN_TO_WORK;
+        address = 'Hồ Chí Minh, Việt Nam';
+      } else {
+        const roleIdx = idx % 8;
+        if (roleIdx === 0) {
+          description = 'Sinh viên năm cuối chuyên ngành Khoa học Máy tính, có kiến thức tốt về cấu trúc dữ liệu, giải thuật và lập trình backend (Node.js/Express). Đang tìm kiếm cơ hội thực tập để phát triển kỹ năng.';
+        } else if (roleIdx === 1) {
+          description = 'Frontend Developer mới tốt nghiệp. Đam mê thiết kế giao diện tinh tế, phản hồi nhanh và tối ưu hóa trải nghiệm người dùng. Thành thạo HTML, CSS, JavaScript và React.';
+        } else if (roleIdx === 2) {
+          description = 'Junior Fullstack Developer với hơn 1.5 năm kinh nghiệm thực tế phát triển các ứng dụng web bằng React và Node.js. Tư duy giải quyết vấn đề tốt và khả năng làm việc độc lập.';
+        } else if (roleIdx === 3) {
+          description = 'DevOps Engineer giàu kinh nghiệm trong thiết lập hạ tầng Cloud (AWS), tự động hóa quy trình CI/CD và triển khai ứng dụng bằng Docker/Kubernetes.';
+        } else if (roleIdx === 4) {
+          description = 'Senior AI & Data Engineer với hơn 5 năm kinh nghiệm. Chuyên sâu về Machine Learning, NLP và tích hợp các công nghệ Generative AI/LLMs vào sản phẩm thực tế.';
+        } else if (roleIdx === 5) {
+          description = 'Technical Lead với hơn 7 năm kinh nghiệm thiết kế kiến trúc hệ thống và dẫn dắt đội ngũ phát triển sản phẩm. Thế mạnh về Microservices, Cloud Computing và bảo mật.';
+        } else if (roleIdx === 6) {
+          description = 'Engineering Manager có kinh nghiệm quản lý và phát triển các đội nhóm kỹ thuật. Tối ưu hóa quy trình Agile/Scrum, kết nối các mục tiêu kinh doanh và công nghệ.';
+        } else if (roleIdx === 7) {
+          description = 'Chuyên viên QA/QC kiểm thử phần mềm, thành thạo lập kế hoạch test, viết test case, thực hiện cả Manual Testing và Automation Testing (Selenium, Cypress).';
+        }
+        phoneNumber = idx % 2 === 0 ? '(+84) 90 123 4567' : null;
+        gender = idx % 2 === 0 ? Gender.MALE : Gender.FEMALE;
+        birthdate = new Date(1996 + (idx % 8), idx % 12, (idx % 28) + 1);
+        jobSearchStatus = idx % 3 === 0 ? JobSearchStatus.OPEN_TO_WORK : JobSearchStatus.NOT_LOOKING;
       }
 
       return {
         id: candidate.profileId,
         candidateAccountId: candidate.accountId,
-        address: idx % 2 === 0 ? 'Hồ Chí Minh' : 'Hà Nội',
+        phoneNumber,
+        gender,
+        address,
+        birthdate,
         description,
+        jobSearchStatus,
+        profileVisibility: ProfileVisibility.PUBLIC,
         createdAt: candidate.createdAt,
         updatedAt: candidate.createdAt,
       };
     }),
   });
 
+  if (fileAssetsToCreate.length > 0) {
+    await prisma.fileAsset.createMany({ data: fileAssetsToCreate });
+  }
+
   await prisma.cV.createMany({
     data: candidates.map((candidate) => ({
       id: candidate.cvId,
       candidateProfileId: candidate.profileId,
       title: `${candidate.fullName} CV`,
-      source: CvSource.BUILDER,
+      source: candidate.realCandidate && candidate.realCandidate.profile.cvFile ? CvSource.UPLOAD : CvSource.BUILDER,
       status: CvStatus.ACTIVE,
       isDefault: true,
       createdAt: candidate.createdAt,
@@ -2419,6 +2524,19 @@ async function main() {
   await prisma.cVVersion.createMany({
     data: candidates.map((candidate) => {
       const idx = candidate.index;
+      
+      if (candidate.realCandidate) {
+        const real = candidate.realCandidate;
+        return {
+          id: candidate.cvVersionId,
+          cvId: candidate.cvId,
+          versionNo: 1,
+          parsedText: `HỌ VÀ TÊN: ${real.fullName}\nĐịa chỉ: ${real.profile.address}\n\nTÓM TẮT CHUYÊN MÔN:\n${real.profile.description}`,
+          sourceFileId: real.profile.cvFile ? candidate.cvFileAssetId : null,
+          createdAt: candidate.createdAt,
+        };
+      }
+
       const roleIdx = idx % 8;
       const cvTexts = [
         `HỌ VÀ TÊN: ${candidate.fullName}\nVị trí ứng tuyển: Thực tập sinh Backend Developer\nĐịa chỉ: TP. Hồ Chí Minh\n\nTÓM TẮT CHUYÊN MÔN:\nSinh viên năm cuối ngành CNTT đam mê phát triển hệ thống backend. Ham học hỏi, kiên trì và chịu được áp lực tốt.\n\nKỸ NĂNG CÔNG NGHỆ:\n- Ngôn ngữ: JavaScript, TypeScript, Java\n- Framework: Node.js, ExpressJS\n- Cơ sở dữ liệu: MySQL, PostgreSQL\n- Công cụ: Git, Postman\n\nDỰ ÁN NỔI BẬT:\n1. Task Manager API (Express, MongoDB)\n- Thiết kế RESTful API cho ứng dụng quản lý công việc cá nhân.\n- Tích hợp xác thực người dùng bằng JWT.`,
@@ -2442,62 +2560,123 @@ async function main() {
 
   await prisma.candidateJobPreference.createMany({
     data: candidates.map((candidate) => {
+      if (candidate.realCandidate) {
+        const real = candidate.realCandidate;
+        const levelCode = real.profile.jobPreference.desiredLevel.code;
+        const level = experienceLevels[levelCode as keyof typeof experienceLevels];
+        
+        return {
+          id: randomUUID(),
+          candidateProfileId: candidate.profileId,
+          desiredPosition: real.profile.jobPreference.desiredPosition,
+          desiredSalaryMin: new Prisma.Decimal(real.profile.jobPreference.desiredSalaryMin),
+          desiredSalaryMax: new Prisma.Decimal(real.profile.jobPreference.desiredSalaryMax),
+          salaryCurrency: real.profile.jobPreference.salaryCurrency,
+          workingModel: real.profile.jobPreference.workingModel as WorkingModel,
+          desiredLevelId: level ? level.id : null,
+          noticePeriodDays: real.profile.jobPreference.noticePeriodDays,
+          isRelocate: real.profile.jobPreference.isRelocate,
+          createdAt: candidate.createdAt,
+          updatedAt: candidate.createdAt,
+        };
+      }
+
       let desiredLevelId: string | null = null;
       let desiredPosition = 'Software Engineer';
       let minSalary = 10000000;
       let maxSalary = 20000000;
       let workingModel: WorkingModel = WorkingModel.HYBRID;
-
       const idx = candidate.index;
-      const roleIdx = idx % 8;
-      if (roleIdx === 0) {
-        desiredLevelId = experienceLevels.intern.id;
-        desiredPosition = 'Intern Backend Engineer';
-        minSalary = 3000000;
-        maxSalary = 6000000;
-        workingModel = WorkingModel.ONSITE;
-      } else if (roleIdx === 1) {
-        desiredLevelId = experienceLevels.fresher.id;
-        desiredPosition = 'Fresher Frontend Developer';
-        minSalary = 8000000;
-        maxSalary = 12000000;
-        workingModel = WorkingModel.ONSITE;
-      } else if (roleIdx === 2) {
-        desiredLevelId = experienceLevels.junior.id;
-        desiredPosition = 'Junior Fullstack Developer';
-        minSalary = 12000000;
-        maxSalary = 18000000;
-        workingModel = WorkingModel.HYBRID;
-      } else if (roleIdx === 3) {
-        desiredLevelId = experienceLevels.mid.id;
-        desiredPosition = 'Mid-level DevOps Engineer';
-        minSalary = 20000000;
-        maxSalary = 32000000;
-        workingModel = WorkingModel.REMOTE;
-      } else if (roleIdx === 4) {
-        desiredLevelId = experienceLevels.senior.id;
-        desiredPosition = 'Senior AI & Data Engineer';
-        minSalary = 35000000;
-        maxSalary = 55000000;
-        workingModel = WorkingModel.HYBRID;
-      } else if (roleIdx === 5) {
-        desiredLevelId = experienceLevels.lead.id;
-        desiredPosition = 'Technical Lead (Java/AWS)';
-        minSalary = 45000000;
-        maxSalary = 70000000;
-        workingModel = WorkingModel.REMOTE;
-      } else if (roleIdx === 6) {
-        desiredLevelId = experienceLevels.manager.id;
-        desiredPosition = 'Engineering Manager';
-        minSalary = 60000000;
-        maxSalary = 90000000;
-        workingModel = WorkingModel.HYBRID;
-      } else if (roleIdx === 7) {
-        desiredLevelId = experienceLevels.mid.id;
-        desiredPosition = 'QA Engineer';
-        minSalary = 15000000;
-        maxSalary = 22000000;
-        workingModel = WorkingModel.HYBRID;
+      let isRelocate = idx % 3 === 0;
+
+      if (idx < 10) {
+        if (idx === 5) {
+          desiredLevelId = experienceLevels.lead.id;
+          desiredPosition = 'Technical Lead';
+          minSalary = 45000000;
+          maxSalary = 70000000;
+          workingModel = WorkingModel.REMOTE;
+          isRelocate = true;
+        } else if (idx === 6) {
+          desiredLevelId = experienceLevels.manager.id;
+          desiredPosition = 'Engineering Manager';
+          minSalary = 60000000;
+          maxSalary = 90000000;
+          workingModel = WorkingModel.HYBRID;
+          isRelocate = false;
+        } else if (idx === 7) {
+          desiredLevelId = experienceLevels.mid.id;
+          desiredPosition = 'QA Automation Engineer';
+          minSalary = 18000000;
+          maxSalary = 26000000;
+          workingModel = WorkingModel.HYBRID;
+          isRelocate = false;
+        } else if (idx === 8) {
+          desiredLevelId = experienceLevels.junior.id;
+          desiredPosition = 'Mobile App Developer';
+          minSalary = 16000000;
+          maxSalary = 24000000;
+          workingModel = WorkingModel.HYBRID;
+          isRelocate = true;
+        } else if (idx === 9) {
+          desiredLevelId = experienceLevels.junior.id;
+          desiredPosition = 'Product Designer';
+          minSalary = 14000000;
+          maxSalary = 20000000;
+          workingModel = WorkingModel.ONSITE;
+          isRelocate = false;
+        }
+      } else {
+        const roleIdx = idx % 8;
+        if (roleIdx === 0) {
+          desiredLevelId = experienceLevels.intern.id;
+          desiredPosition = 'Intern Backend Engineer';
+          minSalary = 3000000;
+          maxSalary = 6000000;
+          workingModel = WorkingModel.ONSITE;
+        } else if (roleIdx === 1) {
+          desiredLevelId = experienceLevels.fresher.id;
+          desiredPosition = 'Fresher Frontend Developer';
+          minSalary = 8000000;
+          maxSalary = 12000000;
+          workingModel = WorkingModel.ONSITE;
+        } else if (roleIdx === 2) {
+          desiredLevelId = experienceLevels.junior.id;
+          desiredPosition = 'Junior Fullstack Developer';
+          minSalary = 12000000;
+          maxSalary = 18000000;
+          workingModel = WorkingModel.HYBRID;
+        } else if (roleIdx === 3) {
+          desiredLevelId = experienceLevels.mid.id;
+          desiredPosition = 'Mid-level DevOps Engineer';
+          minSalary = 20000000;
+          maxSalary = 32000000;
+          workingModel = WorkingModel.REMOTE;
+        } else if (roleIdx === 4) {
+          desiredLevelId = experienceLevels.senior.id;
+          desiredPosition = 'Senior AI & Data Engineer';
+          minSalary = 35000000;
+          maxSalary = 55000000;
+          workingModel = WorkingModel.HYBRID;
+        } else if (roleIdx === 5) {
+          desiredLevelId = experienceLevels.lead.id;
+          desiredPosition = 'Technical Lead (Java/AWS)';
+          minSalary = 45000000;
+          maxSalary = 70000000;
+          workingModel = WorkingModel.REMOTE;
+        } else if (roleIdx === 6) {
+          desiredLevelId = experienceLevels.manager.id;
+          desiredPosition = 'Engineering Manager';
+          minSalary = 60000000;
+          maxSalary = 90000000;
+          workingModel = WorkingModel.HYBRID;
+        } else if (roleIdx === 7) {
+          desiredLevelId = experienceLevels.mid.id;
+          desiredPosition = 'QA Engineer';
+          minSalary = 15000000;
+          maxSalary = 22000000;
+          workingModel = WorkingModel.HYBRID;
+        }
       }
 
       return {
@@ -2510,7 +2689,7 @@ async function main() {
         workingModel,
         desiredLevelId,
         noticePeriodDays: 30,
-        isRelocate: idx % 3 === 0,
+        isRelocate,
         createdAt: candidate.createdAt,
         updatedAt: candidate.createdAt,
       };
@@ -2526,11 +2705,184 @@ async function main() {
   const languagesToCreate: any[] = [];
   const linksToCreate: any[] = [];
 
-  candidates.forEach((candidate) => {
+  const detailedSkills: Record<number, string[]> = {
+    5: ['TypeScript', 'React', 'NestJS', 'AWS', 'Node.js', 'SQL', 'PostgreSQL', 'Docker', 'Kubernetes', 'CI/CD', 'Git', 'Java', 'Spring Boot'],
+    6: ['Project Management', 'Agile/Scrum', 'TypeScript', 'React', 'NestJS', 'AWS', 'Docker', 'Git'],
+    7: ['QA', 'QA Automation', 'Manual Testing', 'Cypress', 'Jest', 'TypeScript', 'JavaScript', 'Git', 'Postman'],
+    8: ['React Native', 'Flutter', 'Swift', 'Java', 'Git', 'REST API', 'JavaScript', 'TypeScript'],
+    9: ['Figma', 'UI/UX', 'Web Design', 'Mobile Design', 'Photoshop', 'Illustrator', 'HTML', 'CSS']
+  };
+
+  async function getOrCreateSkill(name: string, skillsMap: Record<string, any>, categories: Record<string, any>) {
+    if (skillsMap[name]) {
+      return skillsMap[name];
+    }
+    const categoryId = getCategoryForSkill(name, categories);
+    const skill = await prisma.skill.upsert({
+      where: { name },
+      update: { categoryId },
+      create: { name, categoryId },
+    });
+    skillsMap[name] = skill;
+    return skill;
+  }
+
+  for (const candidate of candidates) {
     const idx = candidate.index;
     const profileId = candidate.profileId;
     const baseDate = candidate.createdAt;
     const roleIdx = idx % 8;
+
+    if (candidate.realCandidate) {
+      const real = candidate.realCandidate;
+
+      // 1. Languages
+      if (real.profile.languages) {
+        real.profile.languages.forEach((lang: any) => {
+          languagesToCreate.push({
+            id: randomUUID(),
+            candidateProfileId: profileId,
+            language: lang.language,
+            proficiency: lang.proficiency,
+            createdAt: baseDate,
+            updatedAt: baseDate,
+          });
+        });
+      }
+
+      // 2. Links
+      if (real.profile.links) {
+        real.profile.links.forEach((link: any) => {
+          linksToCreate.push({
+            id: randomUUID(),
+            candidateProfileId: profileId,
+            type: link.type,
+            url: link.url,
+            createdAt: baseDate,
+            updatedAt: baseDate,
+          });
+        });
+      }
+
+      // 3. Educations
+      if (real.profile.educations) {
+        real.profile.educations.forEach((edu: any) => {
+          educationsToCreate.push({
+            id: randomUUID(),
+            candidateProfileId: profileId,
+            schoolName: edu.schoolName,
+            degree: edu.degree,
+            major: edu.major,
+            startDate: edu.startDate ? new Date(edu.startDate) : null,
+            endDate: edu.endDate ? new Date(edu.endDate) : null,
+            isCurrent: edu.isCurrent,
+            gpa: edu.gpa ? new Prisma.Decimal(edu.gpa) : null,
+            sortOrder: edu.sortOrder,
+            createdAt: baseDate,
+            updatedAt: baseDate,
+          });
+        });
+      }
+
+      // 4. Skills
+      if (real.profile.skills) {
+        for (const skill of real.profile.skills) {
+          const skillRecord = await getOrCreateSkill(skill.name, skills, categories);
+          if (skillRecord) {
+            let profLevel = skill.proficiencyLevel;
+            if (profLevel === 'BASIC') profLevel = 'BEGINNER';
+            skillsToCreate.push({
+              id: randomUUID(),
+              candidateProfileId: profileId,
+              skillId: skillRecord.id,
+              proficiencyLevel: profLevel,
+              yearsOfExperience: new Prisma.Decimal(skill.yearsOfExperience),
+              sortOrder: skill.sortOrder,
+              createdAt: baseDate,
+              updatedAt: baseDate,
+            });
+          }
+        }
+      }
+
+      // 5. Experiences
+      if (real.profile.experiences) {
+        for (const exp of real.profile.experiences) {
+          const expId = randomUUID();
+          experiencesToCreate.push({
+            id: expId,
+            candidateProfileId: profileId,
+            companyName: exp.companyName,
+            positionTitle: exp.positionTitle,
+            employmentType: exp.employmentType,
+            startDate: exp.startDate ? new Date(exp.startDate) : null,
+            endDate: exp.endDate ? new Date(exp.endDate) : null,
+            isCurrent: exp.isCurrent,
+            description: exp.description,
+            technologies: exp.technologies,
+            sortOrder: exp.sortOrder,
+            createdAt: baseDate,
+            updatedAt: baseDate,
+          });
+
+          // Link experience skills
+          if (exp.technologies) {
+            const techList = exp.technologies.split(',').map((s: string) => s.trim());
+            for (const techName of techList) {
+              const skillRecord = await getOrCreateSkill(techName, skills, categories);
+              if (skillRecord) {
+                experienceSkillsToCreate.push({
+                  id: randomUUID(),
+                  candidateExperienceId: expId,
+                  skillId: skillRecord.id,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // 6. Projects
+      if (real.profile.projects) {
+        real.profile.projects.forEach((proj: any) => {
+          projectsToCreate.push({
+            id: randomUUID(),
+            candidateProfileId: profileId,
+            name: proj.name,
+            role: proj.role,
+            description: proj.description,
+            projectUrl: proj.projectUrl,
+            technologies: proj.technologies,
+            deployUrl: proj.deployUrl,
+            startDate: proj.startDate ? new Date(proj.startDate) : null,
+            endDate: proj.endDate ? new Date(proj.endDate) : null,
+            sortOrder: proj.sortOrder,
+            createdAt: baseDate,
+            updatedAt: baseDate,
+          });
+        });
+      }
+
+      // 7. Certifications
+      if (real.profile.certifications) {
+        real.profile.certifications.forEach((cert: any) => {
+          certificationsToCreate.push({
+            id: randomUUID(),
+            candidateProfileId: profileId,
+            name: cert.name,
+            organization: cert.organization,
+            issuedDate: cert.issuedDate ? new Date(cert.issuedDate) : null,
+            expiredDate: cert.expiredDate ? new Date(cert.expiredDate) : null,
+            credentialUrl: cert.credentialUrl,
+            sortOrder: cert.sortOrder,
+            createdAt: baseDate,
+            updatedAt: baseDate,
+          });
+        });
+      }
+      
+      continue;
+    }
 
     // 1. Languages
     languagesToCreate.push({
@@ -2542,30 +2894,41 @@ async function main() {
       updatedAt: baseDate,
     });
 
-    if (roleIdx !== 7 && roleIdx !== 1) {
+    if (idx < 10) {
+      const engProf = idx === 5 || idx === 6 ? 'Fluent' : 'Intermediate';
       languagesToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
         language: 'English',
-        proficiency:
-          roleIdx === 5 || roleIdx === 6 ? 'Fluent' : roleIdx === 4 ? 'IELTS 7.5' : 'Intermediate',
+        proficiency: engProf,
         createdAt: baseDate,
         updatedAt: baseDate,
       });
-    }
-    if (roleIdx === 3) {
-      languagesToCreate.push({
-        id: randomUUID(),
-        candidateProfileId: profileId,
-        language: 'Japanese',
-        proficiency: 'N3',
-        createdAt: baseDate,
-        updatedAt: baseDate,
-      });
+    } else {
+      if (roleIdx !== 7 && roleIdx !== 1) {
+        languagesToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          language: 'English',
+          proficiency: roleIdx === 5 || roleIdx === 6 ? 'Fluent' : roleIdx === 4 ? 'IELTS 7.5' : 'Intermediate',
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      }
+      if (roleIdx === 3) {
+        languagesToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          language: 'Japanese',
+          proficiency: 'N3',
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      }
     }
 
     // 2. Links
-    const asciiName = toAsciiUrl(candidate.fullName);
+    const asciiName = toAsciiUrl(candidate.fullName).replace(/[^a-z0-9]/g, '-');
     linksToCreate.push({
       id: randomUUID(),
       candidateProfileId: profileId,
@@ -2574,7 +2937,8 @@ async function main() {
       createdAt: baseDate,
       updatedAt: baseDate,
     });
-    if (roleIdx !== 6) {
+
+    if (idx < 10) {
       linksToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -2583,191 +2947,208 @@ async function main() {
         createdAt: baseDate,
         updatedAt: baseDate,
       });
-    }
-    if (roleIdx === 1) {
-      linksToCreate.push({
-        id: randomUUID(),
-        candidateProfileId: profileId,
-        type: 'Portfolio',
-        url: `https://${asciiName}.dev`,
-        createdAt: baseDate,
-        updatedAt: baseDate,
-      });
-    }
-
-    // 3. Education
-    if (roleIdx === 0) {
-      educationsToCreate.push({
-        id: randomUUID(),
-        candidateProfileId: profileId,
-        schoolName: 'University of Science',
-        degree: 'Bachelor of IT',
-        major: 'Software Engineering',
-        startDate: addDays(baseDate, -365),
-        endDate: null,
-        isCurrent: true,
-        gpa: new Prisma.Decimal(3.2),
-        sortOrder: 0,
-        createdAt: baseDate,
-        updatedAt: baseDate,
-      });
-    } else if (roleIdx === 1) {
-      educationsToCreate.push({
-        id: randomUUID(),
-        candidateProfileId: profileId,
-        schoolName: 'HCMC University of Technology',
-        degree: 'Bachelor of Computer Science',
-        major: 'Computer Science',
-        startDate: addDays(baseDate, -1460),
-        endDate: addDays(baseDate, -30),
-        isCurrent: false,
-        gpa: new Prisma.Decimal(3.4),
-        sortOrder: 0,
-        createdAt: baseDate,
-        updatedAt: baseDate,
-      });
-    } else {
-      educationsToCreate.push({
-        id: randomUUID(),
-        candidateProfileId: profileId,
-        schoolName: idx % 2 === 0 ? 'FPT University' : 'Hanoi University of Science and Technology',
-        degree: 'Bachelor of Software Engineering',
-        major: 'Software Engineering',
-        startDate: addDays(baseDate, -1825),
-        endDate: addDays(baseDate, -365),
-        isCurrent: false,
-        gpa: new Prisma.Decimal(3.1),
-        sortOrder: 0,
-        createdAt: baseDate,
-        updatedAt: baseDate,
-      });
-      if (roleIdx === 4) {
-        educationsToCreate.push({
+      if (idx === 9) {
+        linksToCreate.push({
           id: randomUUID(),
           candidateProfileId: profileId,
-          schoolName: 'VNU University of Engineering and Technology',
-          degree: 'Master of Science',
-          major: 'Data Science & Artificial Intelligence',
-          startDate: addDays(baseDate, -360),
-          endDate: baseDate,
-          isCurrent: false,
-          gpa: new Prisma.Decimal(3.75),
-          sortOrder: 1,
+          type: 'Portfolio',
+          url: `https://${asciiName}.dev`,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      }
+    } else {
+      if (roleIdx !== 6) {
+        linksToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          type: 'GitHub',
+          url: `https://github.com/${asciiName}`,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      }
+      if (roleIdx === 1) {
+        linksToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          type: 'Portfolio',
+          url: `https://${asciiName}.dev`,
           createdAt: baseDate,
           updatedAt: baseDate,
         });
       }
     }
 
-    // 4. Skills & Experiences & Projects
-    const candidateSkills: string[] = [];
-    if (roleIdx === 0) {
-      candidateSkills.push(
-        'TypeScript',
-        'NestJS',
-        'Node.js',
-        'Express',
-        'JavaScript',
-        'SQL',
-        'PostgreSQL',
-        'Git',
-        'HTML',
-        'CSS',
-      );
-    } else if (roleIdx === 1) {
-      candidateSkills.push(
-        'React',
-        'TypeScript',
-        'Figma',
-        'JavaScript',
-        'HTML',
-        'CSS',
-        'Tailwind CSS',
-        'Git',
-      );
-    } else if (roleIdx === 2) {
-      candidateSkills.push(
-        'TypeScript',
-        'React',
-        'Prisma',
-        'Node.js',
-        'Express',
-        'JavaScript',
-        'SQL',
-        'PostgreSQL',
-        'Tailwind CSS',
-        'Git',
-        'Docker',
-      );
-    } else if (roleIdx === 3) {
-      candidateSkills.push('AWS', 'Docker', 'Kubernetes', 'CI/CD', 'Git', 'Python', 'GCP', 'Azure');
-    } else if (roleIdx === 4) {
-      candidateSkills.push(
-        'AI',
-        'AWS',
-        'Python',
-        'Machine Learning',
-        'Deep Learning',
-        'NLP',
-        'PyTorch',
-        'TensorFlow',
-        'LLM',
-        'LangChain',
-        'SQL',
-        'PostgreSQL',
-      );
-    } else if (roleIdx === 5) {
-      candidateSkills.push(
-        'TypeScript',
-        'React',
-        'NestJS',
-        'AWS',
-        'Prisma',
-        'Node.js',
-        'SQL',
-        'PostgreSQL',
-        'Docker',
-        'Kubernetes',
-        'CI/CD',
-        'Git',
-        'Java',
-        'Spring Boot',
-      );
-    } else if (roleIdx === 6) {
-      candidateSkills.push(
-        'Git',
-        'TypeScript',
-        'React',
-        'NestJS',
-        'AWS',
-        'Docker',
-        'Project Management',
-        'Agile/Scrum',
-      );
-    } else if (roleIdx === 7) {
-      candidateSkills.push(
-        'QA',
-        'QA Automation',
-        'Manual Testing',
-        'Cypress',
-        'Jest',
-        'TypeScript',
-        'JavaScript',
-        'Git',
-      );
+    // 3. Education
+    if (idx < 10) {
+      const schools = [
+        ['Hanoi University of Science and Technology', 'Hanoi University', 'Da Nang University of Technology'],
+        ['Hanoi - Amsterdam High School for the Gifted', 'Le Hong Phong High School', 'Tran Dai Nghia High School']
+      ];
+      const majors = ['Software Engineering', 'Computer Science', 'Information Technology', 'Data Science & AI', 'UI/UX Design'];
+      
+      educationsToCreate.push({
+        id: randomUUID(),
+        candidateProfileId: profileId,
+        schoolName: idx % 2 === 0 ? schools[0][0] : schools[0][idx % 3],
+        degree: idx === 9 ? 'Bachelor of Fine Arts' : 'Bachelor of Engineering',
+        major: idx === 9 ? majors[4] : majors[idx % 4],
+        startDate: new Date('2019-09-05'),
+        endDate: new Date('2023-06-20'),
+        isCurrent: false,
+        gpa: new Prisma.Decimal(3.2 + (idx % 5) * 0.15),
+        sortOrder: 0,
+        createdAt: baseDate,
+        updatedAt: baseDate,
+      });
+
+      if (idx % 2 === 0) {
+        educationsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          schoolName: schools[1][idx % 3],
+          degree: 'High School Diploma',
+          major: 'General Science',
+          startDate: new Date('2016-09-05'),
+          endDate: new Date('2019-05-25'),
+          isCurrent: false,
+          gpa: new Prisma.Decimal(3.5),
+          sortOrder: 1,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      }
+    } else {
+      if (roleIdx === 0) {
+        educationsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          schoolName: 'University of Science',
+          degree: 'Bachelor of IT',
+          major: 'Software Engineering',
+          startDate: addDays(baseDate, -365),
+          endDate: null,
+          isCurrent: true,
+          gpa: new Prisma.Decimal(3.2),
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      } else if (roleIdx === 1) {
+        educationsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          schoolName: 'HCMC University of Technology',
+          degree: 'Bachelor of Computer Science',
+          major: 'Computer Science',
+          startDate: addDays(baseDate, -1460),
+          endDate: addDays(baseDate, -30),
+          isCurrent: false,
+          gpa: new Prisma.Decimal(3.4),
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      } else {
+        educationsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          schoolName: idx % 2 === 0 ? 'FPT University' : 'Hanoi University of Science and Technology',
+          degree: 'Bachelor of Software Engineering',
+          major: 'Software Engineering',
+          startDate: addDays(baseDate, -1825),
+          endDate: addDays(baseDate, -365),
+          isCurrent: false,
+          gpa: new Prisma.Decimal(3.1),
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+        if (roleIdx === 4) {
+          educationsToCreate.push({
+            id: randomUUID(),
+            candidateProfileId: profileId,
+            schoolName: 'VNU University of Engineering and Technology',
+            degree: 'Master of Science',
+            major: 'Data Science & Artificial Intelligence',
+            startDate: addDays(baseDate, -360),
+            endDate: baseDate,
+            isCurrent: false,
+            gpa: new Prisma.Decimal(3.75),
+            sortOrder: 1,
+            createdAt: baseDate,
+            updatedAt: baseDate,
+          });
+        }
+      }
+    }
+
+    // 4. Skills & Experiences
+    const candidateSkills = [];
+    if (idx < 10) {
+      candidateSkills.push(...detailedSkills[idx]);
+    } else {
+      if (roleIdx === 0) {
+        candidateSkills.push('TypeScript', 'NestJS', 'Node.js', 'Express', 'JavaScript', 'SQL', 'PostgreSQL', 'Git', 'HTML', 'CSS');
+      } else if (roleIdx === 1) {
+        candidateSkills.push('React', 'TypeScript', 'Figma', 'JavaScript', 'HTML', 'CSS', 'Tailwind CSS', 'Git');
+      } else if (roleIdx === 2) {
+        candidateSkills.push('TypeScript', 'React', 'Prisma', 'Node.js', 'Express', 'JavaScript', 'SQL', 'PostgreSQL', 'Tailwind CSS', 'Git', 'Docker');
+      } else if (roleIdx === 3) {
+        candidateSkills.push('AWS', 'Docker', 'Kubernetes', 'CI/CD', 'Git', 'Python', 'GCP', 'Azure');
+      } else if (roleIdx === 4) {
+        candidateSkills.push('AI', 'AWS', 'Python', 'Machine Learning', 'Deep Learning', 'NLP', 'PyTorch', 'TensorFlow', 'LLM', 'LangChain', 'SQL', 'PostgreSQL');
+      } else if (roleIdx === 5) {
+        candidateSkills.push('TypeScript', 'React', 'NestJS', 'AWS', 'Prisma', 'Node.js', 'SQL', 'PostgreSQL', 'Docker', 'Kubernetes', 'CI/CD', 'Git', 'Java', 'Spring Boot');
+      } else if (roleIdx === 6) {
+        candidateSkills.push('Git', 'TypeScript', 'React', 'NestJS', 'AWS', 'Docker', 'Project Management', 'Agile/Scrum');
+      } else if (roleIdx === 7) {
+        candidateSkills.push('QA', 'QA Automation', 'Manual Testing', 'Cypress', 'Jest', 'TypeScript', 'JavaScript', 'Git');
+      }
     }
 
     candidateSkills.forEach((skillName, sIdx) => {
-      const skillRecord = skills[skillName as keyof typeof skills];
+      const skillRecord = skills[skillName];
       if (skillRecord) {
+        let totalYears = 2;
+        if (idx < 10) {
+          if (idx === 5 || idx === 6) totalYears = 7;
+        } else {
+          if (roleIdx === 0) totalYears = 0.5;
+          else if (roleIdx === 1) totalYears = 1;
+          else if (roleIdx === 5 || roleIdx === 6) totalYears = 5;
+          else totalYears = 2;
+        }
+
+        const factor = sIdx === 0 ? 1.0 : sIdx === 1 ? 0.8 : sIdx === 2 ? 0.7 : sIdx === 3 ? 0.5 : 0.4;
+        let skillYears = totalYears * factor;
+        skillYears = Math.round(skillYears * 10) / 10;
+        if (skillYears < 0.5) skillYears = 0.5;
+
+        let maxProf = 'INTERMEDIATE';
+        if (idx < 10) {
+          if (idx === 5 || idx === 6) maxProf = 'EXPERT';
+        } else {
+          if (roleIdx >= 5) maxProf = 'EXPERT';
+          else if (roleIdx >= 4) maxProf = 'ADVANCED';
+        }
+
+        let profLevel = 'INTERMEDIATE';
+        if (sIdx < 2) {
+          profLevel = maxProf;
+        } else if (sIdx < 5) {
+          profLevel = maxProf === 'EXPERT' ? 'ADVANCED' : (maxProf === 'ADVANCED' ? 'INTERMEDIATE' : 'BEGINNER');
+        } else {
+          profLevel = 'INTERMEDIATE';
+        }
+
         skillsToCreate.push({
           id: randomUUID(),
           candidateProfileId: profileId,
           skillId: skillRecord.id,
-          proficiencyLevel: roleIdx >= 5 ? 'EXPERT' : roleIdx >= 4 ? 'ADVANCED' : 'INTERMEDIATE',
-          yearsOfExperience: new Prisma.Decimal(
-            roleIdx === 0 ? 0.5 : roleIdx === 1 ? 1 : roleIdx * 1.5,
-          ),
+          proficiencyLevel: profLevel,
+          yearsOfExperience: new Prisma.Decimal(skillYears),
           sortOrder: sIdx,
           createdAt: baseDate,
           updatedAt: baseDate,
@@ -2775,194 +3156,254 @@ async function main() {
       }
     });
 
-    if (roleIdx !== 0 && roleIdx !== 1) {
+    if (idx < 10) {
+      const companiesList = ['FPT Software', 'VNG Corporation', 'Viettel Cyber Security', 'VinAI Research', 'One Mount Group', 'NashTech', 'Axon Active', 'CMC Global', 'Wayfu Studio'];
+      const titlesList = ['Frontend Developer', 'Fullstack Developer', 'DevOps Engineer', 'AI Engineer', 'Senior Developer', 'Technical Lead', 'Scrum Master', 'QA Automation Engineer', 'Mobile Developer'];
+      
       const expId = randomUUID();
-      const companyName =
-        roleIdx === 6
-          ? 'Axon Active'
-          : roleIdx === 5
-            ? 'VNG Corporation'
-            : roleIdx === 4
-              ? 'VinAI'
-              : 'ABC Tech';
-      const positionTitle =
-        roleIdx === 6
-          ? 'Engineering Manager'
-          : roleIdx === 5
-            ? 'Technical Lead'
-            : roleIdx === 4
-              ? 'Senior AI Engineer'
-              : 'Junior Developer';
-
       experiencesToCreate.push({
         id: expId,
         candidateProfileId: profileId,
-        companyName,
-        positionTitle,
+        companyName: companiesList[(idx - 1) % companiesList.length],
+        positionTitle: titlesList[(idx - 1) % titlesList.length],
         employmentType: 'Full-time',
         startDate: addDays(baseDate, -365 * 2),
         endDate: null,
         isCurrent: true,
-        description: `Working as a ${positionTitle} contributing to core services, managing sprint deliverables, and optimizing backend databases.`,
-        technologies: candidateSkills.join(', '),
+        description: `• Tham gia phát triển và duy trì sản phẩm cốt lõi của công ty.\n• Phối hợp chặt chẽ với Product Owner và Designers để tối ưu trải nghiệm người dùng.\n• Áp dụng quy trình CI/CD tự động hóa kiểm thử và triển khai ứng dụng.\n• Hướng dẫn và cố vấn (mentor) cho các lập trình viên mới gia nhập nhóm.`,
+        technologies: candidateSkills.slice(0, 5).join(', '),
         sortOrder: 0,
         createdAt: baseDate,
         updatedAt: baseDate,
       });
-
-      candidateSkills.forEach((skillName) => {
-        const skillRecord = skills[skillName as keyof typeof skills];
+      candidateSkills.slice(0, 5).forEach((skillName) => {
+        const skillRecord = skills[skillName];
         if (skillRecord) {
-          experienceSkillsToCreate.push({
-            id: randomUUID(),
-            candidateExperienceId: expId,
-            skillId: skillRecord.id,
-          });
+          experienceSkillsToCreate.push({ id: randomUUID(), candidateExperienceId: expId, skillId: skillRecord.id });
         }
       });
+    } else {
+      if (roleIdx !== 0 && roleIdx !== 1) {
+        const expId = randomUUID();
+        const companyName = roleIdx === 6 ? 'Axon Active' : roleIdx === 5 ? 'VNG Corporation' : roleIdx === 4 ? 'VinAI' : 'ABC Tech';
+        const positionTitle = roleIdx === 6 ? 'Engineering Manager' : roleIdx === 5 ? 'Technical Lead' : roleIdx === 4 ? 'Senior AI Engineer' : 'Junior Developer';
 
-      if (roleIdx >= 5) {
-        const oldExpId = randomUUID();
-        const oldCompanyName = roleIdx === 6 ? 'KMS Technology' : 'Viettel Group';
-        const oldPositionTitle = roleIdx === 6 ? 'Technical Lead' : 'Senior Software Engineer';
         experiencesToCreate.push({
-          id: oldExpId,
+          id: expId,
           candidateProfileId: profileId,
-          companyName: oldCompanyName,
-          positionTitle: oldPositionTitle,
+          companyName,
+          positionTitle,
           employmentType: 'Full-time',
-          startDate: addDays(baseDate, -365 * 5),
-          endDate: addDays(baseDate, -365 * 2 - 10),
-          isCurrent: false,
-          description: `Designed microservices architectures, mentored junior developers, and streamlined CI/CD pipelines.`,
-          technologies: 'TypeScript, React, AWS, Docker',
-          sortOrder: 1,
+          startDate: addDays(baseDate, -365 * 2),
+          endDate: null,
+          isCurrent: true,
+          description: `Working as a ${positionTitle} contributing to core services, managing sprint deliverables, and optimizing backend databases.`,
+          technologies: candidateSkills.join(', '),
+          sortOrder: 0,
           createdAt: baseDate,
           updatedAt: baseDate,
         });
 
-        ['TypeScript', 'React', 'AWS'].forEach((skillName) => {
-          const skillRecord = skills[skillName as keyof typeof skills];
+        candidateSkills.forEach((skillName) => {
+          const skillRecord = skills[skillName];
           if (skillRecord) {
             experienceSkillsToCreate.push({
               id: randomUUID(),
-              candidateExperienceId: oldExpId,
+              candidateExperienceId: expId,
               skillId: skillRecord.id,
             });
           }
         });
+
+        if (roleIdx >= 5) {
+          const oldExpId = randomUUID();
+          const oldCompanyName = roleIdx === 6 ? 'KMS Technology' : 'Viettel Group';
+          const oldPositionTitle = roleIdx === 6 ? 'Technical Lead' : 'Senior Software Engineer';
+          experiencesToCreate.push({
+            id: oldExpId,
+            candidateProfileId: profileId,
+            companyName: oldCompanyName,
+            positionTitle: oldPositionTitle,
+            employmentType: 'Full-time',
+            startDate: addDays(baseDate, -365 * 5),
+            endDate: addDays(baseDate, -365 * 2 - 10),
+            isCurrent: false,
+            description: `Designed microservices architectures, mentored junior developers, and streamlined CI/CD pipelines.`,
+            technologies: 'TypeScript, React, AWS, Docker',
+            sortOrder: 1,
+            createdAt: baseDate,
+            updatedAt: baseDate,
+          });
+
+          ['TypeScript', 'React', 'AWS'].forEach((skillName) => {
+            const skillRecord = skills[skillName];
+            if (skillRecord) {
+              experienceSkillsToCreate.push({
+                id: randomUUID(),
+                candidateExperienceId: oldExpId,
+                skillId: skillRecord.id,
+              });
+            }
+          });
+        }
       }
     }
 
     // 5. Projects
-    if (roleIdx === 0) {
+    if (idx < 10) {
+      const projectNames = ['Personal Portfolio Website', 'E-commerce Platform', 'Chat Realtime System', 'Smart IoT Dashboard', 'AI Smart Assistant'];
       projectsToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
-        name: 'Task Manager API',
-        role: 'Solo Developer',
-        description:
-          'A RESTful API built to manage daily tasks, supporting CRUD operations and JWT authentication.',
-        projectUrl: 'https://github.com/seed/task-manager-api',
-        technologies: 'Node.js, Express, MongoDB',
-        deployUrl: null,
-        startDate: addDays(baseDate, -60),
-        endDate: addDays(baseDate, -30),
-        sortOrder: 0,
-        createdAt: baseDate,
-        updatedAt: baseDate,
-      });
-    } else if (roleIdx === 1) {
-      projectsToCreate.push({
-        id: randomUUID(),
-        candidateProfileId: profileId,
-        name: 'Personal Portfolio Website',
-        role: 'UI Designer & Developer',
-        description:
-          'A modern, responsive portfolio website featuring glassmorphism design and smooth page transitions.',
-        projectUrl: 'https://github.com/seed/portfolio',
-        technologies: 'React, TailwindCSS, Framer Motion',
-        deployUrl: 'https://myportfolio.dev',
-        startDate: addDays(baseDate, -45),
-        endDate: addDays(baseDate, -15),
+        name: projectNames[idx % projectNames.length],
+        role: idx === 9 ? 'UI/UX Designer' : 'Fullstack Developer',
+        description: 'Dự án cá nhân nhằm áp dụng các công nghệ hiện đại để giải quyết bài toán quản lý và tối ưu hóa trải nghiệm người dùng.',
+        projectUrl: `https://github.com/seed/project-${idx}`,
+        technologies: candidateSkills.slice(0, 3).join(', '),
+        deployUrl: `https://demo-project-${idx}.dev`,
+        startDate: addDays(baseDate, -90),
+        endDate: addDays(baseDate, -45),
         sortOrder: 0,
         createdAt: baseDate,
         updatedAt: baseDate,
       });
     } else {
-      projectsToCreate.push({
-        id: randomUUID(),
-        candidateProfileId: profileId,
-        name: 'E-commerce Platform Microservices',
-        role: 'Core Backend Engineer',
-        description:
-          'Developed the checkout and inventory service handling 10k concurrent users during flash sales.',
-        projectUrl: 'https://github.com/seed/ecommerce-microservices',
-        technologies: 'NestJS, TypeScript, Docker, Kafka',
-        deployUrl: null,
-        startDate: addDays(baseDate, -180),
-        endDate: addDays(baseDate, -90),
-        sortOrder: 0,
-        createdAt: baseDate,
-        updatedAt: baseDate,
-      });
+      if (roleIdx === 0) {
+        projectsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          name: 'Task Manager API',
+          role: 'Solo Developer',
+          description: 'A RESTful API built to manage daily tasks, supporting CRUD operations and JWT authentication.',
+          projectUrl: 'https://github.com/seed/task-manager-api',
+          technologies: 'Node.js, Express, MongoDB',
+          deployUrl: null,
+          startDate: addDays(baseDate, -60),
+          endDate: addDays(baseDate, -30),
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      } else if (roleIdx === 1) {
+        projectsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          name: 'Personal Portfolio Website',
+          role: 'UI Designer & Developer',
+          description: 'A modern, responsive portfolio website featuring glassmorphism design and smooth page transitions.',
+          projectUrl: 'https://github.com/seed/portfolio',
+          technologies: 'React, TailwindCSS, Framer Motion',
+          deployUrl: 'https://myportfolio.dev',
+          startDate: addDays(baseDate, -45),
+          endDate: addDays(baseDate, -15),
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      } else {
+        projectsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          name: 'E-commerce Platform Microservices',
+          role: 'Core Backend Engineer',
+          description: 'Developed the checkout and inventory service handling 10k concurrent users during flash sales.',
+          projectUrl: 'https://github.com/seed/ecommerce-microservices',
+          technologies: 'NestJS, TypeScript, Docker, Kafka',
+          deployUrl: null,
+          startDate: addDays(baseDate, -180),
+          endDate: addDays(baseDate, -90),
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      }
     }
 
     // 6. Certifications
-    if (roleIdx === 3) {
-      certificationsToCreate.push({
-        id: randomUUID(),
-        candidateProfileId: profileId,
-        name: 'AWS Certified Solutions Architect - Associate',
-        organization: 'Amazon Web Services (AWS)',
-        issuedDate: addDays(baseDate, -180),
-        expiredDate: addDays(baseDate, 365 * 2.5),
-        credentialUrl: 'https://aws.amazon.com/verification',
-        sortOrder: 0,
-        createdAt: baseDate,
-        updatedAt: baseDate,
-      });
-    } else if (roleIdx === 4) {
-      certificationsToCreate.push({
-        id: randomUUID(),
-        candidateProfileId: profileId,
-        name: 'TensorFlow Developer Certificate',
-        organization: 'Google',
-        issuedDate: addDays(baseDate, -300),
-        expiredDate: addDays(baseDate, 365 * 2),
-        credentialUrl: 'https://google.com/verify-tf',
-        sortOrder: 0,
-        createdAt: baseDate,
-        updatedAt: baseDate,
-      });
-    } else if (roleIdx === 5) {
-      certificationsToCreate.push({
-        id: randomUUID(),
-        candidateProfileId: profileId,
-        name: 'AWS Certified Solutions Architect - Professional',
-        organization: 'Amazon Web Services (AWS)',
-        issuedDate: addDays(baseDate, -500),
-        expiredDate: addDays(baseDate, 500),
-        credentialUrl: 'https://aws.amazon.com/verification-pro',
-        sortOrder: 0,
-        createdAt: baseDate,
-        updatedAt: baseDate,
-      });
-    } else if (roleIdx === 6) {
-      certificationsToCreate.push({
-        id: randomUUID(),
-        candidateProfileId: profileId,
-        name: 'Certified ScrumMaster (CSM)',
-        organization: 'Scrum Alliance',
-        issuedDate: addDays(baseDate, -400),
-        expiredDate: addDays(baseDate, 365 * 2),
-        credentialUrl: 'https://scrumalliance.org/cert',
-        sortOrder: 0,
-        createdAt: baseDate,
-        updatedAt: baseDate,
-      });
+    if (idx < 10) {
+       if (idx === 5) {
+        certificationsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          name: 'AWS Certified Solutions Architect - Associate',
+          organization: 'Amazon Web Services (AWS)',
+          issuedDate: addDays(baseDate, -180),
+          expiredDate: addDays(baseDate, 365 * 2.5),
+          credentialUrl: 'https://aws.amazon.com/verification',
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      } else if (idx === 6) {
+        certificationsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          name: 'Certified ScrumMaster (CSM)',
+          organization: 'Scrum Alliance',
+          issuedDate: addDays(baseDate, -400),
+          expiredDate: addDays(baseDate, 365 * 2),
+          credentialUrl: 'https://scrumalliance.org/cert',
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      }
+    } else {
+      if (roleIdx === 3) {
+        certificationsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          name: 'AWS Certified Solutions Architect - Associate',
+          organization: 'Amazon Web Services (AWS)',
+          issuedDate: addDays(baseDate, -180),
+          expiredDate: addDays(baseDate, 365 * 2.5),
+          credentialUrl: 'https://aws.amazon.com/verification',
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      } else if (roleIdx === 4) {
+        certificationsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          name: 'TensorFlow Developer Certificate',
+          organization: 'Google',
+          issuedDate: addDays(baseDate, -300),
+          expiredDate: addDays(baseDate, 365 * 2),
+          credentialUrl: 'https://google.com/verify-tf',
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      } else if (roleIdx === 5) {
+        certificationsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          name: 'AWS Certified Solutions Architect - Professional',
+          organization: 'Amazon Web Services (AWS)',
+          issuedDate: addDays(baseDate, -500),
+          expiredDate: addDays(baseDate, 500),
+          credentialUrl: 'https://aws.amazon.com/verification-pro',
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      } else if (roleIdx === 6) {
+        certificationsToCreate.push({
+          id: randomUUID(),
+          candidateProfileId: profileId,
+          name: 'Certified ScrumMaster (CSM)',
+          organization: 'Scrum Alliance',
+          issuedDate: addDays(baseDate, -400),
+          expiredDate: addDays(baseDate, 365 * 2),
+          credentialUrl: 'https://scrumalliance.org/cert',
+          sortOrder: 0,
+          createdAt: baseDate,
+          updatedAt: baseDate,
+        });
+      }
     }
-  });
+  }
 
   if (languagesToCreate.length > 0) {
     await prisma.candidateLanguage.createMany({ data: languagesToCreate });
@@ -2989,323 +3430,668 @@ async function main() {
     await prisma.candidateCertification.createMany({ data: certificationsToCreate });
   }
 
-  const companyByKey = Object.fromEntries(companies.map((company) => [company.key, company]));
+  const companyByKey = Object.fromEntries(companies.map((company: any) => [company.key, company]));
   const recruiterByCompanyId = Object.fromEntries(
     recruiters
-      .filter((r) => r.roleCode === 'OWNER')
-      .map((recruiter) => [recruiter.companyId, recruiter]),
+      .filter((r: any) => r.roleCode === 'OWNER')
+      .map((recruiter: any) => [recruiter.companyId, recruiter]),
   );
 
   const jobDefinitions = [
     {
-      title: 'Backend Platform Engineer',
-      companyKey: 'alpha',
-      employmentTypeKey: 'fullTime',
-      experienceLevelKey: 'mid',
-      jobCategoryKey: 'backend',
-      workMode: WorkingModel.REMOTE,
-      city: 'Ho Chi Minh City',
-      district: 'District 1',
-      salaryMin: 18000000,
-      salaryMax: 32000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 4),
-      applications: [0, 1, 2, 3, 4],
-      skills: ['TypeScript', 'NestJS', 'Prisma'],
-      specializations: ['backend', 'cloud'],
-      educationLevel: EducationLevel.BACHELOR,
+      "companySlug": "fpt-software",
+      "title": "Senior Java Backend Engineer",
+      "slug": "fpt-software-senior-java-backend-engineer",
+      "jobCategory": {
+        "name": "Backend Engineering"
+      },
+      "experienceLevel": {
+        "name": "Senior",
+        "code": "senior"
+      },
+      "employmentType": {
+        "name": "Full-time"
+      },
+      "workingDays": "Thứ 2 - Thứ 6",
+      "educationLevel": "BACHELOR",
+      "salaryMin": "35000000",
+      "salaryMax": "60000000",
+      "salaryCurrency": "VND",
+      "salaryPeriod": "MONTH",
+      "salaryIsNegotiable": true,
+      "salaryIsVisible": true,
+      "vacanciesCount": 3,
+      "status": "PUBLISHED",
+      "moderationStatus": "APPROVED",
+      "moderationNote": null,
+      "reason": null,
+      "publishedAt": "2026-07-08T02:00:00.000Z",
+      "expiredAt": "2026-08-22T16:59:59.000Z",
+      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Tham gia phát triển hệ thống backend cho các dự án phần mềm doanh nghiệp, tài chính, bán lẻ, viễn thông hoặc chuyển đổi số theo yêu cầu khách hàng quốc tế.</li><li>Thiết kế, xây dựng và tối ưu RESTful API, service layer, database transaction và các luồng xử lý nghiệp vụ có độ ổn định cao.</li><li>Làm việc cùng Business Analyst, Solution Architect, Frontend, QA và DevOps để phân tích yêu cầu, ước lượng effort và triển khai tính năng theo sprint.</li><li>Review code, chuẩn hóa coding convention, viết unit test/integration test và đảm bảo chất lượng code trước khi release.</li><li>Phân tích nguyên nhân lỗi production, tối ưu performance, xử lý bottleneck ở database/API và đề xuất phương án cải thiện kiến trúc hệ thống.</li><li>Tham gia thiết kế microservices, message queue, caching và các cơ chế xử lý bất đồng bộ nếu dự án yêu cầu.</li><li>Hỗ trợ hướng dẫn thành viên junior/middle trong team về kỹ thuật, quy trình delivery và best practices.</li><li>Làm việc với tài liệu kỹ thuật tiếng Anh, tham gia họp với khách hàng hoặc team offshore khi cần.</li></ul></div></details>",
+      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Có từ 4 năm kinh nghiệm phát triển backend với Java, ưu tiên ứng viên từng làm hệ thống doanh nghiệp hoặc sản phẩm có lượng người dùng lớn.</li><li>Thành thạo Java Core, Spring Boot, Spring Security, JPA/Hibernate và RESTful API.</li><li>Nắm vững OOP, SOLID, design pattern, clean code và nguyên tắc thiết kế hệ thống dễ bảo trì.</li><li>Có kinh nghiệm làm việc với MySQL, PostgreSQL, Oracle hoặc SQL Server; hiểu indexing, transaction và query optimization.</li><li>Có kinh nghiệm với Git, Docker, CI/CD và môi trường Agile/Scrum.</li><li>Biết microservices, Kafka/RabbitMQ, Redis, Kubernetes hoặc cloud là lợi thế.</li><li>Có khả năng đọc hiểu tài liệu tiếng Anh và giao tiếp kỹ thuật cơ bản với khách hàng/team quốc tế.</li><li>Tư duy giải quyết vấn đề tốt, chủ động trong công việc và có trách nhiệm với chất lượng sản phẩm.</li></ul></div></details>",
+      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trong môi trường dự án quốc tế, quy trình chuyên nghiệp và có cơ hội tiếp xúc nhiều domain khác nhau.</li><li>Lộ trình phát triển rõ ràng theo hướng Senior Engineer, Tech Lead, Solution Architect hoặc Project Manager.</li><li>Được đào tạo chuyên môn, ngoại ngữ, kỹ năng mềm và có cơ hội thi chứng chỉ công nghệ.</li><li>Tham gia các dự án quy mô lớn với tiêu chuẩn delivery cao, giúp nâng năng lực kỹ thuật thực chiến.</li><li>Chế độ bảo hiểm, nghỉ phép, khám sức khỏe và phúc lợi theo chính sách công ty.</li><li>Cơ hội onsite, làm việc với khách hàng toàn cầu hoặc tham gia team offshore tùy dự án.</li><li>Môi trường phù hợp với kỹ sư muốn phát triển lâu dài trong lĩnh vực software outsourcing.</li></ul></div></details>",
+      "skills": [
+        { "name": "Java", "priority": "REQUIRED", "minYearsExperience": 4 },
+        { "name": "Spring Boot", "priority": "REQUIRED", "minYearsExperience": 3 },
+        { "name": "RESTful API", "priority": "REQUIRED" },
+        { "name": "Microservices", "priority": "PREFERRED" },
+        { "name": "SQL", "priority": "REQUIRED" },
+        { "name": "Docker", "priority": "PREFERRED" },
+        { "name": "English", "priority": "PREFERRED" }
+      ],
+      "locations": [
+        {
+          "country": "Vietnam",
+          "workingModel": "HYBRID",
+          "city": "Hà Nội",
+          "district": "Cầu Giấy",
+          "address": "Tòa nhà FPT Cầu Giấy, phố Duy Tân, Phường Cầu Giấy, Hà Nội"
+        }
+      ],
+      "specializations": [
+        { "name": "Backend", "slug": "backend", "isRequired": true },
+        { "name": "Enterprise Software", "slug": "enterprise-software", "isRequired": false }
+      ]
     },
     {
-      title: 'Data Engineer',
-      companyKey: 'alpha',
-      employmentTypeKey: 'fullTime',
-      experienceLevelKey: 'senior',
-      jobCategoryKey: 'data',
-      workMode: WorkingModel.ONSITE,
-      city: 'Binh Duong',
-      district: 'Thu Dau Mot',
-      salaryMin: 30000000,
-      salaryMax: 45000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 6),
-      applications: [1, 2],
-      skills: ['TypeScript', 'AWS', 'AI'],
-      specializations: ['data', 'backend'],
+      "companySlug": "vng-corporation",
+      "title": "Product Data Analyst",
+      "slug": "vng-corporation-product-data-analyst",
+      "jobCategory": {
+        "name": "Data Analytics"
+      },
+      "experienceLevel": {
+        "name": "Mid-level",
+        "code": "mid"
+      },
+      "employmentType": {
+        "name": "Full-time"
+      },
+      "workingDays": "Thứ 2 - Thứ 6",
+      "educationLevel": "BACHELOR",
+      "salaryMin": "25000000",
+      "salaryMax": "45000000",
+      "salaryCurrency": "VND",
+      "salaryPeriod": "MONTH",
+      "salaryIsNegotiable": true,
+      "salaryIsVisible": true,
+      "vacanciesCount": 2,
+      "status": "PUBLISHED",
+      "moderationStatus": "APPROVED",
+      "moderationNote": null,
+      "reason": null,
+      "publishedAt": "2026-07-08T02:30:00.000Z",
+      "expiredAt": "2026-08-22T16:59:59.000Z",
+      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Phân tích dữ liệu hành vi người dùng trên các sản phẩm số như nền tảng nội dung, game, cloud, fintech hoặc dịch vụ internet.</li><li>Xây dựng dashboard theo dõi các chỉ số sản phẩm: active users, retention, conversion, funnel, cohort, churn và engagement.</li><li>Làm việc với Product Manager để xác định câu hỏi phân tích, kiểm chứng giả thuyết và đưa ra khuyến nghị cải thiện sản phẩm.</li><li>Thiết kế và phân tích A/B testing nhằm đo lường tác động của tính năng mới, campaign hoặc thay đổi trong trải nghiệm người dùng.</li><li>Khai thác dữ liệu bằng SQL, xử lý dữ liệu thô và chuyển hóa thành insight dễ hiểu cho business/product team.</li><li>Phối hợp với Data Engineer để chuẩn hóa event tracking, data pipeline và logic đo lường chỉ số.</li><li>Chuẩn bị báo cáo định kỳ cho stakeholder về tình hình tăng trưởng, chất lượng người dùng và hiệu quả sản phẩm.</li><li>Phát hiện bất thường trong dữ liệu, cảnh báo sớm vấn đề liên quan đến tracking, traffic hoặc hành vi người dùng.</li></ul></div></details>",
+      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 2 năm kinh nghiệm ở vị trí Data Analyst, Product Analyst, Business Analyst hoặc Growth Analyst.</li><li>Thành thạo SQL và có kinh nghiệm làm việc với dữ liệu lớn từ hệ thống sản phẩm.</li><li>Hiểu các chỉ số sản phẩm như retention, activation, conversion, cohort, LTV, CAC hoặc churn.</li><li>Có kinh nghiệm dùng Power BI, Tableau, Looker Studio, Metabase hoặc công cụ BI tương đương.</li><li>Biết Python/R để xử lý dữ liệu là lợi thế.</li><li>Có khả năng kể chuyện bằng dữ liệu, trình bày insight rõ ràng và đề xuất hành động cụ thể.</li><li>Tư duy logic tốt, cẩn thận với số liệu và biết kiểm tra độ tin cậy của dữ liệu.</li><li>Ưu tiên ứng viên từng làm trong công ty product, game, fintech, e-commerce hoặc nền tảng có lượng user lớn.</li></ul></div></details>",
+      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trên sản phẩm công nghệ có lượng người dùng lớn tại Việt Nam.</li><li>Cơ hội tham gia trực tiếp vào các quyết định sản phẩm dựa trên dữ liệu.</li><li>Môi trường công nghệ mạnh, tốc độ cao, phù hợp với người thích học nhanh và thử nghiệm liên tục.</li><li>Được phối hợp với Product, Engineering, Marketing, Growth và Data Platform.</li><li>Cơ hội phát triển lên Senior Data Analyst, Product Analytics Lead hoặc Data Product Owner.</li><li>Được tiếp cận bài toán thực tế về tăng trưởng, hành vi người dùng và tối ưu sản phẩm.</li><li>Phúc lợi, đào tạo và chính sách đãi ngộ theo năng lực.</li></ul></div></details>",
+      "skills": [
+        { "name": "SQL", "priority": "REQUIRED", "minYearsExperience": 2 },
+        { "name": "Data Analysis", "priority": "REQUIRED" },
+        { "name": "Product Analytics", "priority": "REQUIRED" },
+        { "name": "Power BI", "priority": "PREFERRED" },
+        { "name": "Python", "priority": "PREFERRED" },
+        { "name": "A/B Testing", "priority": "PREFERRED" }
+      ],
+      "locations": [
+        {
+          "country": "Vietnam",
+          "workingModel": "HYBRID",
+          "city": "Hồ Chí Minh",
+          "district": "Quận 7",
+          "address": "Z06 Đường số 13, Phường Tân Thuận, Thành phố Hồ Chí Minh"
+        }
+      ],
+      "specializations": [
+        { "name": "Data", "slug": "data", "isRequired": true },
+        { "name": "Product", "slug": "product", "isRequired": true }
+      ]
     },
     {
-      title: 'Cloud QA Specialist',
-      companyKey: 'alpha',
-      employmentTypeKey: 'contract',
-      experienceLevelKey: 'mid',
-      jobCategoryKey: 'operations',
-      workMode: WorkingModel.REMOTE,
-      city: 'Dong Nai',
-      district: 'Bien Hoa',
-      salaryMin: 15000000,
-      salaryMax: 22000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 8),
-      applications: [3],
-      skills: ['QA', 'AWS'],
-      specializations: ['qa', 'cloud'],
+      "companySlug": "tiki-group",
+      "title": "E-commerce Product Manager",
+      "slug": "tiki-group-ecommerce-product-manager",
+      "jobCategory": {
+        "name": "Product Management"
+      },
+      "experienceLevel": {
+        "name": "Senior",
+        "code": "senior"
+      },
+      "employmentType": {
+        "name": "Full-time"
+      },
+      "workingDays": "Thứ 2 - Thứ 6",
+      "educationLevel": "BACHELOR",
+      "salaryMin": "40000000",
+      "salaryMax": "70000000",
+      "salaryCurrency": "VND",
+      "salaryPeriod": "MONTH",
+      "salaryIsNegotiable": true,
+      "salaryIsVisible": true,
+      "vacanciesCount": 1,
+      "status": "PUBLISHED",
+      "moderationStatus": "APPROVED",
+      "moderationNote": null,
+      "reason": null,
+      "publishedAt": "2026-07-08T03:00:00.000Z",
+      "expiredAt": "2026-08-22T16:59:59.000Z",
+      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Phụ trách roadmap sản phẩm cho các luồng e-commerce như tìm kiếm sản phẩm, giỏ hàng, checkout, seller tools, promotion hoặc fulfillment.</li><li>Thu thập và phân tích nhu cầu từ người dùng, seller, operation, customer service và business team để xác định vấn đề cần giải quyết.</li><li>Viết PRD, user story, acceptance criteria và phối hợp với Design/Engineering/QA để triển khai tính năng.</li><li>Theo dõi các chỉ số sau release như conversion rate, order success rate, cart abandonment, GMV impact và customer complaint rate.</li><li>Ưu tiên backlog dựa trên impact, effort, rủi ro kỹ thuật và mục tiêu kinh doanh.</li><li>Làm việc với Data Analyst để phân tích funnel, hành vi người dùng và hiệu quả thử nghiệm A/B testing.</li><li>Phối hợp với Operations và Marketing trong các campaign lớn, đảm bảo sản phẩm hỗ trợ tốt luồng vận hành thực tế.</li><li>Chủ động phát hiện điểm nghẽn trong trải nghiệm mua hàng và đề xuất giải pháp cải thiện.</li></ul></div></details>",
+      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 4 năm kinh nghiệm Product Management, ưu tiên trong e-commerce, marketplace, logistics tech hoặc consumer app.</li><li>Hiểu sâu về user journey, funnel, checkout, promotion, seller operation hoặc order fulfillment.</li><li>Có khả năng viết tài liệu sản phẩm rõ ràng, xác định edge case và làm việc hiệu quả với Engineering.</li><li>Có tư duy dữ liệu, biết đọc dashboard, phân tích chỉ số và đưa ra quyết định dựa trên số liệu.</li><li>Kỹ năng giao tiếp và stakeholder management tốt, có thể cân bằng giữa business goal và năng lực kỹ thuật.</li><li>Biết SQL, Figma, Jira, Confluence hoặc công cụ quản lý sản phẩm là lợi thế.</li><li>Có kinh nghiệm làm Agile/Scrum và hiểu vòng đời phát triển phần mềm.</li><li>Chủ động, chịu áp lực tốt và có khả năng đưa ra quyết định trong môi trường thay đổi nhanh.</li></ul></div></details>",
+      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Tham gia phát triển sản phẩm thương mại điện tử có người dùng thật và tác động kinh doanh rõ ràng.</li><li>Cơ hội làm việc với nhiều team: Tech, Design, Data, Business, Operation, Marketing và Customer Service.</li><li>Được giải quyết các bài toán phức tạp về marketplace, conversion, promotion và vận hành đơn hàng.</li><li>Môi trường phù hợp với người muốn phát triển năng lực product thực chiến.</li><li>Cơ hội phát triển lên Senior Product Manager, Group Product Manager hoặc Product Lead.</li><li>Chính sách phúc lợi, đãi ngộ và đào tạo theo năng lực.</li><li>Có cơ hội tạo ảnh hưởng trực tiếp đến trải nghiệm mua sắm của người dùng.</li></ul></div></details>",
+      "skills": [
+        { "name": "Product Management", "priority": "REQUIRED", "minYearsExperience": 4 },
+        { "name": "E-commerce", "priority": "REQUIRED" },
+        { "name": "Business Analysis", "priority": "REQUIRED" },
+        { "name": "SQL", "priority": "PREFERRED" },
+        { "name": "Agile", "priority": "PREFERRED" },
+        { "name": "User Research", "priority": "PREFERRED" }
+      ],
+      "locations": [
+        {
+          "country": "Vietnam",
+          "workingModel": "HYBRID",
+          "city": "Hồ Chí Minh",
+          "district": "Gò Vấp",
+          "address": "50/20 đường số 45, Phường 14, Quận Gò Vấp, Thành phố Hồ Chí Minh"
+        }
+      ],
+      "specializations": [
+        { "name": "Product", "slug": "product", "isRequired": true },
+        { "name": "E-commerce", "slug": "ecommerce", "isRequired": true }
+      ]
     },
     {
-      title: 'Integration Engineer',
-      companyKey: 'alpha',
-      employmentTypeKey: 'fullTime',
-      experienceLevelKey: 'junior',
-      jobCategoryKey: 'backend',
-      workMode: WorkingModel.HYBRID,
-      city: 'Hai Phong',
-      district: 'Ngo Quyen',
-      salaryMin: 12000000,
-      salaryMax: 20000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 10),
-      applications: [5],
-      skills: ['TypeScript', 'Prisma'],
-      specializations: ['backend'],
+      "companySlug": "shopee-vietnam",
+      "title": "Seller Operations Analyst",
+      "slug": "shopee-vietnam-seller-operations-analyst",
+      "jobCategory": {
+        "name": "Operations"
+      },
+      "experienceLevel": {
+        "name": "Mid-level",
+        "code": "mid"
+      },
+      "employmentType": {
+        "name": "Full-time"
+      },
+      "workingDays": "Thứ 2 - Thứ 6",
+      "educationLevel": "BACHELOR",
+      "salaryMin": "22000000",
+      "salaryMax": "38000000",
+      "salaryCurrency": "VND",
+      "salaryPeriod": "MONTH",
+      "salaryIsNegotiable": true,
+      "salaryIsVisible": true,
+      "vacanciesCount": 2,
+      "status": "PUBLISHED",
+      "moderationStatus": "APPROVED",
+      "moderationNote": null,
+      "reason": null,
+      "publishedAt": "2026-07-08T03:30:00.000Z",
+      "expiredAt": "2026-08-22T16:59:59.000Z",
+      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Theo dõi hiệu quả vận hành của nhóm người bán trên marketplace, bao gồm chất lượng gian hàng, tỷ lệ xử lý đơn và mức độ tham gia campaign.</li><li>Xây dựng báo cáo định kỳ về seller performance, order issue, cancellation rate, late shipment, campaign conversion và seller growth.</li><li>Phân tích nguyên nhân khiến người bán chưa đạt KPI và đề xuất giải pháp cải thiện quy trình vận hành.</li><li>Phối hợp với Seller Management, Marketing, Logistics, Product và Customer Service để xử lý các vấn đề ảnh hưởng đến trải nghiệm người mua.</li><li>Chuẩn hóa dữ liệu vận hành, tạo dashboard và cảnh báo sớm các nhóm seller có rủi ro về chất lượng dịch vụ.</li><li>Hỗ trợ triển khai chính sách, chương trình hỗ trợ seller và các campaign thúc đẩy tăng trưởng ngành hàng.</li><li>Phân tích tác động của chương trình khuyến mãi, voucher, traffic support và seller education tới doanh số.</li><li>Đề xuất cải tiến quy trình nội bộ nhằm giảm thao tác thủ công và tăng tốc độ xử lý vấn đề.</li></ul></div></details>",
+      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 2 năm kinh nghiệm trong Operations, Business Analyst, Data Analyst, E-commerce hoặc Marketplace.</li><li>Thành thạo Excel/Google Sheets, biết xử lý dữ liệu lớn, pivot, lookup, dashboard và báo cáo vận hành.</li><li>Biết SQL hoặc công cụ BI là lợi thế lớn.</li><li>Có tư duy phân tích, hiểu cách chuyển số liệu thành insight và hành động cụ thể.</li><li>Có khả năng phối hợp với nhiều phòng ban, theo dõi deadline và xử lý công việc trong môi trường tốc độ cao.</li><li>Hiểu về e-commerce, seller operation, order fulfillment hoặc campaign operation là lợi thế.</li><li>Kỹ năng giao tiếp tốt, trình bày báo cáo rõ ràng và có khả năng làm việc với stakeholder.</li><li>Cẩn thận với số liệu, chủ động phát hiện bất thường và đề xuất hướng xử lý.</li></ul></div></details>",
+      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trong môi trường marketplace tốc độ cao, dữ liệu lớn và tác động trực tiếp đến người bán/người mua.</li><li>Cơ hội học sâu về seller growth, campaign operation, logistics và vận hành e-commerce.</li><li>Được phối hợp với các team Product, Marketing, Logistics, Seller Management và Customer Experience.</li><li>Môi trường phù hợp với người thích dữ liệu, vận hành và tối ưu quy trình.</li><li>Cơ hội phát triển lên Senior Operations Analyst, Operations Lead hoặc Business Intelligence role.</li><li>Phúc lợi, đãi ngộ và đào tạo thế cạnh tranh.</li><li>Được tham gia các chiến dịch thương mại điện tử quy mô lớn.</li></ul></div></details>",
+      "skills": [
+        { "name": "Operations", "priority": "REQUIRED", "minYearsExperience": 2 },
+        { "name": "Data Analysis", "priority": "REQUIRED" },
+        { "name": "Excel", "priority": "REQUIRED" },
+        { "name": "SQL", "priority": "PREFERRED" },
+        { "name": "Business Analysis", "priority": "PREFERRED" },
+        { "name": "E-commerce", "priority": "REQUIRED" }
+      ],
+      "locations": [
+        {
+          "country": "Vietnam",
+          "workingModel": "ONSITE",
+          "city": "Hà Nội",
+          "district": "Ba Đình",
+          "address": "Tòa nhà Capital Place, 29 Liễu Giai, Phường Ngọc Hà, Hà Nội"
+        }
+      ],
+      "specializations": [
+        { "name": "Operations", "slug": "operations", "isRequired": true },
+        { "name": "E-commerce", "slug": "ecommerce", "isRequired": true }
+      ]
     },
     {
-      title: 'Frontend React Engineer',
-      companyKey: 'beta',
-      employmentTypeKey: 'fullTime',
-      experienceLevelKey: 'mid',
-      jobCategoryKey: 'frontend',
-      workMode: WorkingModel.REMOTE,
-      city: 'Da Nang',
-      district: 'Hai Chau',
-      salaryMin: 16000000,
-      salaryMax: 26000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 12),
-      applications: [0, 4, 5, 6],
-      skills: ['React', 'TypeScript'],
-      specializations: ['frontend'],
+      "companySlug": "grab-vietnam",
+      "title": "Backend Engineer - Marketplace Platform",
+      "slug": "grab-vietnam-backend-engineer-marketplace-platform",
+      "jobCategory": {
+        "name": "Backend Engineering"
+      },
+      "experienceLevel": {
+        "name": "Mid-level",
+        "code": "mid"
+      },
+      "employmentType": {
+        "name": "Full-time"
+      },
+      "workingDays": "Thứ 2 - Thứ 6",
+      "educationLevel": "BACHELOR",
+      "salaryMin": "35000000",
+      "salaryMax": "65000000",
+      "salaryCurrency": "VND",
+      "salaryPeriod": "MONTH",
+      "salaryIsNegotiable": true,
+      "salaryIsVisible": true,
+      "vacanciesCount": 2,
+      "status": "PUBLISHED",
+      "moderationStatus": "APPROVED",
+      "moderationNote": null,
+      "reason": null,
+      "publishedAt": "2026-07-08T04:00:00.000Z",
+      "expiredAt": "2026-08-22T16:59:59.000Z",
+      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Phát triển backend service cho các bài toán marketplace như matching, pricing, dispatching, incentive, order lifecycle hoặc delivery flow.</li><li>Thiết kế API và service có khả năng xử lý lượng request lớn, đảm bảo tính ổn định, bảo mật và khả năng mở rộng.</li><li>Làm việc với Product, Data, Mobile, Infrastructure và Operations để triển khai tính năng phục vụ người dùng, tài xế, đối tác hoặc merchant.</li><li>Xây dựng logic xử lý bất đồng bộ, message queue, retry mechanism và monitoring cho các luồng nghiệp vụ quan trọng.</li><li>Tham gia phân tích production issue, tối ưu latency, throughput, database query và độ tin cậy của service.</li><li>Viết unit test, integration test, tham gia code review và cải thiện chất lượng codebase.</li><li>Đóng góp vào thiết kế kiến trúc hệ thống, chuẩn hóa API contract và tài liệu kỹ thuật.</li><li>Phối hợp với team khu vực khi triển khai các tính năng hoặc platform component dùng chung.</li></ul></div></details>",
+      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 3 năm kinh nghiệm backend engineering, ưu tiên từng làm hệ thống high traffic hoặc distributed systems.</li><li>Thành thạo một trong các ngôn ngữ Go, Java, Kotlin, Python hoặc tương đương.</li><li>Có kinh nghiệm thiết kế REST/gRPC API, database schema, caching và service-to-service communication.</li><li>Hiểu microservices, message queue, event-driven architecture và observability.</li><li>Có kinh nghiệm với MySQL/PostgreSQL, Redis, Kafka hoặc cloud infrastructure là lợi thế.</li><li>Tư duy hệ thống tốt, có khả năng phân tích trade-off giữa performance, reliability và maintainability.</li><li>Có kinh nghiệm làm việc với Agile/Scrum, CI/CD, Git và code review.</li><li>Giao tiếp tốt, chủ động và có khả năng làm việc trong môi trường nhiều stakeholder.</li></ul></div></details>",
+      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc với hệ sinh thái super app, marketplace và các bài toán vận hành quy mô lớn.</li><li>Cơ hội xử lý dữ liệu thời gian thực, matching, dispatching và transaction flow phức tạp.</li><li>Môi trường kỹ thuật định hướng reliability, scalability và data-driven decision.</li><li>Cơ hội phối hợp với đội ngũ khu vực và học hỏi từ các platform team có kinh nghiệm.</li><li>Phúc lợi, bảo hiểm, chính sách học tập và phát triển nghề nghiệp cạnh tranh.</li><li>Phù hợp với kỹ sư muốn phát triển sâu về backend platform và distributed systems.</li></ul></div></details>",
+      "skills": [
+        { "name": "Go", "priority": "PREFERRED" },
+        { "name": "Java", "priority": "PREFERRED" },
+        { "name": "Microservices", "priority": "REQUIRED" },
+        { "name": "Distributed Systems", "priority": "REQUIRED" },
+        { "name": "Kafka", "priority": "PREFERRED" },
+        { "name": "SQL", "priority": "REQUIRED" },
+        { "name": "RESTful API", "priority": "REQUIRED" }
+      ],
+      "locations": [
+        {
+          "country": "Vietnam",
+          "workingModel": "HYBRID",
+          "city": "Hồ Chí Minh",
+          "district": "Quận 7",
+          "address": "Mapletree Business Centre, 1060 Nguyễn Văn Linh, Quận 7, Thành phố Hồ Chí Minh"
+        }
+      ],
+      "specializations": [
+        { "name": "Backend", "slug": "backend", "isRequired": true },
+        { "name": "Platform", "slug": "platform", "isRequired": true }
+      ]
     },
     {
-      title: 'Fresher Product Designer',
-      companyKey: 'beta',
-      employmentTypeKey: 'fullTime',
-      experienceLevelKey: 'fresher',
-      jobCategoryKey: 'design',
-      workMode: WorkingModel.REMOTE,
-      city: 'Hue',
-      district: 'Hue City',
-      salaryMin: 12000000,
-      salaryMax: 16000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 14),
-      applications: [2, 7],
-      skills: ['Figma', 'React'],
-      specializations: ['product'],
+      "companySlug": "bosch-global-software-technologies-vietnam",
+      "title": "Embedded Software Engineer - Automotive",
+      "slug": "bosch-global-software-technologies-vietnam-embedded-software-engineer-automotive",
+      "jobCategory": {
+        "name": "Embedded Engineering"
+      },
+      "experienceLevel": {
+        "name": "Mid-level",
+        "code": "mid"
+      },
+      "employmentType": {
+        "name": "Full-time"
+      },
+      "workingDays": "Thứ 2 - Thứ 6",
+      "educationLevel": "BACHELOR",
+      "salaryMin": "25000000",
+      "salaryMax": "50000000",
+      "salaryCurrency": "VND",
+      "salaryPeriod": "MONTH",
+      "salaryIsNegotiable": true,
+      "salaryIsVisible": true,
+      "vacanciesCount": 3,
+      "status": "PUBLISHED",
+      "moderationStatus": "APPROVED",
+      "moderationNote": null,
+      "reason": null,
+      "publishedAt": "2026-07-08T04:30:00.000Z",
+      "expiredAt": "2026-08-22T16:59:59.000Z",
+      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Phát triển và kiểm thử phần mềm nhúng cho các hệ thống automotive theo tiêu chuẩn kỹ thuật của dự án.</li><li>Tham gia phân tích yêu cầu, thiết kế module, coding, unit test, integration test và xử lý lỗi phần mềm.</li><li>Làm việc với C/C++, microcontroller, communication protocol và các công cụ debugging trong môi trường embedded.</li><li>Phối hợp với các team kỹ thuật trong và ngoài Việt Nam để đảm bảo tiến độ và chất lượng delivery.</li><li>Đọc hiểu tài liệu yêu cầu, specification và tham gia review thiết kế kỹ thuật.</li><li>Thực hiện static analysis, coding guideline check và cải thiện chất lượng source code.</li><li>Hỗ trợ phân tích lỗi hệ thống, tái hiện lỗi và đưa ra phương án khắc phục.</li><li>Tham gia cải tiến quy trình phát triển phần mềm nhúng theo chuẩn chất lượng của khách hàng.</li></ul></div></details>",
+      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 2 năm kinh nghiệm phát triển phần mềm nhúng với C/C++.</li><li>Có kiến thức về microcontroller, memory management, interrupt, RTOS hoặc bare-metal programming.</li><li>Hiểu một số giao thức truyền thông như CAN, LIN, SPI, I2C, UART hoặc Ethernet là lợi thế.</li><li>Có kinh nghiệm unit testing, debugging, static analysis hoặc integration testing.</li><li>Biết AUTOSAR, ISO 26262, automotive software process hoặc embedded Linux là lợi thế.</li><li>Có khả năng đọc hiểu tài liệu kỹ thuật tiếng Anh.</li><li>Tư duy cẩn thận, logic, chú trọng chất lượng và an toàn hệ thống.</li><li>Có khả năng làm việc nhóm tốt trong môi trường kỹ thuật quốc tế.</li></ul></div></details>",
+      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Môi trường kỹ thuật quốc tế, quy trình phát triển phần mềm chuyên nghiệp.</li><li>Cơ hội làm việc với sản phẩm công nghệ phức tạp trong lĩnh vực automotive và embedded systems.</li><li>Được đào tạo chuyên môn, kỹ năng và chứng chỉ kỹ thuật liên quan đến automotive software.</li><li>Phúc lợi ổn định, phù hợp với môi trường doanh nghiệp toàn cầu.</li><li>Lộ trình phát triển lên Senior Embedded Engineer, Technical Lead hoặc System Engineer.</li><li>Cơ hội làm việc với nhiều team kỹ thuật quốc tế và học hỏi quy trình chuẩn công nghiệp.</li></ul></div></details>",
+      "skills": [
+        { "name": "C", "priority": "REQUIRED", "minYearsExperience": 2 },
+        { "name": "C++", "priority": "REQUIRED" },
+        { "name": "Embedded Systems", "priority": "REQUIRED" },
+        { "name": "RTOS", "priority": "PREFERRED" },
+        { "name": "CAN", "priority": "PREFERRED" },
+        { "name": "AUTOSAR", "priority": "PREFERRED" },
+        { "name": "English", "priority": "REQUIRED" }
+      ],
+      "locations": [
+        {
+          "country": "Vietnam",
+          "workingModel": "HYBRID",
+          "city": "Hồ Chí Minh",
+          "district": "Tân Bình",
+          "address": "364 Cộng Hòa, Phường Tân Bình, Thành phố Hồ Chí Minh"
+        }
+      ],
+      "specializations": [
+        { "name": "Embedded", "slug": "embedded", "isRequired": true },
+        { "name": "Automotive", "slug": "automotive", "isRequired": true }
+      ]
     },
     {
-      title: 'Lead DevOps Engineer',
-      companyKey: 'beta',
-      employmentTypeKey: 'fullTime',
-      experienceLevelKey: 'lead',
-      jobCategoryKey: 'operations',
-      workMode: WorkingModel.ONSITE,
-      city: 'Khanh Hoa',
-      district: 'Nha Trang',
-      salaryMin: 45000000,
-      salaryMax: 65000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 16),
-      applications: [8, 9],
-      skills: ['AWS', 'TypeScript'],
-      specializations: ['devops', 'cloud'],
+      "companySlug": "sendo-technology",
+      "title": "QA Automation Engineer",
+      "slug": "sendo-technology-qa-automation-engineer",
+      "jobCategory": {
+        "name": "Quality Assurance"
+      },
+      "experienceLevel": {
+        "name": "Mid-level",
+        "code": "mid"
+      },
+      "employmentType": {
+        "name": "Full-time"
+      },
+      "workingDays": "Thứ 2 - Thứ 6",
+      "educationLevel": "ANY",
+      "salaryMin": "22000000",
+      "salaryMax": "40000000",
+      "salaryCurrency": "VND",
+      "salaryPeriod": "MONTH",
+      "salaryIsNegotiable": true,
+      "salaryIsVisible": true,
+      "vacanciesCount": 2,
+      "status": "PUBLISHED",
+      "moderationStatus": "APPROVED",
+      "moderationNote": null,
+      "reason": null,
+      "publishedAt": "2026-07-08T05:00:00.000Z",
+      "expiredAt": "2026-08-22T16:59:59.000Z",
+      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Xây dựng và duy trì automation test cho web, mobile hoặc API của nền tảng e-commerce.</li><li>Thiết kế test plan, test case, test scenario và phối hợp với developer để phát hiện lỗi sớm trong vòng đời phát triển.</li><li>Phát triển automation script bằng Playwright, Cypress, Selenium, Appium hoặc công cụ phù hợp với hệ thống.</li><li>Tích hợp automation test vào CI/CD pipeline để hỗ trợ regression test trước mỗi lần release.</li><li>Thực hiện API testing, UI testing, regression testing và hỗ trợ kiểm thử tính năng mới.</li><li>Phân tích lỗi, ghi nhận bug rõ ràng, theo dõi trạng thái bug và xác nhận kết quả fix.</li><li>Đề xuất cải tiến quy trình kiểm thử, test coverage và tiêu chuẩn chất lượng sản phẩm.</li><li>Làm việc cùng Product, Engineering và Operations để hiểu đầy đủ nghiệp vụ e-commerce.</li></ul></div></details>",
+      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 2 năm kinh nghiệm QA/QC, trong đó có kinh nghiệm automation testing.</li><li>Có kinh nghiệm với ít nhất một công cụ automation như Playwright, Cypress, Selenium hoặc Appium.</li><li>Có kinh nghiệm API testing với Postman, REST Assured hoặc công cụ tương đương.</li><li>Hiểu quy trình kiểm thử phần mềm, bug lifecycle, test case design và regression testing.</li><li>Có khả năng đọc hiểu requirement, phân tích edge case và đặt câu hỏi rõ ràng với Product/Developer.</li><li>Biết JavaScript, TypeScript, Java hoặc Python là lợi thế.</li><li>Hiểu CI/CD, Git và môi trường Agile/Scrum là lợi thế.</li><li>Cẩn thận, có tư duy chất lượng sản phẩm và chủ động trong việc phát hiện rủi ro.</li></ul></div></details>",
+      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trên sản phẩm e-commerce có người dùng thật và luồng nghiệp vụ đa dạng.</li><li>Cơ hội phát triển từ QA Automation sang Quality Engineering hoặc Test Lead.</li><li>Được tham gia cải tiến quy trình release, test coverage và chất lượng sản phẩm.</li><li>Môi trường phối hợp gần với Product, Engineering và Operations.</li><li>Được học thêm về marketplace, seller tools, order flow và campaign operation.</li><li>Phúc lợi theo chính sách công ty và năng lực cá nhân.</li></ul></div></details>",
+      "skills": [
+        { "name": "QA Automation", "priority": "REQUIRED", "minYearsExperience": 2 },
+        { "name": "API Testing", "priority": "REQUIRED" },
+        { "name": "Manual Testing", "priority": "REQUIRED" },
+        { "name": "Playwright", "priority": "PREFERRED" },
+        { "name": "Cypress", "priority": "PREFERRED" },
+        { "name": "Postman", "priority": "REQUIRED" },
+        { "name": "CI/CD", "priority": "PREFERRED" }
+      ],
+      "locations": [
+        {
+          "country": "Vietnam",
+          "workingModel": "HYBRID",
+          "city": "Hồ Chí Minh",
+          "district": "Quận 7",
+          "address": "Khu chế xuất Tân Thuận, Phường Tân Thuận, Thành phố Hồ Chí Minh"
+        }
+      ],
+      "specializations": [
+        { "name": "QA", "slug": "qa", "isRequired": true },
+        { "name": "Automation Testing", "slug": "automation-testing", "isRequired": true }
+      ]
     },
     {
-      title: 'Fresher Growth Engineer',
-      companyKey: 'beta',
-      employmentTypeKey: 'fullTime',
-      experienceLevelKey: 'fresher',
-      jobCategoryKey: 'backend',
-      workMode: WorkingModel.REMOTE,
-      city: 'Lam Dong',
-      district: 'Da Lat',
-      salaryMin: null,
-      salaryMax: null,
-      salaryIsNegotiable: true,
-      createdAt: addDays(currentMonthStart, 3),
-      applications: [],
-      skills: ['TypeScript', 'React'],
-      specializations: ['fullstack'],
+      "companySlug": "be-group",
+      "title": "Mobile Engineer - Android",
+      "slug": "be-group-mobile-engineer-android",
+      "jobCategory": {
+        "name": "Mobile Engineering"
+      },
+      "experienceLevel": {
+        "name": "Mid-level",
+        "code": "mid"
+      },
+      "employmentType": {
+        "name": "Full-time"
+      },
+      "workingDays": "Thứ 2 - Thứ 6",
+      "educationLevel": "ANY",
+      "salaryMin": "30000000",
+      "salaryMax": "55000000",
+      "salaryCurrency": "VND",
+      "salaryPeriod": "MONTH",
+      "salaryIsNegotiable": true,
+      "salaryIsVisible": true,
+      "vacanciesCount": 2,
+      "status": "PUBLISHED",
+      "moderationStatus": "APPROVED",
+      "moderationNote": null,
+      "reason": null,
+      "publishedAt": "2026-07-08T05:30:00.000Z",
+      "expiredAt": "2026-08-22T16:59:59.000Z",
+      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Phát triển ứng dụng Android phục vụ các luồng di chuyển, giao nhận, ví dịch vụ hoặc trải nghiệm người dùng trong hệ sinh thái Be.</li><li>Làm việc với Product, Design, Backend và QA để phân tích yêu cầu, xây dựng tính năng mới và tối ưu trải nghiệm mobile.</li><li>Tối ưu hiệu năng ứng dụng, thời gian phản hồi, crash rate, ANR và trải nghiệm trên nhiều loại thiết bị Android.</li><li>Tích hợp API, push notification, maps/location, payment flow và các SDK cần thiết cho sản phẩm.</li><li>Tham gia review code, cải thiện kiến trúc ứng dụng, chuẩn hóa module và quy trình release mobile.</li><li>Theo dõi crash report, phân tích log và phối hợp xử lý sự cố production liên quan đến ứng dụng Android.</li><li>Đóng góp ý tưởng cải thiện UX, stability và maintainability của mobile app.</li><li>Làm việc trong môi trường sản phẩm có vận hành thực tế và dữ liệu người dùng lớn.</li></ul></div></details>",
+      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 3 năm kinh nghiệm phát triển Android native.</li><li>Thành thạo Kotlin, Android SDK, Jetpack, lifecycle, coroutine và dependency injection.</li><li>Có kinh nghiệm với MVVM, Clean Architecture hoặc modular architecture.</li><li>Có kinh nghiệm tích hợp REST API, push notification, maps/location hoặc payment flow.</li><li>Hiểu performance optimization, memory management, crash/ANR analysis và release process trên Google Play.</li><li>Biết unit test, UI test, CI/CD cho mobile là lợi thế.</li><li>Có tư duy sản phẩm, quan tâm đến trải nghiệm người dùng và chất lượng ứng dụng.</li><li>Làm việc nhóm tốt, giao tiếp rõ ràng với Product, Design và Backend.</li></ul></div></details>",
+      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trên sản phẩm mobile phục vụ thị trường Việt Nam và có nhiều nghiệp vụ vận hành thực tế.</li><li>Cơ hội giải quyết bài toán location, marketplace, delivery và user experience.</li><li>Môi trường trẻ, linh hoạt, phối hợp chặt chẽ giữa Product, Engineering và Operations.</li><li>Cơ hội phát triển lên Senior Mobile Engineer, Mobile Lead hoặc Engineering Manager.</li><li>Được tham gia cải thiện kiến trúc app, quy trình release và chất lượng sản phẩm.</li><li>Chính sách phúc lợi theo năng lực và hiệu quả công việc.</li></ul></div></details>",
+      "skills": [
+        { "name": "Kotlin", "priority": "REQUIRED", "minYearsExperience": 3 },
+        { "name": "Android", "priority": "REQUIRED" },
+        { "name": "Mobile App", "priority": "REQUIRED" },
+        { "name": "RESTful API", "priority": "REQUIRED" },
+        { "name": "Clean Architecture", "priority": "PREFERRED" },
+        { "name": "Maps", "priority": "PREFERRED" },
+        { "name": "Git", "priority": "REQUIRED" }
+      ],
+      "locations": [
+        {
+          "country": "Vietnam",
+          "workingModel": "HYBRID",
+          "city": "Hồ Chí Minh",
+          "district": "Quận 1",
+          "address": "29 Lê Duẩn, Phường Sài Gòn, Thành phố Hồ Chí Minh"
+        }
+      ],
+      "specializations": [
+        { "name": "Mobile", "slug": "mobile", "isRequired": true },
+        { "name": "Android", "slug": "android", "isRequired": true }
+      ]
     },
     {
-      title: 'AI Engineer',
-      companyKey: 'gamma',
-      employmentTypeKey: 'fullTime',
-      experienceLevelKey: 'senior',
-      jobCategoryKey: 'data',
-      workMode: WorkingModel.HYBRID,
-      city: 'Ha Noi',
-      district: 'Cau Giay',
-      salaryMin: 35000000,
-      salaryMax: 55000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 18),
-      applications: [1, 6],
-      skills: ['AI', 'Python', 'AWS'].filter((name) => name in skills),
-      specializations: ['ai', 'data'],
+      "companySlug": "nashtech-vietnam",
+      "title": "Business Analyst - Software Delivery",
+      "slug": "nashtech-vietnam-business-analyst-software-delivery",
+      "jobCategory": {
+        "name": "Business Analysis"
+      },
+      "experienceLevel": {
+        "name": "Mid-level",
+        "code": "mid"
+      },
+      "employmentType": {
+        "name": "Full-time"
+      },
+      "workingDays": "Thứ 2 - Thứ 6",
+      "educationLevel": "BACHELOR",
+      "salaryMin": "25000000",
+      "salaryMax": "45000000",
+      "salaryCurrency": "VND",
+      "salaryPeriod": "MONTH",
+      "salaryIsNegotiable": true,
+      "salaryIsVisible": true,
+      "vacanciesCount": 2,
+      "status": "PUBLISHED",
+      "moderationStatus": "APPROVED",
+      "moderationNote": null,
+      "reason": null,
+      "publishedAt": "2026-07-08T06:00:00.000Z",
+      "expiredAt": "2026-08-22T16:59:59.000Z",
+      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Làm việc với khách hàng và đội dự án để thu thập, phân tích và làm rõ yêu cầu phần mềm.</li><li>Viết tài liệu BRD, SRS, user story, acceptance criteria, workflow và các tài liệu đặc tả cần thiết.</li><li>Phối hợp với UI/UX, Developer, QA và Project Manager trong suốt vòng đời phát triển sản phẩm.</li><li>Hỗ trợ Product Owner/Project Manager trong backlog refinement, sprint planning và quản lý thay đổi yêu cầu.</li><li>Tham gia demo tính năng, ghi nhận phản hồi và hỗ trợ kiểm thử nghiệm thu với stakeholder.</li><li>Phân tích gap giữa yêu cầu kinh doanh và giải pháp kỹ thuật, đề xuất phương án phù hợp.</li><li>Chuẩn hóa requirement để giảm hiểu nhầm giữa khách hàng và team phát triển.</li><li>Hỗ trợ onboarding thành viên mới về nghiệp vụ dự án nếu cần.</li></ul></div></details>",
+      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 2 năm kinh nghiệm Business Analyst trong dự án phần mềm.</li><li>Có khả năng giao tiếp tiếng Anh với khách hàng hoặc stakeholder quốc tế.</li><li>Hiểu quy trình Agile/Scrum, có kinh nghiệm viết user story và acceptance criteria.</li><li>Biết sử dụng Jira, Confluence, Figma, Miro hoặc công cụ quản lý yêu cầu tương đương.</li><li>Có khả năng vẽ flow, wireframe, BPMN, UML hoặc sequence diagram là lợi thế.</li><li>Tư duy logic, kỹ năng đặt câu hỏi và phân tích vấn đề tốt.</li><li>Có khả năng phối hợp tốt với Developer/QA để làm rõ yêu cầu và xử lý edge case.</li><li>Ưu tiên ứng viên từng làm dự án outsourcing hoặc làm việc trực tiếp với khách hàng nước ngoài.</li></ul></div></details>",
+      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Dự án quốc tế đa lĩnh vực, giúp phát triển kỹ năng BA và domain knowledge.</li><li>Cơ hội sử dụng tiếng Anh thường xuyên trong môi trường delivery chuyên nghiệp.</li><li>Lộ trình phát triển sang Senior BA, Product Owner, Project Coordinator hoặc Project Manager.</li><li>Được làm việc cùng đội ngũ kỹ thuật, QA và quản lý dự án có kinh nghiệm.</li><li>Được đào tạo nội bộ về quy trình, kỹ năng giao tiếp khách hàng và phương pháp phân tích yêu cầu.</li><li>Phúc lợi ổn định trong môi trường outsourcing chuyên nghiệp.</li></ul></div></details>",
+      "skills": [
+        { "name": "Business Analysis", "priority": "REQUIRED", "minYearsExperience": 2 },
+        { "name": "Agile", "priority": "REQUIRED" },
+        { "name": "User Story", "priority": "REQUIRED" },
+        { "name": "English", "priority": "REQUIRED" },
+        { "name": "UML", "priority": "PREFERRED" },
+        { "name": "Wireframing", "priority": "PREFERRED" },
+        { "name": "Jira", "priority": "PREFERRED" }
+      ],
+      "locations": [
+        {
+          "country": "Vietnam",
+          "workingModel": "HYBRID",
+          "city": "Hồ Chí Minh",
+          "district": "Tân Bình",
+          "address": "Tòa nhà E.town, 364 Cộng Hòa, Phường Tân Bình, Thành phố Hồ Chí Minh"
+        }
+      ],
+      "specializations": [
+        { "name": "Business Analysis", "slug": "business-analysis", "isRequired": true },
+        { "name": "Software Delivery", "slug": "software-delivery", "isRequired": true }
+      ]
     },
     {
-      title: 'Mobile Engineer',
-      companyKey: 'gamma',
-      employmentTypeKey: 'partTime',
-      experienceLevelKey: 'junior',
-      jobCategoryKey: 'frontend',
-      workMode: WorkingModel.REMOTE,
-      city: 'Bac Ninh',
-      district: 'Tu Son',
-      salaryMin: 14000000,
-      salaryMax: 22000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 20),
-      applications: [7],
-      skills: ['React', 'TypeScript'],
-      specializations: ['mobile'],
+      "companySlug": "momo",
+      "title": "Risk Data Scientist",
+      "slug": "momo-risk-data-scientist",
+      "jobCategory": {
+        "name": "Data Science"
+      },
+      "experienceLevel": {
+        "name": "Senior",
+        "code": "senior"
+      },
+      "employmentType": {
+        "name": "Full-time"
+      },
+      "workingDays": "Thứ 2 - Thứ 6",
+      "educationLevel": "BACHELOR",
+      "salaryMin": "45000000",
+      "salaryMax": "80000000",
+      "salaryCurrency": "VND",
+      "salaryPeriod": "MONTH",
+      "salaryIsNegotiable": true,
+      "salaryIsVisible": true,
+      "vacanciesCount": 1,
+      "status": "PUBLISHED",
+      "moderationStatus": "APPROVED",
+      "moderationNote": null,
+      "reason": null,
+      "publishedAt": "2026-07-08T06:30:00.000Z",
+      "expiredAt": "2026-08-22T16:59:59.000Z",
+      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Xây dựng mô hình phát hiện rủi ro, gian lận và bất thường trong giao dịch tài chính số.</li><li>Phân tích dữ liệu hành vi người dùng, transaction pattern, merchant activity và các tín hiệu rủi ro liên quan.</li><li>Phối hợp với Risk, Product, Engineering và Data Platform để triển khai mô hình vào hệ thống production.</li><li>Thiết kế feature, xây dựng pipeline huấn luyện model và đánh giá hiệu quả mô hình bằng các chỉ số phù hợp.</li><li>Theo dõi hiệu quả model sau khi triển khai, tối ưu threshold và cải thiện precision/recall theo từng use case.</li><li>Phân tích false positive/false negative, đề xuất rule/model adjustment nhằm cân bằng giữa rủi ro và trải nghiệm người dùng.</li><li>Chuẩn bị báo cáo, giải thích kết quả mô hình cho stakeholder không chuyên về kỹ thuật.</li><li>Đóng góp vào hệ thống monitoring, alerting và quy trình governance cho mô hình machine learning.</li></ul></div></details>",
+      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 4 năm kinh nghiệm Data Science, Machine Learning hoặc Risk Analytics.</li><li>Thành thạo Python, SQL, machine learning model development và model evaluation.</li><li>Có kinh nghiệm với classification, anomaly detection, fraud detection, risk scoring hoặc recommendation model.</li><li>Hiểu feature engineering, experiment tracking, model validation và production model monitoring.</li><li>Có kinh nghiệm xử lý dữ liệu lớn, dữ liệu transaction hoặc dữ liệu hành vi người dùng là lợi thế.</li><li>Biết các thư viện như pandas, scikit-learn, XGBoost, LightGBM, PySpark hoặc tương đương.</li><li>Có khả năng giải thích model insight cho stakeholder và chuyển kết quả phân tích thành hành động.</li><li>Ưu tiên ứng viên từng làm trong fintech, payment, banking, lending hoặc fraud/risk domain.</li></ul></div></details>",
+      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trong lĩnh vực fintech với dữ liệu giao dịch quy mô lớn và bài toán có tác động thực tế.</li><li>Cơ hội giải quyết bài toán risk/fraud ảnh hưởng trực tiếp đến người dùng, merchant và hoạt động kinh doanh.</li><li>Phối hợp với nhiều team chuyên môn cao: Risk, Product, Engineering, Data Platform và Business.</li><li>Cơ hội phát triển sâu về applied machine learning, risk modeling và production ML system.</li><li>Chính sách đãi ngộ cạnh tranh cho vị trí chuyên môn cao.</li><li>Môi trường sản phẩm nhanh, nhiều dữ liệu và định hướng đo lường rõ ràng.</li></ul></div></details>",
+      "skills": [
+        { "name": "Python", "priority": "REQUIRED", "minYearsExperience": 4 },
+        { "name": "SQL", "priority": "REQUIRED" },
+        { "name": "Machine Learning", "priority": "REQUIRED" },
+        { "name": "Data Science", "priority": "REQUIRED" },
+        { "name": "Fraud Detection", "priority": "PREFERRED" },
+        { "name": "Risk Scoring", "priority": "PREFERRED" },
+        { "name": "Fintech", "priority": "PREFERRED" }
+      ],
+      "locations": [
+        {
+          "country": "Vietnam",
+          "workingModel": "HYBRID",
+          "city": "Hồ Chí Minh",
+          "district": "Quận 7",
+          "address": "Tòa nhà Phú Mỹ Hưng, số 8 Hoàng Văn Thái, Phường Tân Mỹ, Thành phố Hồ Chí Minh"
+        }
+      ],
+      "specializations": [
+        { "name": "Data Science", "slug": "data-science", "isRequired": true },
+        { "name": "Fintech", "slug": "fintech", "isRequired": true },
+        { "name": "Risk", "slug": "risk", "isRequired": true }
+      ]
     },
     {
-      title: 'Support Analyst Intern',
-      companyKey: 'gamma',
-      employmentTypeKey: 'internship',
-      experienceLevelKey: 'intern',
-      jobCategoryKey: 'operations',
-      workMode: WorkingModel.ONSITE,
-      city: 'Thai Nguyen',
-      district: 'Thai Nguyen City',
-      salaryMin: 3000000,
-      salaryMax: 5000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 22),
-      applications: [10],
-      skills: ['QA'],
-      specializations: ['qa'],
-    },
-    {
-      title: 'UX Researcher',
-      companyKey: 'gamma',
-      employmentTypeKey: 'contract',
-      experienceLevelKey: 'mid',
-      jobCategoryKey: 'design',
-      workMode: WorkingModel.REMOTE,
-      city: 'Quang Ninh',
-      district: 'Ha Long',
-      salaryMin: null,
-      salaryMax: null,
-      salaryIsNegotiable: true,
-      createdAt: addDays(currentMonthStart, 5),
-      applications: [4],
-      skills: ['Figma'],
-      specializations: ['product'],
-    },
-    {
-      title: 'Security Engineering Manager',
-      companyKey: 'delta',
-      employmentTypeKey: 'fullTime',
-      experienceLevelKey: 'manager',
-      jobCategoryKey: 'security',
-      workMode: WorkingModel.REMOTE,
-      city: 'Can Tho',
-      district: 'Ninh Kieu',
-      salaryMin: 55000000,
-      salaryMax: 80000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 24),
-      applications: [9, 10, 11],
-      skills: ['AWS', 'TypeScript'],
-      specializations: ['security', 'cloud'],
-    },
-    {
-      title: 'Technical Writer Intern',
-      companyKey: 'delta',
-      employmentTypeKey: 'internship',
-      experienceLevelKey: 'intern',
-      jobCategoryKey: 'operations',
-      workMode: WorkingModel.HYBRID,
-      city: 'Ba Ria - Vung Tau',
-      district: 'Vung Tau',
-      salaryMin: 4000000,
-      salaryMax: 6000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(lastMonthStart, 26),
-      applications: [],
-      skills: ['QA'],
-      specializations: ['qa'],
-    },
-    {
-      title: 'CRM Specialist',
-      companyKey: 'delta',
-      employmentTypeKey: 'fullTime',
-      experienceLevelKey: 'mid',
-      jobCategoryKey: 'operations',
-      workMode: WorkingModel.ONSITE,
-      city: 'Long An',
-      district: 'Tan An',
-      salaryMin: 15000000,
-      salaryMax: 21000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(currentMonthStart, 7),
-      applications: [],
-      skills: ['TypeScript'],
-      specializations: ['product'],
-    },
-    {
-      title: 'Platform Reliability Engineer',
-      companyKey: 'alpha',
-      employmentTypeKey: 'fullTime',
-      experienceLevelKey: 'senior',
-      jobCategoryKey: 'operations',
-      workMode: WorkingModel.REMOTE,
-      city: 'Ho Chi Minh City',
-      district: 'District 7',
-      salaryMin: 25000000,
-      salaryMax: 36000000,
-      salaryIsNegotiable: false,
-      createdAt: addDays(currentMonthStart, 1),
-      applications: [8, 11],
-      skills: ['AWS', 'Prisma'],
-      specializations: ['devops', 'cloud', 'backend'],
-    },
-  ] as const;
+      "companySlug": "cmc-global",
+      "title": "Cloud DevOps Engineer",
+      "slug": "cmc-global-cloud-devops-engineer",
+      "jobCategory": {
+        "name": "DevOps Engineering"
+      },
+      "experienceLevel": {
+        "name": "Mid-level",
+        "code": "mid"
+      },
+      "employmentType": {
+        "name": "Full-time"
+      },
+      "workingDays": "Thứ 2 - Thứ 6",
+      "educationLevel": "ANY",
+      "salaryMin": "30000000",
+      "salaryMax": "55000000",
+      "salaryCurrency": "VND",
+      "salaryPeriod": "MONTH",
+      "salaryIsNegotiable": true,
+      "salaryIsVisible": true,
+      "vacanciesCount": 2,
+      "status": "PUBLISHED",
+      "moderationStatus": "APPROVED",
+      "moderationNote": null,
+      "reason": null,
+      "publishedAt": "2026-07-08T07:00:00.000Z",
+      "expiredAt": "2026-08-22T16:59:59.000Z",
+      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Thiết kế, triển khai và vận hành hạ tầng cloud cho các dự án phần mềm trong và ngoài nước.</li><li>Xây dựng CI/CD pipeline, monitoring, logging, alerting và quy trình release tự động.</li><li>Phối hợp với Developer, QA và Project Manager để đảm bảo hệ thống ổn định, bảo mật và dễ mở rộng.</li><li>Triển khai containerization bằng Docker, orchestration bằng Kubernetes hoặc dịch vụ cloud tương đương.</li><li>Quản lý infrastructure as code, cấu hình môi trường staging/production và chuẩn hóa deployment process.</li><li>Theo dõi hiệu năng hệ thống, phân tích sự cố và đề xuất giải pháp tăng reliability.</li><li>Tối ưu chi phí cloud, tài nguyên hạ tầng và quy trình vận hành.</li><li>Hỗ trợ team phát triển trong việc debug môi trường, cấu hình deployment và quản trị hệ thống.</li></ul></div></details>",
+      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Có từ 2 năm kinh nghiệm ở vị trí DevOps Engineer hoặc Cloud Engineer.</li><li>Có kinh nghiệm thực tế với AWS, Azure hoặc Google Cloud Platform.</li><li>Thành thạo Docker, Kubernetes và các công cụ CI/CD như Jenkins, Gitlab CI hoặc GitHub Actions.</li><li>Có kinh nghiệm về Infrastructure as Code (Terraform hoặc CloudFormation).</li><li>Có kiến thức về scripting (Bash, Python).</li><li>Có khả năng tự học công nghệ mới nhanh và giải quyết sự cố độc lập.</li></ul></div></details>",
+      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc với các công nghệ cloud và DevOps hiện đại trong các dự án quy mô lớn.</li><li>Được tham gia các khóa đào tạo chuyên sâu và hỗ trợ thi chứng chỉ Cloud/DevOps.</li><li>Môi trường năng động, cơ hội thăng tiến rõ ràng lên Senior, Tech Lead.</li><li>Chế độ lương thưởng hấp dẫn và các phúc lợi đầy đủ theo luật lao động.</li></ul></div></details>",
+      "skills": [
+        { "name": "AWS", "priority": "REQUIRED", "minYearsExperience": 2 },
+        { "name": "Docker", "priority": "REQUIRED" },
+        { "name": "Kubernetes", "priority": "REQUIRED" },
+        { "name": "CI/CD", "priority": "REQUIRED" }
+      ],
+      "locations": [
+        {
+          "country": "Vietnam",
+          "workingModel": "HYBRID",
+          "city": "Hà Nội",
+          "district": "Cầu Giấy",
+          "address": "CMC Tower, số 11 phố Duy Tân, Phường Cầu Giấy, Hà Nội"
+        }
+      ],
+      "specializations": [
+        { "name": "DevOps", "slug": "devops", "isRequired": true },
+        { "name": "Cloud", "slug": "cloud", "isRequired": true }
+      ]
+    }
+  ];
 
-  const jobs = jobDefinitions.map((definition) => {
-    const company = companyByKey[definition.companyKey];
+  const jobs = [];
+
+  for (const def of jobDefinitions) {
+    const company = companies.find((c: any) => c.slug === def.companySlug);
+    if (!company) {
+      throw new Error(`Company slug "${def.companySlug}" not found`);
+    }
     const recruiter = recruiterByCompanyId[company.id];
-
-    const employmentType = employmentTypes[definition.employmentTypeKey];
-    if (!employmentType) {
-      throw new Error(
-        `Employment type key "${definition.employmentTypeKey}" not found in seeded employmentTypes.`,
-      );
+    if (!recruiter) {
+      throw new Error(`Recruiter OWNER for company "${company.name}" not found`);
     }
 
-    const experienceLevel = experienceLevels[definition.experienceLevelKey];
-    if (!experienceLevel) {
-      throw new Error(
-        `Experience level key "${definition.experienceLevelKey}" not found in seeded experienceLevels.`,
-      );
-    }
+    // Upsert Category
+    const jobCategory = await prisma.jobCategory.upsert({
+      where: { name: def.jobCategory.name },
+      update: {},
+      create: { name: def.jobCategory.name }
+    });
 
-    const jobCategory = jobCategories[definition.jobCategoryKey];
+    // Upsert Experience Level
+    const experienceLevel = await prisma.experienceLevel.upsert({
+      where: { code: def.experienceLevel.code },
+      update: { name: def.experienceLevel.name },
+      create: { code: def.experienceLevel.code, name: def.experienceLevel.name }
+    });
 
-    return {
-      ...definition,
-      id: randomUUID(),
-      slug: `${toSlug(company.name)}-${toSlug(definition.title)}`,
+    // Upsert Employment Type
+    const employmentType = await prisma.employmentType.upsert({
+      where: { name: def.employmentType.name },
+      update: {},
+      create: { name: def.employmentType.name }
+    });
+
+    const jobId = randomUUID();
+
+    jobs.push({
+      ...def,
+      id: jobId,
       companyId: company.id,
       recruiterId: recruiter.id,
       employmentTypeId: employmentType.id,
       experienceLevelId: experienceLevel.id,
       jobCategoryId: jobCategory.id,
-      publishedAt: addDays(definition.createdAt, 1),
-      expiredAt: futureDeadline,
-    };
-  });
+      city: def.locations[0]?.city || 'Hồ Chí Minh',
+      workMode: def.locations[0]?.workingModel || 'HYBRID',
+      publishedAt: new Date(def.publishedAt),
+      expiredAt: new Date(def.expiredAt),
+      createdAt: new Date(def.publishedAt) // set createdAt = publishedAt
+    });
+  }
 
+  // Create Job Posts
   await prisma.jobPost.createMany({
     data: jobs.map((job) => ({
       id: job.id,
@@ -3316,103 +4102,89 @@ async function main() {
       employmentTypeId: job.employmentTypeId,
       title: job.title,
       slug: job.slug,
-      description:
-        formatJobAsHtmlDropdown(jobDetailsMap[job.title]?.description ||
-        `${job.title} role. Join our team to build the future of hiring products.`, 'Mô tả công việc') || '',
-      requirements:
-        formatJobAsHtmlDropdown(jobDetailsMap[job.title]?.requirements || 'Requirements matching the position profile.', 'Yêu cầu ứng viên') || '',
-      benefits:
-        formatJobAsHtmlDropdown(jobDetailsMap[job.title]?.benefits ||
-        'Competitive benefits, learning budget, and remote-friendly work.', 'Quyền lợi') || '',
-      educationLevel: (job as any).educationLevel || EducationLevel.ANY,
-      salaryMin: job.salaryMin,
-      salaryMax: job.salaryMax,
-      salaryCurrency: 'VND',
-      salaryPeriod: SalaryPeriod.MONTH,
+      description: job.description,
+      requirements: job.requirements,
+      benefits: job.benefits,
+      workingDays: job.workingDays,
+      educationLevel: job.educationLevel as EducationLevel,
+      salaryMin: new Prisma.Decimal(job.salaryMin),
+      salaryMax: new Prisma.Decimal(job.salaryMax),
+      salaryCurrency: job.salaryCurrency,
+      salaryPeriod: job.salaryPeriod as SalaryPeriod,
       salaryIsNegotiable: job.salaryIsNegotiable,
-      salaryIsVisible: true,
-      vacanciesCount: 1,
-      status: JobStatus.PUBLISHED,
-      moderationStatus: 'APPROVED',
+      salaryIsVisible: job.salaryIsVisible,
+      vacanciesCount: job.vacanciesCount,
+      status: job.status as JobStatus,
+      moderationStatus: job.moderationStatus as ModerationStatus,
+      moderationNote: job.moderationNote,
+      reason: job.reason,
       publishedAt: job.publishedAt,
       expiredAt: job.expiredAt,
       createdAt: job.createdAt,
-      updatedAt: job.createdAt,
-    })),
+      updatedAt: job.createdAt
+    }))
   });
 
-  const jobLocations = jobs.map((job) => {
-    const locationDetails = getRandomLocationDetails(job.city as string, job.title);
-
-    return {
-      id: randomUUID(),
-      jobPostId: job.id,
-      country: 'Vietnam',
-      city: locationDetails.city,
-      district: locationDetails.district,
-      address: `${locationDetails.address}, ${locationDetails.district}`,
-      workingModel: job.workMode,
-      createdAt: job.createdAt,
-    };
-  });
-
-  await prisma.companyLocation.createMany({
-    data: jobLocations.map((location) => ({
-      id: location.id,
-      country: location.country,
-      city: location.city,
-      district: location.district,
-      address: location.address,
-      workingModel: location.workingModel,
-      createdAt: location.createdAt,
-      updatedAt: location.createdAt,
-    })),
-  });
-
-  await prisma.jobPostLocation.createMany({
-    data: jobLocations.map((location) => ({
-      jobPostId: location.jobPostId,
-      jobLocationId: location.id,
-    })),
-  });
-
-  await prisma.jobPostSkill.createMany({
-    data: jobs.flatMap((job) =>
-      Array.from(
-        new Set([
-          ...job.skills,
-          ...inferJobSkillNames({
-            title: job.title,
-            description: jobDetailsMap[job.title]?.description,
-            requirements: jobDetailsMap[job.title]?.requirements,
-            benefits: jobDetailsMap[job.title]?.benefits,
-            categoryName: job.jobCategoryKey,
-            specializations: job.specializations.map((slug) => ({ slug })),
-          }),
-        ]),
-      )
-        .filter((skillName) => skillName in skills)
-        .slice(0, 8)
-        .map((skillName) => ({
+  // Create Locations
+  for (const job of jobs) {
+    for (const loc of job.locations) {
+      const locId = randomUUID();
+      await prisma.companyLocation.create({
+        data: {
+          id: locId,
+          companyId: job.companyId,
+          country: loc.country,
+          workingModel: loc.workingModel as any,
+          city: loc.city,
+          district: loc.district,
+          address: loc.address
+        }
+      });
+      await prisma.jobPostLocation.create({
+        data: {
           jobPostId: job.id,
-          skillId: skills[skillName as keyof typeof skills].id,
-          priority: SkillPriority.REQUIRED,
-        })),
-    ),
-  });
+          jobLocationId: locId
+        }
+      });
+    }
+  }
 
-  await prisma.jobPostSpecialization.createMany({
-    data: jobs.flatMap((job) =>
-      job.specializations
-        .filter((slug) => slug in specializations)
-        .map((slug) => ({
+  // Create Skills
+  for (const job of jobs) {
+    for (const sk of job.skills) {
+      const skillRecord = await prisma.skill.upsert({
+        where: { name: sk.name },
+        update: {},
+        create: { name: sk.name }
+      });
+      await prisma.jobPostSkill.create({
+        data: {
           jobPostId: job.id,
-          specializationId: specializations[slug as keyof typeof specializations].id,
-          isRequired: true,
-        })),
-    ),
-  });
+          skillId: skillRecord.id,
+          priority: (sk.priority === 'REQUIRED' ? 'REQUIRED' : 'NICE_TO_HAVE') as any,
+          minYearsExperience: sk.minYearsExperience || null
+        }
+      });
+    }
+  }
 
+  // Create Specializations
+  for (const job of jobs) {
+    for (const spec of job.specializations) {
+      const specRecord = await prisma.specialization.upsert({
+        where: { slug: spec.slug },
+        update: { name: spec.name },
+        create: { name: spec.name, slug: spec.slug }
+      });
+      await prisma.jobPostSpecialization.create({
+        data: {
+          jobPostId: job.id,
+          specializationId: specRecord.id,
+          isRequired: spec.isRequired
+        }
+      });
+    }
+  }
   console.log('Seeding views, applications, status logs, saved jobs dynamically...');
 
   // 1. Get all jobs in database (both hardcoded and imported)
@@ -3567,7 +4339,7 @@ async function main() {
     const candidateAccountId = app.candidateAccountId;
     const recruiterAccountId = app.recruiterAccountId;
 
-    const recruiter = recruiters.find((r) => r.id === recruiterAccountId);
+    const recruiter = recruiters.find((r: any) => r.id === recruiterAccountId);
     const recruiterProfileId = recruiter ? recruiter.profileId : null;
 
     statusLogsData.push({
@@ -4548,6 +5320,8 @@ async function main() {
     ],
   });
 
+  // Disable ITviec data import to keep only the custom job posts
+  /*
   await importItviecData(
     passwordHash,
     recruiterRole as { id: string },
@@ -4556,6 +5330,7 @@ async function main() {
     categories,
     specializations,
   );
+  */
   console.log(
     `Home seed complete: ${companies.length} companies, ${jobs.length} jobs, ${applicationsToCreate.length} applications.`,
   );

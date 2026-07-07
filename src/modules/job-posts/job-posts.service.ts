@@ -359,6 +359,7 @@ export class JobPostsService {
           website: true,
           description: true,
           companySize: true,
+          workingDays: true,
           verificationStatus: true,
           reputationScore: true,
           status: true,
