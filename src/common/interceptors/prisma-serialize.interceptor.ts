@@ -9,15 +9,15 @@ import { map } from 'rxjs/operators';
 
 @Injectable()
 export class PrismaSerializeInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
-      map(data => {
+      map((data: unknown) => {
         if (data === null || data === undefined) {
           return data;
         }
         try {
-          return JSON.parse(JSON.stringify(data));
-        } catch (e) {
+          return JSON.parse(JSON.stringify(data)) as unknown;
+        } catch {
           return data;
         }
       }),
