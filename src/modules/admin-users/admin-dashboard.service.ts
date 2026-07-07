@@ -39,7 +39,8 @@ export class AdminDashboardService {
       pendingCompanyRegistrations,
       pendingJobPosts,
       revenueChart,
-      latestActivities,
+      newestCompanyRegistrations,
+      newestJobPosts,
     ] = await Promise.all([
       this.sumPaidRevenue(),
       this.sumPaidRevenue(currentWeekStart, nextWeekStart),
@@ -69,7 +70,8 @@ export class AdminDashboardService {
         },
       }),
       this.getRevenueChart(query, now),
-      this.getLatestActivities(activityLimit),
+      this.getNewestCompanyRegistrations(activityLimit),
+      this.getNewestJobPosts(activityLimit),
     ]);
 
     const currentWeekUsers = currentWeekCandidates + currentWeekRecruiters;
@@ -109,7 +111,8 @@ export class AdminDashboardService {
         },
       },
       revenueChart,
-      latestActivities,
+      newestCompanyRegistrations,
+      newestJobPosts,
     };
   }
 
@@ -229,60 +232,58 @@ export class AdminDashboardService {
     return [...byPlan.values()];
   }
 
-  private async getLatestActivities(limit: number) {
-    const [companies, jobPosts] = await Promise.all([
-      this.prisma.company.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        select: {
-          id: true,
-          name: true,
-          verificationStatus: true,
-          createdAt: true,
-        },
-      }),
-      this.prisma.jobPost.findMany({
-        where: { deletedAt: null },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        select: {
-          id: true,
-          title: true,
-          status: true,
-          moderationStatus: true,
-          createdAt: true,
-          company: {
-            select: {
-              id: true,
-              name: true,
-            },
+  private async getNewestCompanyRegistrations(limit: number) {
+    const companies = await this.prisma.company.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        name: true,
+        verificationStatus: true,
+        createdAt: true,
+      },
+    });
+
+    return companies.map((company) => ({
+      id: company.id,
+      type: 'company_registration' as const,
+      title: company.name,
+      subtitle: 'Đăng ký công ty',
+      status: company.verificationStatus,
+      createdAt: company.createdAt,
+    }));
+  }
+
+  private async getNewestJobPosts(limit: number) {
+    const jobPosts = await this.prisma.jobPost.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        moderationStatus: true,
+        createdAt: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
           },
         },
-      }),
-    ]);
+      },
+    });
 
-    return [
-      ...companies.map((company) => ({
-        id: company.id,
-        type: 'company_registration' as const,
-        title: company.name,
-        subtitle: 'Đăng ký công ty',
-        status: company.verificationStatus,
-        createdAt: company.createdAt,
-      })),
-      ...jobPosts.map((jobPost) => ({
-        id: jobPost.id,
-        type: 'job_post' as const,
-        title: jobPost.title,
-        subtitle: 'Tin tuyển dụng',
-        status: jobPost.moderationStatus,
-        jobStatus: jobPost.status,
-        company: jobPost.company,
-        createdAt: jobPost.createdAt,
-      })),
-    ]
-      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-      .slice(0, limit);
+    return jobPosts.map((jobPost) => ({
+      id: jobPost.id,
+      type: 'job_post' as const,
+      title: jobPost.title,
+      subtitle: 'Tin tuyển dụng',
+      status: jobPost.moderationStatus,
+      jobStatus: jobPost.status,
+      company: jobPost.company,
+      createdAt: jobPost.createdAt,
+    }));
   }
 
   private buildRevenueBuckets(
