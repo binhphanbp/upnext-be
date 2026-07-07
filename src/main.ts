@@ -6,6 +6,7 @@ import { apiReference } from '@scalar/nestjs-api-reference';
 import { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { PrismaSerializeInterceptor } from './common/interceptors/prisma-serialize.interceptor';
 
 Object.defineProperty(BigInt.prototype, 'toJSON', {
   value: function (this: bigint): string {
@@ -66,6 +67,7 @@ async function bootstrap() {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
+  app.useGlobalInterceptors(new PrismaSerializeInterceptor());
 
   const openApiConfig = new DocumentBuilder()
     .setTitle('UpNext API')
