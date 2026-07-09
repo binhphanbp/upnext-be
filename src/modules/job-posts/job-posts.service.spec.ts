@@ -167,4 +167,43 @@ describe('JobPostsService', () => {
       expect(result.jobPost.moderationStatus).toBe(ModerationStatus.REJECTED);
     });
   });
+
+  describe('updateVisibility', () => {
+    it('should throw NotFoundException if job post does not exist', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateVisibility('job-id', { isHidden: true }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should successfully update job post visibility', async () => {
+      const jobPost = {
+        id: 'job-id',
+        title: 'Developer',
+        isHidden: false,
+      };
+
+      prismaMock.jobPost.findFirst.mockResolvedValue(jobPost);
+      prismaMock.jobPost.update.mockResolvedValue({
+        ...jobPost,
+        isHidden: true,
+      });
+
+      const result = await service.updateVisibility('job-id', { isHidden: true });
+
+      expect(prismaMock.jobPost.findFirst).toHaveBeenCalledWith({
+        where: { id: 'job-id', deletedAt: null },
+      });
+      expect(prismaMock.jobPost.update).toHaveBeenCalledWith({
+        where: { id: 'job-id' },
+        data: {
+          isHidden: true,
+        },
+        include: expect.any(Object),
+      });
+      expect(result.message).toBe('Cập nhật trạng thái ẩn tin tuyển dụng thành công.');
+      expect(result.jobPost.isHidden).toBe(true);
+    });
+  });
 });

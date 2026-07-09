@@ -34,6 +34,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateJobPostDto } from './dto/create-job-post.dto';
 import { ApproveJobPostDto } from './dto/approve-job-post.dto';
 import { RejectJobPostDto } from './dto/reject-job-post.dto';
+import { UpdateJobPostVisibilityDto } from './dto/update-job-post-visibility.dto';
 import {
   AddLocationToJobDto,
   AddSkillToJobDto,
@@ -502,5 +503,32 @@ export class AdminJobPostsController {
     @Body() dto: RejectJobPostDto,
   ) {
     return this.jobPostsService.rejectJobPost(id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Ẩn hoặc hiển thị tin tuyển dụng (ADMIN)',
+    description: 'Admin ẩn hoặc hiển thị một tin tuyển dụng bằng cách thay đổi giá trị trường isHidden.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiOkResponse({
+    description: 'Cập nhật trạng thái ẩn/hiển thị tin tuyển dụng thành công.',
+    schema: {
+      example: {
+        message: 'Cập nhật trạng thái ẩn/hiển thị tin tuyển dụng thành công.',
+        jobPost: {
+          id: '1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf',
+          title: 'Senior Backend Developer',
+          isHidden: true,
+        },
+      },
+    },
+  })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @Patch(':id/visibility')
+  updateVisibility(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateJobPostVisibilityDto,
+  ) {
+    return this.jobPostsService.updateVisibility(id, dto);
   }
 }

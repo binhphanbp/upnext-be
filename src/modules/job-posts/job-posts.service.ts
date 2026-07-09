@@ -10,6 +10,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateJobPostDto } from './dto/create-job-post.dto';
 import { ApproveJobPostDto } from './dto/approve-job-post.dto';
 import { RejectJobPostDto } from './dto/reject-job-post.dto';
+import { UpdateJobPostVisibilityDto } from './dto/update-job-post-visibility.dto';
 import {
   AddLocationToJobDto,
   AddSkillToJobDto,
@@ -48,6 +49,7 @@ export class JobPostsService {
       where: {
         status: JobStatus.PUBLISHED,
         deletedAt: null,
+        isHidden: false,
       },
       include: this.publicJobPostInclude(),
       orderBy: { publishedAt: 'desc' },
@@ -60,6 +62,7 @@ export class JobPostsService {
         id,
         status: JobStatus.PUBLISHED,
         deletedAt: null,
+        isHidden: false,
       },
       include: this.publicJobPostInclude(),
     });
@@ -256,6 +259,31 @@ export class JobPostsService {
 
     return {
       message: 'Từ chối duyệt tin tuyển dụng thành công.',
+      jobPost: updatedJob,
+    };
+  }
+
+  async updateVisibility(id: string, dto: UpdateJobPostVisibilityDto) {
+    const jobPost = await this.prisma.jobPost.findFirst({
+      where: { id, deletedAt: null },
+    });
+
+    if (!jobPost) {
+      throw new NotFoundException(`Không tìm thấy tin tuyển dụng với ID: ${id}`);
+    }
+
+    const updatedJob = await this.prisma.jobPost.update({
+      where: { id },
+      data: {
+        isHidden: dto.isHidden,
+      },
+      include: this.adminJobPostInclude(),
+    });
+
+    const statusText = dto.isHidden ? 'ẩn' : 'hiển thị';
+
+    return {
+      message: `Cập nhật trạng thái ${statusText} tin tuyển dụng thành công.`,
       jobPost: updatedJob,
     };
   }
