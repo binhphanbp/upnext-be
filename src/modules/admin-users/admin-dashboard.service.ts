@@ -14,6 +14,11 @@ type RevenueBucket = {
   end: Date;
 };
 
+const PENDING_COMPANY_REVIEW_STATUSES = [
+  CompanyVerificationStatus.UNVERIFIED,
+  CompanyVerificationStatus.PENDING,
+];
+
 @Injectable()
 export class AdminDashboardService {
   constructor(private readonly prisma: PrismaService) {}
@@ -61,7 +66,7 @@ export class AdminDashboardService {
       this.countActiveJobPosts(currentWeekStart, nextWeekStart),
       this.countActiveJobPosts(previousWeekStart, currentWeekStart),
       this.prisma.company.count({
-        where: { verificationStatus: CompanyVerificationStatus.PENDING },
+        where: { verificationStatus: { in: PENDING_COMPANY_REVIEW_STATUSES } },
       }),
       this.prisma.jobPost.count({
         where: {
