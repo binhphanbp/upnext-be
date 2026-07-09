@@ -4,10 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CompanyVerificationStatus, JobStatus, Prisma } from '@prisma/client';
+import { CompanyVerificationStatus, JobStatus, Prisma, ModerationStatus, ActorType } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateJobPostDto } from './dto/create-job-post.dto';
+import { ApproveJobPostDto } from './dto/approve-job-post.dto';
+import { RejectJobPostDto } from './dto/reject-job-post.dto';
 import {
   AddLocationToJobDto,
   AddSkillToJobDto,
@@ -15,10 +17,15 @@ import {
 } from './dto/job-post-relations.dto';
 import { ListAdminJobPostsQueryDto } from './dto/list-admin-job-posts-query.dto';
 import { UpdateJobPostDto } from './dto/update-job-post.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+
 
 @Injectable()
 export class JobPostsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async create(user: AuthenticatedUser, createJobPostDto: CreateJobPostDto) {
     const context = await this.resolveRecruiterContext(user.id);
@@ -168,6 +175,91 @@ export class JobPostsService {
       },
     };
   }
+
+  async approveJobPost(id: string, dto: ApproveJobPostDto) {
+    const jobPost = await this.prisma.jobPost.findFirst({
+      where: { id, deletedAt: null },
+    });
+
+    if (!jobPost) {
+      throw new NotFoundException(`Không tìm thấy tin tuyển dụng với ID: ${id}`);
+    }
+
+    if (jobPost.moderationStatus !== ModerationStatus.PENDING) {
+      throw new BadRequestException('Tin tuyển dụng đã được duyệt hoặc từ chối trước đó.');
+    }
+
+    const updatedJob = await this.prisma.jobPost.update({
+      where: { id },
+      data: {
+        moderationStatus: ModerationStatus.APPROVED,
+        moderationNote: dto.moderationNote ?? null,
+        reason: null,
+      },
+      include: this.adminJobPostInclude(),
+    });
+
+    try {
+      await this.notificationsService.createNotification({
+        recipientId: jobPost.createdByRecruiterId,
+        recipientType: ActorType.RECRUITER,
+        title: 'Tin tuyển dụng đã được phê duyệt',
+        body: `Tin tuyển dụng "${jobPost.title}" của bạn đã được duyệt thành công.`,
+        targetId: jobPost.id,
+        targetType: 'JOB_POST',
+      });
+    } catch (err) {
+      console.error('Failed to send approval notification:', err);
+    }
+
+    return {
+      message: 'Phê duyệt tin tuyển dụng thành công.',
+      jobPost: updatedJob,
+    };
+  }
+
+  async rejectJobPost(id: string, dto: RejectJobPostDto) {
+    const jobPost = await this.prisma.jobPost.findFirst({
+      where: { id, deletedAt: null },
+    });
+
+    if (!jobPost) {
+      throw new NotFoundException(`Không tìm thấy tin tuyển dụng với ID: ${id}`);
+    }
+
+    if (jobPost.moderationStatus !== ModerationStatus.PENDING) {
+      throw new BadRequestException('Tin tuyển dụng đã được duyệt hoặc từ chối trước đó.');
+    }
+
+    const updatedJob = await this.prisma.jobPost.update({
+      where: { id },
+      data: {
+        moderationStatus: ModerationStatus.REJECTED,
+        reason: dto.reason,
+        moderationNote: null,
+      },
+      include: this.adminJobPostInclude(),
+    });
+
+    try {
+      await this.notificationsService.createNotification({
+        recipientId: jobPost.createdByRecruiterId,
+        recipientType: ActorType.RECRUITER,
+        title: 'Tin tuyển dụng đã bị từ chối',
+        body: `Lý do: ${dto.reason}`,
+        targetId: jobPost.id,
+        targetType: 'JOB_POST',
+      });
+    } catch (err) {
+      console.error('Failed to send rejection notification:', err);
+    }
+
+    return {
+      message: 'Từ chối duyệt tin tuyển dụng thành công.',
+      jobPost: updatedJob,
+    };
+  }
+
 
   async addSkillToJob(jobId: string, recruiterId: string, dto: AddSkillToJobDto) {
     await this.verifyJobOwner(jobId, recruiterId);
