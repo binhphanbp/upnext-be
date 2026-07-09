@@ -855,6 +855,7 @@ model JobPost {
     moderationStatus     ModerationStatus @default(PENDING) @map("moderation_status")
     moderationNote       String?          @map("moderation_note") @db.Text
     reason               String?          @db.Text
+    isHidden             Boolean          @default(false) @map("is_hidden")
     publishedAt          DateTime?        @map("published_at")
     expiredAt            DateTime?        @map("expired_at")
     createdAt            DateTime         @default(now()) @map("created_at")
