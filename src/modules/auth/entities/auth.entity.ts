@@ -38,6 +38,9 @@ export class RecruiterLoginResponse {
   @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
   accessToken: string;
 
+  @ApiProperty({ example: '1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf.0ucf7w...' })
+  refreshToken: string;
+
   @ApiProperty({ example: 'Bearer' })
   tokenType: 'Bearer';
 

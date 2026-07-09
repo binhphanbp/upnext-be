@@ -783,11 +783,28 @@ model RecruiterAccount {
     jobBoosts      JobBoost[]                    @relation("JobBoostCreatedByRecruiter")
     appeals        Appeal[]
     notificationTokens NotificationToken[]
+    refreshTokens  RecruiterRefreshToken[]
 
     @@unique([authProvider, providerUserId])
     @@index([companyId])
     @@index([recruiterRoleId])
     @@map("recruiter_accounts")
+}
+
+model RecruiterRefreshToken {
+    id                 String    @id @default(uuid()) @db.Uuid
+    recruiterAccountId String    @map("recruiter_account_id") @db.Uuid
+    tokenHash          String    @map("token_hash") @db.VarChar(255)
+    expiresAt          DateTime  @map("expires_at")
+    revokedAt          DateTime? @map("revoked_at")
+    createdAt          DateTime  @default(now()) @map("created_at")
+    updatedAt          DateTime  @updatedAt @map("updated_at")
+
+    recruiterAccount RecruiterAccount @relation(fields: [recruiterAccountId], references: [id], onDelete: Cascade)
+
+    @@index([recruiterAccountId])
+    @@index([expiresAt])
+    @@map("recruiter_refresh_tokens")
 }
 
 model RecruiterProfile {

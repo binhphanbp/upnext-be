@@ -6,6 +6,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   JWT_ACCESS_SECRET: z.string().min(16),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
   APP_FRONTEND_URL: z.string().url().default('http://localhost:3000'),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
@@ -37,6 +38,7 @@ export type AppConfig = {
   databaseUrl: string;
   jwtAccessSecret: string;
   jwtAccessExpiresIn: string;
+  jwtRefreshExpiresIn: string;
   appFrontendUrl: string;
   smtpHost?: string;
   smtpPort: number;
@@ -64,6 +66,7 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     databaseUrl: parsed.DATABASE_URL,
     jwtAccessSecret: parsed.JWT_ACCESS_SECRET,
     jwtAccessExpiresIn: parsed.JWT_ACCESS_EXPIRES_IN,
+    jwtRefreshExpiresIn: parsed.JWT_REFRESH_EXPIRES_IN,
     appFrontendUrl: parsed.APP_FRONTEND_URL,
     smtpHost: parsed.SMTP_HOST,
     smtpPort: parsed.SMTP_PORT,
