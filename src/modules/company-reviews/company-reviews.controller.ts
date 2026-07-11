@@ -8,11 +8,11 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
-  Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -28,17 +28,16 @@ export class CompanyReviewsController {
 
   @ApiOperation({ summary: 'Tạo đánh giá công ty' })
   @ApiParam({ name: 'id', description: 'Company UUID' })
-  @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.CANDIDATE)
   @Post(':id/reviews')
   createReview(
     @Param('id', new ParseUUIDPipe()) companyId: string,
-    @Query('candidateAccountId', new ParseUUIDPipe()) candidateAccountId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateCompanyReviewDto,
   ) {
-    return this.companyReviewsService.createReview(candidateAccountId, companyId, dto);
+    return this.companyReviewsService.createReview(user.id, companyId, dto);
   }
 
   @ApiOperation({ summary: 'Danh sách đánh giá công ty' })
@@ -60,25 +59,23 @@ export class CompanyReviewsMutationController {
 
   @ApiOperation({ summary: 'Cập nhật đánh giá công ty' })
   @ApiParam({ name: 'id', description: 'Company review UUID' })
-  @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @Patch(':id')
   updateReview(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('candidateAccountId', new ParseUUIDPipe()) candidateAccountId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateCompanyReviewDto,
   ) {
-    return this.companyReviewsService.updateReview(id, candidateAccountId, dto);
+    return this.companyReviewsService.updateReview(id, user.id, dto);
   }
 
   @ApiOperation({ summary: 'Xóa đánh giá công ty' })
   @ApiParam({ name: 'id', description: 'Company review UUID' })
-  @ApiQuery({ name: 'candidateAccountId', required: true, description: 'Candidate account UUID' })
   @Delete(':id')
   @HttpCode(204)
   async deleteReview(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('candidateAccountId', new ParseUUIDPipe()) candidateAccountId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    await this.companyReviewsService.deleteReview(id, candidateAccountId);
+    await this.companyReviewsService.deleteReview(id, user.id);
   }
 }

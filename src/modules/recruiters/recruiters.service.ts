@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { ActorType, Prisma } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { toPagination } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ListRecruiterAccountsQueryDto } from './dto/recruiter-accounts/list-recruiter-accounts-query.dto';
@@ -51,7 +53,11 @@ export class RecruitersService {
     };
   }
 
-  async findOneAccount(id: string) {
+  async findOneAccount(id: string, user: AuthenticatedUser) {
+    if (user.role !== ActorType.ADMIN && id !== user.id) {
+      throw new ForbiddenException('You can only view your own account');
+    }
+
     const account = await this.prisma.recruiterAccount.findUnique({
       where: { id },
       include: {
@@ -77,10 +83,29 @@ export class RecruitersService {
     return account;
   }
 
-  async updateAccount(id: string, dto: UpdateRecruiterAccountDto) {
+  async updateAccount(id: string, dto: UpdateRecruiterAccountDto, user: AuthenticatedUser) {
     await this.ensureAccountExists(id);
 
-    if (dto.companyId) {
+    const isAdmin = user.role === ActorType.ADMIN;
+
+    if (!isAdmin) {
+      // Non-admin recruiters may only update their own account...
+      if (id !== user.id) {
+        throw new ForbiddenException('You can only update your own account');
+      }
+      // ...and must never change privileged fields (company, role, status).
+      if (
+        dto.companyId !== undefined ||
+        dto.recruiterRoleId !== undefined ||
+        dto.status !== undefined
+      ) {
+        throw new ForbiddenException(
+          'You are not allowed to change company, role or account status',
+        );
+      }
+    }
+
+    if (isAdmin && dto.companyId) {
       const existingMember = await this.prisma.companyMember.findFirst({
         where: { recruiterAccountId: id, companyId: dto.companyId },
       });
@@ -166,7 +191,7 @@ export class RecruitersService {
     return profile;
   }
 
-  async findOneProfile(id: string) {
+  async findOneProfile(id: string, user: AuthenticatedUser) {
     const profile = await this.prisma.recruiterProfile.findUnique({
       where: { id },
       include: {
@@ -185,11 +210,19 @@ export class RecruitersService {
       throw new NotFoundException(`Recruiter profile ${id} not found`);
     }
 
+    if (user.role !== ActorType.ADMIN && profile.recruiterAccountId !== user.id) {
+      throw new ForbiddenException('You can only view your own profile');
+    }
+
     return profile;
   }
 
-  async updateProfile(id: string, dto: UpdateRecruiterProfileDto) {
-    await this.ensureProfileExists(id);
+  async updateProfile(id: string, dto: UpdateRecruiterProfileDto, user: AuthenticatedUser) {
+    const profile = await this.ensureProfileExists(id);
+
+    if (user.role !== ActorType.ADMIN && profile.recruiterAccountId !== user.id) {
+      throw new ForbiddenException('You can only update your own profile');
+    }
 
     return this.prisma.recruiterProfile.update({
       where: { id },
@@ -202,7 +235,10 @@ export class RecruitersService {
     await this.prisma.recruiterProfile.delete({ where: { id } });
   }
 
-  async getDashboardStats(recruiterId: string) {
+  async getDashboardStats(recruiterId: string, user: AuthenticatedUser) {
+    if (user.role !== ActorType.ADMIN && recruiterId !== user.id) {
+      throw new ForbiddenException('You can only view your own dashboard stats');
+    }
     await this.ensureAccountExists(recruiterId);
 
     const [totalJobPosts, totalCandidates] = await Promise.all([
@@ -228,7 +264,11 @@ export class RecruitersService {
     };
   }
 
-  async changePassword(id: string, dto: ChangePasswordDto) {
+  async changePassword(id: string, dto: ChangePasswordDto, user: AuthenticatedUser) {
+    if (id !== user.id) {
+      throw new ForbiddenException('You can only change your own password');
+    }
+
     const account = await this.prisma.recruiterAccount.findUnique({
       where: { id },
       select: { id: true, passwordHash: true },

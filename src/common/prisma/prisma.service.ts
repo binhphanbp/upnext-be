@@ -11,6 +11,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
     super({
       adapter: new PrismaPg({ connectionString }),
+      // Defense in depth: never return password hashes unless a query explicitly
+      // selects them (an explicit `select` overrides these global omits).
+      omit: {
+        candidateAccount: { passwordHash: true },
+        recruiterAccount: { passwordHash: true },
+        adminUser: { passwordHash: true },
+      },
     });
   }
 

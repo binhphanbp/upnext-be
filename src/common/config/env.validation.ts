@@ -1,10 +1,11 @@
 import { z } from 'zod';
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().default(4000),
-  DATABASE_URL: z.string().url(),
-  JWT_ACCESS_SECRET: z.string().min(16),
+const envSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    PORT: z.coerce.number().int().positive().default(4000),
+    DATABASE_URL: z.string().url(),
+    JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
   APP_FRONTEND_URL: z.string().url().default('http://localhost:3000'),
@@ -30,7 +31,17 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   APP_BACKEND_URL: z.string().url().default('http://localhost:3001'),
-});
+  })
+  .superRefine((env, ctx) => {
+    // In production, never trust localhost origins for credentialed CORS.
+    if (env.NODE_ENV === 'production' && /localhost|127\.0\.0\.1/.test(env.CORS_ORIGIN)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['CORS_ORIGIN'],
+        message: 'CORS_ORIGIN must not include localhost origins in production',
+      });
+    }
+  });
 
 export type AppConfig = {
   nodeEnv: string;

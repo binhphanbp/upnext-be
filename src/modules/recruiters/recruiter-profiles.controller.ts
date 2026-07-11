@@ -8,7 +8,6 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -21,10 +20,10 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
-  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -69,9 +68,8 @@ export class RecruiterProfilesController {
 
   @ApiOperation({
     summary: 'Lấy hồ sơ nhà tuyển dụng của tôi',
-    description: 'Recruiter xem hồ sơ của chính mình theo account id.',
+    description: 'Recruiter xem hồ sơ của chính mình.',
   })
-  @ApiQuery({ name: 'accountId', description: 'Recruiter account UUID', required: true })
   @ApiOkResponse({
     description: 'Recruiter profile fetched successfully',
     schema: {
@@ -92,8 +90,8 @@ export class RecruiterProfilesController {
   })
   @ApiNotFoundResponse({ description: 'Recruiter profile not found' })
   @Get('me')
-  findMe(@Query('accountId', new ParseUUIDPipe()) accountId: string) {
-    return this.recruitersService.findMyProfile(accountId);
+  findMe(@CurrentUser() user: AuthenticatedUser) {
+    return this.recruitersService.findMyProfile(user.id);
   }
 
   @ApiOperation({
@@ -120,8 +118,8 @@ export class RecruiterProfilesController {
   })
   @ApiNotFoundResponse({ description: 'Recruiter profile not found' })
   @Get(':id')
-  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.recruitersService.findOneProfile(id);
+  findOne(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.recruitersService.findOneProfile(id, user);
   }
 
   @ApiOperation({
@@ -143,8 +141,12 @@ export class RecruiterProfilesController {
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiNotFoundResponse({ description: 'Recruiter profile not found' })
   @Patch(':id')
-  update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateRecruiterProfileDto) {
-    return this.recruitersService.updateProfile(id, dto);
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateRecruiterProfileDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.recruitersService.updateProfile(id, dto, user);
   }
 
   @ApiOperation({

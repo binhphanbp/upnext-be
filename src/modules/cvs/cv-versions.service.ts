@@ -1,16 +1,18 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { FilePurpose, FileVisibility, Prisma } from '@prisma/client';
+import { ActorType, FilePurpose, FileVisibility, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { join } from 'node:path';
 import { Readable } from 'stream';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PaginationQueryDto, toPagination } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadCvVersionDto } from './dto/upload-cv-version.dto';
@@ -29,8 +31,8 @@ export class CvVersionsService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  async upload(cvId: string, dto: UploadCvVersionDto, file?: UploadedFile) {
-    await this.ensureCvExists(cvId);
+  async upload(cvId: string, dto: UploadCvVersionDto, file: UploadedFile | undefined, user: AuthenticatedUser) {
+    await this.authorizeCvAccess(cvId, user);
     await this.ensureTemplateExists(dto.templateId);
     this.ensurePdfFile(file);
 
@@ -64,8 +66,8 @@ export class CvVersionsService {
     });
   }
 
-  async findAll(cvId: string, query: PaginationQueryDto) {
-    await this.ensureCvExists(cvId);
+  async findAll(cvId: string, query: PaginationQueryDto, user: AuthenticatedUser) {
+    await this.authorizeCvAccess(cvId, user);
 
     const where: Prisma.CVVersionWhereInput = {
       cvId,
@@ -100,7 +102,13 @@ export class CvVersionsService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user: AuthenticatedUser) {
+    const version = await this.getVersionOrThrow(id);
+    await this.authorizeCvAccess(version.cvId, user);
+    return version;
+  }
+
+  private async getVersionOrThrow(id: string) {
     const version = await this.prisma.cVVersion.findUnique({
       where: { id },
       select: this.defaultSelect,
@@ -113,7 +121,18 @@ export class CvVersionsService {
     return version;
   }
 
-  async prepareDownload(id: string) {
+  async prepareDownload(id: string, user: AuthenticatedUser) {
+    const versionRef = await this.prisma.cVVersion.findUnique({
+      where: { id },
+      select: { cvId: true },
+    });
+
+    if (!versionRef) {
+      throw new NotFoundException('Không tìm thấy phiên bản CV');
+    }
+
+    await this.authorizeCvAccess(versionRef.cvId, user);
+
     const version = await this.prisma.cVVersion.findUnique({
       where: { id },
       select: {
@@ -178,8 +197,9 @@ export class CvVersionsService {
     }
   }
 
-  async restore(id: string) {
-    const version = await this.findOne(id);
+  async restore(id: string, user: AuthenticatedUser) {
+    const version = await this.getVersionOrThrow(id);
+    await this.authorizeCvAccess(version.cvId, user);
 
     return this.prisma.$transaction(async (tx) => {
       const nextVersionNo = await this.getNextVersionNo(tx, version.cvId);
@@ -201,8 +221,9 @@ export class CvVersionsService {
     });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, user: AuthenticatedUser) {
+    const version = await this.getVersionOrThrow(id);
+    await this.authorizeCvAccess(version.cvId, user);
 
     const applicationsCount = await this.prisma.application.count({
       where: { cvVersionId: id },
@@ -223,17 +244,52 @@ export class CvVersionsService {
     }
   }
 
-  private async ensureCvExists(cvId: string) {
+  /**
+   * Ensures the CV exists AND that the caller is allowed to touch it:
+   * - ADMIN: full access.
+   * - CANDIDATE: only their own CV.
+   * - RECRUITER: only if a candidate applied to one of the recruiter's company job
+   *   posts using a version of this CV.
+   */
+  private async authorizeCvAccess(cvId: string, user: AuthenticatedUser) {
     const cv = await this.prisma.cV.findUnique({
       where: { id: cvId },
-      select: { id: true },
+      select: {
+        id: true,
+        candidateProfile: { select: { candidateAccountId: true } },
+      },
     });
 
     if (!cv) {
       throw new NotFoundException('Không tìm thấy CV');
     }
 
-    return cv;
+    if (user.role === ActorType.ADMIN) {
+      return cv;
+    }
+
+    if (user.role === ActorType.CANDIDATE) {
+      if (cv.candidateProfile?.candidateAccountId !== user.id) {
+        throw new ForbiddenException('Bạn không có quyền truy cập CV này');
+      }
+      return cv;
+    }
+
+    if (user.role === ActorType.RECRUITER && user.companyId) {
+      const application = await this.prisma.application.findFirst({
+        where: {
+          cvVersion: { cvId },
+          jobPost: { companyId: user.companyId },
+        },
+        select: { id: true },
+      });
+
+      if (application) {
+        return cv;
+      }
+    }
+
+    throw new ForbiddenException('Bạn không có quyền truy cập CV này');
   }
 
   private async ensureTemplateExists(templateId?: string) {
@@ -256,15 +312,19 @@ export class CvVersionsService {
       throw new BadRequestException('File PDF là bắt buộc');
     }
 
-    const extension = extname(file.originalname).toLowerCase();
-    if (file.mimetype !== 'application/pdf' && extension !== '.pdf') {
-      throw new BadRequestException('File CV phải có định dạng PDF');
+    // Require the declared MIME type to be PDF and verify the actual content
+    // starts with the PDF magic bytes (%PDF-). Do not trust the filename.
+    const hasPdfMagicBytes =
+      file.buffer.length >= 5 && file.buffer.subarray(0, 5).toString('latin1') === '%PDF-';
+
+    if (file.mimetype !== 'application/pdf' || !hasPdfMagicBytes) {
+      throw new BadRequestException('File CV phải có định dạng PDF hợp lệ');
     }
   }
 
   private async saveCvFile(cvId: string, file: UploadedFile) {
-    const extension = extname(file.originalname) || '.pdf';
-    const fileName = `version-${randomUUID()}${extension}`;
+    // Never derive the on-disk extension from the client-supplied filename.
+    const fileName = `version-${randomUUID()}.pdf`;
     const relativeDirectory = join('uploads', 'cvs', cvId);
     const absoluteDirectory = join(process.cwd(), relativeDirectory);
     const absolutePath = join(absoluteDirectory, fileName);

@@ -7,11 +7,11 @@ import {
   Param,
   ParseUUIDPipe,
   HttpCode,
-  Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -28,29 +28,23 @@ export class RecruiterShortlistsController {
 
   @Post()
   @ApiOperation({ summary: 'Thêm ứng viên vào danh sách rút gọn' })
-  @ApiQuery({ name: 'recruiterAccountId', required: true, description: 'Recruiter account UUID' })
-  addToShortlist(
-    @Body() dto: CreateShortlistDto,
-    @Query('recruiterAccountId', new ParseUUIDPipe()) recruiterAccountId: string,
-  ) {
-    return this.recruiterShortlistsService.addToShortlist(recruiterAccountId, dto);
+  addToShortlist(@Body() dto: CreateShortlistDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.recruiterShortlistsService.addToShortlist(user.id, dto);
   }
 
   @Delete(':id')
   @HttpCode(204)
   @ApiOperation({ summary: 'Xóa ứng viên khỏi danh sách rút gọn' })
-  @ApiQuery({ name: 'recruiterAccountId', required: true, description: 'Recruiter account UUID' })
   removeFromShortlist(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('recruiterAccountId', new ParseUUIDPipe()) recruiterAccountId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.recruiterShortlistsService.removeFromShortlist(id, recruiterAccountId);
+    return this.recruiterShortlistsService.removeFromShortlist(id, user.id);
   }
 
   @Get()
   @ApiOperation({ summary: 'Danh sách ứng viên rút gọn của tôi' })
-  @ApiQuery({ name: 'recruiterAccountId', required: true, description: 'Recruiter account UUID' })
-  listShortlist(@Query('recruiterAccountId', new ParseUUIDPipe()) recruiterAccountId: string) {
-    return this.recruiterShortlistsService.listShortlist(recruiterAccountId);
+  listShortlist(@CurrentUser() user: AuthenticatedUser) {
+    return this.recruiterShortlistsService.listShortlist(user.id);
   }
 }

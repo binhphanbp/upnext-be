@@ -41,10 +41,16 @@ export class InvoicesController {
     return this.invoicesService.findOne(id, user);
   }
 
-  @ApiOperation({ summary: 'Thanh toán hóa đơn (Kích hoạt dịch vụ)' })
+  @ApiOperation({
+    summary: 'Xác nhận thanh toán hóa đơn (Kích hoạt dịch vụ)',
+    description:
+      'Chỉ ADMIN được phép xác nhận hóa đơn đã thanh toán. ' +
+      'Không cho phép người dùng tự khai báo đã thanh toán mà không có xác minh từ cổng thanh toán. ' +
+      'TODO: thay thế bằng webhook server-to-server (có verify chữ ký) từ cổng thanh toán thực tế.',
+  })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ActorType.ADMIN, ActorType.RECRUITER)
+  @Roles(ActorType.ADMIN)
   @Post(':id/pay')
   pay(
     @Param('id', ParseUUIDPipe) id: string,

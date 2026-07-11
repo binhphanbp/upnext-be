@@ -31,6 +31,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { documentUploadOptions, imageUploadOptions } from '../../common/upload/multer-options';
 import { CompaniesService } from './companies.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
@@ -161,8 +162,12 @@ export class CompaniesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Patch(':id')
-  update(@Param('id', new ParseUUIDPipe()) id: string, @Body() updateCompanyDto: UpdateCompanyDto) {
-    return this.companiesService.update(id, updateCompanyDto);
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() updateCompanyDto: UpdateCompanyDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.update(id, updateCompanyDto, user);
   }
 
   /**
@@ -196,12 +201,13 @@ export class CompaniesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post(':id/logo')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', imageUploadOptions))
   uploadLogo(
     @Param('id', new ParseUUIDPipe()) id: string,
     @UploadedFile() file: CompanyUploadFile,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.companiesService.uploadLogo(id, file);
+    return this.companiesService.uploadLogo(id, file, user);
   }
 
   /**
@@ -235,12 +241,13 @@ export class CompaniesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post(':id/cover')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', imageUploadOptions))
   uploadCover(
     @Param('id', new ParseUUIDPipe()) id: string,
     @UploadedFile() file: CompanyUploadFile,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.companiesService.uploadCover(id, file);
+    return this.companiesService.uploadCover(id, file, user);
   }
 
   /**
@@ -270,12 +277,13 @@ export class CompaniesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post(':id/photos')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', imageUploadOptions))
   uploadPhoto(
     @Param('id', new ParseUUIDPipe()) id: string,
     @UploadedFile() file: CompanyUploadFile,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.companiesService.uploadPhoto(id, file);
+    return this.companiesService.uploadPhoto(id, file, user);
   }
 
   /**
@@ -299,8 +307,9 @@ export class CompaniesController {
   deletePhoto(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Param('photoId', new ParseUUIDPipe()) photoId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.companiesService.deletePhoto(id, photoId);
+    return this.companiesService.deletePhoto(id, photoId, user);
   }
 
   /**
@@ -319,8 +328,11 @@ export class CompaniesController {
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Delete(':id')
   @HttpCode(204)
-  async remove(@Param('id', new ParseUUIDPipe()) id: string) {
-    await this.companiesService.remove(id);
+  async remove(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.companiesService.remove(id, user);
   }
 
   /**
@@ -352,7 +364,7 @@ export class CompaniesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post(':id/business-license')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', documentUploadOptions))
   uploadBusinessLicense(
     @Param('id', new ParseUUIDPipe()) id: string,
     @UploadedFile() file: CompanyUploadFile,
@@ -389,7 +401,7 @@ export class CompaniesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post(':id/scan-license')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', documentUploadOptions))
   scanBusinessLicense(
     @Param('id', new ParseUUIDPipe()) id: string,
     @UploadedFile() file: CompanyUploadFile,

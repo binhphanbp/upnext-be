@@ -61,51 +61,40 @@ export class ApplicationsController {
   @Patch('applications/:id/withdraw')
   @ApiOperation({ summary: 'Rút hồ sơ ứng tuyển' })
   @ApiParam({ name: 'id', description: 'UUID của hồ sơ ứng tuyển' })
-  @ApiQuery({
-    name: 'candidateAccountId',
-    required: true,
-    description: 'UUID của tài khoản ứng viên',
-  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.CANDIDATE)
   @ApiOkResponse({ type: ApplicationEntity, description: 'Rút hồ sơ ứng tuyển thành công.' })
   @ApiForbiddenResponse({ description: 'Ứng viên không sở hữu hồ sơ ứng tuyển này.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy hồ sơ ứng tuyển hoặc hồ sơ ứng viên.' })
   @ApiConflictResponse({ description: 'Hồ sơ ứng tuyển đã được rút.' })
   withdrawApplication(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('candidateAccountId', new ParseUUIDPipe()) candidateAccountId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.applicationsService.withdrawApplication(candidateAccountId, id);
+    return this.applicationsService.withdrawApplication(user.id, id);
   }
 
   @Get('applications/me')
   @ApiOperation({ summary: 'Lấy danh sách hồ sơ ứng tuyển của ứng viên hiện tại' })
-  @ApiQuery({
-    name: 'candidateAccountId',
-    required: true,
-    description: 'UUID của tài khoản ứng viên',
-  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.CANDIDATE)
   @ApiOkResponse({
     type: [ApplicationEntity],
     description: 'Danh sách các hồ sơ đã ứng tuyển của ứng viên.',
   })
   @ApiNotFoundResponse({ description: 'Không tìm thấy hồ sơ ứng viên.' })
-  getMyApplications(@Query('candidateAccountId', new ParseUUIDPipe()) candidateAccountId: string) {
-    return this.applicationsService.getMyApplications(candidateAccountId);
+  getMyApplications(@CurrentUser() user: AuthenticatedUser) {
+    return this.applicationsService.getMyApplications(user.id);
   }
 
   @Get('applications/:id')
   @ApiOperation({ summary: 'Lấy chi tiết hồ sơ ứng tuyển' })
   @ApiParam({ name: 'id', description: 'UUID của hồ sơ ứng tuyển' })
-  @ApiQuery({
-    name: 'candidateAccountId',
-    required: false,
-    description: 'UUID tài khoản ứng viên (cho ứng viên truy cập)',
-  })
-  @ApiQuery({
-    name: 'recruiterId',
-    required: false,
-    description: 'UUID tài khoản nhà tuyển dụng (cho nhà tuyển dụng truy cập)',
-  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.CANDIDATE, ActorType.RECRUITER)
   @ApiOkResponse({ type: ApplicationEntity, description: 'Chi tiết hồ sơ ứng tuyển.' })
   @ApiForbiddenResponse({ description: 'Không có quyền truy cập hồ sơ ứng tuyển này.' })
   @ApiNotFoundResponse({
@@ -113,10 +102,12 @@ export class ApplicationsController {
   })
   findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query('candidateAccountId') candidateAccountId?: string,
-    @Query('recruiterId') recruiterId?: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.applicationsService.findOne(id, candidateAccountId, recruiterId);
+    if (user.role === ActorType.CANDIDATE) {
+      return this.applicationsService.findOne(id, user.id, undefined);
+    }
+    return this.applicationsService.findOne(id, undefined, user.id);
   }
 
   @Get('job-posts/:jobId/applications')
@@ -124,7 +115,9 @@ export class ApplicationsController {
     summary: 'Lấy danh sách ứng viên của tin tuyển dụng (Chỉ dành cho nhà tuyển dụng)',
   })
   @ApiParam({ name: 'jobId', description: 'UUID của tin tuyển dụng' })
-  @ApiQuery({ name: 'recruiterId', required: true, description: 'UUID tài khoản nhà tuyển dụng' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
   @ApiOkResponse({
     type: [ApplicationEntity],
     description: 'Danh sách hồ sơ ứng tuyển của tin tuyển dụng.',
@@ -137,19 +130,17 @@ export class ApplicationsController {
   })
   getJobApplicants(
     @Param('jobId', new ParseUUIDPipe()) jobId: string,
-    @Query('recruiterId', new ParseUUIDPipe()) recruiterId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.applicationsService.getJobApplicants(jobId, recruiterId);
+    return this.applicationsService.getJobApplicants(jobId, user.id);
   }
 
   @Get('job-posts/:jobId/applications/me')
   @ApiOperation({ summary: 'Kiểm tra xem ứng viên đã nộp hồ sơ vào tin tuyển dụng chưa' })
   @ApiParam({ name: 'jobId', description: 'UUID của tin tuyển dụng' })
-  @ApiQuery({
-    name: 'candidateAccountId',
-    required: true,
-    description: 'UUID của tài khoản ứng viên',
-  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.CANDIDATE)
   @ApiOkResponse({
     type: CheckAppliedJobResponse,
     description: 'Trạng thái biểu thị ứng viên đã nộp hồ sơ hay chưa.',
@@ -157,9 +148,9 @@ export class ApplicationsController {
   @ApiNotFoundResponse({ description: 'Không tìm thấy hồ sơ ứng viên.' })
   checkAppliedJob(
     @Param('jobId', new ParseUUIDPipe()) jobId: string,
-    @Query('candidateAccountId', new ParseUUIDPipe()) candidateAccountId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.applicationsService.checkAppliedJob(jobId, candidateAccountId);
+    return this.applicationsService.checkAppliedJob(jobId, user.id);
   }
 
   @Get('recruiter/company-applications')
