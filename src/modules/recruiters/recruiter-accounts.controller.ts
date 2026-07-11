@@ -21,6 +21,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -87,8 +88,8 @@ export class RecruiterAccountsController {
   @ApiNotFoundResponse({ description: 'Recruiter account not found' })
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Get(':id')
-  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.recruitersService.findOneAccount(id);
+  findOne(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.recruitersService.findOneAccount(id, user);
   }
 
   @ApiOperation({
@@ -111,8 +112,12 @@ export class RecruiterAccountsController {
   @ApiNotFoundResponse({ description: 'Recruiter account not found' })
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Patch(':id')
-  update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateRecruiterAccountDto) {
-    return this.recruitersService.updateAccount(id, dto);
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateRecruiterAccountDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.recruitersService.updateAccount(id, dto, user);
   }
 
   @ApiOperation({
@@ -131,8 +136,11 @@ export class RecruiterAccountsController {
   })
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Get(':id/dashboard-stats')
-  async getDashboardStats(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.recruitersService.getDashboardStats(id);
+  async getDashboardStats(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.recruitersService.getDashboardStats(id, user);
   }
 
   @ApiOperation({
@@ -149,8 +157,9 @@ export class RecruiterAccountsController {
   async changePassword(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ChangePasswordDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.recruitersService.changePassword(id, dto);
+    return this.recruitersService.changePassword(id, dto, user);
   }
 
   @ApiOperation({

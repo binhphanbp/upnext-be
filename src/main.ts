@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
-import { NextFunction, Request, Response } from 'express';
+import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { PrismaSerializeInterceptor } from './common/interceptors/prisma-serialize.interceptor';
@@ -23,10 +23,12 @@ async function bootstrap() {
   });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   app.enableShutdownHooks();
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith('/docs')) {
-      return next();
-    }
+
+  const isProduction = config.getOrThrow<string>('nodeEnv') === 'production';
+
+  // Apply security headers to every route, including /docs (which needs a
+  // relaxed CSP so the Scalar reference UI can load its assets).
+  app.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
@@ -53,8 +55,12 @@ async function bootstrap() {
           ],
         },
       },
-    })(req, res, next);
-  });
+    }),
+  );
+
+  // Limit request body size to mitigate large-payload DoS.
+  app.use(json({ limit: '1mb' }));
+  app.use(urlencoded({ extended: true, limit: '1mb' }));
   app.enableCors({
     origin: config.getOrThrow<string[]>('corsOrigins'),
     credentials: true,
@@ -128,13 +134,17 @@ async function bootstrap() {
     .addTag('Notifications', 'Đăng ký token thông báo đẩy push notification')
     .addTag('Health', 'Kiểm tra trạng thái hoạt động của hệ thống')
     .build();
-  const openApiDocument = SwaggerModule.createDocument(app, openApiConfig);
-  app.use(
-    '/docs',
-    apiReference({
-      content: openApiDocument,
-    }),
-  );
+  // Only expose the API reference outside production to avoid leaking the full
+  // API surface publicly. In production, gate it behind auth/IP allowlist instead.
+  if (!isProduction) {
+    const openApiDocument = SwaggerModule.createDocument(app, openApiConfig);
+    app.use(
+      '/docs',
+      apiReference({
+        content: openApiDocument,
+      }),
+    );
+  }
   await app.listen(config.getOrThrow<number>('port'), '0.0.0.0');
 }
 

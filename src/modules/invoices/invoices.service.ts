@@ -95,6 +95,14 @@ export class InvoicesService {
   }
 
   async pay(id: string, user: AuthenticatedUser, dto: PayInvoiceDto) {
+    // SECURITY: Marking an invoice as PAID must never be a self-asserted action.
+    // Access is restricted to ADMIN at the controller layer as an interim control.
+    // The correct long-term fix is a signature-verified webhook from the payment
+    // provider that flips the status server-to-server.
+    if (user.role !== ActorType.ADMIN) {
+      throw new ForbiddenException('Only an administrator can confirm invoice payment');
+    }
+
     const invoice = await this.findOne(id, user);
 
     if (invoice.paymentStatus === PaymentStatus.PAID) {

@@ -133,7 +133,6 @@ export class RecruiterAuthService {
 
     if (
       !refreshToken ||
-      refreshToken.revokedAt ||
       refreshToken.expiresAt <= new Date() ||
       refreshToken.recruiterAccount.status !== AccountStatus.ACTIVE ||
       !refreshToken.recruiterAccount.emailVerifiedAt
@@ -141,7 +140,20 @@ export class RecruiterAuthService {
       throw new UnauthorizedException('Refresh token khong hop le hoac da het han');
     }
 
+    // Verify the presented secret before trusting this token id (prevents a
+    // guessed id from triggering a family revocation as a denial-of-service).
     await this.verifyRefreshTokenSecret(secret, refreshToken.tokenHash);
+
+    if (refreshToken.revokedAt) {
+      // A previously rotated/revoked token is being replayed with a valid secret.
+      // Treat this as token theft and revoke every outstanding token for the
+      // account, forcing a fresh re-authentication.
+      await this.prisma.recruiterRefreshToken.updateMany({
+        where: { recruiterAccountId: refreshToken.recruiterAccount.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Refresh token khong hop le hoac da het han');
+    }
 
     const newRefreshToken = await this.rotateRefreshToken(
       refreshToken.id,

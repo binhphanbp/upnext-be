@@ -29,7 +29,9 @@ import {
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
+import { pdfUploadOptions } from '../../common/upload/multer-options';
 import { ActorType } from '@prisma/client';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -54,7 +56,7 @@ export class CvVersionsController {
   constructor(private readonly cvVersionsService: CvVersionsService) {}
 
   @Post('cvs/:cvId/versions')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', pdfUploadOptions))
   @ApiOperation({ summary: 'Tải lên phiên bản CV mới' })
   @ApiParam({ name: 'cvId', description: 'UUID của CV' })
   @ApiConsumes('multipart/form-data')
@@ -66,8 +68,9 @@ export class CvVersionsController {
     @Param('cvId', new ParseUUIDPipe()) cvId: string,
     @Body() uploadCvVersionDto: UploadCvVersionDto,
     @UploadedFile() file: UploadedFile,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.cvVersionsService.upload(cvId, uploadCvVersionDto, file);
+    return this.cvVersionsService.upload(cvId, uploadCvVersionDto, file, user);
   }
 
   @Get('cvs/:cvId/versions')
@@ -76,8 +79,12 @@ export class CvVersionsController {
   @ApiOkResponse({ type: CvVersionList, description: 'Danh sách phiên bản CV.' })
   @ApiBadRequestResponse({ description: 'Tham số truy vấn hoặc UUID của CV không hợp lệ.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy CV.' })
-  findAll(@Param('cvId', new ParseUUIDPipe()) cvId: string, @Query() query: PaginationQueryDto) {
-    return this.cvVersionsService.findAll(cvId, query);
+  findAll(
+    @Param('cvId', new ParseUUIDPipe()) cvId: string,
+    @Query() query: PaginationQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cvVersionsService.findAll(cvId, query, user);
   }
 
   @Get('cv-versions/:id')
@@ -87,8 +94,8 @@ export class CvVersionsController {
   @ApiOkResponse({ type: CvVersion, description: 'Thông tin chi tiết phiên bản CV.' })
   @ApiBadRequestResponse({ description: 'UUID của phiên bản CV không hợp lệ.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy phiên bản CV.' })
-  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.cvVersionsService.findOne(id);
+  findOne(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.cvVersionsService.findOne(id, user);
   }
 
   @Get('cv-versions/:id/download')
@@ -102,8 +109,9 @@ export class CvVersionsController {
   async download(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Res({ passthrough: true }) response: Response,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const download = await this.cvVersionsService.prepareDownload(id);
+    const download = await this.cvVersionsService.prepareDownload(id, user);
 
     response.set({
       'Content-Type': download.mimeType,
@@ -119,8 +127,8 @@ export class CvVersionsController {
   @ApiCreatedResponse({ type: CvVersion, description: 'Khôi phục phiên bản CV thành công.' })
   @ApiBadRequestResponse({ description: 'UUID của phiên bản CV không hợp lệ.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy phiên bản CV.' })
-  restore(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.cvVersionsService.restore(id);
+  restore(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.cvVersionsService.restore(id, user);
   }
 
   @Delete('cv-versions/:id')
@@ -130,7 +138,7 @@ export class CvVersionsController {
   @ApiBadRequestResponse({ description: 'UUID của phiên bản CV không hợp lệ.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy phiên bản CV.' })
   @ApiConflictResponse({ description: 'Phiên bản CV đang được bản ghi khác sử dụng.' })
-  remove(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.cvVersionsService.remove(id);
+  remove(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.cvVersionsService.remove(id, user);
   }
 }

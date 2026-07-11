@@ -16,6 +16,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { documentUploadOptions } from '../../common/upload/multer-options';
 import { UploadedFile as CloudinaryUploadedFile } from '../../common/cloudinary/cloudinary.service';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -31,7 +32,7 @@ export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', documentUploadOptions))
   @ApiOperation({ summary: 'Upload file lên Cloudinary' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -58,7 +59,7 @@ export class FilesController {
   }
 
   @Post('upload-many')
-  @UseInterceptors(FilesInterceptor('files', 20))
+  @UseInterceptors(FilesInterceptor('files', 20, documentUploadOptions))
   @ApiOperation({ summary: 'Upload nhiều file lên Cloudinary' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({

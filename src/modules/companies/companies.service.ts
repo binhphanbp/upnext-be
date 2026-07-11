@@ -185,8 +185,9 @@ export class CompaniesService {
     });
   }
 
-  async update(id: string, updateCompanyDto: UpdateCompanyDto) {
+  async update(id: string, updateCompanyDto: UpdateCompanyDto, user: AuthenticatedUser) {
     await this.ensureCompanyExists(id);
+    await this.checkCompanyPermission(id, user);
 
     if (updateCompanyDto.taxCode) {
       const existingCompany = await this.prisma.company.findFirst({
@@ -215,8 +216,9 @@ export class CompaniesService {
       });
   }
 
-  async uploadLogo(id: string, file: UploadedFile) {
+  async uploadLogo(id: string, file: UploadedFile, user: AuthenticatedUser) {
     const company = await this.ensureCompanyExists(id);
+    await this.checkCompanyPermission(id, user);
     const savedFile = await this.saveCompanyFile(id, 'logo', file);
 
     const asset = await this.prisma.fileAsset.create({
@@ -253,8 +255,9 @@ export class CompaniesService {
     };
   }
 
-  async uploadCover(id: string, file: UploadedFile) {
+  async uploadCover(id: string, file: UploadedFile, user: AuthenticatedUser) {
     await this.ensureCompanyExists(id);
+    await this.checkCompanyPermission(id, user);
     const savedFile = await this.saveCompanyFile(id, 'cover', file);
 
     const asset = await this.prisma.fileAsset.create({
@@ -284,8 +287,9 @@ export class CompaniesService {
     };
   }
 
-  async uploadPhoto(id: string, file: UploadedFile) {
+  async uploadPhoto(id: string, file: UploadedFile, user: AuthenticatedUser) {
     await this.ensureCompanyExists(id);
+    await this.checkCompanyPermission(id, user);
     const savedFile = await this.saveCompanyFile(id, 'photo', file);
 
     const asset = await this.prisma.fileAsset.create({
@@ -315,8 +319,9 @@ export class CompaniesService {
     };
   }
 
-  async deletePhoto(companyId: string, photoId: string) {
+  async deletePhoto(companyId: string, photoId: string, user: AuthenticatedUser) {
     await this.ensureCompanyExists(companyId);
+    await this.checkCompanyPermission(companyId, user);
 
     const asset = await this.prisma.fileAsset.findFirst({
       where: {
@@ -337,8 +342,9 @@ export class CompaniesService {
     return { message: 'Photo deleted successfully' };
   }
 
-  async remove(id: string) {
+  async remove(id: string, user: AuthenticatedUser) {
     await this.ensureCompanyExists(id);
+    await this.checkCompanyPermission(id, user);
     await this.prisma.company.delete({ where: { id } });
   }
 
