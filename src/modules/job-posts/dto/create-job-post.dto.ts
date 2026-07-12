@@ -137,4 +137,12 @@ export class CreateJobPostDto {
   @IsDateString()
   @IsOptional()
   expiredAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Ngày làm việc trong tuần.',
+    example: 'Monday - Friday',
+  })
+  @IsString()
+  @IsOptional()
+  workingDays?: string;
 }

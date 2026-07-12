@@ -79,6 +79,162 @@ function toAsciiUrl(str: string) {
     .replace(/^-+|-+$/g, '');
 }
 
+function uuidFromSeed(value: string) {
+  const hash = createHash('md5').update(value).digest('hex');
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
+}
+
+function normalizeLogoDevCompanySeed(rawData: any) {
+  const now = new Date('2026-07-12T00:00:00.000Z');
+  const companies = (rawData.companies || []).map((item: any, index: number) => {
+    const companyId = uuidFromSeed(`logo-dev-company:${item.slug}`);
+    const logoFileId = uuidFromSeed(`logo-dev-logo:${item.slug}`);
+    const businessLicenseFileId = null;
+    const reputationScore = index === 0 ? '95' : index === 1 ? '15' : index === 2 ? '35' : index === 3 ? '10' : '60';
+
+    return {
+      id: companyId,
+      logoFileId,
+      businessLicenseFileId,
+      type: item.type || 'OTHER',
+      name: item.name,
+      slug: item.slug,
+      taxCode: item.taxCode,
+      address: item.address,
+      email: item.email,
+      phone: item.phone,
+      website: item.website,
+      description: item.description,
+      benefits: item.benefits,
+      companySize: item.companySize,
+      workingDays: item.workingDays || 'Monday - Friday',
+      verificationStatus: item.verificationStatus || 'VERIFIED',
+      reputationScore,
+      status: item.status || 'ACTIVE',
+      lockedReason: null,
+      lockedAt: null,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+  });
+
+  const fileAssets = (rawData.companies || []).flatMap((item: any) => {
+    const companyId = uuidFromSeed(`logo-dev-company:${item.slug}`);
+    const logoFileId = uuidFromSeed(`logo-dev-logo:${item.slug}`);
+    const coverFileId = uuidFromSeed(`logo-dev-cover:${item.slug}`);
+    const coverUrl = Array.isArray(item.environmentImages) ? item.environmentImages[0] : null;
+
+    return [
+      {
+        id: logoFileId,
+        ownerType: 'company',
+        ownerId: companyId,
+        purpose: 'COMPANY_LOGO',
+        visibility: 'PUBLIC',
+        storageKey: `companies/${item.slug}/logo-logo-dev.png`,
+        originalName: `${item.slug}-logo.png`,
+        mimeType: 'image/png',
+        sizeBytes: '2048',
+        publicUrl: item.logoUrl,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+      {
+        id: coverFileId,
+        ownerType: 'company_cover',
+        ownerId: companyId,
+        purpose: 'OTHER',
+        visibility: 'PUBLIC',
+        storageKey: `companies/${item.slug}/cover-logo-dev.jpg`,
+        originalName: `${item.slug}-cover.jpg`,
+        mimeType: 'image/jpeg',
+        sizeBytes: '4096',
+        publicUrl: coverUrl || 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&h=700&fit=crop&q=80',
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+    ];
+  });
+
+  const recruiters = companies.map((company: any) => {
+    const recruiterId = uuidFromSeed(`logo-dev-recruiter:${company.slug}`);
+    return {
+      id: recruiterId,
+      companyId: company.id,
+      recruiterRoleId: null,
+      email: `${SEED_EMAIL_PREFIX}recruiter.${company.slug}@upnext.dev`,
+      passwordHash: null,
+      authProvider: 'DEFAULT',
+      providerUserId: null,
+      status: 'ACTIVE',
+      emailVerifiedAt: company.createdAt,
+      createdAt: company.createdAt,
+      updatedAt: company.updatedAt,
+      profile: {
+        id: uuidFromSeed(`logo-dev-recruiter-profile:${company.slug}`),
+        recruiterAccountId: recruiterId,
+        fullName: `${company.name} Recruitment Team`,
+        phoneNumber: null,
+        gender: null,
+        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(company.name)}&background=0f766e&color=fff&size=160&bold=true&format=png`,
+        createdAt: company.createdAt,
+        updatedAt: company.updatedAt,
+      },
+    };
+  });
+
+  return { companies, fileAssets, recruiters };
+}
+
+function readJsonFileIfExists(filePath: string) {
+  if (!fs.existsSync(filePath)) return null;
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function loadCompanySeedData() {
+  const logoDevPath = path.join(__dirname, 'data/companies_50_real_logo_dev.json');
+  const legacyPath = path.join(__dirname, 'data/companies_real.json');
+  const logoDevData = readJsonFileIfExists(logoDevPath);
+
+  if (logoDevData?.companies?.length) {
+    return normalizeLogoDevCompanySeed(logoDevData);
+  }
+
+  const legacyData = readJsonFileIfExists(legacyPath);
+  if (legacyData?.companies?.length) {
+    return legacyData;
+  }
+
+  throw new Error('prisma/data/companies_50_real_logo_dev.json is required for seeding real companies.');
+}
+
+function loadCompanySeedCleanupData() {
+  const seedData = loadCompanySeedData();
+  const legacyPath = path.join(__dirname, 'data/companies_real.json');
+  const legacyData = readJsonFileIfExists(legacyPath);
+
+  if (!legacyData?.companies?.length) {
+    return seedData;
+  }
+
+  return {
+    companies: [...(seedData.companies || []), ...(legacyData.companies || [])],
+    fileAssets: [...(seedData.fileAssets || []), ...(legacyData.fileAssets || [])],
+    recruiters: [...(seedData.recruiters || []), ...(legacyData.recruiters || [])],
+  };
+}
+
+function loadJobPostSeedData() {
+  const jobPostsPath = path.join(__dirname, 'data/jobposts_100_companies.json');
+  const jobPosts = readJsonFileIfExists(jobPostsPath);
+
+  if (!Array.isArray(jobPosts) || jobPosts.length === 0) {
+    throw new Error('prisma/data/jobposts_100_companies.json is required for seeding job posts.');
+  }
+
+  return jobPosts;
+}
+
 const jobDetailsMap: Record<
   string,
   { description: string; requirements: string; benefits: string }
@@ -942,22 +1098,10 @@ async function cleanHomeSeedData() {
     },
   });
 
-  const backupPath = path.join(__dirname, 'data/companies_real.json');
-  let realCompanyIds: string[] = [];
-  let realRecruiterIds: string[] = [];
-  let realRecruiterEmails: string[] = [];
-  if (fs.existsSync(backupPath)) {
-    try {
-      const backupData = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
-      if (backupData.companies) {
-        realCompanyIds = backupData.companies.map((c: any) => c.id);
-      }
-      if (backupData.recruiters) {
-        realRecruiterIds = backupData.recruiters.map((r: any) => r.id);
-        realRecruiterEmails = backupData.recruiters.map((r: any) => r.email);
-      }
-    } catch (e) {}
-  }
+  const cleanupCompanyData = loadCompanySeedCleanupData();
+  const realCompanyIds = cleanupCompanyData.companies?.map((c: any) => c.id) || [];
+  const realRecruiterIds = cleanupCompanyData.recruiters?.map((r: any) => r.id) || [];
+  const realRecruiterEmails = cleanupCompanyData.recruiters?.map((r: any) => r.email) || [];
 
   const backupCandidatesPath = path.join(__dirname, 'data/candidates_real.json');
   let realCandidateEmails: string[] = [];
@@ -1314,15 +1458,7 @@ async function cleanHomeSeedData() {
     },
   });
 
-  let realFileAssetIds: string[] = [];
-  if (fs.existsSync(backupPath)) {
-    try {
-      const backupData = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
-      if (backupData.fileAssets) {
-        realFileAssetIds = backupData.fileAssets.map((asset: any) => asset.id);
-      }
-    } catch (e) {}
-  }
+  const realFileAssetIds = cleanupCompanyData.fileAssets?.map((asset: any) => asset.id) || [];
 
   await prisma.fileAsset.deleteMany({
     where: {
@@ -2043,11 +2179,7 @@ async function main() {
     }
   }
 
-  const backupPath = path.join(__dirname, 'data/companies_real.json');
-  if (!fs.existsSync(backupPath)) {
-    throw new Error('prisma/data/companies_real.json is required for seeding real companies.');
-  }
-  const backupData = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+  const backupData = loadCompanySeedData();
 
   const companies = backupData.companies.map((c: any, index: number) => {
     let key = c.slug;
@@ -3431,614 +3563,15 @@ async function main() {
   }
 
   const companyByKey = Object.fromEntries(companies.map((company: any) => [company.key, company]));
-  const recruiterByCompanyId = Object.fromEntries(
-    recruiters
-      .filter((r: any) => r.roleCode === 'OWNER')
-      .map((recruiter: any) => [recruiter.companyId, recruiter]),
-  );
-
-  const jobDefinitions = [
-    {
-      "companySlug": "fpt-software",
-      "title": "Senior Java Backend Engineer",
-      "slug": "fpt-software-senior-java-backend-engineer",
-      "jobCategory": {
-        "name": "Backend Engineering"
-      },
-      "experienceLevel": {
-        "name": "Senior",
-        "code": "senior"
-      },
-      "employmentType": {
-        "name": "Full-time"
-      },
-      "workingDays": "Thứ 2 - Thứ 6",
-      "educationLevel": "BACHELOR",
-      "salaryMin": "35000000",
-      "salaryMax": "60000000",
-      "salaryCurrency": "VND",
-      "salaryPeriod": "MONTH",
-      "salaryIsNegotiable": true,
-      "salaryIsVisible": true,
-      "vacanciesCount": 3,
-      "status": "PUBLISHED",
-      "moderationStatus": "APPROVED",
-      "moderationNote": null,
-      "reason": null,
-      "publishedAt": "2026-07-08T02:00:00.000Z",
-      "expiredAt": "2026-08-22T16:59:59.000Z",
-      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Tham gia phát triển hệ thống backend cho các dự án phần mềm doanh nghiệp, tài chính, bán lẻ, viễn thông hoặc chuyển đổi số theo yêu cầu khách hàng quốc tế.</li><li>Thiết kế, xây dựng và tối ưu RESTful API, service layer, database transaction và các luồng xử lý nghiệp vụ có độ ổn định cao.</li><li>Làm việc cùng Business Analyst, Solution Architect, Frontend, QA và DevOps để phân tích yêu cầu, ước lượng effort và triển khai tính năng theo sprint.</li><li>Review code, chuẩn hóa coding convention, viết unit test/integration test và đảm bảo chất lượng code trước khi release.</li><li>Phân tích nguyên nhân lỗi production, tối ưu performance, xử lý bottleneck ở database/API và đề xuất phương án cải thiện kiến trúc hệ thống.</li><li>Tham gia thiết kế microservices, message queue, caching và các cơ chế xử lý bất đồng bộ nếu dự án yêu cầu.</li><li>Hỗ trợ hướng dẫn thành viên junior/middle trong team về kỹ thuật, quy trình delivery và best practices.</li><li>Làm việc với tài liệu kỹ thuật tiếng Anh, tham gia họp với khách hàng hoặc team offshore khi cần.</li></ul></div></details>",
-      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Có từ 4 năm kinh nghiệm phát triển backend với Java, ưu tiên ứng viên từng làm hệ thống doanh nghiệp hoặc sản phẩm có lượng người dùng lớn.</li><li>Thành thạo Java Core, Spring Boot, Spring Security, JPA/Hibernate và RESTful API.</li><li>Nắm vững OOP, SOLID, design pattern, clean code và nguyên tắc thiết kế hệ thống dễ bảo trì.</li><li>Có kinh nghiệm làm việc với MySQL, PostgreSQL, Oracle hoặc SQL Server; hiểu indexing, transaction và query optimization.</li><li>Có kinh nghiệm với Git, Docker, CI/CD và môi trường Agile/Scrum.</li><li>Biết microservices, Kafka/RabbitMQ, Redis, Kubernetes hoặc cloud là lợi thế.</li><li>Có khả năng đọc hiểu tài liệu tiếng Anh và giao tiếp kỹ thuật cơ bản với khách hàng/team quốc tế.</li><li>Tư duy giải quyết vấn đề tốt, chủ động trong công việc và có trách nhiệm với chất lượng sản phẩm.</li></ul></div></details>",
-      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trong môi trường dự án quốc tế, quy trình chuyên nghiệp và có cơ hội tiếp xúc nhiều domain khác nhau.</li><li>Lộ trình phát triển rõ ràng theo hướng Senior Engineer, Tech Lead, Solution Architect hoặc Project Manager.</li><li>Được đào tạo chuyên môn, ngoại ngữ, kỹ năng mềm và có cơ hội thi chứng chỉ công nghệ.</li><li>Tham gia các dự án quy mô lớn với tiêu chuẩn delivery cao, giúp nâng năng lực kỹ thuật thực chiến.</li><li>Chế độ bảo hiểm, nghỉ phép, khám sức khỏe và phúc lợi theo chính sách công ty.</li><li>Cơ hội onsite, làm việc với khách hàng toàn cầu hoặc tham gia team offshore tùy dự án.</li><li>Môi trường phù hợp với kỹ sư muốn phát triển lâu dài trong lĩnh vực software outsourcing.</li></ul></div></details>",
-      "skills": [
-        { "name": "Java", "priority": "REQUIRED", "minYearsExperience": 4 },
-        { "name": "Spring Boot", "priority": "REQUIRED", "minYearsExperience": 3 },
-        { "name": "RESTful API", "priority": "REQUIRED" },
-        { "name": "Microservices", "priority": "PREFERRED" },
-        { "name": "SQL", "priority": "REQUIRED" },
-        { "name": "Docker", "priority": "PREFERRED" },
-        { "name": "English", "priority": "PREFERRED" }
-      ],
-      "locations": [
-        {
-          "country": "Vietnam",
-          "workingModel": "HYBRID",
-          "city": "Hà Nội",
-          "district": "Cầu Giấy",
-          "address": "Tòa nhà FPT Cầu Giấy, phố Duy Tân, Phường Cầu Giấy, Hà Nội"
-        }
-      ],
-      "specializations": [
-        { "name": "Backend", "slug": "backend", "isRequired": true },
-        { "name": "Enterprise Software", "slug": "enterprise-software", "isRequired": false }
-      ]
-    },
-    {
-      "companySlug": "vng-corporation",
-      "title": "Product Data Analyst",
-      "slug": "vng-corporation-product-data-analyst",
-      "jobCategory": {
-        "name": "Data Analytics"
-      },
-      "experienceLevel": {
-        "name": "Mid-level",
-        "code": "mid"
-      },
-      "employmentType": {
-        "name": "Full-time"
-      },
-      "workingDays": "Thứ 2 - Thứ 6",
-      "educationLevel": "BACHELOR",
-      "salaryMin": "25000000",
-      "salaryMax": "45000000",
-      "salaryCurrency": "VND",
-      "salaryPeriod": "MONTH",
-      "salaryIsNegotiable": true,
-      "salaryIsVisible": true,
-      "vacanciesCount": 2,
-      "status": "PUBLISHED",
-      "moderationStatus": "APPROVED",
-      "moderationNote": null,
-      "reason": null,
-      "publishedAt": "2026-07-08T02:30:00.000Z",
-      "expiredAt": "2026-08-22T16:59:59.000Z",
-      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Phân tích dữ liệu hành vi người dùng trên các sản phẩm số như nền tảng nội dung, game, cloud, fintech hoặc dịch vụ internet.</li><li>Xây dựng dashboard theo dõi các chỉ số sản phẩm: active users, retention, conversion, funnel, cohort, churn và engagement.</li><li>Làm việc với Product Manager để xác định câu hỏi phân tích, kiểm chứng giả thuyết và đưa ra khuyến nghị cải thiện sản phẩm.</li><li>Thiết kế và phân tích A/B testing nhằm đo lường tác động của tính năng mới, campaign hoặc thay đổi trong trải nghiệm người dùng.</li><li>Khai thác dữ liệu bằng SQL, xử lý dữ liệu thô và chuyển hóa thành insight dễ hiểu cho business/product team.</li><li>Phối hợp với Data Engineer để chuẩn hóa event tracking, data pipeline và logic đo lường chỉ số.</li><li>Chuẩn bị báo cáo định kỳ cho stakeholder về tình hình tăng trưởng, chất lượng người dùng và hiệu quả sản phẩm.</li><li>Phát hiện bất thường trong dữ liệu, cảnh báo sớm vấn đề liên quan đến tracking, traffic hoặc hành vi người dùng.</li></ul></div></details>",
-      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 2 năm kinh nghiệm ở vị trí Data Analyst, Product Analyst, Business Analyst hoặc Growth Analyst.</li><li>Thành thạo SQL và có kinh nghiệm làm việc với dữ liệu lớn từ hệ thống sản phẩm.</li><li>Hiểu các chỉ số sản phẩm như retention, activation, conversion, cohort, LTV, CAC hoặc churn.</li><li>Có kinh nghiệm dùng Power BI, Tableau, Looker Studio, Metabase hoặc công cụ BI tương đương.</li><li>Biết Python/R để xử lý dữ liệu là lợi thế.</li><li>Có khả năng kể chuyện bằng dữ liệu, trình bày insight rõ ràng và đề xuất hành động cụ thể.</li><li>Tư duy logic tốt, cẩn thận với số liệu và biết kiểm tra độ tin cậy của dữ liệu.</li><li>Ưu tiên ứng viên từng làm trong công ty product, game, fintech, e-commerce hoặc nền tảng có lượng user lớn.</li></ul></div></details>",
-      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trên sản phẩm công nghệ có lượng người dùng lớn tại Việt Nam.</li><li>Cơ hội tham gia trực tiếp vào các quyết định sản phẩm dựa trên dữ liệu.</li><li>Môi trường công nghệ mạnh, tốc độ cao, phù hợp với người thích học nhanh và thử nghiệm liên tục.</li><li>Được phối hợp với Product, Engineering, Marketing, Growth và Data Platform.</li><li>Cơ hội phát triển lên Senior Data Analyst, Product Analytics Lead hoặc Data Product Owner.</li><li>Được tiếp cận bài toán thực tế về tăng trưởng, hành vi người dùng và tối ưu sản phẩm.</li><li>Phúc lợi, đào tạo và chính sách đãi ngộ theo năng lực.</li></ul></div></details>",
-      "skills": [
-        { "name": "SQL", "priority": "REQUIRED", "minYearsExperience": 2 },
-        { "name": "Data Analysis", "priority": "REQUIRED" },
-        { "name": "Product Analytics", "priority": "REQUIRED" },
-        { "name": "Power BI", "priority": "PREFERRED" },
-        { "name": "Python", "priority": "PREFERRED" },
-        { "name": "A/B Testing", "priority": "PREFERRED" }
-      ],
-      "locations": [
-        {
-          "country": "Vietnam",
-          "workingModel": "HYBRID",
-          "city": "Hồ Chí Minh",
-          "district": "Quận 7",
-          "address": "Z06 Đường số 13, Phường Tân Thuận, Thành phố Hồ Chí Minh"
-        }
-      ],
-      "specializations": [
-        { "name": "Data", "slug": "data", "isRequired": true },
-        { "name": "Product", "slug": "product", "isRequired": true }
-      ]
-    },
-    {
-      "companySlug": "tiki-group",
-      "title": "E-commerce Product Manager",
-      "slug": "tiki-group-ecommerce-product-manager",
-      "jobCategory": {
-        "name": "Product Management"
-      },
-      "experienceLevel": {
-        "name": "Senior",
-        "code": "senior"
-      },
-      "employmentType": {
-        "name": "Full-time"
-      },
-      "workingDays": "Thứ 2 - Thứ 6",
-      "educationLevel": "BACHELOR",
-      "salaryMin": "40000000",
-      "salaryMax": "70000000",
-      "salaryCurrency": "VND",
-      "salaryPeriod": "MONTH",
-      "salaryIsNegotiable": true,
-      "salaryIsVisible": true,
-      "vacanciesCount": 1,
-      "status": "PUBLISHED",
-      "moderationStatus": "APPROVED",
-      "moderationNote": null,
-      "reason": null,
-      "publishedAt": "2026-07-08T03:00:00.000Z",
-      "expiredAt": "2026-08-22T16:59:59.000Z",
-      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Phụ trách roadmap sản phẩm cho các luồng e-commerce như tìm kiếm sản phẩm, giỏ hàng, checkout, seller tools, promotion hoặc fulfillment.</li><li>Thu thập và phân tích nhu cầu từ người dùng, seller, operation, customer service và business team để xác định vấn đề cần giải quyết.</li><li>Viết PRD, user story, acceptance criteria và phối hợp với Design/Engineering/QA để triển khai tính năng.</li><li>Theo dõi các chỉ số sau release như conversion rate, order success rate, cart abandonment, GMV impact và customer complaint rate.</li><li>Ưu tiên backlog dựa trên impact, effort, rủi ro kỹ thuật và mục tiêu kinh doanh.</li><li>Làm việc với Data Analyst để phân tích funnel, hành vi người dùng và hiệu quả thử nghiệm A/B testing.</li><li>Phối hợp với Operations và Marketing trong các campaign lớn, đảm bảo sản phẩm hỗ trợ tốt luồng vận hành thực tế.</li><li>Chủ động phát hiện điểm nghẽn trong trải nghiệm mua hàng và đề xuất giải pháp cải thiện.</li></ul></div></details>",
-      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 4 năm kinh nghiệm Product Management, ưu tiên trong e-commerce, marketplace, logistics tech hoặc consumer app.</li><li>Hiểu sâu về user journey, funnel, checkout, promotion, seller operation hoặc order fulfillment.</li><li>Có khả năng viết tài liệu sản phẩm rõ ràng, xác định edge case và làm việc hiệu quả với Engineering.</li><li>Có tư duy dữ liệu, biết đọc dashboard, phân tích chỉ số và đưa ra quyết định dựa trên số liệu.</li><li>Kỹ năng giao tiếp và stakeholder management tốt, có thể cân bằng giữa business goal và năng lực kỹ thuật.</li><li>Biết SQL, Figma, Jira, Confluence hoặc công cụ quản lý sản phẩm là lợi thế.</li><li>Có kinh nghiệm làm Agile/Scrum và hiểu vòng đời phát triển phần mềm.</li><li>Chủ động, chịu áp lực tốt và có khả năng đưa ra quyết định trong môi trường thay đổi nhanh.</li></ul></div></details>",
-      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Tham gia phát triển sản phẩm thương mại điện tử có người dùng thật và tác động kinh doanh rõ ràng.</li><li>Cơ hội làm việc với nhiều team: Tech, Design, Data, Business, Operation, Marketing và Customer Service.</li><li>Được giải quyết các bài toán phức tạp về marketplace, conversion, promotion và vận hành đơn hàng.</li><li>Môi trường phù hợp với người muốn phát triển năng lực product thực chiến.</li><li>Cơ hội phát triển lên Senior Product Manager, Group Product Manager hoặc Product Lead.</li><li>Chính sách phúc lợi, đãi ngộ và đào tạo theo năng lực.</li><li>Có cơ hội tạo ảnh hưởng trực tiếp đến trải nghiệm mua sắm của người dùng.</li></ul></div></details>",
-      "skills": [
-        { "name": "Product Management", "priority": "REQUIRED", "minYearsExperience": 4 },
-        { "name": "E-commerce", "priority": "REQUIRED" },
-        { "name": "Business Analysis", "priority": "REQUIRED" },
-        { "name": "SQL", "priority": "PREFERRED" },
-        { "name": "Agile", "priority": "PREFERRED" },
-        { "name": "User Research", "priority": "PREFERRED" }
-      ],
-      "locations": [
-        {
-          "country": "Vietnam",
-          "workingModel": "HYBRID",
-          "city": "Hồ Chí Minh",
-          "district": "Gò Vấp",
-          "address": "50/20 đường số 45, Phường 14, Quận Gò Vấp, Thành phố Hồ Chí Minh"
-        }
-      ],
-      "specializations": [
-        { "name": "Product", "slug": "product", "isRequired": true },
-        { "name": "E-commerce", "slug": "ecommerce", "isRequired": true }
-      ]
-    },
-    {
-      "companySlug": "shopee-vietnam",
-      "title": "Seller Operations Analyst",
-      "slug": "shopee-vietnam-seller-operations-analyst",
-      "jobCategory": {
-        "name": "Operations"
-      },
-      "experienceLevel": {
-        "name": "Mid-level",
-        "code": "mid"
-      },
-      "employmentType": {
-        "name": "Full-time"
-      },
-      "workingDays": "Thứ 2 - Thứ 6",
-      "educationLevel": "BACHELOR",
-      "salaryMin": "22000000",
-      "salaryMax": "38000000",
-      "salaryCurrency": "VND",
-      "salaryPeriod": "MONTH",
-      "salaryIsNegotiable": true,
-      "salaryIsVisible": true,
-      "vacanciesCount": 2,
-      "status": "PUBLISHED",
-      "moderationStatus": "APPROVED",
-      "moderationNote": null,
-      "reason": null,
-      "publishedAt": "2026-07-08T03:30:00.000Z",
-      "expiredAt": "2026-08-22T16:59:59.000Z",
-      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Theo dõi hiệu quả vận hành của nhóm người bán trên marketplace, bao gồm chất lượng gian hàng, tỷ lệ xử lý đơn và mức độ tham gia campaign.</li><li>Xây dựng báo cáo định kỳ về seller performance, order issue, cancellation rate, late shipment, campaign conversion và seller growth.</li><li>Phân tích nguyên nhân khiến người bán chưa đạt KPI và đề xuất giải pháp cải thiện quy trình vận hành.</li><li>Phối hợp với Seller Management, Marketing, Logistics, Product và Customer Service để xử lý các vấn đề ảnh hưởng đến trải nghiệm người mua.</li><li>Chuẩn hóa dữ liệu vận hành, tạo dashboard và cảnh báo sớm các nhóm seller có rủi ro về chất lượng dịch vụ.</li><li>Hỗ trợ triển khai chính sách, chương trình hỗ trợ seller và các campaign thúc đẩy tăng trưởng ngành hàng.</li><li>Phân tích tác động của chương trình khuyến mãi, voucher, traffic support và seller education tới doanh số.</li><li>Đề xuất cải tiến quy trình nội bộ nhằm giảm thao tác thủ công và tăng tốc độ xử lý vấn đề.</li></ul></div></details>",
-      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 2 năm kinh nghiệm trong Operations, Business Analyst, Data Analyst, E-commerce hoặc Marketplace.</li><li>Thành thạo Excel/Google Sheets, biết xử lý dữ liệu lớn, pivot, lookup, dashboard và báo cáo vận hành.</li><li>Biết SQL hoặc công cụ BI là lợi thế lớn.</li><li>Có tư duy phân tích, hiểu cách chuyển số liệu thành insight và hành động cụ thể.</li><li>Có khả năng phối hợp với nhiều phòng ban, theo dõi deadline và xử lý công việc trong môi trường tốc độ cao.</li><li>Hiểu về e-commerce, seller operation, order fulfillment hoặc campaign operation là lợi thế.</li><li>Kỹ năng giao tiếp tốt, trình bày báo cáo rõ ràng và có khả năng làm việc với stakeholder.</li><li>Cẩn thận với số liệu, chủ động phát hiện bất thường và đề xuất hướng xử lý.</li></ul></div></details>",
-      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trong môi trường marketplace tốc độ cao, dữ liệu lớn và tác động trực tiếp đến người bán/người mua.</li><li>Cơ hội học sâu về seller growth, campaign operation, logistics và vận hành e-commerce.</li><li>Được phối hợp với các team Product, Marketing, Logistics, Seller Management và Customer Experience.</li><li>Môi trường phù hợp với người thích dữ liệu, vận hành và tối ưu quy trình.</li><li>Cơ hội phát triển lên Senior Operations Analyst, Operations Lead hoặc Business Intelligence role.</li><li>Phúc lợi, đãi ngộ và đào tạo thế cạnh tranh.</li><li>Được tham gia các chiến dịch thương mại điện tử quy mô lớn.</li></ul></div></details>",
-      "skills": [
-        { "name": "Operations", "priority": "REQUIRED", "minYearsExperience": 2 },
-        { "name": "Data Analysis", "priority": "REQUIRED" },
-        { "name": "Excel", "priority": "REQUIRED" },
-        { "name": "SQL", "priority": "PREFERRED" },
-        { "name": "Business Analysis", "priority": "PREFERRED" },
-        { "name": "E-commerce", "priority": "REQUIRED" }
-      ],
-      "locations": [
-        {
-          "country": "Vietnam",
-          "workingModel": "ONSITE",
-          "city": "Hà Nội",
-          "district": "Ba Đình",
-          "address": "Tòa nhà Capital Place, 29 Liễu Giai, Phường Ngọc Hà, Hà Nội"
-        }
-      ],
-      "specializations": [
-        { "name": "Operations", "slug": "operations", "isRequired": true },
-        { "name": "E-commerce", "slug": "ecommerce", "isRequired": true }
-      ]
-    },
-    {
-      "companySlug": "grab-vietnam",
-      "title": "Backend Engineer - Marketplace Platform",
-      "slug": "grab-vietnam-backend-engineer-marketplace-platform",
-      "jobCategory": {
-        "name": "Backend Engineering"
-      },
-      "experienceLevel": {
-        "name": "Mid-level",
-        "code": "mid"
-      },
-      "employmentType": {
-        "name": "Full-time"
-      },
-      "workingDays": "Thứ 2 - Thứ 6",
-      "educationLevel": "BACHELOR",
-      "salaryMin": "35000000",
-      "salaryMax": "65000000",
-      "salaryCurrency": "VND",
-      "salaryPeriod": "MONTH",
-      "salaryIsNegotiable": true,
-      "salaryIsVisible": true,
-      "vacanciesCount": 2,
-      "status": "PUBLISHED",
-      "moderationStatus": "APPROVED",
-      "moderationNote": null,
-      "reason": null,
-      "publishedAt": "2026-07-08T04:00:00.000Z",
-      "expiredAt": "2026-08-22T16:59:59.000Z",
-      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Phát triển backend service cho các bài toán marketplace như matching, pricing, dispatching, incentive, order lifecycle hoặc delivery flow.</li><li>Thiết kế API và service có khả năng xử lý lượng request lớn, đảm bảo tính ổn định, bảo mật và khả năng mở rộng.</li><li>Làm việc với Product, Data, Mobile, Infrastructure và Operations để triển khai tính năng phục vụ người dùng, tài xế, đối tác hoặc merchant.</li><li>Xây dựng logic xử lý bất đồng bộ, message queue, retry mechanism và monitoring cho các luồng nghiệp vụ quan trọng.</li><li>Tham gia phân tích production issue, tối ưu latency, throughput, database query và độ tin cậy của service.</li><li>Viết unit test, integration test, tham gia code review và cải thiện chất lượng codebase.</li><li>Đóng góp vào thiết kế kiến trúc hệ thống, chuẩn hóa API contract và tài liệu kỹ thuật.</li><li>Phối hợp với team khu vực khi triển khai các tính năng hoặc platform component dùng chung.</li></ul></div></details>",
-      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 3 năm kinh nghiệm backend engineering, ưu tiên từng làm hệ thống high traffic hoặc distributed systems.</li><li>Thành thạo một trong các ngôn ngữ Go, Java, Kotlin, Python hoặc tương đương.</li><li>Có kinh nghiệm thiết kế REST/gRPC API, database schema, caching và service-to-service communication.</li><li>Hiểu microservices, message queue, event-driven architecture và observability.</li><li>Có kinh nghiệm với MySQL/PostgreSQL, Redis, Kafka hoặc cloud infrastructure là lợi thế.</li><li>Tư duy hệ thống tốt, có khả năng phân tích trade-off giữa performance, reliability và maintainability.</li><li>Có kinh nghiệm làm việc với Agile/Scrum, CI/CD, Git và code review.</li><li>Giao tiếp tốt, chủ động và có khả năng làm việc trong môi trường nhiều stakeholder.</li></ul></div></details>",
-      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc với hệ sinh thái super app, marketplace và các bài toán vận hành quy mô lớn.</li><li>Cơ hội xử lý dữ liệu thời gian thực, matching, dispatching và transaction flow phức tạp.</li><li>Môi trường kỹ thuật định hướng reliability, scalability và data-driven decision.</li><li>Cơ hội phối hợp với đội ngũ khu vực và học hỏi từ các platform team có kinh nghiệm.</li><li>Phúc lợi, bảo hiểm, chính sách học tập và phát triển nghề nghiệp cạnh tranh.</li><li>Phù hợp với kỹ sư muốn phát triển sâu về backend platform và distributed systems.</li></ul></div></details>",
-      "skills": [
-        { "name": "Go", "priority": "PREFERRED" },
-        { "name": "Java", "priority": "PREFERRED" },
-        { "name": "Microservices", "priority": "REQUIRED" },
-        { "name": "Distributed Systems", "priority": "REQUIRED" },
-        { "name": "Kafka", "priority": "PREFERRED" },
-        { "name": "SQL", "priority": "REQUIRED" },
-        { "name": "RESTful API", "priority": "REQUIRED" }
-      ],
-      "locations": [
-        {
-          "country": "Vietnam",
-          "workingModel": "HYBRID",
-          "city": "Hồ Chí Minh",
-          "district": "Quận 7",
-          "address": "Mapletree Business Centre, 1060 Nguyễn Văn Linh, Quận 7, Thành phố Hồ Chí Minh"
-        }
-      ],
-      "specializations": [
-        { "name": "Backend", "slug": "backend", "isRequired": true },
-        { "name": "Platform", "slug": "platform", "isRequired": true }
-      ]
-    },
-    {
-      "companySlug": "bosch-global-software-technologies-vietnam",
-      "title": "Embedded Software Engineer - Automotive",
-      "slug": "bosch-global-software-technologies-vietnam-embedded-software-engineer-automotive",
-      "jobCategory": {
-        "name": "Embedded Engineering"
-      },
-      "experienceLevel": {
-        "name": "Mid-level",
-        "code": "mid"
-      },
-      "employmentType": {
-        "name": "Full-time"
-      },
-      "workingDays": "Thứ 2 - Thứ 6",
-      "educationLevel": "BACHELOR",
-      "salaryMin": "25000000",
-      "salaryMax": "50000000",
-      "salaryCurrency": "VND",
-      "salaryPeriod": "MONTH",
-      "salaryIsNegotiable": true,
-      "salaryIsVisible": true,
-      "vacanciesCount": 3,
-      "status": "PUBLISHED",
-      "moderationStatus": "APPROVED",
-      "moderationNote": null,
-      "reason": null,
-      "publishedAt": "2026-07-08T04:30:00.000Z",
-      "expiredAt": "2026-08-22T16:59:59.000Z",
-      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Phát triển và kiểm thử phần mềm nhúng cho các hệ thống automotive theo tiêu chuẩn kỹ thuật của dự án.</li><li>Tham gia phân tích yêu cầu, thiết kế module, coding, unit test, integration test và xử lý lỗi phần mềm.</li><li>Làm việc với C/C++, microcontroller, communication protocol và các công cụ debugging trong môi trường embedded.</li><li>Phối hợp với các team kỹ thuật trong và ngoài Việt Nam để đảm bảo tiến độ và chất lượng delivery.</li><li>Đọc hiểu tài liệu yêu cầu, specification và tham gia review thiết kế kỹ thuật.</li><li>Thực hiện static analysis, coding guideline check và cải thiện chất lượng source code.</li><li>Hỗ trợ phân tích lỗi hệ thống, tái hiện lỗi và đưa ra phương án khắc phục.</li><li>Tham gia cải tiến quy trình phát triển phần mềm nhúng theo chuẩn chất lượng của khách hàng.</li></ul></div></details>",
-      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 2 năm kinh nghiệm phát triển phần mềm nhúng với C/C++.</li><li>Có kiến thức về microcontroller, memory management, interrupt, RTOS hoặc bare-metal programming.</li><li>Hiểu một số giao thức truyền thông như CAN, LIN, SPI, I2C, UART hoặc Ethernet là lợi thế.</li><li>Có kinh nghiệm unit testing, debugging, static analysis hoặc integration testing.</li><li>Biết AUTOSAR, ISO 26262, automotive software process hoặc embedded Linux là lợi thế.</li><li>Có khả năng đọc hiểu tài liệu kỹ thuật tiếng Anh.</li><li>Tư duy cẩn thận, logic, chú trọng chất lượng và an toàn hệ thống.</li><li>Có khả năng làm việc nhóm tốt trong môi trường kỹ thuật quốc tế.</li></ul></div></details>",
-      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Môi trường kỹ thuật quốc tế, quy trình phát triển phần mềm chuyên nghiệp.</li><li>Cơ hội làm việc với sản phẩm công nghệ phức tạp trong lĩnh vực automotive và embedded systems.</li><li>Được đào tạo chuyên môn, kỹ năng và chứng chỉ kỹ thuật liên quan đến automotive software.</li><li>Phúc lợi ổn định, phù hợp với môi trường doanh nghiệp toàn cầu.</li><li>Lộ trình phát triển lên Senior Embedded Engineer, Technical Lead hoặc System Engineer.</li><li>Cơ hội làm việc với nhiều team kỹ thuật quốc tế và học hỏi quy trình chuẩn công nghiệp.</li></ul></div></details>",
-      "skills": [
-        { "name": "C", "priority": "REQUIRED", "minYearsExperience": 2 },
-        { "name": "C++", "priority": "REQUIRED" },
-        { "name": "Embedded Systems", "priority": "REQUIRED" },
-        { "name": "RTOS", "priority": "PREFERRED" },
-        { "name": "CAN", "priority": "PREFERRED" },
-        { "name": "AUTOSAR", "priority": "PREFERRED" },
-        { "name": "English", "priority": "REQUIRED" }
-      ],
-      "locations": [
-        {
-          "country": "Vietnam",
-          "workingModel": "HYBRID",
-          "city": "Hồ Chí Minh",
-          "district": "Tân Bình",
-          "address": "364 Cộng Hòa, Phường Tân Bình, Thành phố Hồ Chí Minh"
-        }
-      ],
-      "specializations": [
-        { "name": "Embedded", "slug": "embedded", "isRequired": true },
-        { "name": "Automotive", "slug": "automotive", "isRequired": true }
-      ]
-    },
-    {
-      "companySlug": "sendo-technology",
-      "title": "QA Automation Engineer",
-      "slug": "sendo-technology-qa-automation-engineer",
-      "jobCategory": {
-        "name": "Quality Assurance"
-      },
-      "experienceLevel": {
-        "name": "Mid-level",
-        "code": "mid"
-      },
-      "employmentType": {
-        "name": "Full-time"
-      },
-      "workingDays": "Thứ 2 - Thứ 6",
-      "educationLevel": "ANY",
-      "salaryMin": "22000000",
-      "salaryMax": "40000000",
-      "salaryCurrency": "VND",
-      "salaryPeriod": "MONTH",
-      "salaryIsNegotiable": true,
-      "salaryIsVisible": true,
-      "vacanciesCount": 2,
-      "status": "PUBLISHED",
-      "moderationStatus": "APPROVED",
-      "moderationNote": null,
-      "reason": null,
-      "publishedAt": "2026-07-08T05:00:00.000Z",
-      "expiredAt": "2026-08-22T16:59:59.000Z",
-      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Xây dựng và duy trì automation test cho web, mobile hoặc API của nền tảng e-commerce.</li><li>Thiết kế test plan, test case, test scenario và phối hợp với developer để phát hiện lỗi sớm trong vòng đời phát triển.</li><li>Phát triển automation script bằng Playwright, Cypress, Selenium, Appium hoặc công cụ phù hợp với hệ thống.</li><li>Tích hợp automation test vào CI/CD pipeline để hỗ trợ regression test trước mỗi lần release.</li><li>Thực hiện API testing, UI testing, regression testing và hỗ trợ kiểm thử tính năng mới.</li><li>Phân tích lỗi, ghi nhận bug rõ ràng, theo dõi trạng thái bug và xác nhận kết quả fix.</li><li>Đề xuất cải tiến quy trình kiểm thử, test coverage và tiêu chuẩn chất lượng sản phẩm.</li><li>Làm việc cùng Product, Engineering và Operations để hiểu đầy đủ nghiệp vụ e-commerce.</li></ul></div></details>",
-      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 2 năm kinh nghiệm QA/QC, trong đó có kinh nghiệm automation testing.</li><li>Có kinh nghiệm với ít nhất một công cụ automation như Playwright, Cypress, Selenium hoặc Appium.</li><li>Có kinh nghiệm API testing với Postman, REST Assured hoặc công cụ tương đương.</li><li>Hiểu quy trình kiểm thử phần mềm, bug lifecycle, test case design và regression testing.</li><li>Có khả năng đọc hiểu requirement, phân tích edge case và đặt câu hỏi rõ ràng với Product/Developer.</li><li>Biết JavaScript, TypeScript, Java hoặc Python là lợi thế.</li><li>Hiểu CI/CD, Git và môi trường Agile/Scrum là lợi thế.</li><li>Cẩn thận, có tư duy chất lượng sản phẩm và chủ động trong việc phát hiện rủi ro.</li></ul></div></details>",
-      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trên sản phẩm e-commerce có người dùng thật và luồng nghiệp vụ đa dạng.</li><li>Cơ hội phát triển từ QA Automation sang Quality Engineering hoặc Test Lead.</li><li>Được tham gia cải tiến quy trình release, test coverage và chất lượng sản phẩm.</li><li>Môi trường phối hợp gần với Product, Engineering và Operations.</li><li>Được học thêm về marketplace, seller tools, order flow và campaign operation.</li><li>Phúc lợi theo chính sách công ty và năng lực cá nhân.</li></ul></div></details>",
-      "skills": [
-        { "name": "QA Automation", "priority": "REQUIRED", "minYearsExperience": 2 },
-        { "name": "API Testing", "priority": "REQUIRED" },
-        { "name": "Manual Testing", "priority": "REQUIRED" },
-        { "name": "Playwright", "priority": "PREFERRED" },
-        { "name": "Cypress", "priority": "PREFERRED" },
-        { "name": "Postman", "priority": "REQUIRED" },
-        { "name": "CI/CD", "priority": "PREFERRED" }
-      ],
-      "locations": [
-        {
-          "country": "Vietnam",
-          "workingModel": "HYBRID",
-          "city": "Hồ Chí Minh",
-          "district": "Quận 7",
-          "address": "Khu chế xuất Tân Thuận, Phường Tân Thuận, Thành phố Hồ Chí Minh"
-        }
-      ],
-      "specializations": [
-        { "name": "QA", "slug": "qa", "isRequired": true },
-        { "name": "Automation Testing", "slug": "automation-testing", "isRequired": true }
-      ]
-    },
-    {
-      "companySlug": "be-group",
-      "title": "Mobile Engineer - Android",
-      "slug": "be-group-mobile-engineer-android",
-      "jobCategory": {
-        "name": "Mobile Engineering"
-      },
-      "experienceLevel": {
-        "name": "Mid-level",
-        "code": "mid"
-      },
-      "employmentType": {
-        "name": "Full-time"
-      },
-      "workingDays": "Thứ 2 - Thứ 6",
-      "educationLevel": "ANY",
-      "salaryMin": "30000000",
-      "salaryMax": "55000000",
-      "salaryCurrency": "VND",
-      "salaryPeriod": "MONTH",
-      "salaryIsNegotiable": true,
-      "salaryIsVisible": true,
-      "vacanciesCount": 2,
-      "status": "PUBLISHED",
-      "moderationStatus": "APPROVED",
-      "moderationNote": null,
-      "reason": null,
-      "publishedAt": "2026-07-08T05:30:00.000Z",
-      "expiredAt": "2026-08-22T16:59:59.000Z",
-      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Phát triển ứng dụng Android phục vụ các luồng di chuyển, giao nhận, ví dịch vụ hoặc trải nghiệm người dùng trong hệ sinh thái Be.</li><li>Làm việc với Product, Design, Backend và QA để phân tích yêu cầu, xây dựng tính năng mới và tối ưu trải nghiệm mobile.</li><li>Tối ưu hiệu năng ứng dụng, thời gian phản hồi, crash rate, ANR và trải nghiệm trên nhiều loại thiết bị Android.</li><li>Tích hợp API, push notification, maps/location, payment flow và các SDK cần thiết cho sản phẩm.</li><li>Tham gia review code, cải thiện kiến trúc ứng dụng, chuẩn hóa module và quy trình release mobile.</li><li>Theo dõi crash report, phân tích log và phối hợp xử lý sự cố production liên quan đến ứng dụng Android.</li><li>Đóng góp ý tưởng cải thiện UX, stability và maintainability của mobile app.</li><li>Làm việc trong môi trường sản phẩm có vận hành thực tế và dữ liệu người dùng lớn.</li></ul></div></details>",
-      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 3 năm kinh nghiệm phát triển Android native.</li><li>Thành thạo Kotlin, Android SDK, Jetpack, lifecycle, coroutine và dependency injection.</li><li>Có kinh nghiệm với MVVM, Clean Architecture hoặc modular architecture.</li><li>Có kinh nghiệm tích hợp REST API, push notification, maps/location hoặc payment flow.</li><li>Hiểu performance optimization, memory management, crash/ANR analysis và release process trên Google Play.</li><li>Biết unit test, UI test, CI/CD cho mobile là lợi thế.</li><li>Có tư duy sản phẩm, quan tâm đến trải nghiệm người dùng và chất lượng ứng dụng.</li><li>Làm việc nhóm tốt, giao tiếp rõ ràng với Product, Design và Backend.</li></ul></div></details>",
-      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trên sản phẩm mobile phục vụ thị trường Việt Nam và có nhiều nghiệp vụ vận hành thực tế.</li><li>Cơ hội giải quyết bài toán location, marketplace, delivery và user experience.</li><li>Môi trường trẻ, linh hoạt, phối hợp chặt chẽ giữa Product, Engineering và Operations.</li><li>Cơ hội phát triển lên Senior Mobile Engineer, Mobile Lead hoặc Engineering Manager.</li><li>Được tham gia cải thiện kiến trúc app, quy trình release và chất lượng sản phẩm.</li><li>Chính sách phúc lợi theo năng lực và hiệu quả công việc.</li></ul></div></details>",
-      "skills": [
-        { "name": "Kotlin", "priority": "REQUIRED", "minYearsExperience": 3 },
-        { "name": "Android", "priority": "REQUIRED" },
-        { "name": "Mobile App", "priority": "REQUIRED" },
-        { "name": "RESTful API", "priority": "REQUIRED" },
-        { "name": "Clean Architecture", "priority": "PREFERRED" },
-        { "name": "Maps", "priority": "PREFERRED" },
-        { "name": "Git", "priority": "REQUIRED" }
-      ],
-      "locations": [
-        {
-          "country": "Vietnam",
-          "workingModel": "HYBRID",
-          "city": "Hồ Chí Minh",
-          "district": "Quận 1",
-          "address": "29 Lê Duẩn, Phường Sài Gòn, Thành phố Hồ Chí Minh"
-        }
-      ],
-      "specializations": [
-        { "name": "Mobile", "slug": "mobile", "isRequired": true },
-        { "name": "Android", "slug": "android", "isRequired": true }
-      ]
-    },
-    {
-      "companySlug": "nashtech-vietnam",
-      "title": "Business Analyst - Software Delivery",
-      "slug": "nashtech-vietnam-business-analyst-software-delivery",
-      "jobCategory": {
-        "name": "Business Analysis"
-      },
-      "experienceLevel": {
-        "name": "Mid-level",
-        "code": "mid"
-      },
-      "employmentType": {
-        "name": "Full-time"
-      },
-      "workingDays": "Thứ 2 - Thứ 6",
-      "educationLevel": "BACHELOR",
-      "salaryMin": "25000000",
-      "salaryMax": "45000000",
-      "salaryCurrency": "VND",
-      "salaryPeriod": "MONTH",
-      "salaryIsNegotiable": true,
-      "salaryIsVisible": true,
-      "vacanciesCount": 2,
-      "status": "PUBLISHED",
-      "moderationStatus": "APPROVED",
-      "moderationNote": null,
-      "reason": null,
-      "publishedAt": "2026-07-08T06:00:00.000Z",
-      "expiredAt": "2026-08-22T16:59:59.000Z",
-      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Làm việc với khách hàng và đội dự án để thu thập, phân tích và làm rõ yêu cầu phần mềm.</li><li>Viết tài liệu BRD, SRS, user story, acceptance criteria, workflow và các tài liệu đặc tả cần thiết.</li><li>Phối hợp với UI/UX, Developer, QA và Project Manager trong suốt vòng đời phát triển sản phẩm.</li><li>Hỗ trợ Product Owner/Project Manager trong backlog refinement, sprint planning và quản lý thay đổi yêu cầu.</li><li>Tham gia demo tính năng, ghi nhận phản hồi và hỗ trợ kiểm thử nghiệm thu với stakeholder.</li><li>Phân tích gap giữa yêu cầu kinh doanh và giải pháp kỹ thuật, đề xuất phương án phù hợp.</li><li>Chuẩn hóa requirement để giảm hiểu nhầm giữa khách hàng và team phát triển.</li><li>Hỗ trợ onboarding thành viên mới về nghiệp vụ dự án nếu cần.</li></ul></div></details>",
-      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 2 năm kinh nghiệm Business Analyst trong dự án phần mềm.</li><li>Có khả năng giao tiếp tiếng Anh với khách hàng hoặc stakeholder quốc tế.</li><li>Hiểu quy trình Agile/Scrum, có kinh nghiệm viết user story và acceptance criteria.</li><li>Biết sử dụng Jira, Confluence, Figma, Miro hoặc công cụ quản lý yêu cầu tương đương.</li><li>Có khả năng vẽ flow, wireframe, BPMN, UML hoặc sequence diagram là lợi thế.</li><li>Tư duy logic, kỹ năng đặt câu hỏi và phân tích vấn đề tốt.</li><li>Có khả năng phối hợp tốt với Developer/QA để làm rõ yêu cầu và xử lý edge case.</li><li>Ưu tiên ứng viên từng làm dự án outsourcing hoặc làm việc trực tiếp với khách hàng nước ngoài.</li></ul></div></details>",
-      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Dự án quốc tế đa lĩnh vực, giúp phát triển kỹ năng BA và domain knowledge.</li><li>Cơ hội sử dụng tiếng Anh thường xuyên trong môi trường delivery chuyên nghiệp.</li><li>Lộ trình phát triển sang Senior BA, Product Owner, Project Coordinator hoặc Project Manager.</li><li>Được làm việc cùng đội ngũ kỹ thuật, QA và quản lý dự án có kinh nghiệm.</li><li>Được đào tạo nội bộ về quy trình, kỹ năng giao tiếp khách hàng và phương pháp phân tích yêu cầu.</li><li>Phúc lợi ổn định trong môi trường outsourcing chuyên nghiệp.</li></ul></div></details>",
-      "skills": [
-        { "name": "Business Analysis", "priority": "REQUIRED", "minYearsExperience": 2 },
-        { "name": "Agile", "priority": "REQUIRED" },
-        { "name": "User Story", "priority": "REQUIRED" },
-        { "name": "English", "priority": "REQUIRED" },
-        { "name": "UML", "priority": "PREFERRED" },
-        { "name": "Wireframing", "priority": "PREFERRED" },
-        { "name": "Jira", "priority": "PREFERRED" }
-      ],
-      "locations": [
-        {
-          "country": "Vietnam",
-          "workingModel": "HYBRID",
-          "city": "Hồ Chí Minh",
-          "district": "Tân Bình",
-          "address": "Tòa nhà E.town, 364 Cộng Hòa, Phường Tân Bình, Thành phố Hồ Chí Minh"
-        }
-      ],
-      "specializations": [
-        { "name": "Business Analysis", "slug": "business-analysis", "isRequired": true },
-        { "name": "Software Delivery", "slug": "software-delivery", "isRequired": true }
-      ]
-    },
-    {
-      "companySlug": "momo",
-      "title": "Risk Data Scientist",
-      "slug": "momo-risk-data-scientist",
-      "jobCategory": {
-        "name": "Data Science"
-      },
-      "experienceLevel": {
-        "name": "Senior",
-        "code": "senior"
-      },
-      "employmentType": {
-        "name": "Full-time"
-      },
-      "workingDays": "Thứ 2 - Thứ 6",
-      "educationLevel": "BACHELOR",
-      "salaryMin": "45000000",
-      "salaryMax": "80000000",
-      "salaryCurrency": "VND",
-      "salaryPeriod": "MONTH",
-      "salaryIsNegotiable": true,
-      "salaryIsVisible": true,
-      "vacanciesCount": 1,
-      "status": "PUBLISHED",
-      "moderationStatus": "APPROVED",
-      "moderationNote": null,
-      "reason": null,
-      "publishedAt": "2026-07-08T06:30:00.000Z",
-      "expiredAt": "2026-08-22T16:59:59.000Z",
-      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Xây dựng mô hình phát hiện rủi ro, gian lận và bất thường trong giao dịch tài chính số.</li><li>Phân tích dữ liệu hành vi người dùng, transaction pattern, merchant activity và các tín hiệu rủi ro liên quan.</li><li>Phối hợp với Risk, Product, Engineering và Data Platform để triển khai mô hình vào hệ thống production.</li><li>Thiết kế feature, xây dựng pipeline huấn luyện model và đánh giá hiệu quả mô hình bằng các chỉ số phù hợp.</li><li>Theo dõi hiệu quả model sau khi triển khai, tối ưu threshold và cải thiện precision/recall theo từng use case.</li><li>Phân tích false positive/false negative, đề xuất rule/model adjustment nhằm cân bằng giữa rủi ro và trải nghiệm người dùng.</li><li>Chuẩn bị báo cáo, giải thích kết quả mô hình cho stakeholder không chuyên về kỹ thuật.</li><li>Đóng góp vào hệ thống monitoring, alerting và quy trình governance cho mô hình machine learning.</li></ul></div></details>",
-      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Từ 4 năm kinh nghiệm Data Science, Machine Learning hoặc Risk Analytics.</li><li>Thành thạo Python, SQL, machine learning model development và model evaluation.</li><li>Có kinh nghiệm với classification, anomaly detection, fraud detection, risk scoring hoặc recommendation model.</li><li>Hiểu feature engineering, experiment tracking, model validation và production model monitoring.</li><li>Có kinh nghiệm xử lý dữ liệu lớn, dữ liệu transaction hoặc dữ liệu hành vi người dùng là lợi thế.</li><li>Biết các thư viện như pandas, scikit-learn, XGBoost, LightGBM, PySpark hoặc tương đương.</li><li>Có khả năng giải thích model insight cho stakeholder và chuyển kết quả phân tích thành hành động.</li><li>Ưu tiên ứng viên từng làm trong fintech, payment, banking, lending hoặc fraud/risk domain.</li></ul></div></details>",
-      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc trong lĩnh vực fintech với dữ liệu giao dịch quy mô lớn và bài toán có tác động thực tế.</li><li>Cơ hội giải quyết bài toán risk/fraud ảnh hưởng trực tiếp đến người dùng, merchant và hoạt động kinh doanh.</li><li>Phối hợp với nhiều team chuyên môn cao: Risk, Product, Engineering, Data Platform và Business.</li><li>Cơ hội phát triển sâu về applied machine learning, risk modeling và production ML system.</li><li>Chính sách đãi ngộ cạnh tranh cho vị trí chuyên môn cao.</li><li>Môi trường sản phẩm nhanh, nhiều dữ liệu và định hướng đo lường rõ ràng.</li></ul></div></details>",
-      "skills": [
-        { "name": "Python", "priority": "REQUIRED", "minYearsExperience": 4 },
-        { "name": "SQL", "priority": "REQUIRED" },
-        { "name": "Machine Learning", "priority": "REQUIRED" },
-        { "name": "Data Science", "priority": "REQUIRED" },
-        { "name": "Fraud Detection", "priority": "PREFERRED" },
-        { "name": "Risk Scoring", "priority": "PREFERRED" },
-        { "name": "Fintech", "priority": "PREFERRED" }
-      ],
-      "locations": [
-        {
-          "country": "Vietnam",
-          "workingModel": "HYBRID",
-          "city": "Hồ Chí Minh",
-          "district": "Quận 7",
-          "address": "Tòa nhà Phú Mỹ Hưng, số 8 Hoàng Văn Thái, Phường Tân Mỹ, Thành phố Hồ Chí Minh"
-        }
-      ],
-      "specializations": [
-        { "name": "Data Science", "slug": "data-science", "isRequired": true },
-        { "name": "Fintech", "slug": "fintech", "isRequired": true },
-        { "name": "Risk", "slug": "risk", "isRequired": true }
-      ]
-    },
-    {
-      "companySlug": "cmc-global",
-      "title": "Cloud DevOps Engineer",
-      "slug": "cmc-global-cloud-devops-engineer",
-      "jobCategory": {
-        "name": "DevOps Engineering"
-      },
-      "experienceLevel": {
-        "name": "Mid-level",
-        "code": "mid"
-      },
-      "employmentType": {
-        "name": "Full-time"
-      },
-      "workingDays": "Thứ 2 - Thứ 6",
-      "educationLevel": "ANY",
-      "salaryMin": "30000000",
-      "salaryMax": "55000000",
-      "salaryCurrency": "VND",
-      "salaryPeriod": "MONTH",
-      "salaryIsNegotiable": true,
-      "salaryIsVisible": true,
-      "vacanciesCount": 2,
-      "status": "PUBLISHED",
-      "moderationStatus": "APPROVED",
-      "moderationNote": null,
-      "reason": null,
-      "publishedAt": "2026-07-08T07:00:00.000Z",
-      "expiredAt": "2026-08-22T16:59:59.000Z",
-      "description": "<details><summary><strong>Mô tả công việc</strong></summary><div><ul><li>Thiết kế, triển khai và vận hành hạ tầng cloud cho các dự án phần mềm trong và ngoài nước.</li><li>Xây dựng CI/CD pipeline, monitoring, logging, alerting và quy trình release tự động.</li><li>Phối hợp với Developer, QA và Project Manager để đảm bảo hệ thống ổn định, bảo mật và dễ mở rộng.</li><li>Triển khai containerization bằng Docker, orchestration bằng Kubernetes hoặc dịch vụ cloud tương đương.</li><li>Quản lý infrastructure as code, cấu hình môi trường staging/production và chuẩn hóa deployment process.</li><li>Theo dõi hiệu năng hệ thống, phân tích sự cố và đề xuất giải pháp tăng reliability.</li><li>Tối ưu chi phí cloud, tài nguyên hạ tầng và quy trình vận hành.</li><li>Hỗ trợ team phát triển trong việc debug môi trường, cấu hình deployment và quản trị hệ thống.</li></ul></div></details>",
-      "requirements": "<details><summary><strong>Yêu cầu ứng viên</strong></summary><div><ul><li>Có từ 2 năm kinh nghiệm ở vị trí DevOps Engineer hoặc Cloud Engineer.</li><li>Có kinh nghiệm thực tế với AWS, Azure hoặc Google Cloud Platform.</li><li>Thành thạo Docker, Kubernetes và các công cụ CI/CD như Jenkins, Gitlab CI hoặc GitHub Actions.</li><li>Có kinh nghiệm về Infrastructure as Code (Terraform hoặc CloudFormation).</li><li>Có kiến thức về scripting (Bash, Python).</li><li>Có khả năng tự học công nghệ mới nhanh và giải quyết sự cố độc lập.</li></ul></div></details>",
-      "benefits": "<details><summary><strong>Quyền lợi</strong></summary><div><ul><li>Làm việc với các công nghệ cloud và DevOps hiện đại trong các dự án quy mô lớn.</li><li>Được tham gia các khóa đào tạo chuyên sâu và hỗ trợ thi chứng chỉ Cloud/DevOps.</li><li>Môi trường năng động, cơ hội thăng tiến rõ ràng lên Senior, Tech Lead.</li><li>Chế độ lương thưởng hấp dẫn và các phúc lợi đầy đủ theo luật lao động.</li></ul></div></details>",
-      "skills": [
-        { "name": "AWS", "priority": "REQUIRED", "minYearsExperience": 2 },
-        { "name": "Docker", "priority": "REQUIRED" },
-        { "name": "Kubernetes", "priority": "REQUIRED" },
-        { "name": "CI/CD", "priority": "REQUIRED" }
-      ],
-      "locations": [
-        {
-          "country": "Vietnam",
-          "workingModel": "HYBRID",
-          "city": "Hà Nội",
-          "district": "Cầu Giấy",
-          "address": "CMC Tower, số 11 phố Duy Tân, Phường Cầu Giấy, Hà Nội"
-        }
-      ],
-      "specializations": [
-        { "name": "DevOps", "slug": "devops", "isRequired": true },
-        { "name": "Cloud", "slug": "cloud", "isRequired": true }
-      ]
+  const recruiterByCompanyId = recruiters.reduce((acc: Record<string, any>, recruiter: any) => {
+    const existing = acc[recruiter.companyId];
+    if (!existing || recruiter.roleCode === 'OWNER') {
+      acc[recruiter.companyId] = recruiter;
     }
-  ];
+    return acc;
+  }, {});
+
+  const jobDefinitions = loadJobPostSeedData();
 
   const jobs = [];
 
@@ -5764,6 +5297,142 @@ async function importItviecData(
   }
 
   console.log(`Successfully imported ${importedJobsCount} jobs.`);
+
+  // Seed candidate CVs
+  await seedCandidatesAndApplications(prisma);
+}
+
+async function seedCandidatesAndApplications(prisma: PrismaClient) {
+  const TARGET_JOB_ID = '750987d8-9fb2-479b-bbac-28319773b9ae';
+
+  // Verify Job Post exists
+  const targetJob = await prisma.jobPost.findUnique({
+    where: { id: TARGET_JOB_ID }
+  });
+  if (!targetJob) {
+    console.log(`[SEED] Warning: Target job post ID ${TARGET_JOB_ID} not found. Skipping CV seeding.`);
+    return;
+  }
+
+  const candidatesJsonPath = path.join(__dirname, 'candidates.json');
+  if (!fs.existsSync(candidatesJsonPath)) {
+    console.log(`[SEED] Warning: File ${candidatesJsonPath} not found. Skipping CV seeding.`);
+    return;
+  }
+
+  const candidatesData = JSON.parse(fs.readFileSync(candidatesJsonPath, 'utf-8'));
+  console.log(`[SEED] Loading ${candidatesData.length} static candidate records from candidates.json.`);
+
+  const cvDir = path.join(process.cwd(), 'uploads', 'cv');
+  if (!fs.existsSync(cvDir)) {
+    fs.mkdirSync(cvDir, { recursive: true });
+  }
+
+  const passwordHash = await hash('password123', 10);
+  let successCount = 0;
+
+  for (const item of candidatesData) {
+    try {
+      const { fullName, email, originalName, sizeBytes, parsedText } = item;
+
+      // Unique email check
+      let emailAddr = email;
+      const existingAccount = await prisma.candidateAccount.findUnique({
+        where: { email: emailAddr }
+      });
+      if (existingAccount) {
+        continue;
+      }
+
+      // If the original file exists in uploads/cv, copy/rename it to email.pdf
+      const originalPath = path.join(cvDir, originalName);
+      const cleanFileName = `${emailAddr}.pdf`;
+      const targetPath = path.join(cvDir, cleanFileName);
+
+      let actualSize = sizeBytes;
+      if (fs.existsSync(originalPath)) {
+        fs.copyFileSync(originalPath, targetPath);
+        actualSize = fs.statSync(targetPath).size;
+      } else {
+        fs.writeFileSync(targetPath, Buffer.alloc(0));
+        actualSize = 0;
+      }
+
+      // Create CandidateAccount
+      const candidateAccount = await prisma.candidateAccount.create({
+        data: {
+          fullName,
+          email: emailAddr,
+          passwordHash,
+          candidateAccountStatus: 'ACTIVE',
+          emailVerifiedAt: new Date(),
+        }
+      });
+
+      // Create CandidateProfile
+      const candidateProfile = await prisma.candidateProfile.create({
+        data: {
+          candidateAccountId: candidateAccount.id,
+          jobSearchStatus: 'OPEN_TO_WORK',
+          profileVisibility: 'PUBLIC',
+        }
+      });
+
+      // Create FileAsset
+      const publicUrl = `http://localhost:3001/uploads/cv/${cleanFileName}`;
+      const fileAsset = await prisma.fileAsset.create({
+        data: {
+          ownerType: 'candidate_cv',
+          ownerId: candidateProfile.id,
+          purpose: FilePurpose.CV,
+          visibility: FileVisibility.PUBLIC,
+          storageKey: `uploads/cv/${cleanFileName}`,
+          originalName,
+          mimeType: 'application/pdf',
+          sizeBytes: BigInt(actualSize),
+          publicUrl,
+        }
+      });
+
+      // Create CV
+      const cvRecord = await prisma.cV.create({
+        data: {
+          candidateProfileId: candidateProfile.id,
+          title: `CV - ${fullName}`,
+          source: CvSource.UPLOAD,
+          status: CvStatus.ACTIVE,
+          isDefault: true,
+        }
+      });
+
+      // Create CVVersion
+      const cvVersion = await prisma.cVVersion.create({
+        data: {
+          cvId: cvRecord.id,
+          sourceFileId: fileAsset.id,
+          versionNo: 1,
+          parsedText: parsedText || null,
+        }
+      });
+
+      // Create Application
+      await prisma.application.create({
+        data: {
+          jobPostId: TARGET_JOB_ID,
+          candidateProfileId: candidateProfile.id,
+          cvVersionId: cvVersion.id,
+          status: ApplicationStatus.SUBMITTED,
+          submittedAt: new Date(),
+        }
+      });
+
+      successCount++;
+    } catch (err) {
+      console.error(`[SEED] Failed to seed candidate: ${item.fullName}`, err);
+    }
+  }
+
+  console.log(`[SEED] Successfully seeded ${successCount} candidates.`);
 }
 
 main()

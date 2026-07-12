@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import {
   BadRequestException,
   ConflictException,
@@ -175,7 +176,11 @@ export class ApplicationsService {
             company: true,
           },
         },
-        cvVersion: true,
+        cvVersion: {
+          include: {
+            sourceFile: true,
+          },
+        },
       },
     });
 
@@ -201,7 +206,7 @@ export class ApplicationsService {
       throw new ForbiddenException('Authorization details missing');
     }
 
-    return application;
+    return this.mapApplicationCvVersion(application);
   }
 
   async getMyApplications(candidateAccountId: string) {
@@ -212,7 +217,7 @@ export class ApplicationsService {
       throw new NotFoundException('Candidate profile not found');
     }
 
-    return this.prisma.application.findMany({
+    const apps = await this.prisma.application.findMany({
       where: { candidateProfileId: profile.id },
       include: {
         jobPost: {
@@ -222,10 +227,16 @@ export class ApplicationsService {
             employmentType: true,
           },
         },
-        cvVersion: true,
+        cvVersion: {
+          include: {
+            sourceFile: true,
+          },
+        },
       },
       orderBy: { submittedAt: 'desc' },
     });
+
+    return apps.map((app) => this.mapApplicationCvVersion(app));
   }
 
   async getJobApplicants(jobId: string, recruiterId: string) {
@@ -248,7 +259,7 @@ export class ApplicationsService {
       );
     }
 
-    return this.prisma.application.findMany({
+    const apps = await this.prisma.application.findMany({
       where: { jobPostId: jobId },
       include: {
         candidateProfile: {
@@ -262,10 +273,16 @@ export class ApplicationsService {
             },
           },
         },
-        cvVersion: true,
+        cvVersion: {
+          include: {
+            sourceFile: true,
+          },
+        },
       },
       orderBy: { submittedAt: 'desc' },
     });
+
+    return apps.map((app) => this.mapApplicationCvVersion(app));
   }
 
   async checkAppliedJob(jobId: string, candidateAccountId: string) {
@@ -341,7 +358,7 @@ export class ApplicationsService {
       };
     }
 
-    return this.prisma.application.findMany({
+    const apps = await this.prisma.application.findMany({
       where: whereClause,
       include: {
         candidateProfile: {
@@ -361,10 +378,32 @@ export class ApplicationsService {
             title: true,
           },
         },
-        cvVersion: true,
+        cvVersion: {
+          include: {
+            sourceFile: true,
+          },
+        },
       },
       orderBy: { submittedAt: 'desc' },
     });
+
+    return apps.map((app) => this.mapApplicationCvVersion(app));
+  }
+
+  private mapApplicationCvVersion(app: any) {
+    if (!app) return null;
+    const cvVersion = app.cvVersion;
+    const fileAsset = cvVersion?.sourceFile;
+    return {
+      ...app,
+      cvVersion: cvVersion
+        ? {
+            ...cvVersion,
+            fileName: fileAsset?.originalName || `CV-${app.candidateProfile?.account?.fullName || 'Candidate'}.pdf`,
+            fileUrl: fileAsset?.publicUrl || '',
+          }
+        : null,
+    };
   }
 
   async getRecruiterPipeline(
