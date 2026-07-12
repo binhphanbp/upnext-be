@@ -90,9 +90,10 @@ enum InterviewStatus {
 }
 
 enum InterviewResult {
-  PENDING @map("pending") // đang chờ
-  PASSED  @map("passed") // qua vòng
-  FAILED  @map("failed") // không qua vòng
+  PENDING      @map("pending") // đang chờ
+  PASSED       @map("passed") // qua vòng
+  FAILED       @map("failed") // không qua vòng
+  UNDER_REVIEW @map("under_review") // cần xem xét thêm
 }
 
 enum WorkingModel {
@@ -299,6 +300,8 @@ model CandidateAccount {
   providerUserId         String?       @map("provider_user_id") @db.VarChar(255)
   candidateAccountStatus AccountStatus @default(ACTIVE) @map("candidate_account_status")
   emailVerifiedAt        DateTime?     @map("email_verified_at")
+  zaloChatId             String?       @unique @map("zalo_chat_id") @db.VarChar(100)
+  zaloLinkCode           String?       @unique @map("zalo_link_code") @db.VarChar(20)
   createdAt              DateTime      @default(now()) @map("created_at")
   updatedAt              DateTime      @updatedAt @map("updated_at")
 
@@ -783,6 +786,8 @@ model RecruiterAccount {
   providerUserId  String?       @map("provider_user_id") @db.VarChar(255)
   status          AccountStatus @default(ACTIVE)
   emailVerifiedAt DateTime?     @map("email_verified_at")
+  zaloChatId      String?       @unique @map("zalo_chat_id") @db.VarChar(100)
+  zaloLinkCode    String?       @unique @map("zalo_link_code") @db.VarChar(20)
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
@@ -1216,6 +1221,7 @@ model Interview {
   maxRescheduleCount Int             @default(3) @map("max_reschedule_count")
   candidateNote      String?         @map("candidate_note") @db.Text
   calendarEventId    String?         @map("calendar_event_id") @db.VarChar(255)
+  reminderSentAt     DateTime?       @map("reminder_sent_at")
   createdAt          DateTime        @default(now()) @map("created_at")
   updatedAt          DateTime        @updatedAt @map("updated_at")
 

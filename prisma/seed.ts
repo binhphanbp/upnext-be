@@ -13,6 +13,7 @@ import {
   Gender,
   InterviewResult,
   InterviewStatus,
+  InterviewType,
   JobSearchStatus,
   JobStatus,
   ModerationStatus,
@@ -3963,24 +3964,61 @@ async function main() {
       const startAt = new Date(interviewDate.setHours(10, 0, 0, 0));
       const endAt = new Date(interviewDate.setHours(11, 0, 0, 0));
 
-      const isCompleted =
-        [ApplicationStatus.OFFERED, ApplicationStatus.HIRED].includes(targetStatus) ||
-        (targetStatus === ApplicationStatus.INTERVIEWING && Math.random() < 0.5);
+      const interviewType: InterviewType =
+        Math.random() < 0.3 ? InterviewType.ONSITE : InterviewType.ONLINE;
+
+      let interviewStatus: InterviewStatus;
+      let interviewResult: InterviewResult;
+      let recruiterNote: string;
+
+      if ([ApplicationStatus.OFFERED, ApplicationStatus.HIRED].includes(targetStatus)) {
+        interviewStatus = InterviewStatus.COMPLETED;
+        interviewResult = InterviewResult.PASSED;
+        recruiterNote = 'Candidate showed good communications and technical depth.';
+      } else {
+        const outcomeRoll = Math.random();
+        if (outcomeRoll < 0.4) {
+          interviewStatus = InterviewStatus.SCHEDULED;
+          interviewResult = InterviewResult.PENDING;
+          recruiterNote = 'Interview scheduled, awaiting outcome.';
+        } else if (outcomeRoll < 0.55) {
+          interviewStatus = InterviewStatus.RESCHEDULED;
+          interviewResult = InterviewResult.PENDING;
+          recruiterNote = 'Candidate requested a new time slot.';
+        } else if (outcomeRoll < 0.7) {
+          interviewStatus = InterviewStatus.COMPLETED;
+          interviewResult = InterviewResult.PASSED;
+          recruiterNote = 'Candidate showed good communications and technical depth.';
+        } else if (outcomeRoll < 0.85) {
+          interviewStatus = InterviewStatus.COMPLETED;
+          interviewResult = InterviewResult.FAILED;
+          recruiterNote = 'Candidate lacked the required technical depth for this role.';
+        } else if (outcomeRoll < 0.93) {
+          interviewStatus = InterviewStatus.CANCELLED;
+          interviewResult = InterviewResult.PENDING;
+          recruiterNote = 'Interview cancelled by recruiter due to a scheduling conflict.';
+        } else {
+          interviewStatus = InterviewStatus.NO_SHOW;
+          interviewResult = InterviewResult.PENDING;
+          recruiterNote = 'Candidate did not join the scheduled interview.';
+        }
+      }
 
       interviewsData.push({
         id: interviewId,
         recruiterProfileId,
         applicationId: app.id,
         interviewRound: 1,
-        type: 'ONLINE',
+        type: interviewType,
         scheduledStartAt: startAt,
         scheduledEndAt: endAt,
-        meetingUrl: 'https://zoom.us/j/upnext-mock-meeting',
-        location: null,
-        status: isCompleted ? InterviewStatus.COMPLETED : InterviewStatus.SCHEDULED,
-        result: isCompleted ? InterviewResult.PASSED : InterviewResult.PENDING,
-        recruiterNote: 'Candidate showed good communications and technical depth.',
-        rescheduleCount: 0,
+        meetingUrl:
+          interviewType === InterviewType.ONLINE ? 'https://zoom.us/j/upnext-mock-meeting' : null,
+        location: interviewType === InterviewType.ONSITE ? 'Tầng 5, văn phòng công ty' : null,
+        status: interviewStatus,
+        result: interviewResult,
+        recruiterNote,
+        rescheduleCount: interviewStatus === InterviewStatus.RESCHEDULED ? 1 : 0,
       });
 
       interviewLogsData.push({
@@ -3994,7 +4032,42 @@ async function main() {
         createdAt: addDays(baseTime, 2),
       });
 
-      if (isCompleted) {
+      if (interviewStatus === InterviewStatus.RESCHEDULED) {
+        interviewLogsData.push({
+          id: randomUUID(),
+          interviewId,
+          oldStatus: InterviewStatus.SCHEDULED,
+          newStatus: InterviewStatus.RESCHEDULED,
+          proposedStartAt: addDays(startAt, 2),
+          proposedEndAt: addDays(endAt, 2),
+          actorType: ActorType.CANDIDATE,
+          actorId: candidateAccountId,
+          note: 'Candidate requested to reschedule the interview',
+          createdAt: addDays(baseTime, 3),
+        });
+      } else if (interviewStatus === InterviewStatus.CANCELLED) {
+        interviewLogsData.push({
+          id: randomUUID(),
+          interviewId,
+          oldStatus: InterviewStatus.SCHEDULED,
+          newStatus: InterviewStatus.CANCELLED,
+          actorType: ActorType.RECRUITER,
+          actorId: recruiterAccountId,
+          note: 'Interview cancelled due to a scheduling conflict',
+          createdAt: addDays(baseTime, 3),
+        });
+      } else if (interviewStatus === InterviewStatus.NO_SHOW) {
+        interviewLogsData.push({
+          id: randomUUID(),
+          interviewId,
+          oldStatus: InterviewStatus.SCHEDULED,
+          newStatus: InterviewStatus.NO_SHOW,
+          actorType: ActorType.RECRUITER,
+          actorId: recruiterAccountId,
+          note: 'Candidate did not show up for the interview',
+          createdAt: endAt,
+        });
+      } else if (interviewStatus === InterviewStatus.COMPLETED) {
         interviewLogsData.push({
           id: randomUUID(),
           interviewId,
@@ -4002,7 +4075,7 @@ async function main() {
           newStatus: InterviewStatus.COMPLETED,
           actorType: ActorType.RECRUITER,
           actorId: recruiterAccountId,
-          note: 'Interview status changed to COMPLETED',
+          note: `Interview result recorded: ${interviewResult}`,
           createdAt: endAt,
         });
       }

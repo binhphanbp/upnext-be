@@ -133,7 +133,16 @@ export class InterviewsService {
         application: {
           include: {
             jobPost: true,
-            candidateProfile: true,
+            candidateProfile: {
+              include: {
+                account: {
+                  select: {
+                    fullName: true,
+                    email: true,
+                  },
+                },
+              },
+            },
           },
         },
         recruiterProfile: true,
@@ -181,6 +190,7 @@ export class InterviewsService {
           include: {
             jobPost: {
               select: {
+                id: true,
                 title: true,
                 company: { select: { name: true } },
               },
@@ -410,6 +420,9 @@ export class InterviewsService {
       throw new BadRequestException('Cannot update result of a cancelled interview');
     }
 
+    const nextStatus =
+      dto.result === InterviewResult.UNDER_REVIEW ? interview.status : InterviewStatus.COMPLETED;
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const feedback = dto.feedbackNote ? `[Feedback]: ${dto.feedbackNote}` : '';
       const updatedNote = interview.recruiterNote
@@ -420,7 +433,7 @@ export class InterviewsService {
         where: { id },
         data: {
           result: dto.result,
-          status: InterviewStatus.COMPLETED,
+          status: nextStatus,
           recruiterNote: updatedNote || null,
         },
       });
@@ -429,7 +442,7 @@ export class InterviewsService {
         data: {
           interviewId: id,
           oldStatus: interview.status,
-          newStatus: InterviewStatus.COMPLETED,
+          newStatus: nextStatus,
           actorType: user.role,
           actorId: user.id,
           note: `Cập nhật kết quả phỏng vấn: ${dto.result}`,

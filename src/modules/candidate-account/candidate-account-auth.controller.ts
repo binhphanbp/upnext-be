@@ -1,5 +1,5 @@
 import { Body, Controller, Post, Get, Req, Res, UseGuards } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -38,6 +38,7 @@ export class CandidateAccountAuthController {
   }
 
   @Public()
+  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @ApiOperation({ summary: 'Đăng nhập tài khoản ứng viên' })

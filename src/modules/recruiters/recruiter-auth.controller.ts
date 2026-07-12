@@ -1,5 +1,5 @@
 import { Body, Controller, Post, Get, Req, Res, UseGuards } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -40,6 +40,7 @@ export class RecruiterAuthController {
   }
 
   @Public()
+  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @ApiOperation({ summary: 'Đăng nhập nhà tuyển dụng' })
@@ -52,6 +53,7 @@ export class RecruiterAuthController {
   }
 
   @Public()
+  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('refresh')
   @ApiOperation({ summary: 'Lam moi access token nha tuyen dung bang refresh token' })
