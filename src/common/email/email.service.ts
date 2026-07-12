@@ -359,7 +359,7 @@ export class EmailService {
         attachments: params.attachments,
       });
     } catch (error) {
-      if (this.configService.get<string>('nodeEnv') === 'production') {
+      if (this.configService.get<string>('appEnv') === 'production') {
         throw error;
       }
 

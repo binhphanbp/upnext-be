@@ -26,7 +26,7 @@ async function bootstrap() {
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   app.enableShutdownHooks();
 
-  const isProduction = config.getOrThrow<string>('nodeEnv') === 'production';
+  const isProduction = config.getOrThrow<string>('appEnv') === 'production';
 
   // Apply security headers to every route, including /docs (which needs a
   // relaxed CSP so the Scalar reference UI can load its assets).
