@@ -1,8 +1,10 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ActorType } from '@prisma/client';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { Public } from '../../common/decorators/public.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { SaveFcmTokenDto } from './dto/save-fcm-token.dto';
 import { NotificationTokenService } from './notification-token.service';
 import { FcmService } from './fcm.service';
@@ -38,11 +40,13 @@ export class NotificationTokenController {
     return { message: 'Token unregistered successfully' };
   }
 
-  @Public()
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN)
   @Post('test-send')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Send a test push notification to a specific token (Public endpoint for testing)',
+    summary: 'Send a test push notification to a specific token (Admin only)',
   })
   @ApiResponse({ status: 200, description: 'Test notification sent.' })
   async sendTestNotification(

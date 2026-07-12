@@ -26,12 +26,15 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ActorType, JobStatus } from '@prisma/client';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateJobPostDto } from './dto/create-job-post.dto';
+import { ApproveJobPostDto } from './dto/approve-job-post.dto';
+import { RejectJobPostDto } from './dto/reject-job-post.dto';
+import { UpdateJobPostVisibilityDto } from './dto/update-job-post-visibility.dto';
 import {
   AddLocationToJobDto,
   AddSkillToJobDto,
@@ -40,6 +43,7 @@ import {
 import { ListAdminJobPostsQueryDto } from './dto/list-admin-job-posts-query.dto';
 import { UpdateJobPostDto } from './dto/update-job-post.dto';
 import { JobPostsService } from './job-posts.service';
+
 
 @ApiTags('Job - Posts')
 @Controller('job-posts')
@@ -439,5 +443,92 @@ export class AdminJobPostsController {
   @Get()
   findAll(@Query() query: ListAdminJobPostsQueryDto) {
     return this.jobPostsService.findAllForAdmin(query);
+  }
+
+  @ApiOperation({
+    summary: 'Phê duyệt tin tuyển dụng (ADMIN)',
+    description: 'Phê duyệt trạng thái kiểm duyệt của tin tuyển dụng thành APPROVED. Chỉ cho phép khi trạng thái hiện tại là PENDING.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiOkResponse({
+    description: 'Phê duyệt tin tuyển dụng thành công.',
+    schema: {
+      example: {
+        message: 'Phê duyệt tin tuyển dụng thành công.',
+        jobPost: {
+          id: '1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf',
+          title: 'Senior Backend Developer',
+          moderationStatus: 'APPROVED',
+          moderationNote: 'Tin tuyển dụng hợp lệ.',
+          reason: null,
+        },
+      },
+    },
+  })
+  @ApiBadRequestResponse({ description: 'Tin tuyển dụng đã được duyệt hoặc từ chối trước đó.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @Patch(':id/approve')
+  approve(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: ApproveJobPostDto,
+  ) {
+    return this.jobPostsService.approveJobPost(id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Từ chối duyệt tin tuyển dụng (ADMIN)',
+    description: 'Từ chối duyệt tin tuyển dụng, chuyển trạng thái kiểm duyệt thành REJECTED. Chỉ cho phép khi trạng thái hiện tại là PENDING.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiOkResponse({
+    description: 'Từ chối duyệt tin tuyển dụng thành công.',
+    schema: {
+      example: {
+        message: 'Từ chối duyệt tin tuyển dụng thành công.',
+        jobPost: {
+          id: '1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf',
+          title: 'Senior Backend Developer',
+          moderationStatus: 'REJECTED',
+          moderationNote: null,
+          reason: 'Lý do từ chối tuyển dụng.',
+        },
+      },
+    },
+  })
+  @ApiBadRequestResponse({ description: 'Tin tuyển dụng đã được duyệt hoặc từ chối trước đó.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @Patch(':id/reject')
+  reject(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: RejectJobPostDto,
+  ) {
+    return this.jobPostsService.rejectJobPost(id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Ẩn hoặc hiển thị tin tuyển dụng (ADMIN)',
+    description: 'Admin ẩn hoặc hiển thị một tin tuyển dụng bằng cách thay đổi giá trị trường isHidden.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của tin tuyển dụng' })
+  @ApiOkResponse({
+    description: 'Cập nhật trạng thái ẩn/hiển thị tin tuyển dụng thành công.',
+    schema: {
+      example: {
+        message: 'Cập nhật trạng thái ẩn/hiển thị tin tuyển dụng thành công.',
+        jobPost: {
+          id: '1f5f4a65-50d7-4f24-a65f-4f2a4d42f9cf',
+          title: 'Senior Backend Developer',
+          isHidden: true,
+        },
+      },
+    },
+  })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @Patch(':id/visibility')
+  updateVisibility(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateJobPostVisibilityDto,
+  ) {
+    return this.jobPostsService.updateVisibility(id, dto);
   }
 }

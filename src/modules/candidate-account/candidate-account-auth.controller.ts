@@ -1,4 +1,5 @@
 import { Body, Controller, Post, Get, Req, Res, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -16,7 +17,7 @@ import { CandidateAccountAuthService } from './candidate-account-auth.service';
 import { RegisterCandidateDto } from './dto/register-candidate.dto';
 import { ConfigService } from '@nestjs/config';
 import { GoogleAuthGuard } from '../auth/guards/google-auth.guard';
-import { Response } from 'express';
+import type { Response } from 'express';
 @ApiTags('Candidate - Auth')
 @Controller('candidate/auth')
 export class CandidateAccountAuthController {
@@ -37,6 +38,7 @@ export class CandidateAccountAuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @ApiOperation({ summary: 'Đăng nhập tài khoản ứng viên' })
   @ApiBody({ type: LoginDto })

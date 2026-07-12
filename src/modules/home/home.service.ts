@@ -476,6 +476,7 @@ export class HomeService {
     const baseWhere: Prisma.JobPostWhereInput = {
       status: JobStatus.PUBLISHED,
       deletedAt: null,
+      isHidden: false,
       OR: [{ expiredAt: null }, { expiredAt: { gte: now } }],
     };
 

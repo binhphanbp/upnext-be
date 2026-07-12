@@ -94,7 +94,8 @@ describe('CvsService', () => {
   });
 
   it('bỏ mặc định các CV khác trước khi đặt một CV làm mặc định', async () => {
-    prismaMock.cV.findUnique.mockResolvedValue({
+    prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'profile-id' });
+    prismaMock.cV.findFirst.mockResolvedValue({
       id: 'cv-id',
       candidateProfileId: 'profile-id',
       isDefault: false,
@@ -105,7 +106,7 @@ describe('CvsService', () => {
       isDefault: true,
     });
 
-    await service.setDefault('cv-id');
+    await service.setDefault('cv-id', 'candidate-account-id');
 
     expect(prismaMock.cV.updateMany).toHaveBeenCalledWith({
       where: { candidateProfileId: 'profile-id', isDefault: true },
@@ -120,7 +121,8 @@ describe('CvsService', () => {
   });
 
   it('trả về conflict khi xóa CV đang được bản ghi khác tham chiếu', async () => {
-    prismaMock.cV.findUnique.mockResolvedValue({
+    prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'profile-id' });
+    prismaMock.cV.findFirst.mockResolvedValue({
       id: 'cv-id',
       candidateProfileId: 'profile-id',
       isDefault: false,
@@ -132,6 +134,8 @@ describe('CvsService', () => {
       }),
     );
 
-    await expect(service.remove('cv-id')).rejects.toThrow(ConflictException);
+    await expect(service.remove('cv-id', 'candidate-account-id')).rejects.toThrow(
+      ConflictException,
+    );
   });
 });

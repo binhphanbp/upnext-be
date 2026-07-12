@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AccountStatus, ActorType, AuthProvider, Prisma } from '@prisma/client';
+import { randomBytes } from 'crypto';
 import { EmailService } from '../../common/email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
@@ -19,11 +20,19 @@ import {
   PasswordResetResponse,
 } from '../auth/entities/password-reset.entity';
 import { RegisterRecruiterDto } from './dto/register-recruiter.dto';
+import { RecruiterRefreshTokenDto } from './dto/recruiter-refresh-token.dto';
 import { VerifyRecruiterEmailDto } from './dto/recruiter-accounts/verify-recruiter-email.dto';
 import {
   RecruiterEmailVerificationRequest,
   RecruiterEmailVerificationResult,
 } from './entities/recruiter-email-verification.entity';
+
+type RecruiterTokenAccount = {
+  id: string;
+  email: string;
+  companyId?: string | null;
+  recruiterRoleId?: string | null;
+};
 
 @Injectable()
 export class RecruiterAuthService {
@@ -63,13 +72,7 @@ export class RecruiterAuthService {
         verificationLink,
       });
 
-      return this.authService.signAccessToken({
-        id: account.id,
-        email: account.email,
-        role: ActorType.RECRUITER,
-        companyId: account.companyId,
-        recruiterRoleId: account.recruiterRoleId,
-      });
+      return this.issueRecruiterTokens(account);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Tài khoản nhà tuyển dụng đã tồn tại');
@@ -107,13 +110,86 @@ export class RecruiterAuthService {
       );
     }
 
-    return this.authService.signAccessToken({
-      id: account.id,
-      email: account.email,
-      role: ActorType.RECRUITER,
-      companyId: account.companyId,
-      recruiterRoleId: account.recruiterRoleId,
+    return this.issueRecruiterTokens(account);
+  }
+
+  async refresh(dto: RecruiterRefreshTokenDto): Promise<RecruiterLoginResponse> {
+    const { id, secret } = this.parseRefreshToken(dto.refreshToken);
+    const refreshToken = await this.prisma.recruiterRefreshToken.findUnique({
+      where: { id },
+      include: {
+        recruiterAccount: {
+          select: {
+            id: true,
+            email: true,
+            companyId: true,
+            recruiterRoleId: true,
+            status: true,
+            emailVerifiedAt: true,
+          },
+        },
+      },
     });
+
+    if (
+      !refreshToken ||
+      refreshToken.expiresAt <= new Date() ||
+      refreshToken.recruiterAccount.status !== AccountStatus.ACTIVE ||
+      !refreshToken.recruiterAccount.emailVerifiedAt
+    ) {
+      throw new UnauthorizedException('Refresh token khong hop le hoac da het han');
+    }
+
+    // Verify the presented secret before trusting this token id (prevents a
+    // guessed id from triggering a family revocation as a denial-of-service).
+    await this.verifyRefreshTokenSecret(secret, refreshToken.tokenHash);
+
+    if (refreshToken.revokedAt) {
+      // A previously rotated/revoked token is being replayed with a valid secret.
+      // Treat this as token theft and revoke every outstanding token for the
+      // account, forcing a fresh re-authentication.
+      await this.prisma.recruiterRefreshToken.updateMany({
+        where: { recruiterAccountId: refreshToken.recruiterAccount.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Refresh token khong hop le hoac da het han');
+    }
+
+    const newRefreshToken = await this.rotateRefreshToken(
+      refreshToken.id,
+      refreshToken.recruiterAccount.id,
+    );
+
+    const accessToken = await this.authService.signAccessToken({
+      id: refreshToken.recruiterAccount.id,
+      email: refreshToken.recruiterAccount.email,
+      role: ActorType.RECRUITER,
+      companyId: refreshToken.recruiterAccount.companyId,
+      recruiterRoleId: refreshToken.recruiterAccount.recruiterRoleId,
+    });
+
+    return {
+      ...accessToken,
+      refreshToken: newRefreshToken,
+    };
+  }
+
+  async logout(dto: RecruiterRefreshTokenDto): Promise<{ message: string }> {
+    const { id, secret } = this.parseRefreshToken(dto.refreshToken);
+    const refreshToken = await this.prisma.recruiterRefreshToken.findUnique({
+      where: { id },
+      select: { id: true, tokenHash: true, revokedAt: true },
+    });
+
+    if (refreshToken && !refreshToken.revokedAt) {
+      await this.verifyRefreshTokenSecret(secret, refreshToken.tokenHash);
+      await this.prisma.recruiterRefreshToken.update({
+        where: { id: refreshToken.id },
+        data: { revokedAt: new Date() },
+      });
+    }
+
+    return { message: 'Dang xuat thanh cong.' };
   }
 
   async requestEmailVerification(
@@ -240,7 +316,10 @@ export class RecruiterAuthService {
     };
   }
 
-  async requestPasswordReset(dto: RequestPasswordResetDto, locale?: string): Promise<PasswordResetRequestResponse> {
+  async requestPasswordReset(
+    dto: RequestPasswordResetDto,
+    locale?: string,
+  ): Promise<PasswordResetRequestResponse> {
     const account = await this.prisma.recruiterAccount.findFirst({
       where: {
         email: dto.email.toLowerCase(),
@@ -367,12 +446,111 @@ export class RecruiterAuthService {
       throw new UnauthorizedException('Tài khoản của bạn đã bị khóa.');
     }
 
-    return this.authService.signAccessToken({
+    return this.issueRecruiterTokens(account);
+  }
+
+  private async issueRecruiterTokens(
+    account: RecruiterTokenAccount,
+  ): Promise<RecruiterLoginResponse> {
+    const accessToken = await this.authService.signAccessToken({
       id: account.id,
       email: account.email,
       role: ActorType.RECRUITER,
       companyId: account.companyId,
       recruiterRoleId: account.recruiterRoleId,
     });
+
+    return {
+      ...accessToken,
+      refreshToken: await this.createRefreshToken(account.id),
+    };
+  }
+
+  private async createRefreshToken(recruiterAccountId: string): Promise<string> {
+    const secret = randomBytes(64).toString('base64url');
+    const refreshToken = await this.prisma.recruiterRefreshToken.create({
+      data: {
+        recruiterAccountId,
+        tokenHash: await this.authService.hashPassword(secret),
+        expiresAt: this.getRefreshTokenExpiresAt(),
+      },
+      select: { id: true },
+    });
+
+    return `${refreshToken.id}.${secret}`;
+  }
+
+  private async rotateRefreshToken(
+    refreshTokenId: string,
+    recruiterAccountId: string,
+  ): Promise<string> {
+    const secret = randomBytes(64).toString('base64url');
+    const tokenHash = await this.authService.hashPassword(secret);
+    const refreshToken = await this.prisma.$transaction(async (tx) => {
+      const revokeResult = await tx.recruiterRefreshToken.updateMany({
+        where: { id: refreshTokenId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+
+      if (revokeResult.count !== 1) {
+        throw new UnauthorizedException('Refresh token khong hop le hoac da het han');
+      }
+
+      return tx.recruiterRefreshToken.create({
+        data: {
+          recruiterAccountId,
+          tokenHash,
+          expiresAt: this.getRefreshTokenExpiresAt(),
+        },
+        select: { id: true },
+      });
+    });
+
+    return `${refreshToken.id}.${secret}`;
+  }
+
+  private parseRefreshToken(refreshToken: string) {
+    const separatorIndex = refreshToken.indexOf('.');
+
+    if (separatorIndex <= 0 || separatorIndex === refreshToken.length - 1) {
+      throw new UnauthorizedException('Refresh token khong hop le hoac da het han');
+    }
+
+    return {
+      id: refreshToken.slice(0, separatorIndex),
+      secret: refreshToken.slice(separatorIndex + 1),
+    };
+  }
+
+  private async verifyRefreshTokenSecret(secret: string, tokenHash: string) {
+    try {
+      await this.authService.verifyPassword(secret, tokenHash);
+    } catch {
+      throw new UnauthorizedException('Refresh token khong hop le hoac da het han');
+    }
+  }
+
+  private getRefreshTokenExpiresAt() {
+    const expiresIn = this.configService.get<string>('jwtRefreshExpiresIn') ?? '30d';
+    return new Date(Date.now() + this.parseDurationToMs(expiresIn));
+  }
+
+  private parseDurationToMs(duration: string) {
+    const match = duration.trim().match(/^(\d+)\s*([smhd])$/i);
+
+    if (!match) {
+      throw new Error('JWT_REFRESH_EXPIRES_IN must use s, m, h, or d suffix');
+    }
+
+    const value = Number(match[1]);
+    const unit = match[2].toLowerCase();
+    const multipliers: Record<string, number> = {
+      s: 1000,
+      m: 60 * 1000,
+      h: 60 * 60 * 1000,
+      d: 24 * 60 * 60 * 1000,
+    };
+
+    return value * multipliers[unit];
   }
 }

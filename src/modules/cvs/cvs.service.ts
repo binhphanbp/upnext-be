@@ -77,9 +77,11 @@ export class CvsService {
     };
   }
 
-  async findOne(id: string) {
-    const cv = await this.prisma.cV.findUnique({
-      where: { id },
+  async findOne(id: string, candidateAccountId: string) {
+    const profile = await this.getProfileByAccountId(candidateAccountId);
+
+    const cv = await this.prisma.cV.findFirst({
+      where: { id, candidateProfileId: profile.id },
       select: this.defaultSelect,
     });
 
@@ -90,8 +92,8 @@ export class CvsService {
     return cv;
   }
 
-  async update(id: string, dto: UpdateCvDto) {
-    const cv = await this.findOne(id);
+  async update(id: string, dto: UpdateCvDto, candidateAccountId: string) {
+    const cv = await this.findOne(id, candidateAccountId);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -116,8 +118,8 @@ export class CvsService {
     }
   }
 
-  async remove(id: string) {
-    const cv = await this.findOne(id);
+  async remove(id: string, candidateAccountId: string) {
+    const cv = await this.findOne(id, candidateAccountId);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -149,8 +151,8 @@ export class CvsService {
     }
   }
 
-  async setDefault(id: string) {
-    const cv = await this.findOne(id);
+  async setDefault(id: string, candidateAccountId: string) {
+    const cv = await this.findOne(id, candidateAccountId);
 
     return this.prisma.$transaction(async (tx) => {
       await this.clearDefaultCvs(tx, cv.candidateProfileId);

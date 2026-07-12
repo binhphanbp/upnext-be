@@ -105,7 +105,7 @@ export class CvScreeningController {
       user.id,
       applicationId,
     );
-    const download = await this.cvVersionsService.prepareDownload(cvVersionId);
+    const download = await this.cvVersionsService.prepareDownload(cvVersionId, user);
 
     response.set({
       'Content-Type': download.mimeType,

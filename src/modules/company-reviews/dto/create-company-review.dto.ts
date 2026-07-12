@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Max, Min, IsUUID } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  IsUUID,
+} from 'class-validator';
 
 export class CreateCompanyReviewDto {
   @ApiProperty()
@@ -16,6 +25,7 @@ export class CreateCompanyReviewDto {
 
   @ApiPropertyOptional()
   @IsString()
+  @MaxLength(2000)
   @IsOptional()
   summary?: string;
 
@@ -28,16 +38,19 @@ export class CreateCompanyReviewDto {
 
   @ApiPropertyOptional()
   @IsString()
+  @MaxLength(2000)
   @IsOptional()
   overtimeReason?: string;
 
   @ApiPropertyOptional()
   @IsString()
+  @MaxLength(2000)
   @IsOptional()
   whatILove?: string;
 
   @ApiPropertyOptional()
   @IsString()
+  @MaxLength(2000)
   @IsOptional()
   improvementSuggestion?: string;
 

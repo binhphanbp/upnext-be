@@ -1,11 +1,18 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ActorType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CvVersionsService } from './cv-versions.service';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 describe('CvVersionsService', () => {
   let service: CvVersionsService;
+  const adminUser: AuthenticatedUser = {
+    id: 'admin-id',
+    email: 'admin@upnext.dev',
+    role: ActorType.ADMIN,
+  };
   const prismaMock: any = {
     cV: {
       findUnique: jest.fn(),
@@ -65,7 +72,9 @@ describe('CvVersionsService', () => {
   it('không cho upload phiên bản CV khi thiếu file PDF', async () => {
     prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id' });
 
-    await expect(service.upload('cv-id', {})).rejects.toThrow(BadRequestException);
+    await expect(service.upload('cv-id', {}, undefined, adminUser)).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('khôi phục phiên bản cũ bằng cách tạo phiên bản mới có versionNo kế tiếp', async () => {
@@ -80,6 +89,7 @@ describe('CvVersionsService', () => {
       createdAt: new Date('2026-06-09T08:00:00.000Z'),
       sourceFile: null,
     });
+    prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
     prismaMock.cVVersion.findFirst.mockResolvedValue({ versionNo: 3 });
     prismaMock.cVVersion.create.mockResolvedValue({
       id: 'new-version-id',
@@ -87,7 +97,7 @@ describe('CvVersionsService', () => {
       versionNo: 4,
     });
 
-    await service.restore('version-id');
+    await service.restore('version-id', adminUser);
 
     expect(prismaMock.cVVersion.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -111,8 +121,9 @@ describe('CvVersionsService', () => {
       createdAt: new Date('2026-06-09T08:00:00.000Z'),
       sourceFile: null,
     });
+    prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
     prismaMock.application.count.mockResolvedValue(1);
 
-    await expect(service.remove('version-id')).rejects.toThrow(ConflictException);
+    await expect(service.remove('version-id', adminUser)).rejects.toThrow(ConflictException);
   });
 });
