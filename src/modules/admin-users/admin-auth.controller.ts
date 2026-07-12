@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -7,7 +7,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { LoginDto } from '../auth/dto/login.dto';
 import { AdminLoginResponse } from '../auth/entities/auth.entity';
@@ -19,6 +19,7 @@ export class AdminAuthController {
   constructor(private readonly adminAuthService: AdminAuthService) {}
 
     @Public()
+    @UseGuards(ThrottlerGuard)
     @Throttle({ default: { limit: 5, ttl: 60000 } })
     @Post('login')
     @ApiOperation({

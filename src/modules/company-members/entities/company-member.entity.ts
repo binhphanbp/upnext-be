@@ -2,6 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CompanyMemberStatus } from '@prisma/client';
 
 export class CompanyMemberProfile {
+  @ApiProperty({ example: 'd3b07384-d113-4921-a083-200c1e8fe494' })
+  id!: string;
+
   @ApiProperty({ example: 'Nguyen Van A' })
   fullName!: string;
 

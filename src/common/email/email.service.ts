@@ -164,6 +164,176 @@ export class EmailService {
     });
   }
 
+  async sendCompanyPendingReviewToAdmin(params: {
+    to: string;
+    adminName?: string | null;
+    companyName: string;
+    recruiterName?: string | null;
+    recruiterEmail: string;
+    reviewLink: string;
+  }) {
+    const html = this.renderTemplate('company-submitted-admin.html', {
+      adminName: params.adminName?.trim() || 'Quản trị viên',
+      companyName: params.companyName,
+      recruiterName: params.recruiterName?.trim() || params.recruiterEmail,
+      recruiterEmail: params.recruiterEmail,
+      reviewLink: params.reviewLink,
+      sentDate: this.formatSentDate(),
+    });
+
+    await this.sendMail({
+      to: params.to,
+      subject: `[UpNext] Hồ sơ doanh nghiệp mới chờ duyệt: ${params.companyName}`,
+      text: `Doanh nghiệp "${params.companyName}" (gửi bởi ${params.recruiterEmail}) đang chờ duyệt. Xem tại: ${params.reviewLink}`,
+      html,
+      attachments: [
+        {
+          filename: 'upnext-logo.png',
+          path: this.resolveEmailAssetPath('upnext-logo.png'),
+          cid: 'upnext-logo',
+        },
+      ],
+      fallbackLog: `Company pending review "${params.companyName}" -> admin ${params.to}`,
+    });
+  }
+
+  async sendCompanySubmittedToRecruiter(params: {
+    to: string;
+    recruiterName?: string | null;
+    companyName: string;
+  }) {
+    const html = this.renderTemplate('company-submitted-recruiter.html', {
+      recruiterName: params.recruiterName?.trim() || params.to,
+      companyName: params.companyName,
+      sentDate: this.formatSentDate(),
+    });
+
+    await this.sendMail({
+      to: params.to,
+      subject: `[UpNext] Đã nhận hồ sơ doanh nghiệp ${params.companyName}`,
+      text: `Chúng tôi đã nhận hồ sơ doanh nghiệp "${params.companyName}" và đang chờ duyệt. UpNext sẽ thông báo kết quả sớm.`,
+      html,
+      attachments: [
+        {
+          filename: 'upnext-logo.png',
+          path: this.resolveEmailAssetPath('upnext-logo.png'),
+          cid: 'upnext-logo',
+        },
+      ],
+      fallbackLog: `Company submission ack "${params.companyName}" -> recruiter ${params.to}`,
+    });
+  }
+
+  async sendCompanyVerificationResult(params: {
+    to: string;
+    recruiterName?: string | null;
+    companyName: string;
+    approved: boolean;
+    reason?: string | null;
+    guidance?: string | null;
+    recruiterCode?: string | null;
+    companyLink: string;
+  }) {
+    const templateName = params.approved
+      ? 'company-approved.html'
+      : 'company-rejected.html';
+
+    const name = params.recruiterName?.trim() || params.to;
+    const recipientName = params.recruiterCode
+      ? `${name} - Mã NTD ${params.recruiterCode}`
+      : name;
+
+    const html = this.renderTemplate(templateName, {
+      recruiterName: name,
+      recipientName,
+      companyName: params.companyName,
+      reason: params.reason?.trim() || 'Không có lý do cụ thể được cung cấp.',
+      guidance:
+        params.guidance?.trim() ||
+        'Vui lòng đăng tải giấy chứng nhận đăng ký doanh nghiệp hoặc giấy tờ tương đương theo đúng quy định.',
+      companyLink: params.companyLink,
+      guidelinesLink: this.resolveFrontendLink('/huong-dan-xac-thuc-doanh-nghiep'),
+      supportHotline: this.configService.get<string>('supportHotline') || '1900 0000',
+      supportEmail:
+        this.configService.get<string>('supportEmail') ||
+        this.configService.get<string>('mailFrom') ||
+        'cskh@upnext.works',
+      supportZalo: this.configService.get<string>('supportZalo') || 'https://zalo.me/upnext',
+      sentDate: this.formatSentDate(),
+    });
+
+    const subject = params.approved
+      ? `[UpNext] Doanh nghiệp ${params.companyName} đã được duyệt`
+      : `[UpNext] Hồ sơ doanh nghiệp ${params.companyName} chưa được duyệt`;
+
+    const text = params.approved
+      ? `Chúc mừng! Doanh nghiệp "${params.companyName}" của bạn đã được xác thực trên UpNext.`
+      : `Hồ sơ doanh nghiệp "${params.companyName}" chưa được duyệt. Lý do: ${params.reason ?? 'Không có lý do cụ thể.'}`;
+
+    await this.sendMail({
+      to: params.to,
+      subject,
+      text,
+      html,
+      attachments: [
+        {
+          filename: 'upnext-logo.png',
+          path: this.resolveEmailAssetPath('upnext-logo.png'),
+          cid: 'upnext-logo',
+        },
+      ],
+      fallbackLog: `Company verification (${params.approved ? 'approved' : 'rejected'}) "${params.companyName}" -> recruiter ${params.to}`,
+    });
+  }
+
+  async sendInterviewReminder(params: {
+    to: string;
+    recipientName?: string | null;
+    jobTitle: string;
+    scheduledStartAt: Date;
+    interviewType: 'ONLINE' | 'ONSITE';
+    meetingUrl?: string | null;
+    location?: string | null;
+  }) {
+    const scheduledTime = new Intl.DateTimeFormat('vi-VN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(params.scheduledStartAt);
+    const interviewTypeLabel = params.interviewType === 'ONLINE' ? 'Trực tuyến' : 'Trực tiếp';
+    const locationOrMeetingLine =
+      params.interviewType === 'ONLINE'
+        ? params.meetingUrl
+          ? `Link tham gia: ${params.meetingUrl}`
+          : 'Vui lòng kiểm tra link tham gia trong phần chi tiết phỏng vấn.'
+        : params.location
+          ? `Địa điểm: ${params.location}`
+          : 'Vui lòng kiểm tra địa điểm trong phần chi tiết phỏng vấn.';
+
+    const html = this.renderTemplate('interview-reminder.html', {
+      recipientName: params.recipientName?.trim() || params.to,
+      jobTitle: params.jobTitle,
+      scheduledTime,
+      interviewType: interviewTypeLabel,
+      locationOrMeetingLine,
+      sentDate: this.formatSentDate(),
+    });
+
+    await this.sendMail({
+      to: params.to,
+      subject: `[UpNext] Nhắc lịch phỏng vấn: ${params.jobTitle}`,
+      text: `Buổi phỏng vấn cho vị trí ${params.jobTitle} sẽ diễn ra lúc ${scheduledTime}.`,
+      html,
+      attachments: [
+        {
+          filename: 'upnext-logo.png',
+          path: this.resolveEmailAssetPath('upnext-logo.png'),
+          cid: 'upnext-logo',
+        },
+      ],
+      fallbackLog: `Interview reminder for "${params.jobTitle}" -> ${params.to} at ${scheduledTime}`,
+    });
+  }
+
   private async sendMail(params: {
     to: string;
     subject: string;

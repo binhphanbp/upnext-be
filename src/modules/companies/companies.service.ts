@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -15,6 +16,7 @@ import {
 } from '@prisma/client';
 import { CloudinaryService, UploadedFile } from '../../common/cloudinary/cloudinary.service';
 import { toPagination } from '../../common/dto/pagination-query.dto';
+import { EmailService } from '../../common/email/email.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
@@ -31,7 +33,10 @@ export class CompaniesService {
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
     private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
+
+  private readonly logger = new Logger(CompaniesService.name);
 
   async create(createCompanyDto: CreateCompanyDto) {
     let slug = slugify(createCompanyDto.name);
@@ -495,6 +500,16 @@ Fields: name, taxCode, city, address, email, phone, website.`;
       },
     });
 
+    // Notify admins (who can verify) + acknowledge to the recruiter. Fire-and-forget:
+    // email delivery must never block or fail the upload.
+    void this.notifyCompanySubmittedForReview(id, user).catch((error: unknown) => {
+      this.logger.warn(
+        `Failed to send company submission emails for ${id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
+
     const signedUrl = this.cloudinaryService.createSignedUrl(asset.storageKey, {
       resourceType: savedFile.resourceType,
     });
@@ -591,10 +606,119 @@ Fields: name, taxCode, city, address, email, phone, website.`;
       return comp;
     });
 
+    // Notify the company's recruiters of the result. Fire-and-forget.
+    void this.notifyCompanyVerificationResult(company.id, isVerified, reason, dto.guidance).catch(
+      (error: unknown) => {
+        this.logger.warn(
+          `Failed to send company verification emails for ${company.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      },
+    );
+
     return {
       message: `Company verification status updated to ${dto.status} successfully.`,
       company: updatedCompany,
     };
+  }
+
+  /**
+   * Emails admins who can verify companies + acknowledges receipt to the recruiter
+   * who submitted the business license.
+   */
+  private async notifyCompanySubmittedForReview(companyId: string, recruiter: AuthenticatedUser) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, name: true },
+    });
+    if (!company) {
+      return;
+    }
+
+    const reviewLink = this.buildFrontendUrl(`/admin/companies/${company.id}`);
+
+    // Admins whose active role holds the 'companies:verify' permission.
+    const admins = await this.prisma.adminUser.findMany({
+      where: {
+        status: 'ACTIVE',
+        role: {
+          status: 'ACTIVE',
+          rolePermissions: {
+            some: { permission: { permissionCode: 'companies:verify' } },
+          },
+        },
+      },
+      select: { email: true, fullName: true },
+    });
+
+    await Promise.all([
+      ...admins.map((admin) =>
+        this.emailService.sendCompanyPendingReviewToAdmin({
+          to: admin.email,
+          adminName: admin.fullName,
+          companyName: company.name,
+          recruiterEmail: recruiter.email,
+          reviewLink,
+        }),
+      ),
+      this.emailService.sendCompanySubmittedToRecruiter({
+        to: recruiter.email,
+        companyName: company.name,
+      }),
+    ]);
+
+    if (admins.length === 0) {
+      this.logger.warn(
+        `No admin with 'companies:verify' permission to notify for company ${company.id}`,
+      );
+    }
+  }
+
+  /**
+   * Emails the company's active recruiter accounts with the verification outcome.
+   */
+  private async notifyCompanyVerificationResult(
+    companyId: string,
+    approved: boolean,
+    reason: string,
+    guidance?: string,
+  ) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        name: true,
+        recruiterAccounts: {
+          where: { status: 'ACTIVE' },
+          select: { email: true, profile: { select: { fullName: true } } },
+        },
+      },
+    });
+    if (!company) {
+      return;
+    }
+
+    const companyLink = this.buildFrontendUrl(`/recruiter/company`);
+
+    await Promise.all(
+      company.recruiterAccounts.map((account) =>
+        this.emailService.sendCompanyVerificationResult({
+          to: account.email,
+          recruiterName: account.profile?.fullName,
+          companyName: company.name,
+          approved,
+          reason,
+          guidance,
+          companyLink,
+        }),
+      ),
+    );
+  }
+
+  private buildFrontendUrl(path: string) {
+    const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
+    return new URL(path, frontendUrl).toString();
   }
 
   async getReputationActivities(id: string, user: AuthenticatedUser) {

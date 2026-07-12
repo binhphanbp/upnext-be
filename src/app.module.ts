@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { validateEnv } from './common/config/env.validation';
 import { CompaniesModule } from './modules/companies/companies.module';
@@ -47,6 +47,8 @@ import { PostsModule } from './modules/posts/posts.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SearchKeywordModule } from './modules/search-keyword/search-keyword.module';
 import { CvScreeningModule } from './modules/cv-screening/cv-screening.module';
+import { ZaloBotModule } from './modules/zalo-bot/zalo-bot.module';
+import { InterviewRemindersModule } from './modules/interview-reminders/interview-reminders.module';
 
 @Module({
   imports: [
@@ -54,8 +56,13 @@ import { CvScreeningModule } from './modules/cv-screening/cv-screening.module';
       isGlobal: true,
       validate: validateEnv,
     }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
+        // Default budget for routes that explicitly opt in via @UseGuards(ThrottlerGuard).
+        // There is intentionally NO global guard: edge-level DoS protection (Cloudflare)
+        // handles volumetric abuse. App-level throttling targets brute-force /
+        // credential-stuffing on sensitive endpoints only (login/refresh/reset).
         ttl: 60000,
         limit: 10,
       },
@@ -104,12 +111,8 @@ import { CvScreeningModule } from './modules/cv-screening/cv-screening.module';
     SearchKeywordModule,
     NotificationsModule,
     CvScreeningModule,
-  ],
-  providers: [
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
+    ZaloBotModule,
+    InterviewRemindersModule,
   ],
 })
 export class AppModule {}

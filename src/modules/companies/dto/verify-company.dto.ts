@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class VerifyCompanyDto {
   @ApiProperty({
@@ -19,5 +19,16 @@ export class VerifyCompanyDto {
   })
   @IsString()
   @IsOptional()
+  @MaxLength(500)
   reason?: string;
+
+  @ApiPropertyOptional({
+    example:
+      'Hình ảnh đăng tải không phải giấy chứng nhận đăng ký doanh nghiệp hoặc giấy tờ tương đương.',
+    description: 'Mô tả/hướng dẫn chi tiết gửi kèm khi từ chối hồ sơ',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(1000)
+  guidance?: string;
 }

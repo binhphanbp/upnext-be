@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Headers } from '@nestjs/common';
+import { Body, Controller, Post, Headers, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -7,6 +7,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { RequestPasswordResetDto } from '../auth/dto/request-password-reset.dto';
 import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
@@ -17,11 +18,13 @@ import {
 import { RecruiterAuthService } from './recruiter-auth.service';
 
 @ApiTags('Recruiter - Account')
+@UseGuards(ThrottlerGuard)
 @Controller('recruiter-accounts/password-reset')
 export class RecruiterPasswordResetController {
   constructor(private readonly recruiterAuthService: RecruiterAuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('request')
   @ApiOperation({ summary: 'Gửi link đặt lại mật khẩu recruiter' })
   @ApiBody({ type: RequestPasswordResetDto })
@@ -38,6 +41,7 @@ export class RecruiterPasswordResetController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('confirm')
   @ApiOperation({ summary: 'Đặt lại mật khẩu recruiter bằng token' })
   @ApiBody({ type: ResetPasswordDto })

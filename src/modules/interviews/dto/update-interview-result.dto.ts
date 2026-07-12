@@ -5,7 +5,7 @@ import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 export class UpdateInterviewResultDto {
   @ApiProperty({
     enum: InterviewResult,
-    description: 'Kết quả phỏng vấn (PASSED / FAILED)',
+    description: 'Kết quả phỏng vấn (PASSED / FAILED / UNDER_REVIEW)',
     example: 'PASSED',
   })
   @IsEnum(InterviewResult)

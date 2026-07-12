@@ -50,6 +50,8 @@ const envSchema = z
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     APP_BACKEND_URL: z.string().url().default('http://localhost:3001'),
+    ZALO_BOT_TOKEN: z.string().optional(),
+    ZALO_BOT_WEBHOOK_SECRET: z.string().min(8).max(256).optional(),
   })
   .superRefine((env, ctx) => {
     // Only the production application environment disallows local credentialed origins.
@@ -86,6 +88,8 @@ export type AppConfig = {
   googleClientId?: string;
   googleClientSecret?: string;
   appBackendUrl?: string;
+  zaloBotToken?: string;
+  zaloBotWebhookSecret?: string;
 };
 
 export function validateEnv(config: Record<string, unknown>): AppConfig {
@@ -116,5 +120,7 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     googleClientId: parsed.GOOGLE_CLIENT_ID,
     googleClientSecret: parsed.GOOGLE_CLIENT_SECRET,
     appBackendUrl: parsed.APP_BACKEND_URL,
+    zaloBotToken: parsed.ZALO_BOT_TOKEN,
+    zaloBotWebhookSecret: parsed.ZALO_BOT_WEBHOOK_SECRET,
   };
 }
