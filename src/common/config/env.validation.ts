@@ -1,40 +1,59 @@
 import { z } from 'zod';
 
+const appEnvironmentSchema = z.enum(['development', 'staging', 'production']);
+
+function parseCorsOrigins(corsOrigin: string): string[] {
+  return corsOrigin
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+function isLocalhostOrigin(origin: string): boolean {
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    APP_ENV: appEnvironmentSchema,
     PORT: z.coerce.number().int().positive().default(4000),
     DATABASE_URL: z.string().url(),
     JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
-  JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
-  JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
-  APP_FRONTEND_URL: z.string().url().default('http://localhost:3000'),
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().int().positive().default(587),
-  SMTP_SECURE: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional(),
-  MAIL_FROM: z.string().optional(),
-  CLOUDINARY_CLOUD_NAME: z.string().optional(),
-  CLOUDINARY_API_KEY: z.string().optional(),
-  CLOUDINARY_API_SECRET: z.string().optional(),
-  CLOUDINARY_FOLDER: z.string().default('upnext'),
-  CORS_ORIGIN: z
-    .string()
-    .default(
-      'https://upnext.works,https://staging.upnext.works,http://localhost:5173,http://localhost:3000',
-    ),
-  GEMINI_API_KEY: z.string().optional(),
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
-  APP_BACKEND_URL: z.string().url().default('http://localhost:3001'),
+    JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+    JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
+    APP_FRONTEND_URL: z.string().url().default('http://localhost:3000'),
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().int().positive().default(587),
+    SMTP_SECURE: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    MAIL_FROM: z.string().optional(),
+    CLOUDINARY_CLOUD_NAME: z.string().optional(),
+    CLOUDINARY_API_KEY: z.string().optional(),
+    CLOUDINARY_API_SECRET: z.string().optional(),
+    CLOUDINARY_FOLDER: z.string().default('upnext'),
+    CORS_ORIGIN: z
+      .string()
+      .default(
+        'https://upnext.works,https://staging.upnext.works,http://localhost:5173,http://localhost:3000',
+      ),
+    GEMINI_API_KEY: z.string().optional(),
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().optional(),
+    APP_BACKEND_URL: z.string().url().default('http://localhost:3001'),
   })
   .superRefine((env, ctx) => {
-    // In production, never trust localhost origins for credentialed CORS.
-    if (env.NODE_ENV === 'production' && /localhost|127\.0\.0\.1/.test(env.CORS_ORIGIN)) {
+    // Only the production application environment disallows local credentialed origins.
+    if (env.APP_ENV === 'production' && parseCorsOrigins(env.CORS_ORIGIN).some(isLocalhostOrigin)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['CORS_ORIGIN'],
@@ -45,6 +64,7 @@ const envSchema = z
 
 export type AppConfig = {
   nodeEnv: string;
+  appEnv: z.infer<typeof appEnvironmentSchema>;
   port: number;
   databaseUrl: string;
   jwtAccessSecret: string;
@@ -70,9 +90,11 @@ export type AppConfig = {
 
 export function validateEnv(config: Record<string, unknown>): AppConfig {
   const parsed = envSchema.parse(config);
+  const corsOrigins = parseCorsOrigins(parsed.CORS_ORIGIN);
 
   return {
     nodeEnv: parsed.NODE_ENV,
+    appEnv: parsed.APP_ENV,
     port: parsed.PORT,
     databaseUrl: parsed.DATABASE_URL,
     jwtAccessSecret: parsed.JWT_ACCESS_SECRET,
@@ -89,9 +111,7 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     cloudinaryApiKey: parsed.CLOUDINARY_API_KEY,
     cloudinaryApiSecret: parsed.CLOUDINARY_API_SECRET,
     cloudinaryFolder: parsed.CLOUDINARY_FOLDER,
-    corsOrigins: parsed.CORS_ORIGIN.split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
+    corsOrigins,
     geminiApiKey: parsed.GEMINI_API_KEY,
     googleClientId: parsed.GOOGLE_CLIENT_ID,
     googleClientSecret: parsed.GOOGLE_CLIENT_SECRET,
