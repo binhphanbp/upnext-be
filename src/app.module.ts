@@ -45,6 +45,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { PostsModule } from './modules/posts/posts.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SearchKeywordModule } from './modules/search-keyword/search-keyword.module';
+import { CvScreeningModule } from './modules/cv-screening/cv-screening.module';
 
 @Module({
   imports: [
@@ -101,6 +102,7 @@ import { SearchKeywordModule } from './modules/search-keyword/search-keyword.mod
     HealthModule,
     SearchKeywordModule,
     NotificationsModule,
+    CvScreeningModule,
   ],
 })
 export class AppModule {}

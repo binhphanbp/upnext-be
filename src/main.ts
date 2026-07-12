@@ -4,6 +4,8 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
 import { NextFunction, Request, Response } from 'express';
+import * as express from 'express';
+import { join } from 'path';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { PrismaSerializeInterceptor } from './common/interceptors/prisma-serialize.interceptor';
@@ -59,6 +61,16 @@ async function bootstrap() {
     origin: config.getOrThrow<string[]>('corsOrigins'),
     credentials: true,
   });
+
+  app.use(
+    '/uploads',
+    (req: Request, res: Response, next: NextFunction) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      next();
+    },
+    express.static(join(process.cwd(), 'uploads')),
+  );
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
