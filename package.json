@@ -49,6 +49,7 @@
     "class-validator": "latest",
     "cloudinary": "^2.10.0",
     "dotenv": "latest",
+    "express": "5.2.1",
     "firebase-admin": "^14.1.0",
     "google-auth-library": "^10.9.0",
     "helmet": "latest",

@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Ip, Post, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { LogSearchKeywordDto } from './dto/log-search-keyword.dto';
 import { GetTopSearchKeywordsDto } from './dto/get-top-search-keywords.dto';
 import { SearchKeywordService } from './search-keyword.service';

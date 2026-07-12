@@ -17,7 +17,7 @@ import { CandidateAccountAuthService } from './candidate-account-auth.service';
 import { RegisterCandidateDto } from './dto/register-candidate.dto';
 import { ConfigService } from '@nestjs/config';
 import { GoogleAuthGuard } from '../auth/guards/google-auth.guard';
-import { Response } from 'express';
+import type { Response } from 'express';
 @ApiTags('Candidate - Auth')
 @Controller('candidate/auth')
 export class CandidateAccountAuthController {
