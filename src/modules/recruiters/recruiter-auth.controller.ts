@@ -18,7 +18,7 @@ import { RegisterRecruiterDto } from './dto/register-recruiter.dto';
 import { RecruiterAuthService } from './recruiter-auth.service';
 import { ConfigService } from '@nestjs/config';
 import { RecruiterGoogleAuthGuard } from '../auth/guards/recruiter-google-auth.guard';
-import { Response } from 'express';
+import type { Response } from 'express';
 
 @ApiTags('Recruiter - Auth')
 @Controller('recruiter/auth')
