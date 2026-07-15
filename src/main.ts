@@ -125,7 +125,18 @@ async function bootstrap() {
     .addTag('Interviews', 'Lịch hẹn phỏng vấn và đánh giá')
     .addTag('Invoices', 'Quản lý hóa đơn dịch vụ')
     // --- Admin ---
-    .addTag('Admin - Auth', 'Đăng nhập quản trị viên')
+    .addTag(
+      'Admin - Auth',
+      [
+        'Đăng nhập quản trị viên.',
+        '',
+        '**Tài khoản seed dùng để test** (mật khẩu chung: `Password123!`):',
+        '',
+        '- Super Admin: `admin.super@upnext.dev`',
+        '- Moderator: `admin.moderator@upnext.dev`',
+        '- Compliance: `admin.compliance@upnext.dev`',
+      ].join('\n'),
+    )
     .addTag('Admin - Dashboard', 'Thống kê tổng quan dashboard admin')
     .addTag('Admin - Roles', 'Quản lý vai trò admin')
     .addTag('Admin - Permissions', 'Quản lý danh sách quyền hạn admin')
