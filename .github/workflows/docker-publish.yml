@@ -125,9 +125,29 @@ jobs:
             ENVIRONMENT="production"
           fi
 
+          if ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "/opt/upnext/scripts/deploy/deploy.sh $ENVIRONMENT backend"; then
+            exit 0
+          fi
+
+          if [ "$ENVIRONMENT" != "staging" ]; then
+            exit 1
+          fi
+
+          echo "Initial staging deploy failed. Recovering the deferred pgvector migration once..."
           ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "/opt/upnext/scripts/deploy/deploy.sh $ENVIRONMENT backend"
+            'set -eu
+            DATABASE_URL="$(docker inspect --format "{{range .Config.Env}}{{println .}}{{end}}" upnext-backend-staging | sed -n "s/^DATABASE_URL=//p")"
+            test -n "$DATABASE_URL"
+            docker run --rm \
+              --network container:upnext-backend-staging \
+              -e DATABASE_URL="$DATABASE_URL" \
+              ghcr.io/binhphanbp/upnext-be:staging \
+              ./node_modules/.bin/prisma migrate resolve \
+              --rolled-back 20260715100000_enable_pgvector_cv_screening
+            /opt/upnext/scripts/deploy/deploy.sh staging backend'
 
       - name: Notify Telegram success
         if: success()

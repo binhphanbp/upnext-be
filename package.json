@@ -61,7 +61,6 @@
     "passport-jwt": "latest",
     "pdf-parse": "^2.4.5",
     "pg": "latest",
-    "pgvector": "0.3.0",
     "prisma": "7.8.0",
     "reflect-metadata": "latest",
     "rxjs": "latest",
