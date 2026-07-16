@@ -14,8 +14,6 @@ export type ScoringCandidateInput = {
   candidateName: string;
   cvText: string;
   semanticScore: number;
-  skillMatchScore: number;
-  retrievalScore: number;
 };
 
 export type GeminiScoreResult = {
@@ -124,8 +122,6 @@ export class GeminiScoringService {
         applicationId: candidate.applicationId,
         candidateName: candidate.candidateName,
         semanticScore: candidate.semanticScore,
-        skillMatchScore: candidate.skillMatchScore,
-        retrievalScore: candidate.retrievalScore,
         cvText: this.truncateText(candidate.cvText, MAX_CV_TEXT_LENGTH),
       })),
     };
@@ -144,8 +140,7 @@ Quy tắc bắt buộc:
 - educationScore nằm trong khoảng 0 đến 10.
 - overallScore phải bằng skillScore + experienceScore + projectScore + educationScore.
 - recommendation chỉ được là một trong các mã: strong_fit, fit, borderline, not_fit.
-- semanticScore là độ gần ngữ nghĩa; skillMatchScore là độ phủ kỹ năng bắt buộc từ dữ liệu có cấu trúc; retrievalScore là điểm hybrid dùng để shortlist.
-- Chỉ dùng ba tín hiệu retrieval này như yếu tố phụ khi phân vân. Bằng chứng trong CV và yêu cầu công việc quan trọng hơn.
+- Chỉ dùng semanticScore như yếu tố phụ khi phân vân. Bằng chứng trong CV và yêu cầu công việc quan trọng hơn.
 - Tất cả nội dung tự nhiên trong summary, strengths, weaknesses, matchedSkills và missingSkills phải viết bằng tiếng Việt.
 - Không viết câu tiếng Anh trong kết quả. Chỉ giữ nguyên tên công nghệ, framework, công cụ, công ty, trường học, chứng chỉ hoặc chức danh nếu đó là tên riêng/thuật ngữ kỹ thuật.
 

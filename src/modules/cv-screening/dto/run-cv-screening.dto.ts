@@ -22,7 +22,7 @@ export class RunCvScreeningDto {
     example: 50,
     minimum: 0,
     maximum: 100,
-    description: 'Minimum hybrid retrieval score required before detailed AI scoring.',
+    description: 'Minimum semantic score required before detailed AI scoring.',
   })
   @IsOptional()
   @IsNumber()

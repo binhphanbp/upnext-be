@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import pgvector from 'pgvector';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const EMBEDDING_MODEL = 'gemini-embedding-001';
@@ -9,29 +8,12 @@ const EMBEDDING_DIMENSIONS = 768;
 const EMBEDDING_CACHE_KEY = `${EMBEDDING_MODEL}:${EMBEDDING_DIMENSIONS}:l2-v1`;
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MAX_EMBEDDING_TEXT_LENGTH = 12000;
-const HNSW_EF_SEARCH = 160;
-const HYBRID_SEMANTIC_WEIGHT = 0.85;
-const HYBRID_SKILL_WEIGHT = 0.15;
 
 export type EmbeddingResult = {
   vector: number[];
   text: string;
   modelName: string;
   updatedAt: Date;
-};
-
-export type PgVectorRanking = {
-  applicationId: string;
-  semanticScore: number;
-  skillMatchScore: number;
-  retrievalScore: number;
-};
-
-type PgVectorRankingRow = {
-  applicationId: string;
-  semanticScore: number;
-  skillMatchScore: number;
-  retrievalScore: number;
 };
 
 type CvVersionForEmbedding = Prisma.CVVersionGetPayload<{
@@ -131,13 +113,8 @@ export class EmbeddingService {
     });
 
     if (existing?.modelName === EMBEDDING_CACHE_KEY && existing.embeddingText === embeddingText) {
-      const vector = this.parseVector(existing.embeddingVector);
-      const readyIds = await this.getReadySearchVectorIds('job_embeddings', [existing.id]);
-      if (!readyIds.has(existing.id)) {
-        await this.updateSearchVector('job_embeddings', existing.id, vector);
-      }
       return {
-        vector,
+        vector: this.parseVector(existing.embeddingVector),
         text: existing.embeddingText,
         modelName: existing.modelName,
         updatedAt: existing.updatedAt,
@@ -159,7 +136,6 @@ export class EmbeddingService {
         modelName: EMBEDDING_CACHE_KEY,
       },
     });
-    await this.updateSearchVector('job_embeddings', saved.id, vector);
 
     return {
       vector: this.parseVector(saved.embeddingVector),
@@ -219,10 +195,6 @@ export class EmbeddingService {
     const existingByCvVersionId = new Map(
       existingEmbeddings.map((embedding) => [embedding.cvVersionId, embedding]),
     );
-    const readySearchVectorIds = await this.getReadySearchVectorIds(
-      'cv_embeddings',
-      existingEmbeddings.map((embedding) => embedding.id),
-    );
 
     const staleCvVersions: Array<{
       cvVersion: CvVersionForEmbedding;
@@ -234,12 +206,8 @@ export class EmbeddingService {
       const existing = existingByCvVersionId.get(cvVersion.id);
 
       if (existing?.modelName === EMBEDDING_CACHE_KEY && existing.embeddingText === embeddingText) {
-        const vector = this.parseVector(existing.embeddingVector);
-        if (!readySearchVectorIds.has(existing.id)) {
-          await this.updateSearchVector('cv_embeddings', existing.id, vector);
-        }
         results.set(cvVersion.id, {
-          vector,
+          vector: this.parseVector(existing.embeddingVector),
           text: existing.embeddingText,
           modelName: existing.modelName,
           updatedAt: existing.updatedAt,
@@ -270,7 +238,6 @@ export class EmbeddingService {
             modelName: EMBEDDING_CACHE_KEY,
           },
         });
-        await this.updateSearchVector('cv_embeddings', saved.id, vector);
 
         results.set(cvVersion.id, {
           vector: this.parseVector(saved.embeddingVector),
@@ -287,109 +254,6 @@ export class EmbeddingService {
     });
 
     return results;
-  }
-
-  async rankApplications(
-    jobPostId: string,
-    jobVector: number[],
-    limit: number,
-    totalApplications: number,
-    minScore: number | null,
-  ): Promise<PgVectorRanking[]> {
-    if (limit <= 0 || totalApplications <= 0) {
-      return [];
-    }
-
-    const vector = pgvector.toSql(this.assertVector(jobVector));
-    if (!vector) {
-      throw new Error('Unable to serialize job embedding for pgvector search');
-    }
-
-    // Retrieve a wider semantic pool, then re-rank it with deterministic skill
-    // coverage. This keeps HNSW fast without allowing a synonym-heavy CV to
-    // outrank candidates that explicitly satisfy the required skills.
-    const candidatePool = Math.min(totalApplications, Math.max(limit * 4, 200));
-    const scoreThreshold = minScore ?? 0;
-
-    const rows = await this.prisma.$transaction(async (transaction) => {
-      await transaction.$executeRaw(
-        Prisma.sql`SET LOCAL hnsw.ef_search = ${Prisma.raw(String(HNSW_EF_SEARCH))}`,
-      );
-      await transaction.$executeRaw(
-        Prisma.sql`SET LOCAL hnsw.iterative_scan = strict_order`,
-      );
-
-      return transaction.$queryRaw<PgVectorRankingRow[]>(Prisma.sql`
-        WITH nearest AS MATERIALIZED (
-          SELECT
-            application."id" AS "applicationId",
-            GREATEST(
-              0.0,
-              LEAST(
-                1.0,
-                1.0 - (cv_embedding."search_vector" <=> ${vector}::vector(768))
-              )
-            )::double precision AS "semanticSimilarity",
-            skill_match."skillSimilarity"::double precision AS "skillSimilarity"
-          FROM "applications" AS application
-          INNER JOIN "cv_embeddings" AS cv_embedding
-            ON cv_embedding."cv_version_id" = application."cv_version_id"
-          LEFT JOIN LATERAL (
-            SELECT
-              CASE
-                WHEN COUNT(job_skill."id") = 0 THEN NULL
-                ELSE SUM(
-                  CASE
-                    WHEN candidate_skill."id" IS NULL THEN 0.0
-                    WHEN job_skill."min_years_experience" IS NULL THEN 1.0
-                    WHEN candidate_skill."years_of_experience" >= job_skill."min_years_experience" THEN 1.0
-                    ELSE 0.65
-                  END
-                ) / COUNT(job_skill."id")
-              END AS "skillSimilarity"
-            FROM "job_post_skills" AS job_skill
-            LEFT JOIN "candidate_skills" AS candidate_skill
-              ON candidate_skill."candidate_profile_id" = application."candidate_profile_id"
-              AND candidate_skill."skill_id" = job_skill."skill_id"
-            WHERE job_skill."job_post_id" = ${jobPostId}::uuid
-              AND job_skill."priority" = 'required'
-          ) AS skill_match ON TRUE
-          WHERE application."job_post_id" = ${jobPostId}::uuid
-            AND cv_embedding."model_name" = ${EMBEDDING_CACHE_KEY}
-            AND cv_embedding."search_vector" IS NOT NULL
-          ORDER BY cv_embedding."search_vector" <=> ${vector}::vector(768)
-          LIMIT ${candidatePool}
-        ), scored AS (
-          SELECT
-            "applicationId",
-            "semanticSimilarity",
-            COALESCE("skillSimilarity", "semanticSimilarity") AS "skillSimilarity",
-            CASE
-              WHEN "skillSimilarity" IS NULL THEN "semanticSimilarity"
-              ELSE
-                "semanticSimilarity" * ${HYBRID_SEMANTIC_WEIGHT}
-                + "skillSimilarity" * ${HYBRID_SKILL_WEIGHT}
-            END AS "retrievalSimilarity"
-          FROM nearest
-        )
-        SELECT
-          "applicationId",
-          ROUND(("semanticSimilarity" * 100)::numeric, 2)::double precision AS "semanticScore",
-          ROUND(("skillSimilarity" * 100)::numeric, 2)::double precision AS "skillMatchScore",
-          ROUND(("retrievalSimilarity" * 100)::numeric, 2)::double precision AS "retrievalScore"
-        FROM scored
-        WHERE "retrievalSimilarity" * 100 >= ${scoreThreshold}
-        ORDER BY "retrievalSimilarity" DESC, "semanticSimilarity" DESC
-        LIMIT ${limit}
-      `);
-    });
-
-    return rows.map((row) => ({
-      applicationId: row.applicationId,
-      semanticScore: this.roundScore(row.semanticScore),
-      skillMatchScore: this.roundScore(row.skillMatchScore),
-      retrievalScore: this.roundScore(row.retrievalScore),
-    }));
   }
 
   cosineSimilarity(vectorA: number[], vectorB: number[]) {
@@ -568,58 +432,6 @@ export class EmbeddingService {
     return value;
   }
 
-  private async updateSearchVector(
-    table: 'job_embeddings' | 'cv_embeddings',
-    id: string,
-    vector: number[],
-  ) {
-    const serialized = pgvector.toSql(this.assertVector(vector));
-    if (!serialized) {
-      throw new Error('Unable to serialize embedding for pgvector storage');
-    }
-
-    if (table === 'job_embeddings') {
-      await this.prisma.$executeRaw`
-        UPDATE "job_embeddings"
-        SET "search_vector" = ${serialized}::vector(768)
-        WHERE "id" = ${id}::uuid
-      `;
-      return;
-    }
-
-    await this.prisma.$executeRaw`
-      UPDATE "cv_embeddings"
-      SET "search_vector" = ${serialized}::vector(768)
-      WHERE "id" = ${id}::uuid
-    `;
-  }
-
-  private async getReadySearchVectorIds(
-    table: 'job_embeddings' | 'cv_embeddings',
-    ids: string[],
-  ) {
-    if (ids.length === 0) {
-      return new Set<string>();
-    }
-
-    const query =
-      table === 'job_embeddings'
-        ? Prisma.sql`
-            SELECT "id"
-            FROM "job_embeddings"
-            WHERE "id" IN (${Prisma.join(ids)})
-              AND "search_vector" IS NOT NULL
-          `
-        : Prisma.sql`
-            SELECT "id"
-            FROM "cv_embeddings"
-            WHERE "id" IN (${Prisma.join(ids)})
-              AND "search_vector" IS NOT NULL
-          `;
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(query);
-    return new Set(rows.map((row) => row.id));
-  }
-
   private normalizeForEmbedding(text: string) {
     return text.replace(/\s+/g, ' ').trim().slice(0, MAX_EMBEDDING_TEXT_LENGTH);
   }
@@ -645,10 +457,6 @@ export class EmbeddingService {
       Array.isArray(value) &&
       value.every((item) => typeof item === 'number' && Number.isFinite(item))
     );
-  }
-
-  private roundScore(value: number) {
-    return Math.round(value * 100) / 100;
   }
 
   private async mapLimit<T>(
