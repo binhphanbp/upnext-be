@@ -163,7 +163,7 @@ function normalizeLogoDevCompanySeed(rawData: any) {
       id: recruiterId,
       companyId: company.id,
       recruiterRoleId: null,
-      email: `${SEED_EMAIL_PREFIX}recruiter.${company.slug}@upnext.dev`,
+      email: `${company.slug}@gmail.com`,
       passwordHash: null,
       authProvider: 'DEFAULT',
       providerUserId: null,
@@ -1113,6 +1113,15 @@ async function cleanHomeSeedData() {
     } catch (e) {}
   }
 
+  const candidatesJsonPath = path.join(__dirname, 'candidates.json');
+  let staticCandidateEmails: string[] = [];
+  if (fs.existsSync(candidatesJsonPath)) {
+    try {
+      const candidatesData = JSON.parse(fs.readFileSync(candidatesJsonPath, 'utf8'));
+      staticCandidateEmails = candidatesData.map((c: any) => c.email);
+    } catch (e) {}
+  }
+
   const candidateAccounts = await prisma.candidateAccount.findMany({
     where: {
       OR: [
@@ -1123,7 +1132,7 @@ async function cleanHomeSeedData() {
         },
         {
           email: {
-            in: realCandidateEmails,
+            in: [...realCandidateEmails, ...staticCandidateEmails],
           },
         },
       ],
@@ -1335,6 +1344,14 @@ async function cleanHomeSeedData() {
         },
       },
     });
+
+    await prisma.fileAsset.deleteMany({
+      where: {
+        ownerId: {
+          in: candidateProfileIds,
+        },
+      },
+    });
   }
 
   if (recruiterIds.length > 0) {
@@ -1452,7 +1469,7 @@ async function cleanHomeSeedData() {
         },
         {
           email: {
-            in: realCandidateEmails,
+            in: [...realCandidateEmails, ...staticCandidateEmails],
           },
         },
       ],
@@ -2339,6 +2356,7 @@ async function main() {
       recruiterRoleId: seededRoles[recruiter.roleCode].id,
       email: recruiter.email,
       passwordHash: recruiter.passwordHash || passwordHash,
+      emailVerifiedAt: recruiter.createdAt,
       createdAt: recruiter.createdAt,
       updatedAt: recruiter.createdAt,
     }))
@@ -4940,6 +4958,8 @@ async function main() {
   console.log(
     `Home seed complete: ${companies.length} companies, ${jobs.length} jobs, ${applicationsToCreate.length} applications.`,
   );
+
+  await seedCandidatesAndApplications(prisma);
 }
 
 async function cleanImportedData() {
@@ -4956,7 +4976,7 @@ async function cleanImportedData() {
   await prisma.recruiterAccount.deleteMany({
     where: {
       email: {
-        endsWith: '@imported.upnext.dev',
+        endsWith: '.imported@gmail.com',
       },
     },
   });
@@ -5125,9 +5145,9 @@ async function importItviecData(
 
     const recruiterId = randomUUID();
     const recruiterProfileId = randomUUID();
-    let email = `recruiter.${item.Slug}@imported.upnext.dev`;
+    let email = `${item.Slug}.imported@gmail.com`;
     if (item.Slug === 'mb-bank') {
-      email = 'recruiter.max@imported.upnext.dev';
+      email = 'max.imported@gmail.com';
     }
 
     const dayOffset = (item.Slug.charCodeAt(0) || 0) % 30;
@@ -5376,17 +5396,424 @@ async function importItviecData(
 }
 
 async function seedCandidatesAndApplications(prisma: PrismaClient) {
-  const TARGET_JOB_ID = '750987d8-9fb2-479b-bbac-28319773b9ae';
-
-  // Verify Job Post exists
-  const targetJob = await prisma.jobPost.findUnique({
-    where: { id: TARGET_JOB_ID }
+  // Find FPT Software company dynamically
+  const fptSoftware = await prisma.company.findUnique({
+    where: { slug: 'fpt-software' }
   });
-  if (!targetJob) {
-    console.log(`[SEED] Warning: Target job post ID ${TARGET_JOB_ID} not found. Skipping CV seeding.`);
+
+  if (!fptSoftware) {
+    console.log('[SEED] Warning: FPT Software company not found. Skipping custom seeding.');
     return;
   }
 
+  const recruiterRole = await prisma.recruiterRole.findFirst({
+    where: { code: 'OWNER' }
+  });
+
+  if (!recruiterRole) {
+    console.log('[SEED] Warning: OWNER recruiter role not found. Skipping custom seeding.');
+    return;
+  }
+
+  const recruiterAccountId = 'a6276a27-97ca-4fbb-8416-cea3e517126e';
+  const recruiterProfileId = '942de3fe-9ee0-42e8-a382-5b967663ea50';
+  const passwordHash = await hash('password123', 10);
+
+  // 1. Create or link recruiter account
+  await prisma.recruiterAccount.upsert({
+    where: { id: recruiterAccountId },
+    update: {
+      companyId: fptSoftware.id,
+      recruiterRoleId: recruiterRole.id,
+    },
+    create: {
+      id: recruiterAccountId,
+      email: 'duycc771@gmail.com',
+      authProvider: 'GOOGLE',
+      providerUserId: '105435843807834628979',
+      companyId: fptSoftware.id,
+      recruiterRoleId: recruiterRole.id,
+      status: 'ACTIVE',
+      emailVerifiedAt: new Date(),
+    }
+  });
+
+  // 2. Create or link recruiter profile
+  await prisma.recruiterProfile.upsert({
+    where: { id: recruiterProfileId },
+    update: {},
+    create: {
+      id: recruiterProfileId,
+      recruiterAccountId: recruiterAccountId,
+      fullName: 'Duy CC',
+    }
+  });
+
+  // 3. Create or link company member
+  await prisma.companyMember.upsert({
+    where: {
+      recruiterAccountId_companyId: {
+        recruiterAccountId: recruiterAccountId,
+        companyId: fptSoftware.id,
+      }
+    },
+    update: {
+      roleId: recruiterRole.id,
+      status: 'ACTIVE',
+    },
+    create: {
+      recruiterAccountId: recruiterAccountId,
+      companyId: fptSoftware.id,
+      roleId: recruiterRole.id,
+      status: 'ACTIVE',
+    }
+  });
+
+  // 4. Update the original job post owner to duycc771
+  const javaJob = await prisma.jobPost.findFirst({
+    where: {
+      companyId: fptSoftware.id,
+      slug: 'fpt-software-senior-java-backend-engineer'
+    }
+  });
+
+  const createdJobs = [];
+  if (javaJob) {
+    await prisma.jobPost.update({
+      where: { id: javaJob.id },
+      data: { createdByRecruiterId: recruiterAccountId }
+    });
+    createdJobs.push(javaJob);
+  }
+
+  // 5. Create 4 more detailed job posts
+  const customJobsData = [
+    {
+      title: 'Senior React Frontend Developer',
+      slug: 'fpt-software-senior-react-frontend-developer',
+      categoryName: 'Frontend Engineering',
+      expCode: 'senior',
+      empName: 'Full-time',
+      salaryMin: 30000000,
+      salaryMax: 55000000,
+      description: `<details open>
+  <summary><strong>Mô tả công việc</strong></summary>
+  <div>
+    <p>Tham gia vào đội ngũ phát triển sản phẩm công nghệ cao tại FPT Software, chịu trách nhiệm xây dựng giao diện người dùng tối ưu, hiệu năng cao và có khả năng mở rộng.</p>
+    <ul>
+      <li>Xây dựng và phát triển các ứng dụng web quy mô lớn (Single Page Applications, SSR) sử dụng React.js, Next.js và TypeScript.</li>
+      <li>Thiết kế, chuẩn hóa và đóng gói hệ thống thư viện thành phần (Design System / Component Library) dùng chung cho toàn bộ dự án của công ty.</li>
+      <li>Tối ưu hóa hiệu năng render (Rendering performance, Core Web Vitals), tối ưu bundle size, tải trang nhanh và khả năng tương thích đa trình duyệt.</li>
+      <li>Phối hợp chặt chẽ với UI/UX Designers để chuyển dịch bản vẽ Figma thành mã nguồn React chính xác từng pixel và hoạt động mượt mà.</li>
+      <li>Quản lý trạng thái ứng dụng linh hoạt sử dụng Redux Toolkit, Zustand hoặc React Query.</li>
+      <li>Viết tài liệu kỹ thuật, hướng dẫn lập trình chuẩn và hỗ trợ kỹ thuật cho các thành viên trong dự án.</li>
+      <li>Tham gia quy trình review code nghiêm ngặt để đảm bảo chất lượng, tính tái sử dụng và khả năng bảo trì của mã nguồn.</li>
+    </ul>
+  </div>
+</details>`,
+      requirements: `<details open>
+  <summary><strong>Yêu cầu ứng viên</strong></summary>
+  <div>
+    <p>Chúng tôi tìm kiếm kỹ sư Frontend đam mê công nghệ, giàu kinh nghiệm thực tế về tối ưu hóa giao diện và làm việc với các hệ thống lớn.</p>
+    <ul>
+      <li>Tối thiểu 4 năm kinh nghiệm phát triển Frontend chuyên sâu, trong đó ít nhất 3 năm làm việc liên tục với React.js và Next.js.</li>
+      <li>Thành thạo TypeScript, Modern JavaScript (ES6+), HTML5, CSS3/SCSS và có tư duy thiết kế layout tốt (Flexbox, CSS Grid).</li>
+      <li>Kinh nghiệm làm việc với các thư viện styling lớn như TailwindCSS, Styled Components hoặc Emotion.</li>
+      <li>Hiểu sâu về các cơ chế render của Next.js (SSR, SSG, ISR) và quản lý state phức tạp.</li>
+      <li>Có kỹ năng tối ưu hóa performance giao diện ứng dụng lớn (Lighthouse audit, lazy loading, code splitting).</li>
+      <li>Thành thạo kiểm thử mã nguồn (Jest, React Testing Library, Cypress).</li>
+      <li>Kinh nghiệm làm việc trong môi trường Agile/Scrum, sử dụng thành thạo Git/GitHub, CI/CD pipeline (GitHub Actions, Jenkins).</li>
+      <li>Khả năng đọc hiểu và giao tiếp kỹ thuật tốt bằng tiếng Anh.</li>
+    </ul>
+  </div>
+</details>`,
+      benefits: `<details open>
+  <summary><strong>Quyền lợi</strong></summary>
+  <div>
+    <p>Gia nhập FPT Software, bạn sẽ được hưởng chính sách phúc lợi toàn diện tương xứng với vị trí Senior:</p>
+    <ul>
+      <li>Mức lương cạnh tranh dao động từ 30.000.000 đến 55.000.000 VND tùy theo năng lực chuyên môn.</li>
+      <li>Tháng lương thứ 13 và các khoản thưởng hiệu suất công việc cuối năm lên tới 2-3 tháng lương.</li>
+      <li>Gói bảo hiểm sức khỏe cao cấp FPT Care dành riêng cho nhân viên và hỗ trợ người thân.</li>
+      <li>Cơ hội làm việc onsite ngắn hạn và dài hạn tại thị trường Nhật Bản, Châu Âu hoặc Mỹ.</li>
+      <li>Được cấp trang thiết bị làm việc hiện đại: Macbook Pro hoặc Laptop cấu hình cao cùng màn hình phụ Dell.</li>
+      <li>Nghỉ phép 14 ngày/năm và hỗ trợ nghỉ làm hybrid linh hoạt 1-2 ngày/tuần.</li>
+      <li>Được tài trợ 100% học phí và lệ phí thi các chứng chỉ công nghệ quốc tế (AWS, Azure, Scrum Master...).</li>
+    </ul>
+  </div>
+</details>`,
+      skills: ['React', 'TypeScript', 'Next.js', 'CSS'],
+      specialization: 'frontend',
+    },
+    {
+      title: 'AI / Machine Learning Engineer',
+      slug: 'fpt-software-ai-machine-learning-engineer',
+      categoryName: 'Data & AI',
+      expCode: 'mid',
+      empName: 'Full-time',
+      salaryMin: 35000000,
+      salaryMax: 65000000,
+      description: `<details open>
+  <summary><strong>Mô tả công việc</strong></summary>
+  <div>
+    <p>Nghiên cứu, phát triển và triển khai tích hợp các giải pháp Trí tuệ nhân tạo (AI/ML) vào hệ thống tuyển dụng thông minh của UpNext.</p>
+    <ul>
+      <li>Nghiên cứu và ứng dụng các mô hình học máy (Machine Learning), học sâu (Deep Learning) phục vụ bài toán trích xuất thông tin CV (Resume Parsing) và khớp hồ sơ (Resume Matching).</li>
+      <li>Xây dựng và tối ưu quy trình Retrieval-Augmented Generation (RAG) sử dụng Vector Database và các mô hình ngôn ngữ lớn (LLMs như Gemini, Llama).</li>
+      <li>Huấn luyện, fine-tuning các mô hình ngôn ngữ hoặc thị giác máy tính nhỏ để phục vụ các tác vụ phân loại và chấm điểm hồ sơ ứng viên tự động.</li>
+      <li>Thiết kế và triển khai các API phục vụ suy luận mô hình AI tốc độ cao sử dụng Python, FastAPI và Docker.</li>
+      <li>Thiết kế quy trình xử lý dữ liệu (ETL pipeline) cho các dữ liệu văn bản phi cấu trúc lớn như PDF, Docx, hình ảnh.</li>
+      <li>Đánh giá hiệu năng của các mô hình AI dựa trên các tập dữ liệu thử nghiệm thực tế (Accuracy, Precision, Recall, F1-score).</li>
+      <li>Hợp tác với đội ngũ Backend và Product để tích hợp tính năng AI vào sản phẩm thực tế hoạt động ổn định.</li>
+    </ul>
+  </div>
+</details>`,
+      requirements: `<details open>
+  <summary><strong>Yêu cầu ứng viên</strong></summary>
+  <div>
+    <p>Yêu cầu kỹ sư AI/ML có nền tảng toán học, giải thuật vững chắc và kinh nghiệm triển khai mô hình AI thực tế.</p>
+    <ul>
+      <li>Tối thiểu 2 năm kinh nghiệm làm việc ở vị trí AI Engineer hoặc Machine Learning Engineer.</li>
+      <li>Thành thạo lập trình Python và làm việc với các thư viện AI/ML: PyTorch, TensorFlow, Scikit-learn, Hugging Face Transformers.</li>
+      <li>Hiểu sâu về kiến trúc LLMs, kỹ thuật Prompt Engineering, cấu trúc Vector Database (ChromaDB, FAISS, pgvector) và quy trình RAG.</li>
+      <li>Kinh nghiệm xây dựng và đóng gói sản phẩm AI bằng Docker, Docker Compose, triển khai API với FastAPI hoặc Flask.</li>
+      <li>Nắm vững kiến thức toán giải tích, đại số tuyến tính, xác suất thống kê ứng dụng trong học máy.</li>
+      <li>Hiểu biết về trích xuất văn bản OCR (Tesseract, PaddleOCR) và xử lý ngôn ngữ tự nhiên (NLP) tiếng Việt là lợi thế lớn.</li>
+      <li>Có tư duy giải quyết vấn đề tốt, ham học hỏi các công nghệ AI mới và làm việc độc lập/nhóm hiệu quả.</li>
+    </ul>
+  </div>
+</details>`,
+      benefits: `<details open>
+  <summary><strong>Quyền lợi</strong></summary>
+  <div>
+    <p>Chính sách đãi ngộ xứng đáng dành cho kỹ sư AI làm việc tại FPT Software:</p>
+    <ul>
+      <li>Thu nhập hấp dẫn từ 35.000.000 đến 65.000.000 VND cùng gói thưởng dự án định kỳ.</li>
+      <li>Nhận gói bảo hiểm sức khỏe cao cấp FPT Care cho bản thân và gia đình.</li>
+      <li>Làm việc cùng đội ngũ chuyên gia công nghệ đầu ngành về Trí tuệ Nhân tạo.</li>
+      <li>Được tài trợ toàn bộ chi phí thi các chứng chỉ chuyên nghiệp về AI và Cloud (Google Cloud Professional Machine Learning Engineer, AWS Certified Machine Learning...).</li>
+      <li>Được cấp thiết bị làm việc GPU Workstation hoặc Macbook M3 Pro chuyên dụng phục vụ việc dev.</li>
+      <li>Chế độ làm việc Hybrid mềm dẻo, giờ làm việc linh hoạt, môi trường trẻ trung cởi mở.</li>
+    </ul>
+  </div>
+</details>`,
+      skills: ['Python', 'Machine Learning', 'PyTorch', 'TensorFlow', 'LLM'],
+      specialization: 'ai',
+    },
+    {
+      title: 'DevOps Cloud Infrastructure Engineer',
+      slug: 'fpt-software-devops-cloud-infrastructure-engineer',
+      categoryName: 'Security',
+      expCode: 'senior',
+      empName: 'Full-time',
+      salaryMin: 40000000,
+      salaryMax: 70000000,
+      description: `<details open>
+  <summary><strong>Mô tả công việc</strong></summary>
+  <div>
+    <p>Chịu trách nhiệm thiết kế, triển khai, tối ưu hóa hạ tầng Cloud có tính sẵn sàng cao, bảo mật tốt và quy trình tự động hóa CI/CD cho các sản phẩm của dự án.</p>
+    <ul>
+      <li>Thiết kế hạ tầng mạng và tài nguyên Cloud có khả năng tự động co giãn (Auto Scaling), khả năng chịu lỗi cao trên nền tảng AWS hoặc Azure.</li>
+      <li>Xây dựng, tối ưu hóa và duy trì hệ thống CI/CD pipeline tự động hóa quy trình kiểm thử, build và deploy code liên tục.</li>
+      <li>Quản lý hạ tầng bằng mã nguồn (Infrastructure as Code - IaC) sử dụng Terraform hoặc Ansible.</li>
+      <li>Quản lý, vận hành và giám sát hệ thống cụm Kubernetes (EKS/AKS) chạy container hóa của ứng dụng.</li>
+      <li>Cấu hình các công cụ giám sát hiệu năng hệ thống (Monitoring) và ghi log tập trung sử dụng Prometheus, Grafana, ELK Stack hoặc Datadog.</li>
+      <li>Đảm bảo các chính sách bảo mật hạ tầng mạng, quản lý quyền hạn truy cập (IAM), cấu hình firewall, VPN và giám sát các sự cố bảo mật.</li>
+      <li>Hỗ trợ đội ngũ Dev điều tra nguyên nhân sự cố hạ tầng và tối ưu hóa chi phí sử dụng tài nguyên Cloud hàng tháng.</li>
+    </ul>
+  </div>
+</details>`,
+      requirements: `<details open>
+  <summary><strong>Yêu cầu ứng viên</strong></summary>
+  <div>
+    <p>Chúng tôi tìm kiếm kỹ sư DevOps giàu kinh nghiệm thực tế về hạ tầng Cloud lớn và quản trị Kubernetes chuyên sâu.</p>
+    <ul>
+      <li>Tối thiểu 3 năm kinh nghiệm thực tế làm việc ở vị trí DevOps Engineer hoặc Cloud Engineer.</li>
+      <li>Thành thạo một trong các dịch vụ điện toán đám mây lớn: AWS (Amazon Web Services) hoặc Microsoft Azure.</li>
+      <li>Thành thạo công nghệ container (Docker, Docker Compose) và có kinh nghiệm vận hành production thực tế cụm Kubernetes (K8s).</li>
+      <li>Thành thạo sử dụng Terraform để cấu hình Infrastructure as Code (IaC).</li>
+      <li>Kinh nghiệm xây dựng CI/CD với GitHub Actions, GitLab CI hoặc Jenkins.</li>
+      <li>Kinh nghiệm quản trị hệ điều hành Linux (Ubuntu, CentOS), viết bash script hoặc python script tự động hóa.</li>
+      <li>Hiểu sâu về bảo mật hạ tầng mạng (VPC, Subnet, Security Group, SSL/TLS, VPN).</li>
+      <li>Ưu tiên ứng viên có chứng chỉ chuyên nghiệp về AWS (DevOps Engineer, Solutions Architect) hoặc Kubernetes (CKA, CKAD).</li>
+    </ul>
+  </div>
+</details>`,
+      benefits: `<details open>
+  <summary><strong>Quyền lợi</strong></summary>
+  <div>
+    <p>Chế độ đãi ngộ hấp dẫn dành cho kỹ sư DevOps:</p>
+    <ul>
+      <li>Lương tháng cạnh tranh từ 40.000.000 đến 70.000.000 VND cùng các khoản thưởng dự án.</li>
+      <li>Thưởng lương tháng 13 và thưởng hiệu quả hoạt động kinh doanh cuối năm.</li>
+      <li>Hưởng đầy đủ bảo hiểm xã hội, y tế cùng gói bảo hiểm sức khỏe đặc biệt FPT Care cao cấp.</li>
+      <li>Cung cấp Macbook Pro đời mới cấu hình mạnh mẽ phục vụ công việc.</li>
+      <li>Được làm việc Hybrid linh hoạt, chủ động sắp xếp thời gian làm việc.</li>
+      <li>Tài trợ 100% học phí và lệ phí thi các chứng chỉ Cloud/DevOps quốc tế cao cấp.</li>
+    </ul>
+  </div>
+</details>`,
+      skills: ['Docker', 'Kubernetes', 'AWS', 'CI/CD', 'Terraform'],
+      specialization: 'devops',
+    },
+    {
+      title: 'Technical Project Manager / Scrum Master',
+      slug: 'fpt-software-technical-project-manager-scrum-master',
+      categoryName: 'Operations',
+      expCode: 'lead',
+      empName: 'Full-time',
+      salaryMin: 45000000,
+      salaryMax: 80000000,
+      description: `<details open>
+  <summary><strong>Mô tả công việc</strong></summary>
+  <div>
+    <p>Đóng vai trò dẫn dắt và điều phối quy trình phát triển sản phẩm phần mềm theo mô hình Agile/Scrum, chịu trách nhiệm về tiến độ, chất lượng dự án và giải quyết các trở ngại của đội ngũ.</p>
+    <ul>
+      <li>Tổ chức và điều phối các cuộc họp Scrum hàng ngày (Daily Standup), lập kế hoạch sprint (Sprint Planning), review sprint (Sprint Review) và cải tiến quy trình (Retrospective).</li>
+      <li>Quản lý tiến độ dự án, dự báo rủi ro kỹ thuật, quản lý phạm vi công việc và xử lý các điểm nghẽn cản trước tiến trình công việc của đội phát triển.</li>
+      <li>Hợp tác chặt chẽ với Product Owner để quản lý và tối ưu hóa backlog sản phẩm, làm rõ các User Stories trước khi đưa vào Sprint.</li>
+      <li>Theo dõi và trực quan hóa hiệu suất làm việc của nhóm thông qua các biểu đồ (Burndown Chart, Velocity) trên Jira hoặc Confluence.</li>
+      <li>Duy trì văn hóa làm việc Agile, khuyến khích tinh thần tự quản lý, hợp tác và liên tục cải tiến hiệu suất trong nhóm.</li>
+      <li>Hỗ trợ giao tiếp và kết nối thông tin kỹ thuật giữa đội ngũ phát triển sản phẩm với các bên liên quan (Stakeholders, Khách hàng).</li>
+      <li>Tham gia thảo luận kiến trúc hệ thống cấp cao và định hướng kỹ thuật cho dự án để đảm bảo sản phẩm bàn giao đúng chất lượng kỹ thuật.</li>
+    </ul>
+  </div>
+</details>`,
+      requirements: `<details open>
+  <summary><strong>Yêu cầu ứng viên</strong></summary>
+  <div>
+    <p>Yêu cầu quản lý dự án có kiến thức nền tảng kỹ thuật tốt và kỹ năng giao tiếp, dẫn dắt đội ngũ xuất sắc.</p>
+    <ul>
+      <li>Tối thiểu 3 năm kinh nghiệm làm vị trí Project Manager, Scrum Master hoặc Tech Lead trong các dự án phát triển phần mềm.</li>
+      <li>Hiểu biết sâu sắc về Agile/Scrum, có kinh nghiệm thực tế áp dụng quy trình Scrum vào quản lý các dự án phần mềm phức tạp.</li>
+      <li>Có nền tảng lập trình tốt (từng là Developer hoặc QA Lead) để có thể hiểu rõ các khó khăn kỹ thuật và trao đổi sâu với lập trình viên.</li>
+      <li>Thành thạo sử dụng các công cụ quản lý dự án lớn như Jira Software, Confluence, Trello.</li>
+      <li>Kỹ năng giao tiếp, thương lượng, thuyết phục và giải quyết mâu thuẫn xuất sắc.</li>
+      <li>Có chứng chỉ Scrum Master chuyên nghiệp (CSM, PSM I hoặc PSM II) là một lợi thế lớn.</li>
+      <li>Kỹ năng tiếng Anh lưu loát, tự tin giao tiếp kỹ thuật trực tiếp với đối tác/khách hàng quốc tế.</li>
+    </ul>
+  </div>
+</details>`,
+      benefits: `<details open>
+  <summary><strong>Quyền lợi</strong></summary>
+  <div>
+    <p>Chính sách đãi ngộ hấp dẫn dành cho Technical Project Manager / Scrum Master:</p>
+    <ul>
+      <li>Mức thu nhập cạnh tranh từ 45.000.000 đến 80.000.000 VND cùng gói thưởng hiệu năng dự án.</li>
+      <li>Lương tháng 13 và thưởng cuối năm theo kết quả kinh doanh của tập đoàn.</li>
+      <li>Gói bảo hiểm sức khỏe toàn diện FPT Care dành riêng cho cấp quản lý.</li>
+      <li>Được làm việc trong môi trường năng động, chuyên nghiệp và có cơ hội thăng tiến rõ ràng lên Delivery Manager.</li>
+      <li>Được cung cấp đầy đủ thiết bị làm việc cao cấp tự chọn (Macbook Pro, Laptop).</li>
+      <li>Nghỉ phép 14 ngày/năm, làm việc hybrid linh hoạt, giờ giấc tự chủ.</li>
+    </ul>
+  </div>
+</details>`,
+      skills: ['Agile', 'Scrum', 'Project Management'],
+      specialization: 'project-management',
+    }
+  ];
+
+  for (const jobDef of customJobsData) {
+    const category = await prisma.jobCategory.findFirst({ where: { name: jobDef.categoryName } });
+    const expLevel = await prisma.experienceLevel.findFirst({ where: { code: jobDef.expCode } });
+    const empType = await prisma.employmentType.findFirst({ where: { name: jobDef.empName } });
+    const spec = await prisma.specialization.findFirst({ where: { slug: jobDef.specialization } });
+
+    if (!category || !expLevel || !empType) {
+      console.log(`[SEED] Warning: Relational metadata not found for job ${jobDef.title}. Skipping.`);
+      continue;
+    }
+
+    let job = await prisma.jobPost.findUnique({
+      where: { slug: jobDef.slug }
+    });
+
+    if (!job) {
+      job = await prisma.jobPost.create({
+        data: {
+          createdByRecruiterId: recruiterAccountId,
+          companyId: fptSoftware.id,
+          jobCategoryId: category.id,
+          experienceLevelId: expLevel.id,
+          employmentTypeId: empType.id,
+          title: jobDef.title,
+          slug: jobDef.slug,
+          description: jobDef.description,
+          requirements: jobDef.requirements,
+          benefits: jobDef.benefits,
+          workingDays: 'Thứ 2 - Thứ 6',
+          educationLevel: 'BACHELOR',
+          salaryMin: new Prisma.Decimal(jobDef.salaryMin),
+          salaryMax: new Prisma.Decimal(jobDef.salaryMax),
+          salaryCurrency: 'VND',
+          salaryPeriod: 'MONTH',
+          salaryIsNegotiable: true,
+          salaryIsVisible: true,
+          vacanciesCount: 2,
+          status: 'PUBLISHED',
+          moderationStatus: 'APPROVED',
+          publishedAt: new Date(),
+          expiredAt: addDays(new Date(), 45),
+        }
+      });
+
+      // Create location
+      const locId = randomUUID();
+      await prisma.companyLocation.create({
+        data: {
+          id: locId,
+          companyId: fptSoftware.id,
+          city: 'Hà Nội',
+          district: 'Cầu Giấy',
+          address: 'FPT Cầu Giấy Building, Duy Tân, Cầu Giấy, Hà Nội',
+          workingModel: WorkingModel.HYBRID,
+        }
+      });
+
+      await prisma.jobPostLocation.create({
+        data: {
+          jobPostId: job.id,
+          jobLocationId: locId,
+        }
+      });
+
+      // Create specialization
+      if (spec) {
+        await prisma.jobPostSpecialization.create({
+          data: {
+            jobPostId: job.id,
+            specializationId: spec.id,
+            isRequired: true,
+          }
+        });
+      }
+
+      // Create skills
+      const skillCategory = await prisma.skillCategory.findFirst({ where: { name: 'Others' } });
+      for (const skillName of jobDef.skills) {
+        const skill = await prisma.skill.upsert({
+          where: { name: skillName },
+          update: {},
+          create: {
+            name: skillName,
+            categoryId: skillCategory ? skillCategory.id : (await prisma.skillCategory.findFirst())!.id,
+          }
+        });
+
+        await prisma.jobPostSkill.create({
+          data: {
+            jobPostId: job.id,
+            skillId: skill.id,
+            priority: 'REQUIRED',
+          }
+        });
+      }
+    }
+
+    createdJobs.push(job);
+  }
+
+  // 6. Load candidates data
   const candidatesJsonPath = path.join(__dirname, 'candidates.json');
   if (!fs.existsSync(candidatesJsonPath)) {
     console.log(`[SEED] Warning: File ${candidatesJsonPath} not found. Skipping CV seeding.`);
@@ -5401,8 +5828,7 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
     fs.mkdirSync(cvDir, { recursive: true });
   }
 
-  const passwordHash = await hash('password123', 10);
-  let successCount = 0;
+  const seededCandidates: Array<{ profileId: string; cvVersionId: string; fullName: string }> = [];
 
   for (const item of candidatesData) {
     try {
@@ -5410,102 +5836,196 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
 
       // Unique email check
       let emailAddr = email;
-      const existingAccount = await prisma.candidateAccount.findUnique({
+      let candidateAccount = await prisma.candidateAccount.findUnique({
         where: { email: emailAddr }
       });
-      if (existingAccount) {
-        continue;
+
+      if (!candidateAccount) {
+        candidateAccount = await prisma.candidateAccount.create({
+          data: {
+            fullName,
+            email: emailAddr,
+            passwordHash,
+            candidateAccountStatus: 'ACTIVE',
+            emailVerifiedAt: new Date(),
+          }
+        });
       }
 
-      // If the original file exists in uploads/cv, copy/rename it to email.pdf
-      const originalPath = path.join(cvDir, originalName);
+      let candidateProfile = await prisma.candidateProfile.findUnique({
+        where: { candidateAccountId: candidateAccount.id }
+      });
+
+      if (!candidateProfile) {
+        candidateProfile = await prisma.candidateProfile.create({
+          data: {
+            candidateAccountId: candidateAccount.id,
+            jobSearchStatus: 'OPEN_TO_WORK',
+            profileVisibility: 'PUBLIC',
+          }
+        });
+      }
+
       const cleanFileName = `${emailAddr}.pdf`;
       const targetPath = path.join(cvDir, cleanFileName);
 
       let actualSize = sizeBytes;
-      if (fs.existsSync(originalPath)) {
-        fs.copyFileSync(originalPath, targetPath);
-        actualSize = fs.statSync(targetPath).size;
-      } else {
+      if (!fs.existsSync(targetPath)) {
         fs.writeFileSync(targetPath, Buffer.alloc(0));
         actualSize = 0;
       }
 
-      // Create CandidateAccount
-      const candidateAccount = await prisma.candidateAccount.create({
-        data: {
-          fullName,
-          email: emailAddr,
-          passwordHash,
-          candidateAccountStatus: 'ACTIVE',
-          emailVerifiedAt: new Date(),
-        }
-      });
-
-      // Create CandidateProfile
-      const candidateProfile = await prisma.candidateProfile.create({
-        data: {
-          candidateAccountId: candidateAccount.id,
-          jobSearchStatus: 'OPEN_TO_WORK',
-          profileVisibility: 'PUBLIC',
-        }
-      });
-
-      // Create FileAsset
-      const publicUrl = `http://localhost:3001/uploads/cv/${cleanFileName}`;
-      const fileAsset = await prisma.fileAsset.create({
-        data: {
-          ownerType: 'candidate_cv',
+      let fileAsset = await prisma.fileAsset.findFirst({
+        where: {
           ownerId: candidateProfile.id,
-          purpose: FilePurpose.CV,
-          visibility: FileVisibility.PUBLIC,
-          storageKey: `uploads/cv/${cleanFileName}`,
-          originalName,
-          mimeType: 'application/pdf',
-          sizeBytes: BigInt(actualSize),
-          publicUrl,
+          purpose: FilePurpose.CV
         }
       });
 
-      // Create CV
-      const cvRecord = await prisma.cV.create({
-        data: {
-          candidateProfileId: candidateProfile.id,
-          title: `CV - ${fullName}`,
-          source: CvSource.UPLOAD,
-          status: CvStatus.ACTIVE,
-          isDefault: true,
-        }
+      if (!fileAsset) {
+        const publicUrl = `http://localhost:3001/uploads/cv/${cleanFileName}`;
+        fileAsset = await prisma.fileAsset.create({
+          data: {
+            ownerType: 'candidate_cv',
+            ownerId: candidateProfile.id,
+            purpose: FilePurpose.CV,
+            visibility: FileVisibility.PUBLIC,
+            storageKey: `uploads/cv/${cleanFileName}`,
+            originalName,
+            mimeType: 'application/pdf',
+            sizeBytes: BigInt(actualSize),
+            publicUrl,
+          }
+        });
+      }
+
+      let cvRecord = await prisma.cV.findFirst({
+        where: { candidateProfileId: candidateProfile.id }
       });
 
-      // Create CVVersion
-      const cvVersion = await prisma.cVVersion.create({
-        data: {
-          cvId: cvRecord.id,
-          sourceFileId: fileAsset.id,
-          versionNo: 1,
-          parsedText: parsedText || null,
-        }
+      if (!cvRecord) {
+        cvRecord = await prisma.cV.create({
+          data: {
+            candidateProfileId: candidateProfile.id,
+            title: `CV - ${fullName}`,
+            source: CvSource.UPLOAD,
+            status: CvStatus.ACTIVE,
+            isDefault: true,
+          }
+        });
+      }
+
+      let cvVersion = await prisma.cVVersion.findFirst({
+        where: { cvId: cvRecord.id }
       });
 
-      // Create Application
-      await prisma.application.create({
-        data: {
-          jobPostId: TARGET_JOB_ID,
-          candidateProfileId: candidateProfile.id,
-          cvVersionId: cvVersion.id,
-          status: ApplicationStatus.SUBMITTED,
-          submittedAt: new Date(),
-        }
+      if (!cvVersion) {
+        cvVersion = await prisma.cVVersion.create({
+          data: {
+            cvId: cvRecord.id,
+            sourceFileId: fileAsset.id,
+            versionNo: 1,
+            parsedText: parsedText || null,
+          }
+        });
+      }
+
+      seededCandidates.push({
+        profileId: candidateProfile.id,
+        cvVersionId: cvVersion.id,
+        fullName
       });
 
-      successCount++;
     } catch (err) {
       console.error(`[SEED] Failed to seed candidate: ${item.fullName}`, err);
     }
   }
 
-  console.log(`[SEED] Successfully seeded ${successCount} candidates.`);
+  let applicationSuccessCount = 0;
+  let interviewCreatedCount = 0;
+
+  // 7. Seed applications into each of the 5 jobs
+  for (const job of createdJobs) {
+    console.log(`[SEED] Seeding applications for job: "${job.title}"...`);
+    for (let i = 0; i < seededCandidates.length; i++) {
+      const candidate = seededCandidates[i];
+      try {
+        let application = await prisma.application.findFirst({
+          where: {
+            jobPostId: job.id,
+            candidateProfileId: candidate.profileId
+          }
+        });
+
+        if (!application) {
+          // Distribute statuses
+          let status: ApplicationStatus = ApplicationStatus.SUBMITTED;
+          const mod = i % 10;
+          if (mod < 5) {
+            status = ApplicationStatus.SUBMITTED;
+          } else if (mod === 5) {
+            status = ApplicationStatus.VIEWED;
+          } else if (mod === 6) {
+            status = ApplicationStatus.SHORTLISTED;
+          } else if (mod === 7) {
+            status = ApplicationStatus.INTERVIEWING;
+          } else if (mod === 8) {
+            status = ApplicationStatus.OFFERED;
+          } else {
+            status = ApplicationStatus.REJECTED;
+          }
+
+          const daysAgo = Math.floor(Math.random() * 14);
+          const submittedAt = new Date();
+          submittedAt.setDate(submittedAt.getDate() - daysAgo);
+
+          application = await prisma.application.create({
+            data: {
+              jobPostId: job.id,
+              candidateProfileId: candidate.profileId,
+              cvVersionId: candidate.cvVersionId,
+              status,
+              submittedAt
+            }
+          });
+
+          // Schedule mock interviews for INTERVIEWING status
+          if (status === ApplicationStatus.INTERVIEWING) {
+            const interviewStart = new Date();
+            const daysForward = 1 + Math.floor(Math.random() * 6);
+            interviewStart.setDate(interviewStart.getDate() + daysForward);
+            interviewStart.setHours(9 + Math.floor(Math.random() * 6), 0, 0, 0);
+
+            const interviewEnd = new Date(interviewStart.getTime() + 60 * 60 * 1000);
+
+            await prisma.interview.create({
+              data: {
+                recruiterProfileId,
+                applicationId: application.id,
+                interviewRound: 1,
+                type: InterviewType.ONLINE,
+                scheduledStartAt: interviewStart,
+                scheduledEndAt: interviewEnd,
+                meetingUrl: 'https://meet.google.com/abc-defg-hij',
+                status: InterviewStatus.SCHEDULED,
+                result: InterviewResult.PENDING,
+                recruiterNote: 'Phỏng vấn kỹ thuật trao đổi chi tiết'
+              }
+            });
+            interviewCreatedCount++;
+          }
+
+          applicationSuccessCount++;
+        }
+      } catch (err) {
+        console.error(`[SEED] Failed to create application for candidate ${candidate.fullName} and job ${job.title}:`, err);
+      }
+    }
+  }
+
+  console.log(`[SEED] Successfully seeded ${seededCandidates.length} candidate accounts.`);
+  console.log(`[SEED] Successfully created ${applicationSuccessCount} applications across ${createdJobs.length} jobs.`);
+  console.log(`[SEED] Successfully created ${interviewCreatedCount} mock interviews.`);
 }
 
 main()

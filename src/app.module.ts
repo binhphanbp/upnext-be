@@ -64,7 +64,7 @@ import { InterviewRemindersModule } from './modules/interview-reminders/intervie
         // handles volumetric abuse. App-level throttling targets brute-force /
         // credential-stuffing on sensitive endpoints only (login/refresh/reset).
         ttl: 60000,
-        limit: 10,
+        limit: 100,
       },
     ]),
     CloudinaryModule,

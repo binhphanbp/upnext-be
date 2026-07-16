@@ -1119,13 +1119,14 @@ model CvScreeningRun {
 }
 
 model JobEmbedding {
-  id              String   @id @default(uuid()) @db.Uuid
-  jobPostId       String   @unique @map("job_post_id") @db.Uuid
-  embeddingText   String   @map("embedding_text") @db.Text
-  embeddingVector Json     @map("embedding_vector")
-  modelName       String   @default("gemini-embedding-001") @map("model_name") @db.VarChar(120)
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id              String                      @id @default(uuid()) @db.Uuid
+  jobPostId       String                      @unique @map("job_post_id") @db.Uuid
+  embeddingText   String                      @map("embedding_text") @db.Text
+  embeddingVector Json                        @map("embedding_vector")
+  searchVector    Unsupported("vector(768)")? @map("search_vector")
+  modelName       String                      @default("gemini-embedding-001:768:l2-v1") @map("model_name") @db.VarChar(120)
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  updatedAt       DateTime                    @updatedAt @map("updated_at")
 
   jobPost JobPost @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
 
@@ -1134,14 +1135,15 @@ model JobEmbedding {
 }
 
 model CvEmbedding {
-  id                 String   @id @default(uuid()) @db.Uuid
-  cvVersionId        String   @unique @map("cv_version_id") @db.Uuid
-  candidateProfileId String   @map("candidate_profile_id") @db.Uuid
-  embeddingText      String   @map("embedding_text") @db.Text
-  embeddingVector    Json     @map("embedding_vector")
-  modelName          String   @default("gemini-embedding-001") @map("model_name") @db.VarChar(120)
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  id                 String                      @id @default(uuid()) @db.Uuid
+  cvVersionId        String                      @unique @map("cv_version_id") @db.Uuid
+  candidateProfileId String                      @map("candidate_profile_id") @db.Uuid
+  embeddingText      String                      @map("embedding_text") @db.Text
+  embeddingVector    Json                        @map("embedding_vector")
+  searchVector       Unsupported("vector(768)")? @map("search_vector")
+  modelName          String                      @default("gemini-embedding-001:768:l2-v1") @map("model_name") @db.VarChar(120)
+  createdAt          DateTime                    @default(now()) @map("created_at")
+  updatedAt          DateTime                    @updatedAt @map("updated_at")
 
   cvVersion        CVVersion        @relation(fields: [cvVersionId], references: [id], onDelete: Cascade)
   candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
@@ -1158,6 +1160,8 @@ model ApplicationAiScore {
   jobPostId          String   @map("job_post_id") @db.Uuid
   candidateProfileId String   @map("candidate_profile_id") @db.Uuid
   semanticScore      Decimal  @map("semantic_score") @db.Decimal(5, 2)
+  skillMatchScore    Decimal  @default(0) @map("skill_match_score") @db.Decimal(5, 2)
+  retrievalScore     Decimal  @default(0) @map("retrieval_score") @db.Decimal(5, 2)
   aiScore            Decimal  @map("ai_score") @db.Decimal(5, 2)
   finalScore         Decimal  @map("final_score") @db.Decimal(5, 2)
   skillScore         Decimal  @map("skill_score") @db.Decimal(5, 2)

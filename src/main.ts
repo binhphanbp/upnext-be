@@ -73,6 +73,7 @@ async function bootstrap() {
     (req: Request, res: Response, next: NextFunction) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       next();
     },
     express.static(join(process.cwd(), 'uploads')),
