@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ActorType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -57,6 +58,12 @@ describe('CvVersionsService', () => {
           provide: CloudinaryService,
           useValue: {
             createSignedUrl: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            getOrThrow: jest.fn().mockReturnValue('tmp/test-uploads'),
           },
         },
       ],

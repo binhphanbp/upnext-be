@@ -5,15 +5,21 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ActorType, FilePurpose, FileVisibility, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname } from 'node:path';
 import { Readable } from 'stream';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PaginationQueryDto, toPagination } from '../../common/dto/pagination-query.dto';
+import {
+  buildUploadStorageKey,
+  resolveUploadStoragePath,
+  UPLOAD_STORAGE_PREFIX,
+} from '../../common/upload/upload-paths';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadCvVersionDto } from './dto/upload-cv-version.dto';
 
@@ -29,9 +35,15 @@ export class CvVersionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly configService: ConfigService,
   ) {}
 
-  async upload(cvId: string, dto: UploadCvVersionDto, file: UploadedFile | undefined, user: AuthenticatedUser) {
+  async upload(
+    cvId: string,
+    dto: UploadCvVersionDto,
+    file: UploadedFile | undefined,
+    user: AuthenticatedUser,
+  ) {
     await this.authorizeCvAccess(cvId, user);
     await this.ensureTemplateExists(dto.templateId);
     this.ensurePdfFile(file);
@@ -155,22 +167,24 @@ export class CvVersionsService {
       throw new NotFoundException('Phiên bản CV chưa có file để tải xuống');
     }
 
-    const isLocal = version.sourceFile.storageKey.startsWith('uploads/');
+    const isLocal = version.sourceFile.storageKey.startsWith(UPLOAD_STORAGE_PREFIX);
 
     if (isLocal) {
-      const absolutePath = join(process.cwd(), version.sourceFile.storageKey);
-
       try {
+        const absolutePath = resolveUploadStoragePath(
+          this.configService.getOrThrow<string>('uploadRoot'),
+          version.sourceFile.storageKey,
+        );
         await stat(absolutePath);
+
+        return {
+          stream: createReadStream(absolutePath),
+          fileName: version.sourceFile.originalName,
+          mimeType: version.sourceFile.mimeType,
+        };
       } catch {
         throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ');
       }
-
-      return {
-        stream: createReadStream(absolutePath),
-        fileName: version.sourceFile.originalName,
-        mimeType: version.sourceFile.mimeType,
-      };
     } else {
       const signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
         resourceType: 'image',
@@ -325,16 +339,16 @@ export class CvVersionsService {
   private async saveCvFile(cvId: string, file: UploadedFile) {
     // Never derive the on-disk extension from the client-supplied filename.
     const fileName = `version-${randomUUID()}.pdf`;
-    const relativeDirectory = join('uploads', 'cvs', cvId);
-    const absoluteDirectory = join(process.cwd(), relativeDirectory);
-    const absolutePath = join(absoluteDirectory, fileName);
+    const storageKey = buildUploadStorageKey('cvs', cvId, fileName);
+    const absolutePath = resolveUploadStoragePath(
+      this.configService.getOrThrow<string>('uploadRoot'),
+      storageKey,
+    );
 
-    await mkdir(absoluteDirectory, { recursive: true });
+    await mkdir(dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, file.buffer);
 
-    return {
-      storageKey: join(relativeDirectory, fileName).replaceAll('\\', '/'),
-    };
+    return { storageKey };
   }
 
   private async getNextVersionNo(tx: Prisma.TransactionClient, cvId: string) {

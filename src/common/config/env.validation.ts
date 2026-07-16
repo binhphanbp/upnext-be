@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resolve } from 'node:path';
 
 const appEnvironmentSchema = z.enum(['development', 'staging', 'production']);
 
@@ -52,6 +53,12 @@ const envSchema = z
     APP_BACKEND_URL: z.string().url().default('http://localhost:3001'),
     ZALO_BOT_TOKEN: z.string().optional(),
     ZALO_BOT_WEBHOOK_SECRET: z.string().min(8).max(256).optional(),
+    UPLOAD_ROOT: z
+      .string()
+      .trim()
+      .min(1)
+      .default(resolve(process.cwd(), 'uploads'))
+      .transform((value) => resolve(value)),
   })
   .superRefine((env, ctx) => {
     // Only the production application environment disallows local credentialed origins.
@@ -90,6 +97,7 @@ export type AppConfig = {
   appBackendUrl?: string;
   zaloBotToken?: string;
   zaloBotWebhookSecret?: string;
+  uploadRoot: string;
 };
 
 export function validateEnv(config: Record<string, unknown>): AppConfig {
@@ -122,5 +130,6 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     appBackendUrl: parsed.APP_BACKEND_URL,
     zaloBotToken: parsed.ZALO_BOT_TOKEN,
     zaloBotWebhookSecret: parsed.ZALO_BOT_WEBHOOK_SECRET,
+    uploadRoot: parsed.UPLOAD_ROOT,
   };
 }
