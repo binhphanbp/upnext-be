@@ -5,7 +5,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
 import { NextFunction, Request, Response, json, urlencoded } from 'express';
 import * as express from 'express';
-import { join } from 'path';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { PrismaSerializeInterceptor } from './common/interceptors/prisma-serialize.interceptor';
@@ -27,6 +26,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   const isProduction = config.getOrThrow<string>('nodeEnv') === 'production';
+  const uploadRoot = config.getOrThrow<string>('uploadRoot');
 
   // Apply security headers to every route, including /docs (which needs a
   // relaxed CSP so the Scalar reference UI can load its assets).
@@ -76,7 +76,10 @@ async function bootstrap() {
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       next();
     },
-    express.static(join(process.cwd(), 'uploads')),
+    express.static(uploadRoot, {
+      dotfiles: 'deny',
+      index: false,
+    }),
   );
   app.useGlobalPipes(
     new ValidationPipe({

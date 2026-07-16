@@ -19,7 +19,14 @@ describe('validateEnv CORS origins', () => {
     const config = validateEnv(createConfig());
 
     expect(config.appEnv).toBe('development');
+    expect(config.uploadRoot).toBeDefined();
     expect(config.corsOrigins).toEqual(['http://localhost:5173', 'http://127.0.0.1:3000']);
+  });
+
+  it('resolves the configured upload root to an absolute path', () => {
+    const config = validateEnv(createConfig({ UPLOAD_ROOT: 'tmp/custom-uploads' }));
+
+    expect(config.uploadRoot).toMatch(/[\\/]tmp[\\/]custom-uploads$/);
   });
 
   it('allows localhost origins in staging when NODE_ENV is production', () => {

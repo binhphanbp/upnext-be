@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resolve } from 'node:path';
 
 const appEnvironmentSchema = z.enum(['development', 'staging', 'production']);
 
@@ -50,6 +51,12 @@ const envSchema = z
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     APP_BACKEND_URL: z.string().url().default('http://localhost:3001'),
+    UPLOAD_ROOT: z
+      .string()
+      .trim()
+      .min(1)
+      .default(resolve(process.cwd(), 'uploads'))
+      .transform((value) => resolve(value)),
   })
   .superRefine((env, ctx) => {
     // Only the production application environment disallows local credentialed origins.
@@ -86,6 +93,7 @@ export type AppConfig = {
   googleClientId?: string;
   googleClientSecret?: string;
   appBackendUrl?: string;
+  uploadRoot: string;
 };
 
 export function validateEnv(config: Record<string, unknown>): AppConfig {
@@ -116,5 +124,6 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     googleClientId: parsed.GOOGLE_CLIENT_ID,
     googleClientSecret: parsed.GOOGLE_CLIENT_SECRET,
     appBackendUrl: parsed.APP_BACKEND_URL,
+    uploadRoot: parsed.UPLOAD_ROOT,
   };
 }

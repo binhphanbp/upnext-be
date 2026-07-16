@@ -20,6 +20,7 @@ RUN pnpm prune --prod
 FROM node:22-alpine AS runner
 ENV NODE_ENV=production
 ENV PORT=4000
+ENV UPLOAD_ROOT=/app/uploads
 WORKDIR /app
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/pnpm-lock.yaml ./pnpm-lock.yaml
@@ -27,6 +28,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts
+RUN mkdir -p /app/uploads/cv /app/uploads/cvs \
+    && chown -R node:node /app/uploads
+VOLUME ["/app/uploads"]
 USER node
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD wget -qO- "http://127.0.0.1:${PORT}/health" || exit 1

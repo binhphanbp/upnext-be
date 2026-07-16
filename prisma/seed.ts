@@ -51,6 +51,11 @@ const adapter = new PrismaPg({
   connectionString: databaseUrl,
 });
 const prisma = new PrismaClient({ adapter });
+const uploadRoot = path.resolve(process.env.UPLOAD_ROOT?.trim() || 'uploads');
+const appBackendUrl = (process.env.APP_BACKEND_URL?.trim() || 'http://localhost:3001').replace(
+  /\/+$/,
+  '',
+);
 
 const SEED_KEY = 'seed-home-test';
 const SEED_EMAIL_PREFIX = `${SEED_KEY}.`;
@@ -91,7 +96,8 @@ function normalizeLogoDevCompanySeed(rawData: any) {
     const companyId = uuidFromSeed(`logo-dev-company:${item.slug}`);
     const logoFileId = uuidFromSeed(`logo-dev-logo:${item.slug}`);
     const businessLicenseFileId = null;
-    const reputationScore = index === 0 ? '95' : index === 1 ? '15' : index === 2 ? '35' : index === 3 ? '10' : '60';
+    const reputationScore =
+      index === 0 ? '95' : index === 1 ? '15' : index === 2 ? '35' : index === 3 ? '10' : '60';
 
     return {
       id: companyId,
@@ -150,7 +156,9 @@ function normalizeLogoDevCompanySeed(rawData: any) {
         originalName: `${item.slug}-cover.jpg`,
         mimeType: 'image/jpeg',
         sizeBytes: '4096',
-        publicUrl: coverUrl || 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&h=700&fit=crop&q=80',
+        publicUrl:
+          coverUrl ||
+          'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&h=700&fit=crop&q=80',
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       },
@@ -206,7 +214,9 @@ function loadCompanySeedData() {
     return legacyData;
   }
 
-  throw new Error('prisma/data/companies_50_real_logo_dev.json is required for seeding real companies.');
+  throw new Error(
+    'prisma/data/companies_50_real_logo_dev.json is required for seeding real companies.',
+  );
 }
 
 function loadCompanySeedCleanupData() {
@@ -846,14 +856,18 @@ function formatJobAsHtmlDropdown(text: string | null | undefined, fallbackHeadin
 
   const cleanText = formatted.replace(new RegExp(`^${fallbackHeading}\\s*`), '').trim();
 
-  const lines = cleanText.split('\n').map((l) => l.trim()).filter(Boolean);
+  const lines = cleanText
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
   let htmlContent = '';
   let insideList = false;
 
   for (const line of lines) {
     if (line.startsWith('-')) {
       if (!insideList) {
-        htmlContent += '<ul style="margin-top: 6px; margin-bottom: 6px; padding-left: 20px; list-style-type: disc;">';
+        htmlContent +=
+          '<ul style="margin-top: 6px; margin-bottom: 6px; padding-left: 20px; list-style-type: disc;">';
         insideList = true;
       }
       htmlContent += `<li style="margin-bottom: 5px;">${line.substring(1).trim()}</li>`;
@@ -2190,7 +2204,12 @@ async function main() {
     try {
       const companiesData = JSON.parse(fs.readFileSync(companiesPath, 'utf-8')) as any[];
       companiesWithLogo = companiesData.filter(
-        (item) => item.Slug && item.Name && item.Logo && typeof item.Logo === 'string' && item.Logo.trim() !== '',
+        (item) =>
+          item.Slug &&
+          item.Name &&
+          item.Logo &&
+          typeof item.Logo === 'string' &&
+          item.Logo.trim() !== '',
       );
     } catch (e) {
       console.warn('Error reading companies_detailed.json:', e);
@@ -2207,7 +2226,7 @@ async function main() {
     else if (index === 3) key = 'delta';
     return {
       ...c,
-      key
+      key,
     };
   });
 
@@ -2223,18 +2242,21 @@ async function main() {
     sizeBytes: BigInt(asset.sizeBytes),
     publicUrl: asset.publicUrl,
     createdAt: new Date(asset.createdAt),
-    updatedAt: new Date(asset.updatedAt)
+    updatedAt: new Date(asset.updatedAt),
   }));
 
   const existingCount = await prisma.fileAsset.count();
   console.log('FileAsset count in DB right before insert:', existingCount);
   if (existingCount > 0) {
     const existing = await prisma.fileAsset.findMany({ select: { id: true } });
-    console.log('Existing FileAsset IDs in DB:', existing.map(x => x.id));
+    console.log(
+      'Existing FileAsset IDs in DB:',
+      existing.map((x) => x.id),
+    );
   }
 
   await prisma.fileAsset.createMany({
-    data: fileAssetsData
+    data: fileAssetsData,
   });
 
   await prisma.company.createMany({
@@ -2260,7 +2282,7 @@ async function main() {
       status: c.status,
       createdAt: new Date(c.createdAt),
       updatedAt: new Date(c.updatedAt),
-    }))
+    })),
   });
 
   await prisma.companyReputationActivity.createMany({
@@ -2333,7 +2355,12 @@ async function main() {
 
   const recruiters = backupData.recruiters.map((rec: any) => {
     let roleCode = 'HR';
-    if (rec.email === 'hr@fptsoftware.com' || rec.email === 'admin@fptsoftware.com' || rec.email.includes('owner') || (!rec.email.includes('interviewer') && !rec.email.includes('recruiter@'))) {
+    if (
+      rec.email === 'hr@fptsoftware.com' ||
+      rec.email === 'admin@fptsoftware.com' ||
+      rec.email.includes('owner') ||
+      (!rec.email.includes('interviewer') && !rec.email.includes('recruiter@'))
+    ) {
       roleCode = 'OWNER';
     } else if (rec.email.includes('interviewer')) {
       roleCode = 'TECHLEAD';
@@ -2359,7 +2386,7 @@ async function main() {
       emailVerifiedAt: recruiter.createdAt,
       createdAt: recruiter.createdAt,
       updatedAt: recruiter.createdAt,
-    }))
+    })),
   });
 
   const avatarUrls = [
@@ -2382,7 +2409,7 @@ async function main() {
         createdAt: recruiter.createdAt,
         updatedAt: recruiter.createdAt,
       };
-    })
+    }),
   });
 
   await prisma.companyMember.createMany({
@@ -2392,7 +2419,7 @@ async function main() {
       roleId: seededRoles[recruiter.roleCode].id,
       createdAt: recruiter.createdAt,
       updatedAt: recruiter.createdAt,
-    }))
+    })),
   });
 
   const vietnameseNames = [
@@ -2474,7 +2501,7 @@ async function main() {
     'Ngô Bích Thủy',
     'Bùi Tiến Dũng',
     'Nguyễn Minh Triết',
-    'Hoàng Kim Oanh'
+    'Hoàng Kim Oanh',
   ];
 
   const candidates = Array.from({ length: 5 }, (_, index) => {
@@ -2500,7 +2527,8 @@ async function main() {
       };
     }
 
-    const fullName = index < 10 ? detailedNames[index] : vietnameseNames[(index - 10) % vietnameseNames.length];
+    const fullName =
+      index < 10 ? detailedNames[index] : vietnameseNames[(index - 10) % vietnameseNames.length];
     return {
       index,
       accountId,
@@ -2509,9 +2537,10 @@ async function main() {
       cvVersionId,
       cvFileAssetId: null,
       fullName,
-      email: index < 10
-        ? `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName).replace(/[^a-z0-9]/g, '-')}.candidate@gmail.com`
-        : `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName)}@gmail.com`,
+      email:
+        index < 10
+          ? `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName).replace(/[^a-z0-9]/g, '-')}.candidate@gmail.com`
+          : `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName)}@gmail.com`,
       createdAt: addDays(now, -(index % 30)),
       realCandidate: null,
     };
@@ -2530,14 +2559,14 @@ async function main() {
   });
 
   const fileAssetsToCreate: any[] = [];
-  
+
   await prisma.candidateProfile.createMany({
     data: candidates.map((candidate) => {
       const idx = candidate.index;
-      
+
       if (candidate.realCandidate) {
         const real = candidate.realCandidate;
-        
+
         // Add FileAsset for candidate CV if present
         if (real.profile.cvFile) {
           const cvFile = real.profile.cvFile;
@@ -2580,35 +2609,40 @@ async function main() {
       let address = idx % 2 === 0 ? 'Hồ Chí Minh' : 'Hà Nội';
 
       if (idx === 5) {
-        description = 'Technical Lead với hơn 7 năm kinh nghiệm thiết kế hệ thống Microservices quy mô lớn. Có kiến thức chuyên sâu về Spring Boot, NestJS, gRPC, Message Broker (Kafka) và kiến trúc High Availability trên môi trường Cloud.';
+        description =
+          'Technical Lead với hơn 7 năm kinh nghiệm thiết kế hệ thống Microservices quy mô lớn. Có kiến thức chuyên sâu về Spring Boot, NestJS, gRPC, Message Broker (Kafka) và kiến trúc High Availability trên môi trường Cloud.';
         phoneNumber = '(+84) 93 444 5555';
         gender = Gender.MALE;
         birthdate = new Date('1994-02-18');
         jobSearchStatus = JobSearchStatus.NOT_LOOKING;
         address = 'Hồ Chí Minh, Việt Nam';
       } else if (idx === 6) {
-        description = 'Engineering Manager có kỹ năng lãnh đạo xuất sắc và am hiểu Agile/Scrum. Quản lý thành công các dự án phần mềm đa quốc gia, tập trung vào nâng cao năng suất nhóm, phát triển con người và tối ưu hóa quy trình release.';
+        description =
+          'Engineering Manager có kỹ năng lãnh đạo xuất sắc và am hiểu Agile/Scrum. Quản lý thành công các dự án phần mềm đa quốc gia, tập trung vào nâng cao năng suất nhóm, phát triển con người và tối ưu hóa quy trình release.';
         phoneNumber = '(+84) 94 555 6666';
         gender = Gender.FEMALE;
         birthdate = new Date('1992-07-30');
         jobSearchStatus = JobSearchStatus.NOT_LOOKING;
         address = 'Hồ Chí Minh, Việt Nam';
       } else if (idx === 7) {
-        description = 'QA Automation Engineer với 3 năm kinh nghiệm lập kịch bản test tự động bằng Selenium và Cypress. Chuyên sâu về API Testing, Performance Testing (JMeter) và tích hợp kiểm thử tự động vào quy trình CI/CD.';
+        description =
+          'QA Automation Engineer với 3 năm kinh nghiệm lập kịch bản test tự động bằng Selenium và Cypress. Chuyên sâu về API Testing, Performance Testing (JMeter) và tích hợp kiểm thử tự động vào quy trình CI/CD.';
         phoneNumber = '(+84) 95 666 7777';
         gender = Gender.MALE;
         birthdate = new Date('1997-09-08');
         jobSearchStatus = JobSearchStatus.OPEN_TO_WORK;
         address = 'Hà Nội, Việt Nam';
       } else if (idx === 8) {
-        description = 'Mobile App Developer đam mê tạo ra các ứng dụng di động tuyệt đẹp và mượt mà trên iOS & Android. Thành thạo React Native, Flutter và Swift. Tích hợp tốt các dịch vụ RESTful API và lưu trữ offline.';
+        description =
+          'Mobile App Developer đam mê tạo ra các ứng dụng di động tuyệt đẹp và mượt mà trên iOS & Android. Thành thạo React Native, Flutter và Swift. Tích hợp tốt các dịch vụ RESTful API và lưu trữ offline.';
         phoneNumber = '(+84) 92 777 8888';
         gender = Gender.MALE;
         birthdate = new Date('1999-12-25');
         jobSearchStatus = JobSearchStatus.OPEN_TO_WORK;
         address = 'Hồ Chí Minh, Việt Nam';
       } else if (idx === 9) {
-        description = 'Product Designer (UI/UX) với gu thẩm mỹ tinh tế và tư duy đặt người dùng làm trung tâm. Kinh nghiệm thực hiện nghiên cứu người dùng, thiết kế wireframes, prototypes và design systems đồng nhất trên Figma.';
+        description =
+          'Product Designer (UI/UX) với gu thẩm mỹ tinh tế và tư duy đặt người dùng làm trung tâm. Kinh nghiệm thực hiện nghiên cứu người dùng, thiết kế wireframes, prototypes và design systems đồng nhất trên Figma.';
         phoneNumber = '(+84) 98 888 9999';
         gender = Gender.FEMALE;
         birthdate = new Date('2000-05-14');
@@ -2617,26 +2651,35 @@ async function main() {
       } else {
         const roleIdx = idx % 8;
         if (roleIdx === 0) {
-          description = 'Sinh viên năm cuối chuyên ngành Khoa học Máy tính, có kiến thức tốt về cấu trúc dữ liệu, giải thuật và lập trình backend (Node.js/Express). Đang tìm kiếm cơ hội thực tập để phát triển kỹ năng.';
+          description =
+            'Sinh viên năm cuối chuyên ngành Khoa học Máy tính, có kiến thức tốt về cấu trúc dữ liệu, giải thuật và lập trình backend (Node.js/Express). Đang tìm kiếm cơ hội thực tập để phát triển kỹ năng.';
         } else if (roleIdx === 1) {
-          description = 'Frontend Developer mới tốt nghiệp. Đam mê thiết kế giao diện tinh tế, phản hồi nhanh và tối ưu hóa trải nghiệm người dùng. Thành thạo HTML, CSS, JavaScript và React.';
+          description =
+            'Frontend Developer mới tốt nghiệp. Đam mê thiết kế giao diện tinh tế, phản hồi nhanh và tối ưu hóa trải nghiệm người dùng. Thành thạo HTML, CSS, JavaScript và React.';
         } else if (roleIdx === 2) {
-          description = 'Junior Fullstack Developer với hơn 1.5 năm kinh nghiệm thực tế phát triển các ứng dụng web bằng React và Node.js. Tư duy giải quyết vấn đề tốt và khả năng làm việc độc lập.';
+          description =
+            'Junior Fullstack Developer với hơn 1.5 năm kinh nghiệm thực tế phát triển các ứng dụng web bằng React và Node.js. Tư duy giải quyết vấn đề tốt và khả năng làm việc độc lập.';
         } else if (roleIdx === 3) {
-          description = 'DevOps Engineer giàu kinh nghiệm trong thiết lập hạ tầng Cloud (AWS), tự động hóa quy trình CI/CD và triển khai ứng dụng bằng Docker/Kubernetes.';
+          description =
+            'DevOps Engineer giàu kinh nghiệm trong thiết lập hạ tầng Cloud (AWS), tự động hóa quy trình CI/CD và triển khai ứng dụng bằng Docker/Kubernetes.';
         } else if (roleIdx === 4) {
-          description = 'Senior AI & Data Engineer với hơn 5 năm kinh nghiệm. Chuyên sâu về Machine Learning, NLP và tích hợp các công nghệ Generative AI/LLMs vào sản phẩm thực tế.';
+          description =
+            'Senior AI & Data Engineer với hơn 5 năm kinh nghiệm. Chuyên sâu về Machine Learning, NLP và tích hợp các công nghệ Generative AI/LLMs vào sản phẩm thực tế.';
         } else if (roleIdx === 5) {
-          description = 'Technical Lead với hơn 7 năm kinh nghiệm thiết kế kiến trúc hệ thống và dẫn dắt đội ngũ phát triển sản phẩm. Thế mạnh về Microservices, Cloud Computing và bảo mật.';
+          description =
+            'Technical Lead với hơn 7 năm kinh nghiệm thiết kế kiến trúc hệ thống và dẫn dắt đội ngũ phát triển sản phẩm. Thế mạnh về Microservices, Cloud Computing và bảo mật.';
         } else if (roleIdx === 6) {
-          description = 'Engineering Manager có kinh nghiệm quản lý và phát triển các đội nhóm kỹ thuật. Tối ưu hóa quy trình Agile/Scrum, kết nối các mục tiêu kinh doanh và công nghệ.';
+          description =
+            'Engineering Manager có kinh nghiệm quản lý và phát triển các đội nhóm kỹ thuật. Tối ưu hóa quy trình Agile/Scrum, kết nối các mục tiêu kinh doanh và công nghệ.';
         } else if (roleIdx === 7) {
-          description = 'Chuyên viên QA/QC kiểm thử phần mềm, thành thạo lập kế hoạch test, viết test case, thực hiện cả Manual Testing và Automation Testing (Selenium, Cypress).';
+          description =
+            'Chuyên viên QA/QC kiểm thử phần mềm, thành thạo lập kế hoạch test, viết test case, thực hiện cả Manual Testing và Automation Testing (Selenium, Cypress).';
         }
         phoneNumber = idx % 2 === 0 ? '(+84) 90 123 4567' : null;
         gender = idx % 2 === 0 ? Gender.MALE : Gender.FEMALE;
         birthdate = new Date(1996 + (idx % 8), idx % 12, (idx % 28) + 1);
-        jobSearchStatus = idx % 3 === 0 ? JobSearchStatus.OPEN_TO_WORK : JobSearchStatus.NOT_LOOKING;
+        jobSearchStatus =
+          idx % 3 === 0 ? JobSearchStatus.OPEN_TO_WORK : JobSearchStatus.NOT_LOOKING;
       }
 
       return {
@@ -2664,7 +2707,10 @@ async function main() {
       id: candidate.cvId,
       candidateProfileId: candidate.profileId,
       title: `${candidate.fullName} CV`,
-      source: candidate.realCandidate && candidate.realCandidate.profile.cvFile ? CvSource.UPLOAD : CvSource.BUILDER,
+      source:
+        candidate.realCandidate && candidate.realCandidate.profile.cvFile
+          ? CvSource.UPLOAD
+          : CvSource.BUILDER,
       status: CvStatus.ACTIVE,
       isDefault: true,
       createdAt: candidate.createdAt,
@@ -2675,7 +2721,7 @@ async function main() {
   await prisma.cVVersion.createMany({
     data: candidates.map((candidate) => {
       const idx = candidate.index;
-      
+
       if (candidate.realCandidate) {
         const real = candidate.realCandidate;
         return {
@@ -2715,7 +2761,7 @@ async function main() {
         const real = candidate.realCandidate;
         const levelCode = real.profile.jobPreference.desiredLevel.code;
         const level = experienceLevels[levelCode as keyof typeof experienceLevels];
-        
+
         return {
           id: randomUUID(),
           candidateProfileId: candidate.profileId,
@@ -2857,14 +2903,51 @@ async function main() {
   const linksToCreate: any[] = [];
 
   const detailedSkills: Record<number, string[]> = {
-    5: ['TypeScript', 'React', 'NestJS', 'AWS', 'Node.js', 'SQL', 'PostgreSQL', 'Docker', 'Kubernetes', 'CI/CD', 'Git', 'Java', 'Spring Boot'],
-    6: ['Project Management', 'Agile/Scrum', 'TypeScript', 'React', 'NestJS', 'AWS', 'Docker', 'Git'],
-    7: ['QA', 'QA Automation', 'Manual Testing', 'Cypress', 'Jest', 'TypeScript', 'JavaScript', 'Git', 'Postman'],
+    5: [
+      'TypeScript',
+      'React',
+      'NestJS',
+      'AWS',
+      'Node.js',
+      'SQL',
+      'PostgreSQL',
+      'Docker',
+      'Kubernetes',
+      'CI/CD',
+      'Git',
+      'Java',
+      'Spring Boot',
+    ],
+    6: [
+      'Project Management',
+      'Agile/Scrum',
+      'TypeScript',
+      'React',
+      'NestJS',
+      'AWS',
+      'Docker',
+      'Git',
+    ],
+    7: [
+      'QA',
+      'QA Automation',
+      'Manual Testing',
+      'Cypress',
+      'Jest',
+      'TypeScript',
+      'JavaScript',
+      'Git',
+      'Postman',
+    ],
     8: ['React Native', 'Flutter', 'Swift', 'Java', 'Git', 'REST API', 'JavaScript', 'TypeScript'],
-    9: ['Figma', 'UI/UX', 'Web Design', 'Mobile Design', 'Photoshop', 'Illustrator', 'HTML', 'CSS']
+    9: ['Figma', 'UI/UX', 'Web Design', 'Mobile Design', 'Photoshop', 'Illustrator', 'HTML', 'CSS'],
   };
 
-  async function getOrCreateSkill(name: string, skillsMap: Record<string, any>, categories: Record<string, any>) {
+  async function getOrCreateSkill(
+    name: string,
+    skillsMap: Record<string, any>,
+    categories: Record<string, any>,
+  ) {
     if (skillsMap[name]) {
       return skillsMap[name];
     }
@@ -3031,7 +3114,7 @@ async function main() {
           });
         });
       }
-      
+
       continue;
     }
 
@@ -3061,7 +3144,12 @@ async function main() {
           id: randomUUID(),
           candidateProfileId: profileId,
           language: 'English',
-          proficiency: roleIdx === 5 || roleIdx === 6 ? 'Fluent' : roleIdx === 4 ? 'IELTS 7.5' : 'Intermediate',
+          proficiency:
+            roleIdx === 5 || roleIdx === 6
+              ? 'Fluent'
+              : roleIdx === 4
+                ? 'IELTS 7.5'
+                : 'Intermediate',
           createdAt: baseDate,
           updatedAt: baseDate,
         });
@@ -3134,11 +3222,25 @@ async function main() {
     // 3. Education
     if (idx < 10) {
       const schools = [
-        ['Hanoi University of Science and Technology', 'Hanoi University', 'Da Nang University of Technology'],
-        ['Hanoi - Amsterdam High School for the Gifted', 'Le Hong Phong High School', 'Tran Dai Nghia High School']
+        [
+          'Hanoi University of Science and Technology',
+          'Hanoi University',
+          'Da Nang University of Technology',
+        ],
+        [
+          'Hanoi - Amsterdam High School for the Gifted',
+          'Le Hong Phong High School',
+          'Tran Dai Nghia High School',
+        ],
       ];
-      const majors = ['Software Engineering', 'Computer Science', 'Information Technology', 'Data Science & AI', 'UI/UX Design'];
-      
+      const majors = [
+        'Software Engineering',
+        'Computer Science',
+        'Information Technology',
+        'Data Science & AI',
+        'UI/UX Design',
+      ];
+
       educationsToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
@@ -3205,7 +3307,8 @@ async function main() {
         educationsToCreate.push({
           id: randomUUID(),
           candidateProfileId: profileId,
-          schoolName: idx % 2 === 0 ? 'FPT University' : 'Hanoi University of Science and Technology',
+          schoolName:
+            idx % 2 === 0 ? 'FPT University' : 'Hanoi University of Science and Technology',
           degree: 'Bachelor of Software Engineering',
           major: 'Software Engineering',
           startDate: addDays(baseDate, -1825),
@@ -3241,21 +3344,108 @@ async function main() {
       candidateSkills.push(...detailedSkills[idx]);
     } else {
       if (roleIdx === 0) {
-        candidateSkills.push('TypeScript', 'NestJS', 'Node.js', 'Express', 'JavaScript', 'SQL', 'PostgreSQL', 'Git', 'HTML', 'CSS');
+        candidateSkills.push(
+          'TypeScript',
+          'NestJS',
+          'Node.js',
+          'Express',
+          'JavaScript',
+          'SQL',
+          'PostgreSQL',
+          'Git',
+          'HTML',
+          'CSS',
+        );
       } else if (roleIdx === 1) {
-        candidateSkills.push('React', 'TypeScript', 'Figma', 'JavaScript', 'HTML', 'CSS', 'Tailwind CSS', 'Git');
+        candidateSkills.push(
+          'React',
+          'TypeScript',
+          'Figma',
+          'JavaScript',
+          'HTML',
+          'CSS',
+          'Tailwind CSS',
+          'Git',
+        );
       } else if (roleIdx === 2) {
-        candidateSkills.push('TypeScript', 'React', 'Prisma', 'Node.js', 'Express', 'JavaScript', 'SQL', 'PostgreSQL', 'Tailwind CSS', 'Git', 'Docker');
+        candidateSkills.push(
+          'TypeScript',
+          'React',
+          'Prisma',
+          'Node.js',
+          'Express',
+          'JavaScript',
+          'SQL',
+          'PostgreSQL',
+          'Tailwind CSS',
+          'Git',
+          'Docker',
+        );
       } else if (roleIdx === 3) {
-        candidateSkills.push('AWS', 'Docker', 'Kubernetes', 'CI/CD', 'Git', 'Python', 'GCP', 'Azure');
+        candidateSkills.push(
+          'AWS',
+          'Docker',
+          'Kubernetes',
+          'CI/CD',
+          'Git',
+          'Python',
+          'GCP',
+          'Azure',
+        );
       } else if (roleIdx === 4) {
-        candidateSkills.push('AI', 'AWS', 'Python', 'Machine Learning', 'Deep Learning', 'NLP', 'PyTorch', 'TensorFlow', 'LLM', 'LangChain', 'SQL', 'PostgreSQL');
+        candidateSkills.push(
+          'AI',
+          'AWS',
+          'Python',
+          'Machine Learning',
+          'Deep Learning',
+          'NLP',
+          'PyTorch',
+          'TensorFlow',
+          'LLM',
+          'LangChain',
+          'SQL',
+          'PostgreSQL',
+        );
       } else if (roleIdx === 5) {
-        candidateSkills.push('TypeScript', 'React', 'NestJS', 'AWS', 'Prisma', 'Node.js', 'SQL', 'PostgreSQL', 'Docker', 'Kubernetes', 'CI/CD', 'Git', 'Java', 'Spring Boot');
+        candidateSkills.push(
+          'TypeScript',
+          'React',
+          'NestJS',
+          'AWS',
+          'Prisma',
+          'Node.js',
+          'SQL',
+          'PostgreSQL',
+          'Docker',
+          'Kubernetes',
+          'CI/CD',
+          'Git',
+          'Java',
+          'Spring Boot',
+        );
       } else if (roleIdx === 6) {
-        candidateSkills.push('Git', 'TypeScript', 'React', 'NestJS', 'AWS', 'Docker', 'Project Management', 'Agile/Scrum');
+        candidateSkills.push(
+          'Git',
+          'TypeScript',
+          'React',
+          'NestJS',
+          'AWS',
+          'Docker',
+          'Project Management',
+          'Agile/Scrum',
+        );
       } else if (roleIdx === 7) {
-        candidateSkills.push('QA', 'QA Automation', 'Manual Testing', 'Cypress', 'Jest', 'TypeScript', 'JavaScript', 'Git');
+        candidateSkills.push(
+          'QA',
+          'QA Automation',
+          'Manual Testing',
+          'Cypress',
+          'Jest',
+          'TypeScript',
+          'JavaScript',
+          'Git',
+        );
       }
     }
 
@@ -3272,7 +3462,8 @@ async function main() {
           else totalYears = 2;
         }
 
-        const factor = sIdx === 0 ? 1.0 : sIdx === 1 ? 0.8 : sIdx === 2 ? 0.7 : sIdx === 3 ? 0.5 : 0.4;
+        const factor =
+          sIdx === 0 ? 1.0 : sIdx === 1 ? 0.8 : sIdx === 2 ? 0.7 : sIdx === 3 ? 0.5 : 0.4;
         let skillYears = totalYears * factor;
         skillYears = Math.round(skillYears * 10) / 10;
         if (skillYears < 0.5) skillYears = 0.5;
@@ -3289,7 +3480,12 @@ async function main() {
         if (sIdx < 2) {
           profLevel = maxProf;
         } else if (sIdx < 5) {
-          profLevel = maxProf === 'EXPERT' ? 'ADVANCED' : (maxProf === 'ADVANCED' ? 'INTERMEDIATE' : 'BEGINNER');
+          profLevel =
+            maxProf === 'EXPERT'
+              ? 'ADVANCED'
+              : maxProf === 'ADVANCED'
+                ? 'INTERMEDIATE'
+                : 'BEGINNER';
         } else {
           profLevel = 'INTERMEDIATE';
         }
@@ -3308,9 +3504,29 @@ async function main() {
     });
 
     if (idx < 10) {
-      const companiesList = ['FPT Software', 'VNG Corporation', 'Viettel Cyber Security', 'VinAI Research', 'One Mount Group', 'NashTech', 'Axon Active', 'CMC Global', 'Wayfu Studio'];
-      const titlesList = ['Frontend Developer', 'Fullstack Developer', 'DevOps Engineer', 'AI Engineer', 'Senior Developer', 'Technical Lead', 'Scrum Master', 'QA Automation Engineer', 'Mobile Developer'];
-      
+      const companiesList = [
+        'FPT Software',
+        'VNG Corporation',
+        'Viettel Cyber Security',
+        'VinAI Research',
+        'One Mount Group',
+        'NashTech',
+        'Axon Active',
+        'CMC Global',
+        'Wayfu Studio',
+      ];
+      const titlesList = [
+        'Frontend Developer',
+        'Fullstack Developer',
+        'DevOps Engineer',
+        'AI Engineer',
+        'Senior Developer',
+        'Technical Lead',
+        'Scrum Master',
+        'QA Automation Engineer',
+        'Mobile Developer',
+      ];
+
       const expId = randomUUID();
       experiencesToCreate.push({
         id: expId,
@@ -3330,14 +3546,32 @@ async function main() {
       candidateSkills.slice(0, 5).forEach((skillName) => {
         const skillRecord = skills[skillName];
         if (skillRecord) {
-          experienceSkillsToCreate.push({ id: randomUUID(), candidateExperienceId: expId, skillId: skillRecord.id });
+          experienceSkillsToCreate.push({
+            id: randomUUID(),
+            candidateExperienceId: expId,
+            skillId: skillRecord.id,
+          });
         }
       });
     } else {
       if (roleIdx !== 0 && roleIdx !== 1) {
         const expId = randomUUID();
-        const companyName = roleIdx === 6 ? 'Axon Active' : roleIdx === 5 ? 'VNG Corporation' : roleIdx === 4 ? 'VinAI' : 'ABC Tech';
-        const positionTitle = roleIdx === 6 ? 'Engineering Manager' : roleIdx === 5 ? 'Technical Lead' : roleIdx === 4 ? 'Senior AI Engineer' : 'Junior Developer';
+        const companyName =
+          roleIdx === 6
+            ? 'Axon Active'
+            : roleIdx === 5
+              ? 'VNG Corporation'
+              : roleIdx === 4
+                ? 'VinAI'
+                : 'ABC Tech';
+        const positionTitle =
+          roleIdx === 6
+            ? 'Engineering Manager'
+            : roleIdx === 5
+              ? 'Technical Lead'
+              : roleIdx === 4
+                ? 'Senior AI Engineer'
+                : 'Junior Developer';
 
         experiencesToCreate.push({
           id: expId,
@@ -3402,13 +3636,20 @@ async function main() {
 
     // 5. Projects
     if (idx < 10) {
-      const projectNames = ['Personal Portfolio Website', 'E-commerce Platform', 'Chat Realtime System', 'Smart IoT Dashboard', 'AI Smart Assistant'];
+      const projectNames = [
+        'Personal Portfolio Website',
+        'E-commerce Platform',
+        'Chat Realtime System',
+        'Smart IoT Dashboard',
+        'AI Smart Assistant',
+      ];
       projectsToCreate.push({
         id: randomUUID(),
         candidateProfileId: profileId,
         name: projectNames[idx % projectNames.length],
         role: idx === 9 ? 'UI/UX Designer' : 'Fullstack Developer',
-        description: 'Dự án cá nhân nhằm áp dụng các công nghệ hiện đại để giải quyết bài toán quản lý và tối ưu hóa trải nghiệm người dùng.',
+        description:
+          'Dự án cá nhân nhằm áp dụng các công nghệ hiện đại để giải quyết bài toán quản lý và tối ưu hóa trải nghiệm người dùng.',
         projectUrl: `https://github.com/seed/project-${idx}`,
         technologies: candidateSkills.slice(0, 3).join(', '),
         deployUrl: `https://demo-project-${idx}.dev`,
@@ -3425,7 +3666,8 @@ async function main() {
           candidateProfileId: profileId,
           name: 'Task Manager API',
           role: 'Solo Developer',
-          description: 'A RESTful API built to manage daily tasks, supporting CRUD operations and JWT authentication.',
+          description:
+            'A RESTful API built to manage daily tasks, supporting CRUD operations and JWT authentication.',
           projectUrl: 'https://github.com/seed/task-manager-api',
           technologies: 'Node.js, Express, MongoDB',
           deployUrl: null,
@@ -3441,7 +3683,8 @@ async function main() {
           candidateProfileId: profileId,
           name: 'Personal Portfolio Website',
           role: 'UI Designer & Developer',
-          description: 'A modern, responsive portfolio website featuring glassmorphism design and smooth page transitions.',
+          description:
+            'A modern, responsive portfolio website featuring glassmorphism design and smooth page transitions.',
           projectUrl: 'https://github.com/seed/portfolio',
           technologies: 'React, TailwindCSS, Framer Motion',
           deployUrl: 'https://myportfolio.dev',
@@ -3457,7 +3700,8 @@ async function main() {
           candidateProfileId: profileId,
           name: 'E-commerce Platform Microservices',
           role: 'Core Backend Engineer',
-          description: 'Developed the checkout and inventory service handling 10k concurrent users during flash sales.',
+          description:
+            'Developed the checkout and inventory service handling 10k concurrent users during flash sales.',
           projectUrl: 'https://github.com/seed/ecommerce-microservices',
           technologies: 'NestJS, TypeScript, Docker, Kafka',
           deployUrl: null,
@@ -3472,7 +3716,7 @@ async function main() {
 
     // 6. Certifications
     if (idx < 10) {
-       if (idx === 5) {
+      if (idx === 5) {
         certificationsToCreate.push({
           id: randomUUID(),
           candidateProfileId: profileId,
@@ -3608,21 +3852,21 @@ async function main() {
     const jobCategory = await prisma.jobCategory.upsert({
       where: { name: def.jobCategory.name },
       update: {},
-      create: { name: def.jobCategory.name }
+      create: { name: def.jobCategory.name },
     });
 
     // Upsert Experience Level
     const experienceLevel = await prisma.experienceLevel.upsert({
       where: { code: def.experienceLevel.code },
       update: { name: def.experienceLevel.name },
-      create: { code: def.experienceLevel.code, name: def.experienceLevel.name }
+      create: { code: def.experienceLevel.code, name: def.experienceLevel.name },
     });
 
     // Upsert Employment Type
     const employmentType = await prisma.employmentType.upsert({
       where: { name: def.employmentType.name },
       update: {},
-      create: { name: def.employmentType.name }
+      create: { name: def.employmentType.name },
     });
 
     const jobId = randomUUID();
@@ -3639,7 +3883,7 @@ async function main() {
       workMode: def.locations[0]?.workingModel || 'HYBRID',
       publishedAt: new Date(def.publishedAt),
       expiredAt: new Date(def.expiredAt),
-      createdAt: new Date(def.publishedAt) // set createdAt = publishedAt
+      createdAt: new Date(def.publishedAt), // set createdAt = publishedAt
     });
   }
 
@@ -3673,8 +3917,8 @@ async function main() {
       publishedAt: job.publishedAt,
       expiredAt: job.expiredAt,
       createdAt: job.createdAt,
-      updatedAt: job.createdAt
-    }))
+      updatedAt: job.createdAt,
+    })),
   });
 
   // Create Locations
@@ -3689,14 +3933,14 @@ async function main() {
           workingModel: loc.workingModel as any,
           city: loc.city,
           district: loc.district,
-          address: loc.address
-        }
+          address: loc.address,
+        },
       });
       await prisma.jobPostLocation.create({
         data: {
           jobPostId: job.id,
-          jobLocationId: locId
-        }
+          jobLocationId: locId,
+        },
       });
     }
   }
@@ -3707,15 +3951,15 @@ async function main() {
       const skillRecord = await prisma.skill.upsert({
         where: { name: sk.name },
         update: {},
-        create: { name: sk.name }
+        create: { name: sk.name },
       });
       await prisma.jobPostSkill.create({
         data: {
           jobPostId: job.id,
           skillId: skillRecord.id,
           priority: (sk.priority === 'REQUIRED' ? 'REQUIRED' : 'NICE_TO_HAVE') as any,
-          minYearsExperience: sk.minYearsExperience || null
-        }
+          minYearsExperience: sk.minYearsExperience || null,
+        },
       });
     }
   }
@@ -3726,14 +3970,14 @@ async function main() {
       const specRecord = await prisma.specialization.upsert({
         where: { slug: spec.slug },
         update: { name: spec.name },
-        create: { name: spec.name, slug: spec.slug }
+        create: { name: spec.name, slug: spec.slug },
       });
       await prisma.jobPostSpecialization.create({
         data: {
           jobPostId: job.id,
           specializationId: specRecord.id,
-          isRequired: spec.isRequired
-        }
+          isRequired: spec.isRequired,
+        },
       });
     }
   }
@@ -4950,13 +5194,21 @@ async function importItviecData(
   const companiesData = JSON.parse(fs.readFileSync(companiesPath, 'utf-8')) as any[];
 
   const companiesWithLogo = companiesData.filter(
-    (item) => item.Slug && item.Name && item.Logo && typeof item.Logo === 'string' && item.Logo.trim() !== '',
+    (item) =>
+      item.Slug &&
+      item.Name &&
+      item.Logo &&
+      typeof item.Logo === 'string' &&
+      item.Logo.trim() !== '',
   );
-  const companiesToImport = companiesWithLogo.length >= 54
-    ? companiesWithLogo.slice(4, 54)
-    : companiesWithLogo.slice(0, Math.min(50, companiesWithLogo.length));
+  const companiesToImport =
+    companiesWithLogo.length >= 54
+      ? companiesWithLogo.slice(4, 54)
+      : companiesWithLogo.slice(0, Math.min(50, companiesWithLogo.length));
 
-  console.log(`Loaded ${companiesData.length} companies. Importing ${companiesToImport.length} companies with logos and ${jobsData.jobs.length} jobs.`);
+  console.log(
+    `Loaded ${companiesData.length} companies. Importing ${companiesToImport.length} companies with logos and ${jobsData.jobs.length} jobs.`,
+  );
 
   const companyTypesBySlug = new Map<string, string>();
   const companySizesBySlug = new Map<string, string>();
@@ -5326,7 +5578,7 @@ async function importItviecData(
 async function seedCandidatesAndApplications(prisma: PrismaClient) {
   // Find FPT Software company dynamically
   const fptSoftware = await prisma.company.findUnique({
-    where: { slug: 'fpt-software' }
+    where: { slug: 'fpt-software' },
   });
 
   if (!fptSoftware) {
@@ -5335,7 +5587,7 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
   }
 
   const recruiterRole = await prisma.recruiterRole.findFirst({
-    where: { code: 'OWNER' }
+    where: { code: 'OWNER' },
   });
 
   if (!recruiterRole) {
@@ -5363,7 +5615,7 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
       recruiterRoleId: recruiterRole.id,
       status: 'ACTIVE',
       emailVerifiedAt: new Date(),
-    }
+    },
   });
 
   // 2. Create or link recruiter profile
@@ -5374,7 +5626,7 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
       id: recruiterProfileId,
       recruiterAccountId: recruiterAccountId,
       fullName: 'Duy CC',
-    }
+    },
   });
 
   // 3. Create or link company member
@@ -5383,7 +5635,7 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
       recruiterAccountId_companyId: {
         recruiterAccountId: recruiterAccountId,
         companyId: fptSoftware.id,
-      }
+      },
     },
     update: {
       roleId: recruiterRole.id,
@@ -5394,22 +5646,22 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
       companyId: fptSoftware.id,
       roleId: recruiterRole.id,
       status: 'ACTIVE',
-    }
+    },
   });
 
   // 4. Update the original job post owner to duycc771
   const javaJob = await prisma.jobPost.findFirst({
     where: {
       companyId: fptSoftware.id,
-      slug: 'fpt-software-senior-java-backend-engineer'
-    }
+      slug: 'fpt-software-senior-java-backend-engineer',
+    },
   });
 
   const createdJobs = [];
   if (javaJob) {
     await prisma.jobPost.update({
       where: { id: javaJob.id },
-      data: { createdByRecruiterId: recruiterAccountId }
+      data: { createdByRecruiterId: recruiterAccountId },
     });
     createdJobs.push(javaJob);
   }
@@ -5638,7 +5890,7 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
 </details>`,
       skills: ['Agile', 'Scrum', 'Project Management'],
       specialization: 'project-management',
-    }
+    },
   ];
 
   for (const jobDef of customJobsData) {
@@ -5648,12 +5900,14 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
     const spec = await prisma.specialization.findFirst({ where: { slug: jobDef.specialization } });
 
     if (!category || !expLevel || !empType) {
-      console.log(`[SEED] Warning: Relational metadata not found for job ${jobDef.title}. Skipping.`);
+      console.log(
+        `[SEED] Warning: Relational metadata not found for job ${jobDef.title}. Skipping.`,
+      );
       continue;
     }
 
     let job = await prisma.jobPost.findUnique({
-      where: { slug: jobDef.slug }
+      where: { slug: jobDef.slug },
     });
 
     if (!job) {
@@ -5682,7 +5936,7 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
           moderationStatus: 'APPROVED',
           publishedAt: new Date(),
           expiredAt: addDays(new Date(), 45),
-        }
+        },
       });
 
       // Create location
@@ -5695,14 +5949,14 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
           district: 'Cầu Giấy',
           address: 'FPT Cầu Giấy Building, Duy Tân, Cầu Giấy, Hà Nội',
           workingModel: WorkingModel.HYBRID,
-        }
+        },
       });
 
       await prisma.jobPostLocation.create({
         data: {
           jobPostId: job.id,
           jobLocationId: locId,
-        }
+        },
       });
 
       // Create specialization
@@ -5712,7 +5966,7 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
             jobPostId: job.id,
             specializationId: spec.id,
             isRequired: true,
-          }
+          },
         });
       }
 
@@ -5724,8 +5978,10 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
           update: {},
           create: {
             name: skillName,
-            categoryId: skillCategory ? skillCategory.id : (await prisma.skillCategory.findFirst())!.id,
-          }
+            categoryId: skillCategory
+              ? skillCategory.id
+              : (await prisma.skillCategory.findFirst())!.id,
+          },
         });
 
         await prisma.jobPostSkill.create({
@@ -5733,7 +5989,7 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
             jobPostId: job.id,
             skillId: skill.id,
             priority: 'REQUIRED',
-          }
+          },
         });
       }
     }
@@ -5749,9 +6005,12 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
   }
 
   const candidatesData = JSON.parse(fs.readFileSync(candidatesJsonPath, 'utf-8'));
-  console.log(`[SEED] Loading ${candidatesData.length} static candidate records from candidates.json.`);
+  console.log(
+    `[SEED] Loading ${candidatesData.length} static candidate records from candidates.json.`,
+  );
 
-  const cvDir = path.join(process.cwd(), 'uploads', 'cv');
+  const cvStorageDirectory = path.posix.join('uploads', 'cv');
+  const cvDir = path.join(uploadRoot, 'cv');
   if (!fs.existsSync(cvDir)) {
     fs.mkdirSync(cvDir, { recursive: true });
   }
@@ -5765,7 +6024,7 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
       // Unique email check
       let emailAddr = email;
       let candidateAccount = await prisma.candidateAccount.findUnique({
-        where: { email: emailAddr }
+        where: { email: emailAddr },
       });
 
       if (!candidateAccount) {
@@ -5776,12 +6035,12 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
             passwordHash,
             candidateAccountStatus: 'ACTIVE',
             emailVerifiedAt: new Date(),
-          }
+          },
         });
       }
 
       let candidateProfile = await prisma.candidateProfile.findUnique({
-        where: { candidateAccountId: candidateAccount.id }
+        where: { candidateAccountId: candidateAccount.id },
       });
 
       if (!candidateProfile) {
@@ -5790,7 +6049,7 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
             candidateAccountId: candidateAccount.id,
             jobSearchStatus: 'OPEN_TO_WORK',
             profileVisibility: 'PUBLIC',
-          }
+          },
         });
       }
 
@@ -5806,29 +6065,30 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
       let fileAsset = await prisma.fileAsset.findFirst({
         where: {
           ownerId: candidateProfile.id,
-          purpose: FilePurpose.CV
-        }
+          purpose: FilePurpose.CV,
+        },
       });
 
       if (!fileAsset) {
-        const publicUrl = `http://localhost:3001/uploads/cv/${cleanFileName}`;
+        const storageKey = path.posix.join(cvStorageDirectory, cleanFileName);
+        const publicUrl = `${appBackendUrl}/${storageKey}`;
         fileAsset = await prisma.fileAsset.create({
           data: {
             ownerType: 'candidate_cv',
             ownerId: candidateProfile.id,
             purpose: FilePurpose.CV,
             visibility: FileVisibility.PUBLIC,
-            storageKey: `uploads/cv/${cleanFileName}`,
+            storageKey,
             originalName,
             mimeType: 'application/pdf',
             sizeBytes: BigInt(actualSize),
             publicUrl,
-          }
+          },
         });
       }
 
       let cvRecord = await prisma.cV.findFirst({
-        where: { candidateProfileId: candidateProfile.id }
+        where: { candidateProfileId: candidateProfile.id },
       });
 
       if (!cvRecord) {
@@ -5839,12 +6099,12 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
             source: CvSource.UPLOAD,
             status: CvStatus.ACTIVE,
             isDefault: true,
-          }
+          },
         });
       }
 
       let cvVersion = await prisma.cVVersion.findFirst({
-        where: { cvId: cvRecord.id }
+        where: { cvId: cvRecord.id },
       });
 
       if (!cvVersion) {
@@ -5854,16 +6114,15 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
             sourceFileId: fileAsset.id,
             versionNo: 1,
             parsedText: parsedText || null,
-          }
+          },
         });
       }
 
       seededCandidates.push({
         profileId: candidateProfile.id,
         cvVersionId: cvVersion.id,
-        fullName
+        fullName,
       });
-
     } catch (err) {
       console.error(`[SEED] Failed to seed candidate: ${item.fullName}`, err);
     }
@@ -5881,8 +6140,8 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
         let application = await prisma.application.findFirst({
           where: {
             jobPostId: job.id,
-            candidateProfileId: candidate.profileId
-          }
+            candidateProfileId: candidate.profileId,
+          },
         });
 
         if (!application) {
@@ -5913,8 +6172,8 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
               candidateProfileId: candidate.profileId,
               cvVersionId: candidate.cvVersionId,
               status,
-              submittedAt
-            }
+              submittedAt,
+            },
           });
 
           // Schedule mock interviews for INTERVIEWING status
@@ -5937,8 +6196,8 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
                 meetingUrl: 'https://meet.google.com/abc-defg-hij',
                 status: InterviewStatus.SCHEDULED,
                 result: InterviewResult.PENDING,
-                recruiterNote: 'Phỏng vấn kỹ thuật trao đổi chi tiết'
-              }
+                recruiterNote: 'Phỏng vấn kỹ thuật trao đổi chi tiết',
+              },
             });
             interviewCreatedCount++;
           }
@@ -5946,13 +6205,18 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
           applicationSuccessCount++;
         }
       } catch (err) {
-        console.error(`[SEED] Failed to create application for candidate ${candidate.fullName} and job ${job.title}:`, err);
+        console.error(
+          `[SEED] Failed to create application for candidate ${candidate.fullName} and job ${job.title}:`,
+          err,
+        );
       }
     }
   }
 
   console.log(`[SEED] Successfully seeded ${seededCandidates.length} candidate accounts.`);
-  console.log(`[SEED] Successfully created ${applicationSuccessCount} applications across ${createdJobs.length} jobs.`);
+  console.log(
+    `[SEED] Successfully created ${applicationSuccessCount} applications across ${createdJobs.length} jobs.`,
+  );
   console.log(`[SEED] Successfully created ${interviewCreatedCount} mock interviews.`);
 }
 

@@ -89,8 +89,17 @@ jobs:
           docker pull "$IMAGE"
 
           test "$(docker image inspect --format '{{json .Config.Cmd}}' "$IMAGE")" = '["node","dist/main.js"]'
+          test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE")" = 'node'
 
           docker run --rm --entrypoint node "$IMAGE" -e 'const fs = require("fs"); console.log(require.resolve("express")); if (!fs.existsSync("/app/node_modules/.bin/prisma")) { throw new Error("Prisma CLI is missing"); } if (!fs.existsSync("/app/dist/main.js")) { throw new Error("Application entrypoint is missing"); }'
+          docker run --rm --entrypoint sh "$IMAGE" -ec '
+            test "$(id -u)" -ne 0
+            test -d "$UPLOAD_ROOT/cv"
+            probe="$UPLOAD_ROOT/cv/.runtime-write-smoke-$$"
+            printf "ok" > "$probe"
+            test -s "$probe"
+            rm "$probe"
+          '
 
   deploy:
     name: Deploy backend
