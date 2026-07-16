@@ -8,7 +8,7 @@ import {
 import { CvScreeningRunStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RunCvScreeningDto } from './dto/run-cv-screening.dto';
-import { EmbeddingResult, EmbeddingService, PgVectorRanking } from './embedding.service';
+import { EmbeddingResult, EmbeddingService } from './embedding.service';
 import { GeminiScoringService, GeminiScoreResult } from './gemini-scoring.service';
 
 const DEFAULT_DETAILED_LIMIT = 100;
