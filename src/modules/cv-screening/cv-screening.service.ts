@@ -8,7 +8,7 @@ import {
 import { CvScreeningRunStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RunCvScreeningDto } from './dto/run-cv-screening.dto';
-import { EmbeddingResult, EmbeddingService } from './embedding.service';
+import { EmbeddingResult, EmbeddingService, PgVectorRanking } from './embedding.service';
 import { GeminiScoringService, GeminiScoreResult } from './gemini-scoring.service';
 
 const DEFAULT_DETAILED_LIMIT = 100;
@@ -17,7 +17,7 @@ const EMBEDDING_CONCURRENCY = 8;
 const GEMINI_BATCH_SIZE = 8;
 const GEMINI_BATCH_CONCURRENCY = 1;
 const GEMINI_FALLBACK_CONCURRENCY = 1;
-const SCORING_VERSION = 'cv-screening-v3-vi';
+const SCORING_VERSION = 'cv-screening-v5-pgvector-hybrid-vi';
 
 type ApplicationForScreening = Prisma.ApplicationGetPayload<{
   select: {
@@ -36,6 +36,8 @@ type ApplicationForScreening = Prisma.ApplicationGetPayload<{
 type RankedApplication = {
   application: ApplicationForScreening;
   semanticScore: number;
+  skillMatchScore: number;
+  retrievalScore: number;
   cvText: string;
   cvEmbeddingUpdatedAt: Date;
 };
@@ -153,6 +155,8 @@ export class CvScreeningService {
       jobTitle: score.jobPost.title,
       finalScore: Number(score.finalScore),
       semanticScore: Number(score.semanticScore),
+      skillMatchScore: Number(score.skillMatchScore),
+      retrievalScore: Number(score.retrievalScore),
       aiScore: Number(score.aiScore),
       skillScore: Number(score.skillScore),
       experienceScore: Number(score.experienceScore),
@@ -194,6 +198,8 @@ export class CvScreeningService {
       applicationId: score.applicationId,
       finalScore: Number(score.finalScore),
       semanticScore: Number(score.semanticScore),
+      skillMatchScore: Number(score.skillMatchScore),
+      retrievalScore: Number(score.retrievalScore),
       aiScore: Number(score.aiScore),
       skillScore: Number(score.skillScore),
       experienceScore: Number(score.experienceScore),
@@ -261,28 +267,12 @@ export class CvScreeningService {
         applications.map((application) => application.cvVersionId),
         EMBEDDING_CONCURRENCY,
       );
-      let embeddingFailureCount = 0;
-      const ranked = applications.map((application): RankedApplication | null => {
-        const cvEmbedding = cvEmbeddings.get(application.cvVersionId);
-        if (!cvEmbedding) {
-          this.logger.error(`Failed to create embedding for application ${application.id}`);
-          embeddingFailureCount += 1;
-          return null;
-        }
-
-        const similarity = this.embeddingService.cosineSimilarity(
-          jobEmbedding.vector,
-          cvEmbedding.vector,
-        );
-        const semanticScore = this.roundScore(similarity * 100);
-
-        return {
-          application,
-          semanticScore,
-          cvText: cvEmbedding.text,
-          cvEmbeddingUpdatedAt: cvEmbedding.updatedAt,
-        };
-      });
+      const applicationsById = new Map(
+        applications.map((application) => [application.id, application]),
+      );
+      const embeddingFailureCount = applications.filter(
+        (application) => !cvEmbeddings.has(application.cvVersionId),
+      ).length;
 
       if (embeddingFailureCount > 0) {
         await this.incrementProgress(runId, 0, embeddingFailureCount);
@@ -291,11 +281,34 @@ export class CvScreeningService {
       const minScore = run.minScore === null ? null : Number(run.minScore);
       const requestedLimit = run.limit ?? DEFAULT_DETAILED_LIMIT;
       const detailLimit = Math.min(requestedLimit, MAX_DETAILED_LIMIT, applications.length);
-      const selected = ranked
-        .filter((item): item is RankedApplication => item !== null)
-        .filter((item) => minScore === null || item.semanticScore >= minScore)
-        .sort((left, right) => right.semanticScore - left.semanticScore)
-        .slice(0, detailLimit);
+      const vectorRanking = await this.embeddingService.rankApplications(
+        run.jobPostId,
+        jobEmbedding.vector,
+        detailLimit,
+        applications.length,
+        minScore,
+      );
+      const selected = vectorRanking.flatMap((ranking): RankedApplication[] => {
+        const application = applicationsById.get(ranking.applicationId);
+        const cvEmbedding = application
+          ? cvEmbeddings.get(application.cvVersionId)
+          : undefined;
+
+        if (!application || !cvEmbedding) {
+          return [];
+        }
+
+        return [
+          {
+            application,
+            semanticScore: ranking.semanticScore,
+            skillMatchScore: ranking.skillMatchScore,
+            retrievalScore: ranking.retrievalScore,
+            cvText: cvEmbedding.text,
+            cvEmbeddingUpdatedAt: cvEmbedding.updatedAt,
+          },
+        ];
+      });
 
       const toScore = await this.reuseFreshScores(runId, jobEmbedding, selected);
       await this.mapLimit(
@@ -394,7 +407,11 @@ export class CvScreeningService {
           data: {
             runId,
             semanticScore: item.semanticScore,
-            finalScore: this.roundScore(Number(score.aiScore) * 0.7 + item.semanticScore * 0.3),
+            skillMatchScore: item.skillMatchScore,
+            retrievalScore: item.retrievalScore,
+            finalScore: this.roundScore(
+              Number(score.aiScore) * 0.7 + item.retrievalScore * 0.3,
+            ),
           },
         }),
       ),
@@ -427,6 +444,8 @@ export class CvScreeningService {
           candidateName: item.application.candidateProfile.account.fullName,
           cvText: item.cvText,
           semanticScore: item.semanticScore,
+          skillMatchScore: item.skillMatchScore,
+          retrievalScore: item.retrievalScore,
         })),
       );
       const resultByApplicationId = new Map(
@@ -523,13 +542,15 @@ export class CvScreeningService {
     const projectScore = this.roundScore(result.projectScore);
     const educationScore = this.roundScore(result.educationScore);
     const aiScore = this.roundScore(skillScore + experienceScore + projectScore + educationScore);
-    const finalScore = this.roundScore(aiScore * 0.7 + item.semanticScore * 0.3);
+    const finalScore = this.roundScore(aiScore * 0.7 + item.retrievalScore * 0.3);
 
     const data = {
       runId,
       jobPostId: item.application.jobPostId,
       candidateProfileId: item.application.candidateProfileId,
       semanticScore: item.semanticScore,
+      skillMatchScore: item.skillMatchScore,
+      retrievalScore: item.retrievalScore,
       aiScore,
       finalScore,
       skillScore,
