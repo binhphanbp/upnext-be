@@ -390,11 +390,15 @@ async function main() {
       const status = statuses[(c + j) % statuses.length];
       const applicationId = uid(700 + appCount);
 
-      await prisma.application.upsert({
+      const application = await prisma.application.upsert({
         where: {
           candidateProfileId_jobPostId: { candidateProfileId: cand.profileId, jobPostId },
         },
-        update: { status },
+        update: {
+          cvVersionId: cand.cvVersionId,
+          status,
+          submittedAt: addDays(now, -((c + j) % 10)),
+        },
         create: {
           id: applicationId,
           jobPostId,
@@ -405,7 +409,7 @@ async function main() {
           submittedAt: addDays(now, -((c + j) % 10)),
         },
       });
-      createdApplications.push({ id: applicationId, status });
+      createdApplications.push({ id: application.id, status });
       appCount++;
     }
   }
@@ -424,7 +428,22 @@ async function main() {
 
     await prisma.interview.upsert({
       where: { id: interviewId },
-      update: {},
+      update: {
+        recruiterProfileId: recruiterProfile.id,
+        applicationId: app.id,
+        interviewRound: 1,
+        type,
+        scheduledStartAt: interviewDate,
+        scheduledEndAt: new Date(interviewDate.getTime() + 60 * 60 * 1000),
+        meetingUrl: type === InterviewType.ONLINE ? 'https://meet.google.com/toandev-mock' : null,
+        location:
+          type === InterviewType.ONSITE ? '123 ÄÆ°á»ng Nguyá»…n Huá»‡, Quáº­n 1, TP. Há»“ ChÃ­ Minh' : null,
+        recruiterNote: 'Phá»ng váº¥n vÃ²ng 1 vá»›i recruiter.',
+        candidateNote: null,
+        status: InterviewStatus.SCHEDULED,
+        result: InterviewResult.PENDING,
+        reminderSentAt: null,
+      },
       create: {
         id: interviewId,
         recruiterProfileId: recruiterProfile.id,

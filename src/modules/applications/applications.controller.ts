@@ -189,30 +189,6 @@ export class ApplicationsController {
     });
   }
 
-  @Get('recruiter/pipeline')
-  @ApiOperation({ summary: 'Lấy dữ liệu quy trình ứng viên (RECRUITER)' })
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ActorType.RECRUITER)
-  @ApiQuery({ name: 'jobPostId', required: false, description: 'Lọc theo ID tin tuyển dụng' })
-  @ApiQuery({ name: 'stageId', required: false, description: 'Lọc theo ID giai đoạn pipeline' })
-  @ApiQuery({ name: 'search', required: false, description: 'Tìm kiếm theo tên, email, vị trí hoặc kỹ năng' })
-  @ApiOkResponse({
-    description: 'Dữ liệu pipeline ứng viên.',
-  })
-  getRecruiterPipeline(
-    @CurrentUser() user: AuthenticatedUser,
-    @Query('jobPostId') jobPostId?: string,
-    @Query('stageId') stageId?: string,
-    @Query('search') search?: string,
-  ) {
-    return this.applicationsService.getRecruiterPipeline(user.id, {
-      jobPostId,
-      stageId,
-      search,
-    });
-  }
-
   @Patch('applications/:id/status')
   @ApiOperation({ summary: 'Cập nhật trạng thái hồ sơ ứng tuyển' })
   @ApiParam({ name: 'id', description: 'UUID của hồ sơ ứng tuyển' })

@@ -260,7 +260,7 @@ const jobDetailsMap: Record<
   },
   'Data Engineer': {
     description:
-      'Join us as a Data Engineer to design, construct, and maintain reliable data pipelines (ETL/ELT). You will help establish our data lakehouse to power analytics and LLM matching engines.',
+      'Join us as a Data Engineer to design, construct, and maintain reliable data workflows (ETL/ELT). You will help establish our data lakehouse to power analytics and LLM matching engines.',
     requirements:
       '- 3+ years of experience in data engineering.\n- Proficient in Python, SQL, and big data technologies (Spark/Hadoop).\n- Experience with AWS services (S3, Redshift, Glue).',
     benefits:
@@ -270,7 +270,7 @@ const jobDetailsMap: Record<
     description:
       'We are looking for a QA Specialist with a cloud/infrastructure focus. You will build end-to-end automation test suites, integration tests, and performance load tests on AWS environments.',
     requirements:
-      '- 3+ years in software quality assurance.\n- Strong automation experience with Cypress, Selenium, or Playwright.\n- Solid understanding of CI/CD pipelines & basic cloud networking.',
+      '- 3+ years in software quality assurance.\n- Strong automation experience with Cypress, Selenium, or Playwright.\n- Solid understanding of CI/CD workflows & basic cloud networking.',
     benefits:
       '- Professional certification support (AWS/ISTQB).\n- Remote-friendly environment.\n- Competitive daily/monthly rates.',
   },
@@ -315,7 +315,7 @@ const jobDetailsMap: Record<
   },
   'AI Engineer': {
     description:
-      'Design and deploy AI features into our core product. You will tune open-source LLMs, build RAG pipelines for resume matching, and optimize model inference times.',
+      'Design and deploy AI features into our core product. You will tune open-source LLMs, build RAG workflows for resume matching, and optimize model inference times.',
     requirements:
       '- 4+ years of experience in ML/AI systems.\n- Expertise in Python, PyTorch/TensorFlow, and Hugging Face ecosystems.\n- Experience with vector databases (Pinecone, PGVector, Qdrant).',
     benefits:
@@ -1905,7 +1905,7 @@ async function main() {
       code: 'applications:manage',
       module: 'applications',
       action: 'manage',
-      description: 'Manage applications and candidate pipeline',
+      description: 'Manage candidate applications',
     },
     {
       code: 'applications:review_assigned',
@@ -3682,7 +3682,7 @@ async function main() {
             startDate: addDays(baseDate, -365 * 5),
             endDate: addDays(baseDate, -365 * 2 - 10),
             isCurrent: false,
-            description: `Designed microservices architectures, mentored junior developers, and streamlined CI/CD pipelines.`,
+            description: `Designed microservices architectures, mentored junior developers, and streamlined CI/CD workflows.`,
             technologies: 'TypeScript, React, AWS, Docker',
             sortOrder: 1,
             createdAt: baseDate,
@@ -4930,7 +4930,7 @@ async function main() {
       title: 'How AI is Revolutionizing Developer Hiring',
       slug: `${SEED_KEY}-how-ai-revolutionizing-hiring`,
       content:
-        '<p>AI matching and mock interviews are transforming the recruitment pipeline, enabling companies to identify top technical talent more efficiently.</p>',
+        '<p>AI matching and mock interviews are transforming the recruitment process, enabling companies to identify top technical talent more efficiently.</p>',
       status: 'PUBLISHED',
       type: 'NEWS',
       categoryId: hiringCategory.id,

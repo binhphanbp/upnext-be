@@ -38,7 +38,7 @@ export class CompaniesService {
 
   private readonly logger = new Logger(CompaniesService.name);
 
-  async create(createCompanyDto: CreateCompanyDto) {
+  async create(createCompanyDto: CreateCompanyDto, user?: AuthenticatedUser) {
     let slug = slugify(createCompanyDto.name);
     const existing = await this.prisma.company.findUnique({ where: { slug } });
     if (existing) {
@@ -46,7 +46,7 @@ export class CompaniesService {
       slug = `${slug}-${uniqueSuffix}`;
     }
 
-    return this.prisma.company
+    const company = await this.prisma.company
       .create({
         data: {
           ...createCompanyDto,
@@ -59,6 +59,49 @@ export class CompaniesService {
         }
         throw e;
       });
+
+    // Recruiter tạo công ty qua onboarding luôn trở thành OWNER của công ty đó.
+    // (Recruiter không được phép tự PATCH companyId nên việc gắn phải làm ở server.)
+    if (user?.role === ActorType.RECRUITER) {
+      await this.attachCreatorAsOwner(company.id, user.id);
+    }
+
+    return company;
+  }
+
+  private async attachCreatorAsOwner(companyId: string, recruiterAccountId: string) {
+    const ownerRole = await this.prisma.recruiterRole.findFirst({
+      where: { code: 'OWNER' },
+      select: { id: true },
+    });
+
+    const existingMember = await this.prisma.companyMember.findFirst({
+      where: { recruiterAccountId, companyId },
+      select: { id: true },
+    });
+
+    await this.prisma.$transaction([
+      this.prisma.recruiterAccount.update({
+        where: { id: recruiterAccountId },
+        data: {
+          companyId,
+          ...(ownerRole ? { recruiterRoleId: ownerRole.id } : {}),
+        },
+      }),
+      ...(ownerRole && !existingMember
+        ? [
+            this.prisma.companyMember.create({
+              data: {
+                recruiterAccountId,
+                companyId,
+                roleId: ownerRole.id,
+                status: 'ACTIVE',
+                joinedAt: new Date(),
+              },
+            }),
+          ]
+        : []),
+    ]);
   }
 
   async findAll(query: ListCompaniesQueryDto) {
@@ -357,6 +400,16 @@ export class CompaniesService {
     await this.ensureCompanyExists(id);
     await this.checkCompanyPermission(id, user);
 
+    return this.extractBusinessLicenseFields(file);
+  }
+
+  // Dùng để quét sơ bộ (autofill) trước khi công ty được tạo — chỉ trích xuất
+  // dữ liệu từ ảnh, không đọc/ghi gì vào DB nên không cần companyId.
+  async scanBusinessLicensePreview(file: UploadedFile) {
+    return this.extractBusinessLicenseFields(file);
+  }
+
+  private async extractBusinessLicenseFields(file: UploadedFile) {
     if (!file) {
       throw new BadRequestException('File is required');
     }

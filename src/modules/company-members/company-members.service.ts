@@ -26,8 +26,12 @@ export class CompanyMembersService {
 
   // ─── Members ─────────────────────────────────────────────────────────────
 
-  async listMembers(companyId: string) {
+  async listMembers(companyId: string, user: AuthenticatedUser) {
     await this.ensureCompanyExists(companyId);
+
+    if (user.role !== ActorType.ADMIN && !(await this.belongsToCompany(user, companyId))) {
+      throw new ForbiddenException("You do not have access to this company's members.");
+    }
 
     const members = await this.prisma.companyMember.findMany({
       where: { companyId },
@@ -59,7 +63,10 @@ export class CompanyMembersService {
 
   async inviteMember(companyId: string, dto: InviteMemberDto, currentUser: AuthenticatedUser) {
     // 1. Check if current user belongs to the company they are inviting to (or is an Admin)
-    if (currentUser.role !== ActorType.ADMIN && currentUser.companyId !== companyId) {
+    const belongsToCompany =
+      currentUser.role === ActorType.ADMIN || (await this.belongsToCompany(currentUser, companyId));
+
+    if (!belongsToCompany) {
       throw new ForbiddenException('Bạn không có quyền mời thành viên tham gia công ty này.');
     }
 
@@ -71,7 +78,7 @@ export class CompanyMembersService {
       });
 
       // Auto-create missing CompanyMember record for the company owner/creator
-      if (!invitingMember && currentUser.companyId === companyId) {
+      if (!invitingMember) {
         const ownerRole = await this.prisma.recruiterRole.findFirst({
           where: { code: 'OWNER' },
         });
@@ -115,10 +122,6 @@ export class CompanyMembersService {
     }
 
     const invitedEmail = dto.email.toLowerCase();
-
-    if (currentUser.role !== ActorType.ADMIN && currentUser.companyId !== companyId) {
-      throw new ForbiddenException('Bạn không có quyền mời thành viên tham gia công ty này.');
-    }
 
     if (invitedEmail === currentUser.email.toLowerCase()) {
       throw new BadRequestException('Bạn không thể tự mời địa chỉ email của chính mình.');
@@ -455,6 +458,22 @@ export class CompanyMembersService {
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  // JWT.companyId có thể đã cũ nếu recruiter vừa được gắn vào công ty trong
+  // cùng phiên (VD: vừa tạo công ty lúc onboarding) — luôn fallback kiểm tra
+  // DB thay vì chỉ tin claim trên token.
+  private async belongsToCompany(user: AuthenticatedUser, companyId: string): Promise<boolean> {
+    if (user.companyId === companyId) {
+      return true;
+    }
+
+    const account = await this.prisma.recruiterAccount.findFirst({
+      where: { id: user.id, companyId },
+      select: { id: true },
+    });
+
+    return Boolean(account);
+  }
 
   private async ensureCompanyExists(id: string) {
     const company = await this.prisma.company.findUnique({ where: { id } });

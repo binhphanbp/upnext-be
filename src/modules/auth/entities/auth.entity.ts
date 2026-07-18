@@ -34,6 +34,19 @@ export class RecruiterAuthUser {
   role: ActorType;
 }
 
+export class RecruiterRegisterResponse {
+  @ApiProperty({ example: 'recruiter@upnext.works' })
+  email: string;
+
+  @ApiProperty({ example: false })
+  emailVerified: boolean;
+
+  @ApiProperty({
+    example: 'Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.',
+  })
+  message: string;
+}
+
 export class RecruiterLoginResponse {
   @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
   accessToken: string;
