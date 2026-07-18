@@ -8,14 +8,20 @@ import {
 } from '@nestjs/common';
 import { ActorType, ApplicationStatus, JobStatus, InterviewStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ApplyJobDto } from './dto/apply-job.dto';
-import { NotificationsService } from '../notifications/notifications.service';
+import { OutboxService } from '../outbox/outbox.service';
+import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
+import { ApplicationTransitionPolicy } from './application-transition.policy';
+import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
 
 @Injectable()
 export class ApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly notificationsService: NotificationsService,
+    private readonly outbox: OutboxService,
+    private readonly conversationLifecycle: ConversationLifecycleService,
+    private readonly transitionPolicy: ApplicationTransitionPolicy,
   ) {}
 
   async applyJob(candidateAccountId: string, dto: ApplyJobDto) {
@@ -97,19 +103,34 @@ export class ApplicationsService {
         },
       });
 
+      await tx.applicationAssignment.create({
+        data: {
+          applicationId: createdApp.id,
+          recruiterAccountId: jobPost.createdByRecruiterId,
+          assignedByActorType: ActorType.SYSTEM,
+          reason: 'Assigned to the recruiter who created the job post',
+        },
+      });
+      await this.outbox.enqueue(
+        {
+          aggregateType: 'application',
+          aggregateId: createdApp.id,
+          eventType: 'notification.create',
+          dedupeKey: `application:${createdApp.id}:created:recruiter:${jobPost.createdByRecruiterId}`,
+          payload: {
+            recipientId: jobPost.createdByRecruiterId,
+            recipientType: ActorType.RECRUITER,
+            title: 'Có hồ sơ ứng tuyển mới',
+            body: `${candidateAccount.fullName} đã nộp hồ sơ ứng tuyển vào vị trí ${jobPost.title}.`,
+            targetType: 'APPLICATION',
+            targetId: createdApp.id,
+          },
+        },
+        tx,
+      );
+
       return createdApp;
     });
-
-    if (jobPost.createdByRecruiterId) {
-      this.notificationsService.createNotification({
-        recipientId: jobPost.createdByRecruiterId,
-        recipientType: ActorType.RECRUITER,
-        title: 'Có hồ sơ ứng tuyển mới',
-        body: `${candidateAccount.fullName} đã nộp hồ sơ ứng tuyển vào vị trí ${jobPost.title}.`,
-        targetType: 'APPLICATION',
-        targetId: app.id,
-      }).catch(() => {});
-    }
 
     return app;
   }
@@ -138,7 +159,7 @@ export class ApplicationsService {
     return this.prisma.$transaction(async (tx) => {
       const updatedApp = await tx.application.update({
         where: { id },
-        data: { status: ApplicationStatus.WITHDRAWN },
+        data: { status: ApplicationStatus.WITHDRAWN, version: { increment: 1 } },
       });
 
       await tx.applicationStatusLog.create({
@@ -150,6 +171,11 @@ export class ApplicationsService {
           newStatus: ApplicationStatus.WITHDRAWN,
           note: 'Candidate withdrew application',
         },
+      });
+
+      await this.conversationLifecycle.applyApplicationStatus(tx, id, ApplicationStatus.WITHDRAWN, {
+        type: ActorType.CANDIDATE,
+        id: candidateAccountId,
       });
 
       return updatedApp;
@@ -399,7 +425,9 @@ export class ApplicationsService {
       cvVersion: cvVersion
         ? {
             ...cvVersion,
-            fileName: fileAsset?.originalName || `CV-${app.candidateProfile?.account?.fullName || 'Candidate'}.pdf`,
+            fileName:
+              fileAsset?.originalName ||
+              `CV-${app.candidateProfile?.account?.fullName || 'Candidate'}.pdf`,
             fileUrl: fileAsset?.publicUrl || '',
           }
         : null,
@@ -445,7 +473,10 @@ export class ApplicationsService {
         rejected: ['REJECTED', 'WITHDRAWN'],
       } as const;
 
-      const statuses = pipelineStageToApplicationStatuses[query.stageId as keyof typeof pipelineStageToApplicationStatuses];
+      const statuses =
+        pipelineStageToApplicationStatuses[
+          query.stageId as keyof typeof pipelineStageToApplicationStatuses
+        ];
       if (statuses) {
         whereClause.status = { in: statuses };
       }
@@ -568,7 +599,8 @@ export class ApplicationsService {
       for (const exp of app.candidateProfile.experiences) {
         const start = exp.startDate ? new Date(exp.startDate) : new Date();
         const end = exp.isCurrent || !exp.endDate ? new Date() : new Date(exp.endDate);
-        const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+        const diffMonths =
+          (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
         totalMonths += Math.max(0, diffMonths);
       }
       const experienceYears = totalMonths > 0 ? Math.round(totalMonths / 12) : 0;
@@ -612,7 +644,11 @@ export class ApplicationsService {
     const stages = [
       { id: 'applied', title: 'Applied', description: 'New applications received' },
       { id: 'screening', title: 'Screening', description: 'Initial resume & profile review' },
-      { id: 'technical_test', title: 'Technical Test', description: 'Coding challenge and assessment' },
+      {
+        id: 'technical_test',
+        title: 'Technical Test',
+        description: 'Coding challenge and assessment',
+      },
       { id: 'interview', title: 'Interview', description: 'Technical & cultural interview phases' },
       { id: 'offering', title: 'Offering', description: 'Salary negotiation & job offer extended' },
       { id: 'hired', title: 'Hired', description: 'Successfully signed and hired' },
@@ -631,18 +667,13 @@ export class ApplicationsService {
     };
   }
 
-  async updateStatus(recruiterId: string, id: string, status: ApplicationStatus, note?: string) {
-    const recruiter = await this.prisma.recruiterAccount.findUnique({
-      where: { id: recruiterId },
-    });
-    if (!recruiter) {
-      throw new NotFoundException('Recruiter account not found');
-    }
-
+  async updateStatus(user: AuthenticatedUser, id: string, dto: UpdateApplicationStatusDto) {
+    const status = dto.status;
     const application = await this.prisma.application.findUnique({
       where: { id },
       include: {
         jobPost: true,
+        assignments: { where: { unassignedAt: null }, select: { recruiterAccountId: true } },
         candidateProfile: {
           select: {
             candidateAccountId: true,
@@ -654,40 +685,73 @@ export class ApplicationsService {
       throw new NotFoundException('Application not found');
     }
 
-    if (application.jobPost.companyId !== recruiter.companyId) {
+    const isAssigned = application.assignments.some(
+      (assignment) => assignment.recruiterAccountId === user.id,
+    );
+    const recruiterAllowed =
+      user.role === ActorType.RECRUITER &&
+      application.jobPost.companyId === user.companyId &&
+      (user.permissions.includes('applications:manage') ||
+        (isAssigned && user.permissions.includes('applications:review_assigned')));
+    const adminAllowed =
+      user.role === ActorType.ADMIN && user.permissions.includes('applications:manage');
+    if (!recruiterAllowed && !adminAllowed) {
       throw new ForbiddenException('You do not have permission to manage this application');
     }
 
+    this.transitionPolicy.assertAllowed(application.status, status);
+    const expectedVersion = dto.expectedVersion ?? application.version;
+
     const updatedApp = await this.prisma.$transaction(async (tx) => {
-      const app = await tx.application.update({
-        where: { id },
-        data: { status },
+      const changed = await tx.application.updateMany({
+        where: { id, version: expectedVersion, status: application.status },
+        data: { status, version: { increment: 1 } },
       });
+      if (changed.count !== 1) {
+        throw new ConflictException({
+          code: 'STALE_APPLICATION_VERSION',
+          message: 'Application changed; reload and retry',
+        });
+      }
 
       await tx.applicationStatusLog.create({
         data: {
           applicationId: id,
-          actorType: ActorType.RECRUITER,
-          actorId: recruiterId,
+          actorType: user.role,
+          actorId: user.id,
           oldStatus: application.status,
           newStatus: status,
-          note: note ?? `Recruiter updated status to ${status}`,
+          note: dto.note ?? `${user.role} updated status to ${status}`,
         },
       });
 
-      return app;
-    });
+      await this.conversationLifecycle.applyApplicationStatus(tx, id, status, {
+        type: user.role,
+        id: user.id,
+      });
 
-    if (application.candidateProfile?.candidateAccountId) {
-      this.notificationsService.createNotification({
-        recipientId: application.candidateProfile.candidateAccountId,
-        recipientType: ActorType.CANDIDATE,
-        title: 'Trạng thái hồ sơ thay đổi',
-        body: `Hồ sơ ứng tuyển vị trí ${application.jobPost.title} của bạn đã được cập nhật thành: ${status}.`,
-        targetType: 'APPLICATION',
-        targetId: id,
-      }).catch(() => {});
-    }
+      if (application.candidateProfile?.candidateAccountId) {
+        await this.outbox.enqueue(
+          {
+            aggregateType: 'application',
+            aggregateId: id,
+            eventType: 'notification.create',
+            dedupeKey: `application:${id}:status:${status}:version:${application.version + 1}`,
+            payload: {
+              recipientId: application.candidateProfile.candidateAccountId,
+              recipientType: ActorType.CANDIDATE,
+              title: 'Trạng thái hồ sơ thay đổi',
+              body: `Hồ sơ ứng tuyển vị trí ${application.jobPost.title} của bạn đã được cập nhật thành: ${status}.`,
+              targetType: 'APPLICATION',
+              targetId: id,
+            },
+          },
+          tx,
+        );
+      }
+
+      return tx.application.findUniqueOrThrow({ where: { id } });
+    });
 
     return updatedApp;
   }

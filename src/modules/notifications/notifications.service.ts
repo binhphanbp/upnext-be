@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { ActorType, NotificationChannel, NotificationStatus } from '@prisma/client';
+import { ActorType, NotificationChannel, NotificationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FcmService } from './fcm.service';
 
@@ -22,12 +22,18 @@ export class NotificationsService {
     body: string;
     targetId?: string | null;
     targetType?: string | null;
+    metadata?: Prisma.InputJsonValue | null;
+    dedupeKey?: string | null;
   }) {
-    const { recipientId, recipientType, title, body, targetId, targetType } = params;
+    const { recipientId, recipientType, title, body, targetId, targetType, metadata, dedupeKey } =
+      params;
 
-    this.logger.log(
-      `Creating notification for ${recipientType} ${recipientId}: "${title}"`,
-    );
+    this.logger.log(`Creating notification for ${recipientType} ${recipientId}: "${title}"`);
+
+    if (dedupeKey) {
+      const existing = await this.prisma.notification.findUnique({ where: { dedupeKey } });
+      if (existing) return existing;
+    }
 
     // 1. Save the notification in the database (IN_APP channel, PENDING status)
     const notification = await this.prisma.notification.create({
@@ -35,9 +41,12 @@ export class NotificationsService {
         recipientId,
         recipientType: recipientType.toString(),
         title,
+        body,
         type: targetType || 'SYSTEM',
         targetId: targetId || null,
         targetType: targetType || null,
+        metadata: metadata ?? undefined,
+        dedupeKey: dedupeKey ?? undefined,
         channel: NotificationChannel.IN_APP,
         status: NotificationStatus.PENDING,
       },
@@ -67,15 +76,10 @@ export class NotificationsService {
         });
         this.logger.debug(`FCM push sent successfully for notification ${notification.id}`);
       } else {
-        this.logger.warn(
-          `FCM push skipped for notification ${notification.id} (No tokens found)`,
-        );
+        this.logger.warn(`FCM push skipped for notification ${notification.id} (No tokens found)`);
       }
     } catch (err) {
-      this.logger.error(
-        `Failed to send FCM push for notification ${notification.id}`,
-        err,
-      );
+      this.logger.error(`Failed to send FCM push for notification ${notification.id}`, err);
       // Update status to FAILED
       await this.prisma.notification.update({
         where: { id: notification.id },
@@ -89,12 +93,7 @@ export class NotificationsService {
   /**
    * Retrieves paginated notifications for the current user.
    */
-  async getNotifications(params: {
-    userId: string;
-    role: ActorType;
-    page: number;
-    limit: number;
-  }) {
+  async getNotifications(params: { userId: string; role: ActorType; page: number; limit: number }) {
     const { userId, role, page, limit } = params;
     const skip = (page - 1) * limit;
 
@@ -120,7 +119,6 @@ export class NotificationsService {
       where: {
         recipientId: userId,
         recipientType: role.toString(),
-        status: { in: [NotificationStatus.PENDING, NotificationStatus.SENT] },
         readAt: null,
       },
     });
@@ -149,10 +147,7 @@ export class NotificationsService {
       throw new NotFoundException('Notification not found');
     }
 
-    if (
-      notification.recipientId !== userId ||
-      notification.recipientType !== role.toString()
-    ) {
+    if (notification.recipientId !== userId || notification.recipientType !== role.toString()) {
       throw new ForbiddenException('You do not have permission to access this notification');
     }
 
@@ -194,10 +189,7 @@ export class NotificationsService {
       throw new NotFoundException('Notification not found');
     }
 
-    if (
-      notification.recipientId !== userId ||
-      notification.recipientType !== role.toString()
-    ) {
+    if (notification.recipientId !== userId || notification.recipientType !== role.toString()) {
       throw new ForbiddenException('You do not have permission to delete this notification');
     }
 

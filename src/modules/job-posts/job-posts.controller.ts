@@ -28,7 +28,9 @@ import {
 import { ActorType, JobStatus } from '@prisma/client';
 import type { Request } from 'express';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AdminPermissions } from '../../common/decorators/admin-permissions.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AdminPermissionsGuard } from '../auth/guards/admin-permissions.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateJobPostDto } from './dto/create-job-post.dto';
@@ -384,7 +386,7 @@ export class RecruiterJobPostsController {
 
 @ApiTags('Admin - Job Posts')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, AdminPermissionsGuard)
 @Roles(ActorType.ADMIN)
 @Controller('admin/job-posts')
 export class AdminJobPostsController {
@@ -467,6 +469,7 @@ export class AdminJobPostsController {
   })
   @ApiBadRequestResponse({ description: 'Tin tuyển dụng đã được duyệt hoặc từ chối trước đó.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @AdminPermissions('jobs:moderate')
   @Patch(':id/approve')
   approve(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -497,6 +500,7 @@ export class AdminJobPostsController {
   })
   @ApiBadRequestResponse({ description: 'Tin tuyển dụng đã được duyệt hoặc từ chối trước đó.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
+  @AdminPermissions('jobs:moderate')
   @Patch(':id/reject')
   reject(
     @Param('id', new ParseUUIDPipe()) id: string,

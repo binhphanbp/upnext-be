@@ -27,7 +27,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
+import { AdminPermissions } from '../../common/decorators/admin-permissions.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AdminPermissionsGuard } from '../auth/guards/admin-permissions.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -450,8 +452,9 @@ export class CompaniesController {
     description: 'Xác thực doanh nghiệp thành công.',
   })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminPermissionsGuard)
   @Roles(ActorType.ADMIN)
+  @AdminPermissions('companies:verify')
   @Post(':id/verify')
   verifyCompany(
     @Param('id', new ParseUUIDPipe()) id: string,

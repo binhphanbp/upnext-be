@@ -8,6 +8,7 @@ export type AuthenticatedUser = {
   companyId?: string | null;
   recruiterRoleId?: string | null;
   adminRoleId?: string | null;
+  permissions: string[];
 };
 
 export const CurrentUser = createParamDecorator(

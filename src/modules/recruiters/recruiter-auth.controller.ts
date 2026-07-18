@@ -94,8 +94,10 @@ export class RecruiterAuthController {
       const googleUser = req.user as { providerUserId: string; email: string; fullName: string };
       const result = await this.recruiterAuthService.loginOrRegisterGoogle(googleUser);
       const redirectUrl = new URL(`/${locale}/recruiter/auth/callback`, frontendUrl);
-      redirectUrl.searchParams.set('token', result.accessToken);
-      redirectUrl.searchParams.set('refreshToken', result.refreshToken);
+      redirectUrl.hash = new URLSearchParams({
+        token: result.accessToken,
+        refreshToken: result.refreshToken,
+      }).toString();
       return res.redirect(redirectUrl.toString());
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Đăng nhập thất bại';

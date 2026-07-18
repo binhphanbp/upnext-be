@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { OutboxService } from '../outbox/outbox.service';
 import { ApplicationsService } from './applications.service';
+import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
+import { ApplicationTransitionPolicy } from './application-transition.policy';
 
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
@@ -39,9 +41,21 @@ describe('ApplicationsService', () => {
           useValue: prismaMock,
         },
         {
-          provide: NotificationsService,
+          provide: OutboxService,
           useValue: {
-            createNotification: jest.fn(),
+            enqueue: jest.fn(),
+          },
+        },
+        {
+          provide: ConversationLifecycleService,
+          useValue: {
+            applyApplicationState: jest.fn(),
+          },
+        },
+        {
+          provide: ApplicationTransitionPolicy,
+          useValue: {
+            assertTransition: jest.fn(),
           },
         },
       ],

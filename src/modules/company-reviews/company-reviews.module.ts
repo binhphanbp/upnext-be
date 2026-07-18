@@ -4,10 +4,9 @@ import {
   CompanyReviewsController,
   CompanyReviewsMutationController,
 } from './company-reviews.controller';
-import { PrismaService } from '../../common/prisma/prisma.service';
 
 @Module({
   controllers: [CompanyReviewsController, CompanyReviewsMutationController],
-  providers: [CompanyReviewsService, PrismaService],
+  providers: [CompanyReviewsService],
 })
 export class CompanyReviewsModule {}

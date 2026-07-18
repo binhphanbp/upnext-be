@@ -30,12 +30,18 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { ApplicationsService } from './applications.service';
 import { ApplyJobDto } from './dto/apply-job.dto';
+import { AssignApplicationDto, UnassignApplicationDto } from './dto/assign-application.dto';
+import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
+import { ApplicationAssignmentService } from './application-assignment.service';
 import { ApplicationEntity, CheckAppliedJobResponse } from './entities/application.entity';
 
 @ApiTags('Applications')
 @Controller()
 export class ApplicationsController {
-  constructor(private readonly applicationsService: ApplicationsService) {}
+  constructor(
+    private readonly applicationsService: ApplicationsService,
+    private readonly assignments: ApplicationAssignmentService,
+  ) {}
 
   @Post('applications')
   @ApiOperation({ summary: 'Nộp hồ sơ ứng tuyển' })
@@ -233,9 +239,34 @@ export class ApplicationsController {
   })
   updateStatus(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: { status: ApplicationStatus; note?: string },
+    @Body() dto: UpdateApplicationStatusDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.applicationsService.updateStatus(user.id, id, dto.status, dto.note);
+    return this.applicationsService.updateStatus(user, id, dto);
+  }
+
+  @Post('applications/:id/assignments')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
+  assign(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: AssignApplicationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.assignments.assign(id, dto, user);
+  }
+
+  @Patch('applications/:id/assignments/:assignmentId/unassign')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
+  unassign(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('assignmentId', new ParseUUIDPipe()) assignmentId: string,
+    @Body() dto: UnassignApplicationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.assignments.unassign(id, assignmentId, dto, user);
   }
 }
