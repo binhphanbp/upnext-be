@@ -18,7 +18,7 @@ Kết quả cuối cùng là bảng điểm `application_ai_scores`, được s�
 | File | Vai trò |
 | --- | --- |
 | `src/modules/cv-screening/cv-screening.controller.ts` | Khai báo API cho recruiter chạy lọc, xem tiến độ, xem kết quả, xem điểm AI từng application, xem CV gốc. |
-| `src/modules/cv-screening/cv-screening.service.ts` | Điều phối toàn bộ pipeline lọc CV. Đây là file quan trọng nhất của feature. |
+| `src/modules/cv-screening/cv-screening.service.ts` | Điều phối toàn bộ quy tr�nh lọc CV. Đây là file quan trọng nhất của feature. |
 | `src/modules/cv-screening/embedding.service.ts` | Tạo embedding cho job và CV, cache embedding vào database, tính cosine similarity. |
 | `src/modules/cv-screening/gemini-scoring.service.ts` | Gửi top CV sang Gemini để chấm điểm chi tiết và chuẩn hóa response JSON. |
 | `src/modules/cv-screening/dto/run-cv-screening.dto.ts` | DTO body khi recruiter bắt đầu chạy lọc CV. |

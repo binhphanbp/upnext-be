@@ -81,8 +81,8 @@ export class CompaniesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post()
-  create(@Body() createCompanyDto: CreateCompanyDto) {
-    return this.companiesService.create(createCompanyDto);
+  create(@Body() createCompanyDto: CreateCompanyDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.companiesService.create(createCompanyDto, user);
   }
 
   /**
@@ -410,6 +410,37 @@ export class CompaniesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.companiesService.scanBusinessLicense(id, file, user);
+  }
+
+  /**
+   * Quét giấy phép kinh doanh bằng AI (Gemini) trước khi công ty được tạo (onboarding).
+   * @param file File giấy phép kinh doanh
+   */
+  @ApiOperation({
+    summary: 'Quét giấy phép kinh doanh bằng AI (chưa có công ty)',
+    description:
+      'Trích xuất thông tin doanh nghiệp từ giấy phép kinh doanh, dùng để autofill onboarding trước khi công ty được tạo. Không đọc/ghi dữ liệu công ty nào.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiOkResponse({
+    description: 'Trích xuất thông tin thành công.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @Post('scan-license')
+  @UseInterceptors(FileInterceptor('file', documentUploadOptions))
+  scanBusinessLicensePreview(@UploadedFile() file: CompanyUploadFile) {
+    return this.companiesService.scanBusinessLicensePreview(file);
   }
 
   /**

@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   Param,
@@ -65,10 +64,7 @@ export class CompanyMembersController {
     @Param('companyId', new ParseUUIDPipe()) companyId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    if (user.role !== ActorType.ADMIN && user.companyId !== companyId) {
-      throw new ForbiddenException("You do not have access to this company's members.");
-    }
-    return this.companyMembersService.listMembers(companyId);
+    return this.companyMembersService.listMembers(companyId, user);
   }
 
   @ApiOperation({

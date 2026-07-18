@@ -14,7 +14,7 @@ import { AuthService } from '../auth/auth.service';
 import { LoginDto } from '../auth/dto/login.dto';
 import { RequestPasswordResetDto } from '../auth/dto/request-password-reset.dto';
 import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
-import { RecruiterLoginResponse } from '../auth/entities/auth.entity';
+import { RecruiterLoginResponse, RecruiterRegisterResponse } from '../auth/entities/auth.entity';
 import {
   PasswordResetRequestResponse,
   PasswordResetResponse,
@@ -43,7 +43,7 @@ export class RecruiterAuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async register(dto: RegisterRecruiterDto): Promise<RecruiterLoginResponse> {
+  async register(dto: RegisterRecruiterDto): Promise<RecruiterRegisterResponse> {
     try {
       const account = await this.prisma.recruiterAccount.create({
         data: {
@@ -54,8 +54,6 @@ export class RecruiterAuthService {
         select: {
           id: true,
           email: true,
-          companyId: true,
-          recruiterRoleId: true,
         },
       });
 
@@ -72,7 +70,13 @@ export class RecruiterAuthService {
         verificationLink,
       });
 
-      return this.issueRecruiterTokens(account);
+      // Không phát access/refresh token khi email chưa được xác thực —
+      // người dùng phải verify email rồi đăng nhập.
+      return {
+        email: account.email,
+        emailVerified: false,
+        message: 'Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.',
+      };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Tài khoản nhà tuyển dụng đã tồn tại');

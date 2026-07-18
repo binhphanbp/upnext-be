@@ -12,7 +12,7 @@ import {
 } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { LoginDto } from '../auth/dto/login.dto';
-import { RecruiterLoginResponse } from '../auth/entities/auth.entity';
+import { RecruiterLoginResponse, RecruiterRegisterResponse } from '../auth/entities/auth.entity';
 import { RecruiterRefreshTokenDto } from './dto/recruiter-refresh-token.dto';
 import { RegisterRecruiterDto } from './dto/register-recruiter.dto';
 import { RecruiterAuthService } from './recruiter-auth.service';
@@ -32,7 +32,10 @@ export class RecruiterAuthController {
   @Post('register')
   @ApiOperation({ summary: 'Đăng ký tài khoản nhà tuyển dụng' })
   @ApiBody({ type: RegisterRecruiterDto })
-  @ApiCreatedResponse({ description: 'Đăng ký thành công', type: RecruiterLoginResponse })
+  @ApiCreatedResponse({
+    description: 'Đăng ký thành công, cần xác thực email trước khi đăng nhập',
+    type: RecruiterRegisterResponse,
+  })
   @ApiBadRequestResponse({ description: 'Payload không hợp lệ' })
   @ApiConflictResponse({ description: 'Tài khoản nhà tuyển dụng đã tồn tại' })
   register(@Body() dto: RegisterRecruiterDto) {
