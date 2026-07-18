@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationsController } from './applications.controller';
 import { ApplicationsService } from './applications.service';
+import { ApplicationAssignmentService } from './application-assignment.service';
 
 describe('ApplicationsController', () => {
   let controller: ApplicationsController;
@@ -20,6 +21,13 @@ describe('ApplicationsController', () => {
         {
           provide: ApplicationsService,
           useValue: applicationsServiceMock,
+        },
+        {
+          provide: ApplicationAssignmentService,
+          useValue: {
+            assign: jest.fn(),
+            unassign: jest.fn(),
+          },
         },
       ],
     }).compile();

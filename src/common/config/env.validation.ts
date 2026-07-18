@@ -53,6 +53,18 @@ const envSchema = z
     APP_BACKEND_URL: z.string().url().default('http://localhost:3001'),
     ZALO_BOT_TOKEN: z.string().optional(),
     ZALO_BOT_WEBHOOK_SECRET: z.string().min(8).max(256).optional(),
+    CHAT_APPLICATION_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    CHAT_OUTREACH_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    CHAT_SUPPORT_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     UPLOAD_ROOT: z
       .string()
       .trim()
@@ -98,6 +110,9 @@ export type AppConfig = {
   zaloBotToken?: string;
   zaloBotWebhookSecret?: string;
   uploadRoot: string;
+  chatApplicationEnabled: boolean;
+  chatOutreachEnabled: boolean;
+  chatSupportEnabled: boolean;
 };
 
 export function validateEnv(config: Record<string, unknown>): AppConfig {
@@ -131,5 +146,8 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     zaloBotToken: parsed.ZALO_BOT_TOKEN,
     zaloBotWebhookSecret: parsed.ZALO_BOT_WEBHOOK_SECRET,
     uploadRoot: parsed.UPLOAD_ROOT,
+    chatApplicationEnabled: parsed.CHAT_APPLICATION_ENABLED,
+    chatOutreachEnabled: parsed.CHAT_OUTREACH_ENABLED,
+    chatSupportEnabled: parsed.CHAT_SUPPORT_ENABLED,
   };
 }

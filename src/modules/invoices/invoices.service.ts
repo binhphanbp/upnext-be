@@ -124,7 +124,7 @@ export class InvoicesService {
       await this.subscriptionService.subscribe(user, {
         planId: invoice.subscriptionPlanId,
         companyId: invoice.companyId,
-      });
+      }, tx);
 
       return updatedInvoice;
     });

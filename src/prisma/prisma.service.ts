@@ -8,7 +8,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   constructor(configService: ConfigService) {
     const connectionString = configService.getOrThrow<string>('databaseUrl');
     const adapter = new PrismaPg({ connectionString });
-    super({ adapter });
+    super({
+      adapter,
+      // Defense in depth: password hashes are opt-in through an explicit select.
+      omit: {
+        candidateAccount: { passwordHash: true },
+        recruiterAccount: { passwordHash: true },
+        adminUser: { passwordHash: true },
+      },
+    });
   }
 
   async onModuleInit() {

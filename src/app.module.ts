@@ -49,6 +49,10 @@ import { SearchKeywordModule } from './modules/search-keyword/search-keyword.mod
 import { CvScreeningModule } from './modules/cv-screening/cv-screening.module';
 import { ZaloBotModule } from './modules/zalo-bot/zalo-bot.module';
 import { InterviewRemindersModule } from './modules/interview-reminders/interview-reminders.module';
+import { ConversationsModule } from './modules/conversations/conversations.module';
+import { OutboxModule } from './modules/outbox/outbox.module';
+import { TalentOutreachModule } from './modules/talent-outreach/talent-outreach.module';
+import { SupportCasesModule } from './modules/support-cases/support-cases.module';
 
 @Module({
   imports: [
@@ -110,6 +114,10 @@ import { InterviewRemindersModule } from './modules/interview-reminders/intervie
     HealthModule,
     SearchKeywordModule,
     NotificationsModule,
+    OutboxModule,
+    ConversationsModule,
+    TalentOutreachModule,
+    SupportCasesModule,
     CvScreeningModule,
     ZaloBotModule,
     InterviewRemindersModule,

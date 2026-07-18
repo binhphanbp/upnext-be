@@ -110,6 +110,19 @@ export class CloudinaryService {
     });
   }
 
+  async deleteAsset(
+    storageKey: string,
+    resourceType: UploadApiOptions['resource_type'] = 'image',
+    deliveryType: UploadApiOptions['type'] = 'upload',
+  ) {
+    this.ensureConfigured();
+    await cloudinary.uploader.destroy(storageKey, {
+      resource_type: resourceType,
+      type: deliveryType,
+      invalidate: true,
+    });
+  }
+
   private ensureConfigured() {
     const cloudName = this.configService.get<string>('cloudinaryCloudName');
     const apiKey = this.configService.get<string>('cloudinaryApiKey');

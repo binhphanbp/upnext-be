@@ -7,13 +7,17 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubscribeCompanyDto } from './dto/subscribe-company.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { ActorType, SubscriptionStatus } from '@prisma/client';
+import { ActorType, Prisma, SubscriptionStatus } from '@prisma/client';
 
 @Injectable()
 export class CompanySubscriptionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async subscribe(user: AuthenticatedUser, dto: SubscribeCompanyDto) {
+  async subscribe(
+    user: AuthenticatedUser,
+    dto: SubscribeCompanyDto,
+    transaction?: Prisma.TransactionClient,
+  ) {
     let targetCompanyId: string;
 
     if (user.role === ActorType.ADMIN) {
@@ -30,10 +34,11 @@ export class CompanySubscriptionsService {
       throw new ForbiddenException('Only admins and recruiters can subscribe to plans');
     }
 
-    const company = await this.prisma.company.findUnique({ where: { id: targetCompanyId } });
+    const client = transaction ?? this.prisma;
+    const company = await client.company.findUnique({ where: { id: targetCompanyId } });
     if (!company) throw new NotFoundException('Company not found');
 
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id: dto.planId } });
+    const plan = await client.subscriptionPlan.findUnique({ where: { id: dto.planId } });
     if (!plan) throw new NotFoundException('Subscription plan not found');
     if (plan.status !== SubscriptionStatus.ACTIVE) {
       throw new BadRequestException('This subscription plan is not active');
@@ -42,7 +47,7 @@ export class CompanySubscriptionsService {
     const now = new Date();
     const expiredAt = new Date(now.getTime() + plan.durationDays * 24 * 60 * 60 * 1000);
 
-    return this.prisma.$transaction(async (tx) => {
+    const activate = async (tx: Prisma.TransactionClient) => {
       await tx.companySubscription.updateMany({
         where: {
           companyId: targetCompanyId,
@@ -59,6 +64,7 @@ export class CompanySubscriptionsService {
           companyId: targetCompanyId,
           jobPostLimit: plan.jobPostLimit,
           boostCreditTotal: plan.boostCreditLimit,
+          talentContactLimit: plan.talentContactLimit,
           startedAt: now,
           expiredAt: expiredAt,
           status: SubscriptionStatus.ACTIVE,
@@ -67,7 +73,9 @@ export class CompanySubscriptionsService {
           plan: true,
         },
       });
-    });
+    };
+
+    return transaction ? activate(transaction) : this.prisma.$transaction(activate);
   }
 
   async getActiveSubscription(companyId: string) {

@@ -13,6 +13,7 @@ describe('CvVersionsService', () => {
     id: 'admin-id',
     email: 'admin@upnext.dev',
     role: ActorType.ADMIN,
+    permissions: [],
   };
   const prismaMock: any = {
     cV: {

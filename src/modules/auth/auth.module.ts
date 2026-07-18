@@ -11,6 +11,10 @@ import { GoogleStrategy } from './strategies/google.strategy';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { RecruiterGoogleStrategy } from './strategies/recruiter-google.strategy';
 import { RecruiterGoogleAuthGuard } from './guards/recruiter-google-auth.guard';
+import { CurrentAuthController } from './current-auth.controller';
+import { AdminPermissionsGuard } from './guards/admin-permissions.guard';
+import { PermissionsGuard } from './guards/permissions.guard';
+import { AuthIdentityService } from './services/auth-identity.service';
 @Global()
 @Module({
   imports: [
@@ -28,12 +32,16 @@ import { RecruiterGoogleAuthGuard } from './guards/recruiter-google-auth.guard';
       }),
     }),
   ],
+  controllers: [CurrentAuthController],
   providers: [
     AuthService,
+    AuthIdentityService,
     EmailService,
     JwtStrategy,
     JwtAuthGuard,
     RolesGuard,
+    PermissionsGuard,
+    AdminPermissionsGuard,
     GoogleAuthGuard,
     GoogleStrategy,
     RecruiterGoogleAuthGuard,
@@ -44,6 +52,9 @@ import { RecruiterGoogleAuthGuard } from './guards/recruiter-google-auth.guard';
     EmailService,
     JwtAuthGuard,
     RolesGuard,
+    PermissionsGuard,
+    AdminPermissionsGuard,
+    AuthIdentityService,
     JwtModule,
     GoogleAuthGuard,
     GoogleStrategy,

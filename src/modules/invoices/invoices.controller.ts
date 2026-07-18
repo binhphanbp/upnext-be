@@ -8,6 +8,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ActorType } from '@prisma/client';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { AdminPermissions } from '../../common/decorators/admin-permissions.decorator';
+import { AdminPermissionsGuard } from '../auth/guards/admin-permissions.guard';
 
 @ApiTags('Invoices')
 @Controller('invoices')
@@ -49,8 +51,9 @@ export class InvoicesController {
       'TODO: thay thế bằng webhook server-to-server (có verify chữ ký) từ cổng thanh toán thực tế.',
   })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminPermissionsGuard)
   @Roles(ActorType.ADMIN)
+  @AdminPermissions('billing:invoices')
   @Post(':id/pay')
   pay(
     @Param('id', ParseUUIDPipe) id: string,

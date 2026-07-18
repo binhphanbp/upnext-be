@@ -12,12 +12,14 @@ import { RescheduleInterviewDto } from './dto/reschedule-interview.dto';
 import { CancelInterviewDto } from './dto/cancel-interview.dto';
 import { UpdateInterviewResultDto } from './dto/update-interview-result.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
 
 @Injectable()
 export class InterviewsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly conversationLifecycle: ConversationLifecycleService,
   ) {}
 
   async create(dto: CreateInterviewDto, user: AuthenticatedUser) {
@@ -25,6 +27,10 @@ export class InterviewsService {
       where: { id: dto.applicationId },
       include: {
         jobPost: true,
+        assignments: {
+          where: { unassignedAt: null },
+          select: { recruiterAccountId: true },
+        },
         candidateProfile: {
           select: {
             candidateAccountId: true,
@@ -39,11 +45,20 @@ export class InterviewsService {
 
     // Role checks
     if (user.role === ActorType.RECRUITER) {
-      if (application.jobPost.companyId !== user.companyId) {
+      const assigned = application.assignments.some(
+        (assignment) => assignment.recruiterAccountId === user.id,
+      );
+      const allowed =
+        application.jobPost.companyId === user.companyId &&
+        (user.permissions.includes('interviews:manage') ||
+          (assigned && user.permissions.includes('interviews:review_assigned')));
+      if (!allowed) {
         throw new ForbiddenException(
           'You do not have permission to schedule interviews for this application',
         );
       }
+    } else if (user.role !== ActorType.ADMIN || !user.permissions.includes('interviews:manage')) {
+      throw new ForbiddenException('Interview management permission required');
     }
 
     let recruiterProfileId = dto.recruiterProfileId;
@@ -109,18 +124,27 @@ export class InterviewsService {
         },
       });
 
+      await this.conversationLifecycle.ensureApplicationConversation(
+        tx,
+        dto.applicationId,
+        { type: user.role, id: user.id },
+        'INTERVIEW_SCHEDULED',
+      );
+
       return createdInterview;
     });
 
     if (application.candidateProfile?.candidateAccountId) {
-      this.notificationsService.createNotification({
-        recipientId: application.candidateProfile.candidateAccountId,
-        recipientType: ActorType.CANDIDATE,
-        title: 'Lịch hẹn phỏng vấn mới',
-        body: `Bạn có một lịch hẹn phỏng vấn mới cho vị trí ${application.jobPost.title}.`,
-        targetType: 'INTERVIEW',
-        targetId: interview.id,
-      }).catch(() => {});
+      this.notificationsService
+        .createNotification({
+          recipientId: application.candidateProfile.candidateAccountId,
+          recipientType: ActorType.CANDIDATE,
+          title: 'Lịch hẹn phỏng vấn mới',
+          body: `Bạn có một lịch hẹn phỏng vấn mới cho vị trí ${application.jobPost.title}.`,
+          targetType: 'INTERVIEW',
+          targetId: interview.id,
+        })
+        .catch(() => {});
     }
 
     return interview;
@@ -293,14 +317,16 @@ export class InterviewsService {
     const recipientType = isCandidate ? ActorType.RECRUITER : ActorType.CANDIDATE;
 
     if (recipientId) {
-      this.notificationsService.createNotification({
-        recipientId,
-        recipientType,
-        title: 'Lịch phỏng vấn thay đổi',
-        body: `Lịch phỏng vấn vị trí ${interview.application.jobPost.title} đã được dời thời gian.`,
-        targetType: 'INTERVIEW',
-        targetId: id,
-      }).catch(() => {});
+      this.notificationsService
+        .createNotification({
+          recipientId,
+          recipientType,
+          title: 'Lịch phỏng vấn thay đổi',
+          body: `Lịch phỏng vấn vị trí ${interview.application.jobPost.title} đã được dời thời gian.`,
+          targetType: 'INTERVIEW',
+          targetId: id,
+        })
+        .catch(() => {});
     }
 
     return updated;
@@ -370,14 +396,16 @@ export class InterviewsService {
     const recipientType = isCandidate ? ActorType.RECRUITER : ActorType.CANDIDATE;
 
     if (recipientId) {
-      this.notificationsService.createNotification({
-        recipientId,
-        recipientType,
-        title: 'Lịch phỏng vấn bị hủy',
-        body: `Lịch phỏng vấn vị trí ${interview.application.jobPost.title} đã bị hủy.`,
-        targetType: 'INTERVIEW',
-        targetId: id,
-      }).catch(() => {});
+      this.notificationsService
+        .createNotification({
+          recipientId,
+          recipientType,
+          title: 'Lịch phỏng vấn bị hủy',
+          body: `Lịch phỏng vấn vị trí ${interview.application.jobPost.title} đã bị hủy.`,
+          targetType: 'INTERVIEW',
+          targetId: id,
+        })
+        .catch(() => {});
     }
 
     return updated;
@@ -453,14 +481,16 @@ export class InterviewsService {
     });
 
     if (interview.application.candidateProfile?.candidateAccountId) {
-      this.notificationsService.createNotification({
-        recipientId: interview.application.candidateProfile.candidateAccountId,
-        recipientType: ActorType.CANDIDATE,
-        title: 'Kết quả phỏng vấn',
-        body: `Kết quả phỏng vấn vị trí ${interview.application.jobPost.title} của bạn đã được cập nhật thành: ${dto.result}.`,
-        targetType: 'INTERVIEW',
-        targetId: id,
-      }).catch(() => {});
+      this.notificationsService
+        .createNotification({
+          recipientId: interview.application.candidateProfile.candidateAccountId,
+          recipientType: ActorType.CANDIDATE,
+          title: 'Kết quả phỏng vấn',
+          body: `Kết quả phỏng vấn vị trí ${interview.application.jobPost.title} của bạn đã được cập nhật thành: ${dto.result}.`,
+          targetType: 'INTERVIEW',
+          targetId: id,
+        })
+        .catch(() => {});
     }
 
     return updated;

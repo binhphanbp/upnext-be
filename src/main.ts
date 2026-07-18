@@ -8,6 +8,7 @@ import * as express from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { PrismaSerializeInterceptor } from './common/interceptors/prisma-serialize.interceptor';
+import { SocketIoAdapter } from './common/socket/socket-io.adapter';
 
 Object.defineProperty(BigInt.prototype, 'toJSON', {
   value: function (this: bigint): string {
@@ -67,6 +68,7 @@ async function bootstrap() {
     origin: config.getOrThrow<string[]>('corsOrigins'),
     credentials: true,
   });
+  app.useWebSocketAdapter(new SocketIoAdapter(app, config.getOrThrow<string[]>('corsOrigins')));
 
   app.use(
     '/uploads',
