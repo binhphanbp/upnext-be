@@ -1259,6 +1259,7 @@ model JobEmbedding {
   jobPostId       String   @unique @map("job_post_id") @db.Uuid
   embeddingText   String   @map("embedding_text") @db.Text
   embeddingVector Json     @map("embedding_vector")
+  embeddingPg     Unsupported("vector(768)")? @map("embedding_pgvector")
   modelName       String   @default("gemini-embedding-001") @map("model_name") @db.VarChar(120)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
@@ -1275,6 +1276,7 @@ model CvEmbedding {
   candidateProfileId String   @map("candidate_profile_id") @db.Uuid
   embeddingText      String   @map("embedding_text") @db.Text
   embeddingVector    Json     @map("embedding_vector")
+  embeddingPg        Unsupported("vector(768)")? @map("embedding_pgvector")
   modelName          String   @default("gemini-embedding-001") @map("model_name") @db.VarChar(120)
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")

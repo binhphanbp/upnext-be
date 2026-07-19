@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { CV_SCORING_RUBRIC, CvScoringCriterionBreakdown } from './scoring-rubric';
 
 const SCORING_MODEL = 'gemini-2.5-flash';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
@@ -27,6 +28,7 @@ export type GeminiScoreResult = {
   missingSkills: string[];
   strengths: string[];
   weaknesses: string[];
+  criteriaBreakdown: CvScoringCriterionBreakdown[];
   summary: string;
   recommendation: Recommendation;
   raw: unknown;
@@ -141,8 +143,13 @@ Quy tắc bắt buộc:
 - overallScore phải bằng skillScore + experienceScore + projectScore + educationScore.
 - recommendation chỉ được là một trong các mã: strong_fit, fit, borderline, not_fit.
 - Chỉ dùng semanticScore như yếu tố phụ khi phân vân. Bằng chứng trong CV và yêu cầu công việc quan trọng hơn.
-- Tất cả nội dung tự nhiên trong summary, strengths, weaknesses, matchedSkills và missingSkills phải viết bằng tiếng Việt.
+- Tất cả nội dung tự nhiên trong summary, strengths, weaknesses, matchedSkills, missingSkills, criteriaBreakdown.summary, reason và evidence phải viết bằng tiếng Việt.
 - Không viết câu tiếng Anh trong kết quả. Chỉ giữ nguyên tên công nghệ, framework, công cụ, công ty, trường học, chứng chỉ hoặc chức danh nếu đó là tên riêng/thuật ngữ kỹ thuật.
+- criteriaBreakdown phải có đúng 4 nhóm và đúng mọi hạng mục con trong rubric bên dưới, không thêm hoặc bỏ hạng mục.
+- awardedScore của từng hạng mục nằm trong khoảng 0 đến maxScore tương ứng.
+- Điểm của mỗi nhóm phải bằng tổng awardedScore của các hạng mục con trong nhóm đó.
+- reason phải giải thích trực tiếp vì sao được số điểm đó. evidence phải nêu bằng chứng cụ thể trong CV; nếu CV không có bằng chứng, ghi rõ "CV chưa cung cấp bằng chứng".
+- Không cộng điểm khi không có bằng chứng. Phần điểm bị trừ sẽ được tính bằng maxScore - awardedScore nên mọi lý do phải đủ rõ để nhà tuyển dụng kiểm tra.
 
 Thang chấm:
 - skillScore: mức khớp kỹ năng bắt buộc và ưu tiên, công nghệ, framework, công cụ, tín hiệu seniority và độ thành thạo. Trừ mạnh khi thiếu kỹ năng cốt lõi.
@@ -156,8 +163,11 @@ Thang chấm:
 - matchedSkills và missingSkills phải tập trung vào kỹ năng trong jobDetail.
 - Mỗi mảng tối đa 8 mục, mỗi trường văn bản tối đa 280 ký tự.
 
+Rubric bắt buộc:
+${JSON.stringify(CV_SCORING_RUBRIC)}
+
 Trả về một mảng JSON. Mỗi phần tử phải có:
-applicationId, overallScore, skillScore, experienceScore, projectScore, educationScore, matchedSkills, missingSkills, strengths, weaknesses, summary, recommendation.
+applicationId, overallScore, skillScore, experienceScore, projectScore, educationScore, matchedSkills, missingSkills, strengths, weaknesses, criteriaBreakdown, summary, recommendation.
 
 Dữ liệu đầu vào:
 ${JSON.stringify(payload)}`;
@@ -179,6 +189,33 @@ ${JSON.stringify(payload)}`;
           missingSkills: { type: 'ARRAY', items: { type: 'STRING' } },
           strengths: { type: 'ARRAY', items: { type: 'STRING' } },
           weaknesses: { type: 'ARRAY', items: { type: 'STRING' } },
+          criteriaBreakdown: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                key: {
+                  type: 'STRING',
+                  enum: CV_SCORING_RUBRIC.map((criterion) => criterion.key),
+                },
+                summary: { type: 'STRING' },
+                items: {
+                  type: 'ARRAY',
+                  items: {
+                    type: 'OBJECT',
+                    properties: {
+                      key: { type: 'STRING' },
+                      awardedScore: { type: 'NUMBER' },
+                      reason: { type: 'STRING' },
+                      evidence: { type: 'STRING' },
+                    },
+                    required: ['key', 'awardedScore', 'reason', 'evidence'],
+                  },
+                },
+              },
+              required: ['key', 'summary', 'items'],
+            },
+          },
           summary: { type: 'STRING' },
           recommendation: { type: 'STRING', enum: [...RECOMMENDATIONS] },
         },
@@ -193,6 +230,7 @@ ${JSON.stringify(payload)}`;
           'missingSkills',
           'strengths',
           'weaknesses',
+          'criteriaBreakdown',
           'summary',
           'recommendation',
         ],
@@ -228,10 +266,22 @@ ${JSON.stringify(payload)}`;
       throw new Error('Gemini score item is missing applicationId');
     }
 
-    const skillScore = this.clampScore(value.skillScore, 40);
-    const experienceScore = this.clampScore(value.experienceScore, 30);
-    const projectScore = this.clampScore(value.projectScore, 20);
-    const educationScore = this.clampScore(value.educationScore, 10);
+    const hasDetailedBreakdown = Array.isArray(value.criteriaBreakdown);
+    const criteriaBreakdown = hasDetailedBreakdown
+      ? this.normalizeCriteriaBreakdown(value.criteriaBreakdown)
+      : [];
+    const skillScore = hasDetailedBreakdown
+      ? this.getCriterionScore(criteriaBreakdown, 'skills', 40)
+      : this.clampScore(value.skillScore, 40);
+    const experienceScore = hasDetailedBreakdown
+      ? this.getCriterionScore(criteriaBreakdown, 'experience', 30)
+      : this.clampScore(value.experienceScore, 30);
+    const projectScore = hasDetailedBreakdown
+      ? this.getCriterionScore(criteriaBreakdown, 'projects', 20)
+      : this.clampScore(value.projectScore, 20);
+    const educationScore = hasDetailedBreakdown
+      ? this.getCriterionScore(criteriaBreakdown, 'education', 10)
+      : this.clampScore(value.educationScore, 10);
     const computedOverallScore = skillScore + experienceScore + projectScore + educationScore;
 
     return {
@@ -245,10 +295,56 @@ ${JSON.stringify(payload)}`;
       missingSkills: this.toStringArray(value.missingSkills),
       strengths: this.toStringArray(value.strengths),
       weaknesses: this.toStringArray(value.weaknesses),
+      criteriaBreakdown,
       summary: typeof value.summary === 'string' ? value.summary : '',
       recommendation: this.normalizeRecommendation(value.recommendation, computedOverallScore),
-      raw: value,
+      raw: { ...value, criteriaBreakdown },
     };
+  }
+
+  private normalizeCriteriaBreakdown(value: unknown): CvScoringCriterionBreakdown[] {
+    const rawCriteria = Array.isArray(value) ? value.filter((item) => this.isRecord(item)) : [];
+
+    return CV_SCORING_RUBRIC.map((rubricCriterion) => {
+      const rawCriterion = rawCriteria.find((item) => item.key === rubricCriterion.key);
+      const rawItems = Array.isArray(rawCriterion?.items)
+        ? rawCriterion.items.filter((item) => this.isRecord(item))
+        : [];
+
+      return {
+        key: rubricCriterion.key,
+        summary:
+          typeof rawCriterion?.summary === 'string'
+            ? rawCriterion.summary
+            : 'Chưa có giải thích tổng quan cho tiêu chí này.',
+        items: rubricCriterion.criteria.map((rubricItem) => {
+          const rawItem = rawItems.find((item) => item.key === rubricItem.key);
+
+          return {
+            key: rubricItem.key,
+            awardedScore: this.clampScore(rawItem?.awardedScore, rubricItem.maxScore),
+            reason:
+              typeof rawItem?.reason === 'string'
+                ? rawItem.reason
+                : 'Không có đủ thông tin để cộng điểm cho hạng mục này.',
+            evidence:
+              typeof rawItem?.evidence === 'string'
+                ? rawItem.evidence
+                : 'CV chưa cung cấp bằng chứng.',
+          };
+        }),
+      };
+    });
+  }
+
+  private getCriterionScore(
+    criteriaBreakdown: CvScoringCriterionBreakdown[],
+    key: CvScoringCriterionBreakdown['key'],
+    maxScore: number,
+  ) {
+    const criterion = criteriaBreakdown.find((item) => item.key === key);
+    const score = criterion?.items.reduce((total, item) => total + item.awardedScore, 0) ?? 0;
+    return this.clampScore(score, maxScore);
   }
 
   private clampScore(value: unknown, max: number) {

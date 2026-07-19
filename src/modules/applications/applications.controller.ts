@@ -106,10 +106,7 @@ export class ApplicationsController {
   @ApiNotFoundResponse({
     description: 'Không tìm thấy hồ sơ ứng tuyển hoặc tài khoản nhà tuyển dụng.',
   })
-  findOne(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  findOne(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
     if (user.role === ActorType.CANDIDATE) {
       return this.applicationsService.findOne(id, user.id, undefined);
     }
@@ -186,6 +183,28 @@ export class ApplicationsController {
       jobPostId,
       status: statusEnum,
       search,
+    });
+  }
+
+  @Get('recruiter/pipeline')
+  @ApiOperation({ summary: 'Get the recruiter application pipeline' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.RECRUITER)
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'jobPostId', required: false })
+  @ApiQuery({ name: 'stageId', required: false })
+  @ApiOkResponse({ description: 'Recruiter pipeline grouped by application stage.' })
+  getRecruiterPipeline(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('search') search?: string,
+    @Query('jobPostId') jobPostId?: string,
+    @Query('stageId') stageId?: string,
+  ) {
+    return this.applicationsService.getRecruiterPipeline(user.id, {
+      search,
+      jobPostId,
+      stageId,
     });
   }
 

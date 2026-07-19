@@ -16,6 +16,13 @@ export type EmbeddingResult = {
   updatedAt: Date;
 };
 
+export type RankedCvEmbedding = {
+  cvVersionId: string;
+  semanticScore: number;
+  text: string;
+  updatedAt: Date;
+};
+
 type CvVersionForEmbedding = Prisma.CVVersionGetPayload<{
   include: {
     sourceFile: true;
@@ -136,6 +143,7 @@ export class EmbeddingService {
         modelName: EMBEDDING_CACHE_KEY,
       },
     });
+    await this.persistPgVector('job_embeddings', saved.id, vector);
 
     return {
       vector: this.parseVector(saved.embeddingVector),
@@ -238,6 +246,7 @@ export class EmbeddingService {
             modelName: EMBEDDING_CACHE_KEY,
           },
         });
+        await this.persistPgVector('cv_embeddings', saved.id, vector);
 
         results.set(cvVersion.id, {
           vector: this.parseVector(saved.embeddingVector),
@@ -254,6 +263,50 @@ export class EmbeddingService {
     });
 
     return results;
+  }
+
+  async rankCvEmbeddings(
+    queryVector: number[],
+    cvVersionIds: string[],
+    limit: number,
+    minScore: number | null,
+  ): Promise<RankedCvEmbedding[]> {
+    const vector = this.assertVector(queryVector);
+    const uniqueCvVersionIds = [...new Set(cvVersionIds)];
+    if (uniqueCvVersionIds.length === 0 || limit <= 0) {
+      return [];
+    }
+
+    const vectorLiteral = this.toVectorLiteral(vector);
+    const scoreFilter =
+      minScore === null
+        ? Prisma.empty
+        : Prisma.sql`AND (1 - ("embedding_pgvector" <=> ${vectorLiteral}::vector)) * 100 >= ${minScore}`;
+
+    const rankingQuery = Prisma.sql`
+      SELECT
+        "cv_version_id" AS "cvVersionId",
+        ((1 - ("embedding_pgvector" <=> ${vectorLiteral}::vector)) * 100)::double precision
+          AS "semanticScore",
+        "embedding_text" AS "text",
+        "updated_at" AS "updatedAt"
+      FROM "cv_embeddings"
+      WHERE "cv_version_id" IN (${Prisma.join(uniqueCvVersionIds)})
+        AND "embedding_pgvector" IS NOT NULL
+        ${scoreFilter}
+      ORDER BY "embedding_pgvector" <=> ${vectorLiteral}::vector
+      LIMIT ${limit}
+    `;
+
+    // A larger HNSW candidate list improves recall for the application-id filter
+    // while PostgreSQL still performs the expensive ranking inside the index scan.
+    const efSearch = String(Math.max(100, limit * 4));
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.$queryRaw(
+        Prisma.sql`SELECT set_config('hnsw.ef_search', ${efSearch}, true)`,
+      );
+      return transaction.$queryRaw<RankedCvEmbedding[]>(rankingQuery);
+    });
   }
 
   cosineSimilarity(vectorA: number[], vectorB: number[]) {
@@ -278,6 +331,23 @@ export class EmbeddingService {
     }
 
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  }
+
+  private async persistPgVector(
+    table: 'job_embeddings' | 'cv_embeddings',
+    id: string,
+    vector: number[],
+  ) {
+    const vectorLiteral = this.toVectorLiteral(this.assertVector(vector));
+    const tableName = Prisma.raw(`"${table}"`);
+
+    await this.prisma.$executeRaw(
+      Prisma.sql`UPDATE ${tableName} SET "embedding_pgvector" = ${vectorLiteral}::vector WHERE "id" = ${id}::uuid`,
+    );
+  }
+
+  private toVectorLiteral(vector: number[]) {
+    return `[${vector.join(',')}]`;
   }
 
   private buildJobEmbeddingText(
