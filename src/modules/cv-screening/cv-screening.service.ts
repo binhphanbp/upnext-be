@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RunCvScreeningDto } from './dto/run-cv-screening.dto';
 import { EmbeddingResult, EmbeddingService } from './embedding.service';
 import { GeminiScoringService, GeminiScoreResult } from './gemini-scoring.service';
+import { CV_SCORING_RUBRIC } from './scoring-rubric';
 
 const DEFAULT_DETAILED_LIMIT = 100;
 const MAX_DETAILED_LIMIT = 200;
@@ -17,7 +18,7 @@ const EMBEDDING_CONCURRENCY = 8;
 const GEMINI_BATCH_SIZE = 8;
 const GEMINI_BATCH_CONCURRENCY = 1;
 const GEMINI_FALLBACK_CONCURRENCY = 1;
-const SCORING_VERSION = 'cv-screening-v5-json-cosine-vi';
+const SCORING_VERSION = 'cv-screening-v7-explainable-rubric-vi';
 
 type ApplicationForScreening = Prisma.ApplicationGetPayload<{
   select: {
@@ -181,6 +182,17 @@ export class CvScreeningService {
             createdAt: true,
           },
         },
+        candidateProfile: {
+          select: { account: { select: { fullName: true } } },
+        },
+        jobPost: { select: { title: true } },
+        application: {
+          select: {
+            cvVersion: {
+              select: { sourceFile: { select: { publicUrl: true } } },
+            },
+          },
+        },
       },
     });
 
@@ -192,6 +204,8 @@ export class CvScreeningService {
       id: score.id,
       runId: score.runId,
       applicationId: score.applicationId,
+      candidateName: score.candidateProfile.account.fullName,
+      jobTitle: score.jobPost.title,
       finalScore: Number(score.finalScore),
       semanticScore: Number(score.semanticScore),
       aiScore: Number(score.aiScore),
@@ -205,6 +219,11 @@ export class CvScreeningService {
       recommendation: this.toVietnameseRecommendation(score.recommendation),
       matchedSkills: this.toStringArray(score.matchedSkills),
       missingSkills: this.toStringArray(score.missingSkills),
+      criteriaBreakdown: this.toCriteriaBreakdown(score.rawAiResponse),
+      evaluationRubric: CV_SCORING_RUBRIC,
+      cvFileUrl:
+        score.application.cvVersion.sourceFile?.publicUrl ??
+        `/api/recruiter/applications/${score.applicationId}/cv`,
       modelName: score.modelName,
       scoringVersion: score.scoringVersion,
       run: score.run,
@@ -261,28 +280,7 @@ export class CvScreeningService {
         applications.map((application) => application.cvVersionId),
         EMBEDDING_CONCURRENCY,
       );
-      let embeddingFailureCount = 0;
-      const ranked = applications.map((application): RankedApplication | null => {
-        const cvEmbedding = cvEmbeddings.get(application.cvVersionId);
-        if (!cvEmbedding) {
-          this.logger.error(`Failed to create embedding for application ${application.id}`);
-          embeddingFailureCount += 1;
-          return null;
-        }
-
-        const similarity = this.embeddingService.cosineSimilarity(
-          jobEmbedding.vector,
-          cvEmbedding.vector,
-        );
-        const semanticScore = this.roundScore(similarity * 100);
-
-        return {
-          application,
-          semanticScore,
-          cvText: cvEmbedding.text,
-          cvEmbeddingUpdatedAt: cvEmbedding.updatedAt,
-        };
-      });
+      const embeddingFailureCount = applications.length - cvEmbeddings.size;
 
       if (embeddingFailureCount > 0) {
         await this.incrementProgress(runId, 0, embeddingFailureCount);
@@ -291,11 +289,30 @@ export class CvScreeningService {
       const minScore = run.minScore === null ? null : Number(run.minScore);
       const requestedLimit = run.limit ?? DEFAULT_DETAILED_LIMIT;
       const detailLimit = Math.min(requestedLimit, MAX_DETAILED_LIMIT, applications.length);
-      const selected = ranked
-        .filter((item): item is RankedApplication => item !== null)
-        .filter((item) => minScore === null || item.semanticScore >= minScore)
-        .sort((left, right) => right.semanticScore - left.semanticScore)
-        .slice(0, detailLimit);
+      const rankedEmbeddings = await this.embeddingService.rankCvEmbeddings(
+        jobEmbedding.vector,
+        applications.map((application) => application.cvVersionId),
+        detailLimit,
+        minScore,
+      );
+      const applicationByCvVersionId = new Map(
+        applications.map((application) => [application.cvVersionId, application]),
+      );
+      const selected = rankedEmbeddings.flatMap((embedding): RankedApplication[] => {
+        const application = applicationByCvVersionId.get(embedding.cvVersionId);
+        if (!application) {
+          return [];
+        }
+
+        return [
+          {
+            application,
+            semanticScore: this.roundScore(embedding.semanticScore),
+            cvText: embedding.text,
+            cvEmbeddingUpdatedAt: embedding.updatedAt,
+          },
+        ];
+      });
 
       const toScore = await this.reuseFreshScores(runId, jobEmbedding, selected);
       await this.mapLimit(
@@ -394,7 +411,7 @@ export class CvScreeningService {
           data: {
             runId,
             semanticScore: item.semanticScore,
-            finalScore: this.roundScore(Number(score.aiScore) * 0.7 + item.semanticScore * 0.3),
+            finalScore: this.roundScore(Number(score.aiScore)),
           },
         }),
       ),
@@ -523,7 +540,7 @@ export class CvScreeningService {
     const projectScore = this.roundScore(result.projectScore);
     const educationScore = this.roundScore(result.educationScore);
     const aiScore = this.roundScore(skillScore + experienceScore + projectScore + educationScore);
-    const finalScore = this.roundScore(aiScore * 0.7 + item.semanticScore * 0.3);
+    const finalScore = aiScore;
 
     const data = {
       runId,
@@ -641,6 +658,15 @@ export class CvScreeningService {
     }
 
     return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  private toCriteriaBreakdown(value: Prisma.JsonValue | null) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return [];
+    }
+
+    const criteriaBreakdown = value.criteriaBreakdown;
+    return Array.isArray(criteriaBreakdown) ? criteriaBreakdown : [];
   }
 
   private toVietnameseRecommendation(value: string | null) {

@@ -12,6 +12,7 @@ describe('ApplicationsController', () => {
     getMyApplications: jest.fn(),
     getJobApplicants: jest.fn(),
     checkAppliedJob: jest.fn(),
+    getRecruiterPipeline: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -37,5 +38,24 @@ describe('ApplicationsController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  it('returns the recruiter pipeline with query filters', async () => {
+    const response = { stages: [], candidates: [], metrics: {} };
+    applicationsServiceMock.getRecruiterPipeline.mockResolvedValue(response);
+
+    await expect(
+      controller.getRecruiterPipeline(
+        { id: 'recruiter-id' } as never,
+        'java',
+        'job-post-id',
+        'interview',
+      ),
+    ).resolves.toBe(response);
+    expect(applicationsServiceMock.getRecruiterPipeline).toHaveBeenCalledWith('recruiter-id', {
+      search: 'java',
+      jobPostId: 'job-post-id',
+      stageId: 'interview',
+    });
   });
 });
