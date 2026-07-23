@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ActorType, ConversationStatus, Prisma } from '@prisma/client';
+import { ActorType, ConversationStatus, ConversationType, Prisma } from '@prisma/client';
 import { AuthenticatedUser } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { decodeCursor, encodeCursor } from '../conversation-cursor';
@@ -35,9 +35,8 @@ export class ConversationService {
     const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
     const participantWhere = this.policy.actorParticipantWhere(user);
     const tag = query.tag ? normalizeTag(query.tag) : undefined;
-    const where: Prisma.ConversationWhereInput = {
-      type: query.type,
-      status: query.status ?? { not: ConversationStatus.CLOSED },
+    const isCompanyOwner = await this.policy.canListAllCompanyApplicationChats(user);
+    const participantAccess: Prisma.ConversationWhereInput = {
       participants: {
         some: {
           ...participantWhere,
@@ -45,14 +44,34 @@ export class ConversationService {
           ...(tag ? { tags: { has: tag } } : {}),
         },
       },
-      ...(cursor
-        ? {
-            OR: [
-              { updatedAt: { lt: cursor.createdAt } },
-              { updatedAt: cursor.createdAt, id: { lt: cursor.id } },
-            ],
-          }
-        : {}),
+    };
+    const accessConditions: Prisma.ConversationWhereInput[] = [participantAccess];
+    if (
+      isCompanyOwner &&
+      !tag &&
+      (!query.type || query.type === ConversationType.APPLICATION_CHAT)
+    ) {
+      accessConditions.push({
+        type: ConversationType.APPLICATION_CHAT,
+        companyId: user.companyId ?? undefined,
+      });
+    }
+    const where: Prisma.ConversationWhereInput = {
+      type: query.type,
+      status: query.status ?? { not: ConversationStatus.CLOSED },
+      AND: [
+        { OR: accessConditions },
+        ...(cursor
+          ? [
+              {
+                OR: [
+                  { updatedAt: { lt: cursor.createdAt } },
+                  { updatedAt: cursor.createdAt, id: { lt: cursor.id } },
+                ],
+              },
+            ]
+          : []),
+      ],
     };
 
     const rows = await this.prisma.conversation.findMany({
@@ -106,7 +125,7 @@ export class ConversationService {
   }
 
   async detail(id: string, user: AuthenticatedUser) {
-    await this.policy.assertAccess(id, user);
+    await this.policy.ensureParticipantAccess(id, user);
     const conversation = await this.prisma.conversation.findUnique({
       where: { id },
       include: {
@@ -150,7 +169,7 @@ export class ConversationService {
   }
 
   async updateTags(id: string, dto: UpdateConversationTagsDto, user: AuthenticatedUser) {
-    const participant = await this.policy.assertAccess(id, user);
+    const participant = await this.policy.ensureParticipantAccess(id, user);
     const tags = [...new Set(dto.tags.map(normalizeTag).filter(Boolean))];
     if (tags.length > 10) throw new BadRequestException('A conversation can have at most 10 tags');
     const updated = await this.prisma.conversationParticipant.update({

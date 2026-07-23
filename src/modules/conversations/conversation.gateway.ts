@@ -128,7 +128,7 @@ export class ConversationGateway implements OnGatewayInit, OnGatewayConnection {
     @MessageBody() payload: { conversationId: string },
   ) {
     try {
-      const participant = await this.policy.assertAccess(
+      const participant = await this.policy.ensureParticipantAccess(
         payload.conversationId,
         socketUser(client),
       );
@@ -150,7 +150,10 @@ export class ConversationGateway implements OnGatewayInit, OnGatewayConnection {
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: { conversationId: string },
   ) {
-    const participant = await this.policy.assertAccess(payload.conversationId, socketUser(client));
+    const participant = await this.policy.ensureParticipantAccess(
+      payload.conversationId,
+      socketUser(client),
+    );
     client.to(`conversation:${payload.conversationId}`).emit('typing:updated', {
       schemaVersion: CHAT_SCHEMA_VERSION,
       conversationId: payload.conversationId,

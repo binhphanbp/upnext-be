@@ -100,6 +100,24 @@ Khi chuyển sang READ_ONLY, server tự động tạo message hệ thống `CON
 
 ---
 
+### Application chat membership and hiring team
+
+When a candidate submits an application, the server creates one `APPLICATION_CHAT` linked to the application and job post. Its initial participants are the candidate and the recruiter who created the job post. Company Owners have role-based access to every application chat in their company; they are not inserted as default participants.
+
+- An Owner's participant record is created only when the Owner opens or acts in that chat, so it can hold read markers, personal tags, uploads and sent messages.
+- The job author, an active application assignee, an active hiring-team member, or the company Owner can add colleagues.
+- `POST /conversations/:id/recruiter-participants` adds a colleague to this one chat only.
+- `POST /conversations/:id/hiring-team/recruiters` adds a colleague to the job hiring team, all existing application chats for the job, and every future application chat for the job.
+- `GET /conversations/:id/recruiters` returns selectable active recruiters in the company with their chat/team state; `GET /conversations/:id/hiring-team` returns the active team.
+
+All add endpoints accept:
+
+```json
+{ "recruiterAccountId": "uuid" }
+```
+
+An explicit single-chat invite is preserved if a separate application assignment is later removed. The job author and active hiring-team members also remain in the chat when an application assignment is removed.
+
 ## 4. REST API
 
 Tất cả endpoint yêu cầu header:

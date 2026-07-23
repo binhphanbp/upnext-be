@@ -34,7 +34,7 @@ export class MessageAttachmentService {
         'Only valid PDF, JPEG, PNG, and WebP files are allowed',
       );
     }
-    const participant = await this.policy.assertAccess(conversationId, user);
+    const participant = await this.policy.ensureParticipantAccess(conversationId, user);
     this.policy.assertWritable(participant.conversation);
     if (participant.conversation.type === ConversationType.TALENT_OUTREACH) {
       throw new ConflictException('Attachments are not enabled for talent outreach');

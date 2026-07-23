@@ -76,7 +76,17 @@ export class ConversationLifecycleService {
       select: {
         id: true,
         candidateProfile: { select: { candidateAccountId: true } },
-        jobPost: { select: { id: true, companyId: true, createdByRecruiterId: true } },
+        jobPost: {
+          select: {
+            id: true,
+            companyId: true,
+            createdByRecruiterId: true,
+            hiringTeamMembers: {
+              where: { leftAt: null },
+              select: { recruiterAccountId: true },
+            },
+          },
+        },
         assignments: {
           where: { unassignedAt: null },
           select: { recruiterAccountId: true },
@@ -119,7 +129,12 @@ export class ConversationLifecycleService {
         role: ConversationParticipantRole.CANDIDATE,
       },
     });
+    // At submission this is deliberately just the job author (the initial
+    // assignment). The hiring team is opt-in per job and can be expanded later.
     const recruiterIds = new Set(application.assignments.map((entry) => entry.recruiterAccountId));
+    for (const member of application.jobPost.hiringTeamMembers ?? []) {
+      recruiterIds.add(member.recruiterAccountId);
+    }
     if (actor.type === ActorType.RECRUITER && actor.id) {
       recruiterIds.add(actor.id);
     }

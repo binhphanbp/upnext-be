@@ -4,8 +4,14 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { ConversationPolicyService } from './conversation-policy.service';
 
 describe('ConversationPolicyService', () => {
-  const prisma = { conversationParticipant: { findFirst: jest.fn() } };
+  const prisma = {
+    conversationParticipant: { findFirst: jest.fn() },
+    recruiterAccount: { findFirst: jest.fn() },
+    conversation: { findFirst: jest.fn() },
+  };
   const policy = new ConversationPolicyService(prisma as unknown as PrismaService);
+
+  beforeEach(() => jest.clearAllMocks());
 
   it('builds an actor-specific participant boundary', () => {
     expect(
@@ -20,6 +26,7 @@ describe('ConversationPolicyService', () => {
 
   it('does not grant access when the actor is not an active participant', async () => {
     prisma.conversationParticipant.findFirst.mockResolvedValue(null);
+    prisma.recruiterAccount.findFirst.mockResolvedValue(null);
     await expect(
       policy.assertAccess('conversation-id', {
         id: 'recruiter-id',
@@ -29,6 +36,31 @@ describe('ConversationPolicyService', () => {
         permissions: ['applications:manage'],
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('grants an Owner role-based access to an application chat without a default participant row', async () => {
+    prisma.conversationParticipant.findFirst.mockResolvedValue(null);
+    prisma.recruiterAccount.findFirst.mockResolvedValue({ id: 'owner-id' });
+    prisma.conversation.findFirst.mockResolvedValue({ id: 'conversation-id' });
+
+    await expect(
+      policy.assertAccess('conversation-id', {
+        id: 'owner-id',
+        email: 'owner@upnext.dev',
+        role: ActorType.RECRUITER,
+        companyId: 'company-id',
+        permissions: [],
+      }),
+    ).resolves.toBeNull();
+
+    expect(prisma.recruiterAccount.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'owner-id',
+        companyId: 'company-id',
+        recruiterRole: { is: { code: 'OWNER' } },
+      },
+      select: { id: true },
+    });
   });
 
   it('allows only active and unexpired conversations to be written', () => {
