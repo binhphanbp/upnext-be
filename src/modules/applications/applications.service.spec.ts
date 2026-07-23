@@ -4,10 +4,16 @@ import { OutboxService } from '../outbox/outbox.service';
 import { ApplicationsService } from './applications.service';
 import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
 import { ApplicationTransitionPolicy } from './application-transition.policy';
+import { ActorType, ApplicationStatus, JobStatus } from '@prisma/client';
 
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
+  const enqueue = jest.fn();
+  const applyApplicationStatus = jest.fn();
   const prismaMock: any = {
+    candidateAccount: {
+      findUnique: jest.fn(),
+    },
     candidateProfile: {
       findUnique: jest.fn(),
     },
@@ -24,6 +30,9 @@ describe('ApplicationsService', () => {
       update: jest.fn(),
     },
     applicationStatusLog: {
+      create: jest.fn(),
+    },
+    applicationAssignment: {
       create: jest.fn(),
     },
     recruiterAccount: {
@@ -43,13 +52,13 @@ describe('ApplicationsService', () => {
         {
           provide: OutboxService,
           useValue: {
-            enqueue: jest.fn(),
+            enqueue,
           },
         },
         {
           provide: ConversationLifecycleService,
           useValue: {
-            applyApplicationState: jest.fn(),
+            applyApplicationStatus,
           },
         },
         {
@@ -62,9 +71,48 @@ describe('ApplicationsService', () => {
     }).compile();
 
     service = module.get<ApplicationsService>(ApplicationsService);
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('creates the candidate-recruiter conversation as soon as an application is submitted', async () => {
+    prismaMock.candidateAccount.findUnique.mockResolvedValue({
+      emailVerifiedAt: new Date(),
+      fullName: 'Candidate',
+      profile: { id: 'candidate-profile-id' },
+    });
+    prismaMock.jobPost.findUnique.mockResolvedValue({
+      id: 'job-post-id',
+      title: 'Backend Developer',
+      status: JobStatus.PUBLISHED,
+      createdByRecruiterId: 'recruiter-id',
+    });
+    prismaMock.cVVersion.findUnique.mockResolvedValue({
+      id: 'cv-version-id',
+      cv: { candidateProfileId: 'candidate-profile-id' },
+    });
+    prismaMock.application.findUnique.mockResolvedValue(null);
+    prismaMock.application.create.mockResolvedValue({
+      id: 'application-id',
+      status: ApplicationStatus.SUBMITTED,
+    });
+
+    await service.applyJob('candidate-id', {
+      jobPostId: 'job-post-id',
+      cvVersionId: 'cv-version-id',
+    });
+
+    expect(applyApplicationStatus).toHaveBeenCalledWith(
+      prismaMock,
+      'application-id',
+      ApplicationStatus.SUBMITTED,
+      {
+        type: ActorType.CANDIDATE,
+        id: 'candidate-id',
+      },
+    );
   });
 });
