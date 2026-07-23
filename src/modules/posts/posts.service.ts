@@ -149,10 +149,22 @@ export class PostsService {
   }
 
   async findAllPublic(query: ListPublicPostsQueryDto) {
+    const searchTerm = query.search || query.q;
+
     const where: Prisma.PostWhereInput = {
       status: PostStatus.PUBLISHED,
       ...(query.type ? { type: query.type } : {}),
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.categorySlug
+        ? {
+            category: {
+              OR: [
+                { slug: query.categorySlug },
+                { parent: { slug: query.categorySlug } },
+              ],
+            },
+          }
+        : {}),
       ...(query.tagId
         ? {
             postTags: {
@@ -162,14 +174,28 @@ export class PostsService {
             },
           }
         : {}),
-      ...(query.q
+      ...(query.tag
+        ? {
+            postTags: {
+              some: {
+                tag: {
+                  OR: [
+                    { slug: query.tag },
+                    { name: { contains: query.tag, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            },
+          }
+        : {}),
+      ...(searchTerm
         ? {
             OR: [
-              { title: { contains: query.q, mode: 'insensitive' } },
-              { content: { contains: query.q, mode: 'insensitive' } },
-              { metaTitle: { contains: query.q, mode: 'insensitive' } },
-              { metaDescription: { contains: query.q, mode: 'insensitive' } },
-              { metaKeywords: { contains: query.q, mode: 'insensitive' } },
+              { title: { contains: searchTerm, mode: 'insensitive' } },
+              { content: { contains: searchTerm, mode: 'insensitive' } },
+              { metaTitle: { contains: searchTerm, mode: 'insensitive' } },
+              { metaDescription: { contains: searchTerm, mode: 'insensitive' } },
+              { metaKeywords: { contains: searchTerm, mode: 'insensitive' } },
             ],
           }
         : {}),
