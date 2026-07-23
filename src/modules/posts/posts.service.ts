@@ -4,7 +4,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { slugify } from '../../common/utils/slugify';
 import { CreatePostDto } from './dto/create-post.dto';
 import { ListAdminPostsQueryDto } from './dto/list-admin-posts-query.dto';
+import { ListPublicPostsQueryDto } from './dto/list-public-posts-query.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
+import { CreatePostCategoryDto, UpdatePostCategoryDto } from './dto/category-dto';
+import { CreateTagDto, UpdateTagDto } from './dto/tag-dto';
 
 @Injectable()
 export class PostsService {
@@ -95,7 +98,6 @@ export class PostsService {
         : {}),
     };
 
-    // Determine sorting field and order
     const validSortFields = ['createdAt', 'updatedAt', 'title', 'status', 'type'];
     const sortBy = validSortFields.includes(query.sortBy || '') ? query.sortBy : 'createdAt';
     const sortOrder = query.sortOrder === 'asc' ? 'asc' : 'desc';
@@ -144,6 +146,146 @@ export class PostsService {
         hasPrevPage: query.page > 1,
       },
     };
+  }
+
+  async findAllPublic(query: ListPublicPostsQueryDto) {
+    const where: Prisma.PostWhereInput = {
+      status: PostStatus.PUBLISHED,
+      ...(query.type ? { type: query.type } : {}),
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.tagId
+        ? {
+            postTags: {
+              some: {
+                tagId: query.tagId,
+              },
+            },
+          }
+        : {}),
+      ...(query.q
+        ? {
+            OR: [
+              { title: { contains: query.q, mode: 'insensitive' } },
+              { content: { contains: query.q, mode: 'insensitive' } },
+              { metaTitle: { contains: query.q, mode: 'insensitive' } },
+              { metaDescription: { contains: query.q, mode: 'insensitive' } },
+              { metaKeywords: { contains: query.q, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
+    const validSortFields = ['createdAt', 'updatedAt', 'title'];
+    const sortBy = validSortFields.includes(query.sortBy || '') ? query.sortBy : 'createdAt';
+    const sortOrder = query.sortOrder === 'asc' ? 'asc' : 'desc';
+    const orderBy = { [sortBy!]: sortOrder };
+
+    const skip = (query.page - 1) * query.limit;
+
+    const [items, total] = await Promise.all([
+      this.prisma.post.findMany({
+        where,
+        skip,
+        take: query.limit,
+        orderBy,
+        include: {
+          category: true,
+          admin: {
+            select: {
+              id: true,
+              fullName: true,
+              avatarUrl: true,
+            },
+          },
+          thumbnailFile: true,
+          coverImageFile: true,
+          postTags: {
+            include: {
+              tag: true,
+            },
+          },
+        },
+      }),
+      this.prisma.post.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / query.limit);
+
+    return {
+      items,
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages,
+        hasNextPage: query.page < totalPages,
+        hasPrevPage: query.page > 1,
+      },
+    };
+  }
+
+  async findPublicBySlug(slug: string) {
+    const post = await this.prisma.post.findFirst({
+      where: {
+        slug,
+        status: PostStatus.PUBLISHED,
+      },
+      include: {
+        category: true,
+        admin: {
+          select: {
+            id: true,
+            fullName: true,
+            avatarUrl: true,
+          },
+        },
+        thumbnailFile: true,
+        coverImageFile: true,
+        postTags: {
+          include: {
+            tag: true,
+          },
+        },
+      },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    return post;
+  }
+
+  async findPublicById(id: string) {
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id,
+        status: PostStatus.PUBLISHED,
+      },
+      include: {
+        category: true,
+        admin: {
+          select: {
+            id: true,
+            fullName: true,
+            avatarUrl: true,
+          },
+        },
+        thumbnailFile: true,
+        coverImageFile: true,
+        postTags: {
+          include: {
+            tag: true,
+          },
+        },
+      },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    return post;
   }
 
   async findOne(id: string) {
@@ -260,15 +402,127 @@ export class PostsService {
     });
   }
 
+  // ==================== Category Operations ==================== //
+
   async getCategories() {
     return this.prisma.postCategory.findMany({
       orderBy: { name: 'asc' },
+      include: {
+        _count: {
+          select: { posts: true },
+        },
+      },
     });
   }
+
+  async findOneCategory(id: string) {
+    const category = await this.prisma.postCategory.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { posts: true },
+        },
+      },
+    });
+    if (!category) {
+      throw new NotFoundException('Post category not found');
+    }
+    return category;
+  }
+
+  async createCategory(dto: CreatePostCategoryDto) {
+    const slug = dto.slug ? slugify(dto.slug) : `${slugify(dto.name)}-${Date.now().toString(36)}`;
+    return this.prisma.postCategory.create({
+      data: {
+        name: dto.name,
+        slug,
+      },
+    });
+  }
+
+  async updateCategory(id: string, dto: UpdatePostCategoryDto) {
+    await this.findOneCategory(id);
+    const data: Prisma.PostCategoryUpdateInput = {};
+    if (dto.name) {
+      data.name = dto.name;
+    }
+    if (dto.slug) {
+      data.slug = slugify(dto.slug);
+    } else if (dto.name) {
+      data.slug = `${slugify(dto.name)}-${Date.now().toString(36)}`;
+    }
+    return this.prisma.postCategory.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async removeCategory(id: string) {
+    await this.findOneCategory(id);
+    await this.prisma.postCategory.delete({
+      where: { id },
+    });
+  }
+
+  // ==================== Tag Operations ==================== //
 
   async getTags() {
     return this.prisma.tag.findMany({
       orderBy: { name: 'asc' },
+      include: {
+        _count: {
+          select: { postTags: true },
+        },
+      },
+    });
+  }
+
+  async findOneTag(id: string) {
+    const tag = await this.prisma.tag.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { postTags: true },
+        },
+      },
+    });
+    if (!tag) {
+      throw new NotFoundException('Tag not found');
+    }
+    return tag;
+  }
+
+  async createTag(dto: CreateTagDto) {
+    const slug = dto.slug ? slugify(dto.slug) : `${slugify(dto.name)}-${Date.now().toString(36)}`;
+    return this.prisma.tag.create({
+      data: {
+        name: dto.name,
+        slug,
+      },
+    });
+  }
+
+  async updateTag(id: string, dto: UpdateTagDto) {
+    await this.findOneTag(id);
+    const data: Prisma.TagUpdateInput = {};
+    if (dto.name) {
+      data.name = dto.name;
+    }
+    if (dto.slug) {
+      data.slug = slugify(dto.slug);
+    } else if (dto.name) {
+      data.slug = `${slugify(dto.name)}-${Date.now().toString(36)}`;
+    }
+    return this.prisma.tag.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async removeTag(id: string) {
+    await this.findOneTag(id);
+    await this.prisma.tag.delete({
+      where: { id },
     });
   }
 }

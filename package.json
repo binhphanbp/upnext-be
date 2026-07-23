@@ -26,6 +26,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio --browser none",
     "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:seed-posts": "tsx prisma/seed-posts.ts",
     "chat:seed-permissions": "tsx scripts/seed-chat-permissions.ts",
     "chat:backfill": "tsx scripts/backfill-chat.ts",
     "db:reset": "prisma migrate reset",

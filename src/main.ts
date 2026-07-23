@@ -149,6 +149,9 @@ async function bootstrap() {
     .addTag('Admin - Job Posts', 'Quản lý và duyệt tin tuyển dụng hệ thống')
     .addTag('Admin - Reports', 'Quản lý các báo cáo vi phạm từ người dùng')
     .addTag('Admin - Posts', 'Bài viết tin tức và blog hệ thống')
+    .addTag('Admin - Post Categories', 'Quản lý danh mục bài viết hệ thống')
+    .addTag('Admin - Post Tags', 'Quản lý thẻ bài viết hệ thống')
+    .addTag('Public - Posts', 'Bài viết, blog, danh mục và tag bài viết công khai')
     .addTag('Subscription Plans', 'Quản lý các gói dịch vụ hệ thống')
     // --- Shared & Dictionary ---
     .addTag('Home', 'Dữ liệu trang chủ tuyển dụng')
