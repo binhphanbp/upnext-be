@@ -2,6 +2,7 @@
 import {
   ActorType,
   ApplicationStatus,
+  AuthProvider,
   CompanyStatus,
   CompanyType,
   CompanyVerificationStatus,
@@ -1283,6 +1284,76 @@ async function cleanHomeSeedData() {
           },
         },
       });
+
+      await prisma.applicationAiScore.deleteMany({
+        where: {
+          applicationId: {
+            in: applicationIds,
+          },
+        },
+      });
+
+      await prisma.applicationAssignment.deleteMany({
+        where: {
+          applicationId: {
+            in: applicationIds,
+          },
+        },
+      });
+
+      const conversationIds = (
+        await prisma.conversation.findMany({
+          where: {
+            applicationId: {
+              in: applicationIds,
+            },
+          },
+          select: {
+            id: true,
+          },
+        })
+      ).map((c) => c.id);
+
+      if (conversationIds.length > 0) {
+        await prisma.conversation.updateMany({
+          where: {
+            id: {
+              in: conversationIds,
+            },
+          },
+          data: {
+            latestMessageId: null,
+          },
+        });
+        await prisma.messageAttachment.deleteMany({
+          where: {
+            conversationId: {
+              in: conversationIds,
+            },
+          },
+        });
+        await prisma.message.deleteMany({
+          where: {
+            conversationId: {
+              in: conversationIds,
+            },
+          },
+        });
+        await prisma.conversationParticipant.deleteMany({
+          where: {
+            conversationId: {
+              in: conversationIds,
+            },
+          },
+        });
+        await prisma.conversation.deleteMany({
+          where: {
+            id: {
+              in: conversationIds,
+            },
+          },
+        });
+      }
     }
 
     await prisma.savedJob.deleteMany({
@@ -5744,14 +5815,19 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
   await prisma.recruiterAccount.upsert({
     where: { id: recruiterAccountId },
     update: {
+      email: 'duycc771@gmail.com',
       companyId: fptSoftware.id,
       recruiterRoleId: recruiterRole.id,
+      passwordHash: passwordHash,
+      authProvider: AuthProvider.DEFAULT,
+      providerUserId: null,
     },
     create: {
       id: recruiterAccountId,
       email: 'duycc771@gmail.com',
-      authProvider: 'GOOGLE',
-      providerUserId: '105435843807834628979',
+      passwordHash: passwordHash,
+      authProvider: AuthProvider.DEFAULT,
+      providerUserId: null,
       companyId: fptSoftware.id,
       recruiterRoleId: recruiterRole.id,
       status: 'ACTIVE',

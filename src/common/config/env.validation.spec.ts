@@ -63,4 +63,16 @@ describe('validateEnv CORS origins', () => {
 
     expect(config.corsOrigins).toEqual(['https://localhost.example.com']);
   });
+
+  it('normalizes Google OAuth credentials copied with wrapping quotes', () => {
+    const config = validateEnv(
+      createConfig({
+        GOOGLE_CLIENT_ID: ' "google-client-id" ',
+        GOOGLE_CLIENT_SECRET: "'google-client-secret'",
+      }),
+    );
+
+    expect(config.googleClientId).toBe('google-client-id');
+    expect(config.googleClientSecret).toBe('google-client-secret');
+  });
 });
