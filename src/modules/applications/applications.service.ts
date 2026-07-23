@@ -14,6 +14,59 @@ import { OutboxService } from '../outbox/outbox.service';
 import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
 import { ApplicationTransitionPolicy } from './application-transition.policy';
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
+import { CV_SCORING_RUBRIC } from '../cv-screening/scoring-rubric';
+
+const PIPELINE_SCORE_FIELD_BY_RUBRIC_KEY: Record<string, string> = {
+  skills: 'skillScore',
+  experience: 'experienceScore',
+  projects: 'projectScore',
+  education: 'educationScore',
+};
+
+const PIPELINE_STAGES = [
+  {
+    id: 'applied',
+    status: ApplicationStatus.SUBMITTED,
+    title: 'Applied',
+    description: 'New applications received',
+  },
+  {
+    id: 'screening',
+    status: ApplicationStatus.VIEWED,
+    title: 'Screening',
+    description: 'Initial resume & profile review',
+  },
+  {
+    id: 'technical_test',
+    status: ApplicationStatus.SHORTLISTED,
+    title: 'Technical Test',
+    description: 'Coding challenge and assessment',
+  },
+  {
+    id: 'interview',
+    status: ApplicationStatus.INTERVIEWING,
+    title: 'Interview',
+    description: 'Technical & cultural interview phases',
+  },
+  {
+    id: 'offering',
+    status: ApplicationStatus.OFFERED,
+    title: 'Offering',
+    description: 'Salary negotiation & job offer extended',
+  },
+  {
+    id: 'hired',
+    status: ApplicationStatus.HIRED,
+    title: 'Hired',
+    description: 'Successfully signed and hired',
+  },
+  {
+    id: 'rejected',
+    status: ApplicationStatus.REJECTED,
+    title: 'Rejected',
+    description: 'Unsuitable candidates for this position',
+  },
+] as const;
 
 @Injectable()
 export class ApplicationsService {
@@ -427,24 +480,6 @@ export class ApplicationsService {
     return apps.map((app) => this.mapApplicationCvVersion(app));
   }
 
-  private mapApplicationCvVersion(app: any) {
-    if (!app) return null;
-    const cvVersion = app.cvVersion;
-    const fileAsset = cvVersion?.sourceFile;
-    return {
-      ...app,
-      cvVersion: cvVersion
-        ? {
-            ...cvVersion,
-            fileName:
-              fileAsset?.originalName ||
-              `CV-${app.candidateProfile?.account?.fullName || 'Candidate'}.pdf`,
-            fileUrl: fileAsset?.publicUrl || '',
-          }
-        : null,
-    };
-  }
-
   async getRecruiterPipeline(
     recruiterId: string,
     query?: {
@@ -464,217 +499,172 @@ export class ApplicationsService {
     }
 
     const whereClause: any = {
-      jobPost: {
-        companyId: recruiter.companyId,
-      },
+      jobPost: { companyId: recruiter.companyId },
+      status: { in: PIPELINE_STAGES.map((stage) => stage.status) },
     };
 
-    if (query?.jobPostId) {
+    if (query?.jobPostId && query.jobPostId !== 'all') {
       whereClause.jobPostId = query.jobPostId;
     }
 
-    if (query?.stageId) {
-      const pipelineStageToApplicationStatuses = {
-        applied: ['SUBMITTED'],
-        screening: ['VIEWED'],
-        technical_test: ['SHORTLISTED'],
-        interview: ['INTERVIEWING'],
-        offering: ['OFFERED'],
-        hired: ['HIRED'],
-        rejected: ['REJECTED', 'WITHDRAWN'],
-      } as const;
-
-      const statuses =
-        pipelineStageToApplicationStatuses[
-          query.stageId as keyof typeof pipelineStageToApplicationStatuses
-        ];
-      if (statuses) {
-        whereClause.status = { in: statuses };
-      }
+    const matchedStage = query?.stageId
+      ? PIPELINE_STAGES.find((stage) => stage.id === query.stageId)
+      : undefined;
+    if (matchedStage) {
+      whereClause.status = matchedStage.status;
     }
 
     if (query?.search) {
-      const searchPattern = query.search;
-      whereClause.OR = [
-        {
-          candidateProfile: {
-            account: {
-              fullName: { contains: searchPattern, mode: 'insensitive' },
-            },
-          },
+      whereClause.candidateProfile = {
+        account: {
+          OR: [
+            { fullName: { contains: query.search, mode: 'insensitive' } },
+            { email: { contains: query.search, mode: 'insensitive' } },
+          ],
         },
-        {
-          candidateProfile: {
-            account: {
-              email: { contains: searchPattern, mode: 'insensitive' },
-            },
-          },
-        },
-        {
-          jobPost: {
-            title: { contains: searchPattern, mode: 'insensitive' },
-          },
-        },
-        {
-          candidateProfile: {
-            skills: {
-              some: {
-                skill: {
-                  name: { contains: searchPattern, mode: 'insensitive' },
-                },
-              },
-            },
-          },
-        },
-      ];
+      };
     }
 
-    const applications = await this.prisma.application.findMany({
+    const apps = await this.prisma.application.findMany({
       where: whereClause,
       include: {
         candidateProfile: {
           include: {
-            account: {
-              select: {
-                id: true,
-                fullName: true,
-                email: true,
-              },
-            },
+            account: { select: { id: true, fullName: true, email: true } },
             skills: {
-              include: {
-                skill: {
-                  select: {
-                    name: true,
-                  },
-                },
-              },
+              include: { skill: { select: { name: true } } },
+              orderBy: { sortOrder: 'asc' },
             },
-            experiences: true,
+            experiences: {
+              select: { startDate: true, endDate: true, isCurrent: true },
+            },
           },
         },
-        jobPost: {
-          include: {
-            jobPostSkills: {
-              include: {
-                skill: {
-                  select: {
-                    name: true,
-                  },
-                },
-              },
-            },
+        jobPost: { select: { id: true, title: true } },
+        aiScore: {
+          select: {
+            finalScore: true,
+            skillScore: true,
+            experienceScore: true,
+            projectScore: true,
+            educationScore: true,
           },
         },
         interviews: {
           where: {
             status: { in: [InterviewStatus.SCHEDULED, InterviewStatus.RESCHEDULED] },
           },
-          orderBy: {
-            scheduledStartAt: 'asc',
-          },
+          include: { recruiterProfile: { select: { fullName: true } } },
+          orderBy: { scheduledStartAt: 'asc' },
           take: 1,
-          include: {
-            recruiterProfile: true,
-          },
         },
       },
       orderBy: { updatedAt: 'desc' },
     });
 
-    const applicationStatusToPipelineStage = {
-      SUBMITTED: 'applied',
-      VIEWED: 'screening',
-      SHORTLISTED: 'technical_test',
-      INTERVIEWING: 'interview',
-      OFFERED: 'offering',
-      HIRED: 'hired',
-      REJECTED: 'rejected',
-      WITHDRAWN: 'rejected',
-    } as const;
+    const candidates = apps.map((app) => this.mapPipelineCandidate(app));
 
-    const candidates = applications.map((app) => {
-      // Name fallback
-      const name = app.candidateProfile.account.fullName || app.candidateProfile.account.email;
-
-      // Tech Stack derivation
-      let techStack: string[] = [];
-      if (app.candidateProfile.skills && app.candidateProfile.skills.length > 0) {
-        techStack = app.candidateProfile.skills.map((s) => s.skill.name);
-      } else if (app.jobPost.jobPostSkills && app.jobPost.jobPostSkills.length > 0) {
-        techStack = app.jobPost.jobPostSkills.map((s) => s.skill.name);
-      }
-
-      // Experience calculation
-      let totalMonths = 0;
-      for (const exp of app.candidateProfile.experiences) {
-        const start = exp.startDate ? new Date(exp.startDate) : new Date();
-        const end = exp.isCurrent || !exp.endDate ? new Date() : new Date(exp.endDate);
-        const diffMonths =
-          (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
-        totalMonths += Math.max(0, diffMonths);
-      }
-      const experienceYears = totalMonths > 0 ? Math.round(totalMonths / 12) : 0;
-
-      // Interview derivation
-      const interviewObj = app.interviews[0];
-      const interview = interviewObj
-        ? {
-            id: interviewObj.id,
-            scheduledAt: interviewObj.scheduledStartAt.toISOString(),
-            interviewerName: interviewObj.recruiterProfile?.fullName || null,
-            mode: interviewObj.type,
-          }
-        : null;
-
-      const stageId = applicationStatusToPipelineStage[app.status] || 'applied';
-
-      return {
-        id: app.id,
-        applicationId: app.id,
-        candidateId: app.candidateProfile.id,
-        name,
-        role: app.jobPost.title,
-        stageId,
-        avatarUrl: null,
-        location: app.candidateProfile.address || null,
-        experienceYears,
-        techStack,
-        scores: [],
-        lastUpdatedAt: app.updatedAt.toISOString(),
-        interview,
-      };
-    });
-
-    const totalCandidates = candidates.length;
-    const inInterview = candidates.filter((c) => c.stageId === 'interview').length;
-    const offersSent = candidates.filter((c) => c.stageId === 'offering').length;
     const hiredCount = candidates.filter((c) => c.stageId === 'hired').length;
-    const passRate = totalCandidates > 0 ? Math.round((hiredCount / totalCandidates) * 100) : 0;
-
-    const stages = [
-      { id: 'applied', title: 'Applied', description: 'New applications received' },
-      { id: 'screening', title: 'Screening', description: 'Initial resume & profile review' },
-      {
-        id: 'technical_test',
-        title: 'Technical Test',
-        description: 'Coding challenge and assessment',
-      },
-      { id: 'interview', title: 'Interview', description: 'Technical & cultural interview phases' },
-      { id: 'offering', title: 'Offering', description: 'Salary negotiation & job offer extended' },
-      { id: 'hired', title: 'Hired', description: 'Successfully signed and hired' },
-      { id: 'rejected', title: 'Rejected', description: 'Unsuitable candidates for this position' },
-    ];
+    const rejectedCount = candidates.filter((c) => c.stageId === 'rejected').length;
+    const decidedCount = hiredCount + rejectedCount;
 
     return {
-      stages,
+      stages: PIPELINE_STAGES.map(({ id, title, description }) => ({ id, title, description })),
       candidates,
       metrics: {
-        totalCandidates,
-        inInterview,
-        offersSent,
-        passRate,
+        totalCandidates: candidates.length,
+        inInterview: candidates.filter((c) => c.stageId === 'interview').length,
+        offersSent: candidates.filter((c) => c.stageId === 'offering' || c.stageId === 'hired')
+          .length,
+        passRate: decidedCount > 0 ? Math.round((hiredCount / decidedCount) * 100) : 0,
       },
+    };
+  }
+
+  private mapPipelineCandidate(app: any) {
+    const stage = PIPELINE_STAGES.find((s) => s.status === app.status);
+    const account = app.candidateProfile.account;
+    const interview = app.interviews?.[0];
+
+    return {
+      id: app.id,
+      applicationId: app.id,
+      candidateId: app.candidateProfile.id,
+      name: account.fullName,
+      role: app.jobPost.title,
+      stageId: stage?.id ?? 'applied',
+      avatarUrl: null,
+      location: app.candidateProfile.address ?? null,
+      experienceYears: this.computeExperienceYears(
+        app.candidateProfile.experiences as {
+          startDate: Date | null;
+          endDate: Date | null;
+          isCurrent: boolean;
+        }[],
+      ),
+      techStack: (app.candidateProfile.skills ?? []).map((s: any) => s.skill.name),
+      scores: app.aiScore
+        ? [
+            {
+              label: 'Overall Match',
+              value: Math.round(Number(app.aiScore.finalScore)),
+              maxValue: 100,
+            },
+            ...CV_SCORING_RUBRIC.map((criterion) => ({
+              label: criterion.label,
+              value: Math.round(
+                Number(app.aiScore[PIPELINE_SCORE_FIELD_BY_RUBRIC_KEY[criterion.key]]),
+              ),
+              maxValue: criterion.maxScore,
+            })),
+          ]
+        : undefined,
+      lastUpdatedAt: app.updatedAt.toISOString(),
+      interview: interview
+        ? {
+            id: interview.id,
+            scheduledAt: interview.scheduledStartAt.toISOString(),
+            interviewerName: interview.recruiterProfile?.fullName ?? null,
+            mode: interview.type,
+          }
+        : null,
+    };
+  }
+
+  private computeExperienceYears(
+    experiences: { startDate: Date | null; endDate: Date | null; isCurrent: boolean }[],
+  ): number | null {
+    if (!experiences?.length) return null;
+
+    const now = new Date();
+    let totalMonths = 0;
+    for (const exp of experiences) {
+      if (!exp.startDate) continue;
+      const end = exp.isCurrent || !exp.endDate ? now : exp.endDate;
+      const months =
+        (end.getFullYear() - exp.startDate.getFullYear()) * 12 +
+        (end.getMonth() - exp.startDate.getMonth());
+      if (months > 0) totalMonths += months;
+    }
+
+    return totalMonths > 0 ? Math.round(totalMonths / 12) : null;
+  }
+
+  private mapApplicationCvVersion(app: any) {
+    if (!app) return null;
+    const cvVersion = app.cvVersion;
+    const fileAsset = cvVersion?.sourceFile;
+    return {
+      ...app,
+      cvVersion: cvVersion
+        ? {
+            ...cvVersion,
+            fileName:
+              fileAsset?.originalName ||
+              `CV-${app.candidateProfile?.account?.fullName || 'Candidate'}.pdf`,
+            fileUrl: fileAsset?.publicUrl || '',
+          }
+        : null,
     };
   }
 

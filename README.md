@@ -105,8 +105,5 @@ prisma/
 Before opening a pull request, run:
 
 ```bash
-corepack pnpm lint
-corepack pnpm typecheck
-corepack pnpm test
-corepack pnpm build
+pnpm prisma:migrate:deploy
 ```

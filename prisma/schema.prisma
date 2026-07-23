@@ -166,8 +166,14 @@ enum CompanyVerificationStatus {
 }
 
 enum CompanyStatus {
-  ACTIVE @map("active")
-  LOCKED @map("locked")
+  ACTIVE     @map("active")
+  LOCKED     @map("locked")
+  RESTRICTED @map("restricted")
+}
+
+enum JobReputationEvaluationType {
+  CV_PROCESSING  @map("cv_processing")
+  EXPIRY_PENALTY @map("expiry_penalty")
 }
 
 enum ShortlistStatus {
@@ -821,7 +827,9 @@ model Company {
   companySize           String?                   @map("company_size") @db.VarChar(80)
   workingDays           String?                   @map("working_days") @db.VarChar(150)
   verificationStatus    CompanyVerificationStatus @default(UNVERIFIED) @map("verification_status")
-  reputationScore       Decimal                   @default(0) @map("reputation_score") @db.Decimal(6, 2)
+  reputationScore       Decimal                   @default(35) @map("reputation_score") @db.Decimal(6, 2)
+  scoreBeforeRestriction Decimal?                 @map("score_before_restriction") @db.Decimal(6, 2)
+  restrictedAt          DateTime?                 @map("restricted_at")
   status                CompanyStatus             @default(ACTIVE)
   lockedReason          String?                   @map("locked_reason") @db.Text
   lockedAt              DateTime?                 @map("locked_at")
@@ -930,6 +938,7 @@ model RecruiterAccount {
   talentRecommendationRuns TalentRecommendationRun[]
   talentContactAttempts    TalentContactAttempt[]
   createdSupportCases      SupportCase[]                 @relation("SupportCaseCreatedByRecruiter")
+  hiringResultReports      HiringResultReport[]
 
   @@unique([authProvider, providerUserId])
   @@index([companyId])
@@ -1051,6 +1060,8 @@ model JobPost {
   talentRecommendations    TalentRecommendation[]
   talentContactRequests    TalentContactRequest[]
   supportCases             SupportCase[]
+  hiringResultReport       HiringResultReport?
+  reputationEvaluations    JobReputationEvaluation[]
 
   @@index([companyId])
   @@index([jobCategoryId])
@@ -1546,6 +1557,7 @@ model AdminUser {
   assignedSupportCases     SupportCase[]                  @relation("SupportCaseAssignedAdmin")
   supportAssignmentsFrom   SupportCaseAssignmentHistory[] @relation("SupportAssignmentFromAdmin")
   supportAssignmentsTo     SupportCaseAssignmentHistory[] @relation("SupportAssignmentToAdmin")
+  taxCodeBlacklists        TaxCodeBlacklist[]
 
   @@index([roleId])
   @@map("admin")
@@ -1784,6 +1796,47 @@ model CompanyReputationActivity {
 
   @@index([companyId, createdAt])
   @@map("company_reputation_activities")
+}
+
+model TaxCodeBlacklist {
+  id        String   @id @default(uuid()) @db.Uuid
+  taxCode   String   @unique @map("tax_code") @db.VarChar(50)
+  reason    String   @db.Text
+  byAdminId String?  @map("by_admin_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  byAdmin AdminUser? @relation(fields: [byAdminId], references: [id], onDelete: SetNull)
+
+  @@map("tax_code_blacklists")
+}
+
+model HiringResultReport {
+  id                 String   @id @default(uuid()) @db.Uuid
+  jobPostId          String   @unique @map("job_post_id") @db.Uuid
+  recruiterAccountId String   @map("recruiter_account_id") @db.Uuid
+  totalHired         Int      @default(0) @map("total_hired")
+  totalApplications  Int      @default(0) @map("total_applications")
+  note               String?  @db.Text
+  submittedAt        DateTime @default(now()) @map("submitted_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  jobPost          JobPost          @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+  recruiterAccount RecruiterAccount @relation(fields: [recruiterAccountId], references: [id], onDelete: Cascade)
+
+  @@map("hiring_result_reports")
+}
+
+model JobReputationEvaluation {
+  id             String                      @id @default(uuid()) @db.Uuid
+  jobPostId      String                      @map("job_post_id") @db.Uuid
+  evaluationType JobReputationEvaluationType @map("evaluation_type")
+  evaluatedAt    DateTime                    @default(now()) @map("evaluated_at")
+  createdAt      DateTime                    @default(now()) @map("created_at")
+
+  jobPost JobPost @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+
+  @@unique([jobPostId, evaluationType])
+  @@map("job_reputation_evaluations")
 }
 
 // =========================

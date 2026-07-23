@@ -26,8 +26,10 @@ import {
 import { ActorType, ApplicationStatus } from '@prisma/client';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AllowWhenRestricted } from '../../common/decorators/allow-when-restricted.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { RestrictedModeGuard } from '../auth/guards/restricted-mode.guard';
 import { ApplicationsService } from './applications.service';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { AssignApplicationDto, UnassignApplicationDto } from './dto/assign-application.dto';
@@ -99,8 +101,9 @@ export class ApplicationsController {
   @ApiOperation({ summary: 'Lấy chi tiết hồ sơ ứng tuyển' })
   @ApiParam({ name: 'id', description: 'UUID của hồ sơ ứng tuyển' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.CANDIDATE, ActorType.RECRUITER)
+  @AllowWhenRestricted()
   @ApiOkResponse({ type: ApplicationEntity, description: 'Chi tiết hồ sơ ứng tuyển.' })
   @ApiForbiddenResponse({ description: 'Không có quyền truy cập hồ sơ ứng tuyển này.' })
   @ApiNotFoundResponse({
@@ -119,8 +122,9 @@ export class ApplicationsController {
   })
   @ApiParam({ name: 'jobId', description: 'UUID của tin tuyển dụng' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
+  @AllowWhenRestricted()
   @ApiOkResponse({
     type: [ApplicationEntity],
     description: 'Danh sách hồ sơ ứng tuyển của tin tuyển dụng.',
@@ -159,8 +163,9 @@ export class ApplicationsController {
   @Get('recruiter/company-applications')
   @ApiOperation({ summary: 'Lấy tất cả hồ sơ ứng tuyển của công ty (Chỉ dành cho nhà tuyển dụng)' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @AllowWhenRestricted()
   @ApiQuery({ name: 'jobPostId', required: false, description: 'Lọc theo UUID của tin tuyển dụng' })
   @ApiQuery({ name: 'status', required: false, description: 'Lọc theo trạng thái hồ sơ ứng tuyển' })
   @ApiQuery({
@@ -189,8 +194,9 @@ export class ApplicationsController {
   @Get('recruiter/pipeline')
   @ApiOperation({ summary: 'Get the recruiter application pipeline' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
+  @AllowWhenRestricted()
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'jobPostId', required: false })
   @ApiQuery({ name: 'stageId', required: false })
@@ -212,7 +218,7 @@ export class ApplicationsController {
   @ApiOperation({ summary: 'Cập nhật trạng thái hồ sơ ứng tuyển' })
   @ApiParam({ name: 'id', description: 'UUID của hồ sơ ứng tuyển' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @ApiBody({
     schema: {
@@ -242,7 +248,7 @@ export class ApplicationsController {
 
   @Post('applications/:id/assignments')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   assign(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -254,7 +260,7 @@ export class ApplicationsController {
 
   @Patch('applications/:id/assignments/:assignmentId/unassign')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   unassign(
     @Param('id', new ParseUUIDPipe()) id: string,

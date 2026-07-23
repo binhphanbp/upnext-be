@@ -53,6 +53,9 @@ import { ConversationsModule } from './modules/conversations/conversations.modul
 import { OutboxModule } from './modules/outbox/outbox.module';
 import { TalentOutreachModule } from './modules/talent-outreach/talent-outreach.module';
 import { SupportCasesModule } from './modules/support-cases/support-cases.module';
+import { ReputationModule } from './modules/reputation/reputation.module';
+import { HiringReportsModule } from './modules/hiring-reports/hiring-reports.module';
+import { AppealsModule } from './modules/appeals/appeals.module';
 
 @Module({
   imports: [
@@ -121,6 +124,9 @@ import { SupportCasesModule } from './modules/support-cases/support-cases.module
     CvScreeningModule,
     ZaloBotModule,
     InterviewRemindersModule,
+    ReputationModule,
+    HiringReportsModule,
+    AppealsModule,
   ],
 })
 export class AppModule {}

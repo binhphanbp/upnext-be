@@ -25,8 +25,10 @@ import {
 import { ActorType } from '@prisma/client';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AllowWhenRestricted } from '../../common/decorators/allow-when-restricted.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { RestrictedModeGuard } from '../auth/guards/restricted-mode.guard';
 import { CompanyMembersService } from './company-members.service';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
@@ -58,8 +60,9 @@ export class CompanyMembersController {
   })
   @ApiNotFoundResponse({ description: 'Company not found' })
   @Get('companies/:companyId/members')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @AllowWhenRestricted()
   listMembers(
     @Param('companyId', new ParseUUIDPipe()) companyId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -80,10 +83,10 @@ export class CompanyMembersController {
   @ApiConflictResponse({ description: 'Recruiter is already a member' })
   @ApiNotFoundResponse({ description: 'Company or recruiter account not found' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post('companies/:companyId/members/invite')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   inviteMember(
     @Param('companyId', new ParseUUIDPipe()) companyId: string,
@@ -161,7 +164,7 @@ export class CompanyMembersController {
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiNotFoundResponse({ description: 'Member or role not found' })
   @Patch('company-members/:id/role')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   updateRole(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -182,7 +185,7 @@ export class CompanyMembersController {
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiNotFoundResponse({ description: 'Member not found' })
   @Patch('company-members/:id/status')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   updateStatus(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -200,7 +203,7 @@ export class CompanyMembersController {
   @ApiNoContentResponse({ description: 'Member removed successfully' })
   @ApiNotFoundResponse({ description: 'Member not found' })
   @Delete('company-members/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @HttpCode(204)
   async removeMember(

@@ -29,7 +29,8 @@ export class RecruiterGoogleAuthGuard extends AuthGuard('google-recruiter') {
           ? err.message
           : info instanceof Error
             ? info.message
-            : 'Google did not return a recruiter profile';
+            : ((info as { message?: string })?.message ??
+              'Google did not return a recruiter profile');
 
       this.logger.error(`Recruiter Google OAuth callback failed: ${providerMessage}`);
       request.googleOAuthError =

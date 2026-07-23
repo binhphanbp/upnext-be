@@ -18,8 +18,7 @@ export class RecruiterGoogleStrategy extends PassportStrategy(Strategy, 'google-
     accessToken: string,
     refreshToken: string,
     profile: Profile,
-    done: (err: any, user: any, info?: any) => void,
-  ): Promise<any> {
+  ) {
     const { id, name, emails } = profile;
 
     const user = {
@@ -30,6 +29,9 @@ export class RecruiterGoogleStrategy extends PassportStrategy(Strategy, 'google-
         : profile.displayName,
     };
 
-    done(null, user);
+    // PassportStrategy invokes Passport's `done` callback using this return
+    // value. Calling `done` here as well invokes it a second time with the
+    // undefined async return value, which discards the Google profile.
+    return user;
   }
 }

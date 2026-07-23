@@ -33,6 +33,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AdminPermissionsGuard } from '../auth/guards/admin-permissions.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { RestrictedModeGuard } from '../auth/guards/restricted-mode.guard';
+import { AllowWhenRestricted } from '../../common/decorators/allow-when-restricted.decorator';
 import { CreateJobPostDto } from './dto/create-job-post.dto';
 import { ApproveJobPostDto } from './dto/approve-job-post.dto';
 import { RejectJobPostDto } from './dto/reject-job-post.dto';
@@ -63,7 +65,7 @@ export class JobPostsController {
   })
   @ApiForbiddenResponse({ description: 'Chỉ tài khoản recruiter mới có thể tạo tin tuyển dụng.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Post()
   create(@Body() dto: CreateJobPostDto, @CurrentUser() user: AuthenticatedUser) {
@@ -102,7 +104,7 @@ export class JobPostsController {
   @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Patch(':id')
   update(
@@ -122,7 +124,7 @@ export class JobPostsController {
   @ApiForbiddenResponse({ description: 'Recruiter không có quyền xóa tin tuyển dụng này.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Delete(':id')
   @HttpCode(204)
@@ -146,7 +148,7 @@ export class JobPostsController {
   })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Patch(':id/publish')
   publish(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
@@ -162,7 +164,7 @@ export class JobPostsController {
   @ApiForbiddenResponse({ description: 'Recruiter không có quyền đóng tin tuyển dụng này.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Patch(':id/close')
   close(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
@@ -181,7 +183,7 @@ export class JobPostsController {
   })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Patch(':id/reopen')
   reopen(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
@@ -198,7 +200,7 @@ export class JobPostsController {
   @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Post(':id/skills')
   addSkill(
@@ -219,7 +221,7 @@ export class JobPostsController {
   @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng hoặc kỹ năng liên kết.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Delete(':id/skills/:skillId')
   @HttpCode(204)
@@ -241,7 +243,7 @@ export class JobPostsController {
   @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Post(':id/locations')
   addLocation(
@@ -262,7 +264,7 @@ export class JobPostsController {
   @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng hoặc địa điểm liên kết.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Delete(':id/locations/:locationId')
   @HttpCode(204)
@@ -284,7 +286,7 @@ export class JobPostsController {
   @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Post(':id/specializations')
   addSpecialization(
@@ -305,7 +307,7 @@ export class JobPostsController {
   @ApiForbiddenResponse({ description: 'Recruiter không có quyền cập nhật tin tuyển dụng này.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng hoặc chuyên ngành liên kết.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
   @Delete(':id/specializations/:specializationId')
   @HttpCode(204)
@@ -354,8 +356,9 @@ export class JobPostsController {
   @ApiForbiddenResponse({ description: 'Recruiter không có quyền xem thống kê tin này.' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy tin tuyển dụng.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
+  @AllowWhenRestricted()
   @Get(':id/views/stats')
   getViewStats(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -376,8 +379,9 @@ export class RecruiterJobPostsController {
   })
   @ApiOkResponse({ description: 'Lấy danh sách tin tuyển dụng của recruiter thành công.' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
+  @AllowWhenRestricted()
   @Get()
   getMyJobPosts(@CurrentUser() user: AuthenticatedUser) {
     return this.jobPostsService.getMyJobPosts(user.id);
