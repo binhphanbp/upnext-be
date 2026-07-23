@@ -70,6 +70,8 @@ export class RecruitersService {
             status: true,
             verificationStatus: true,
             businessLicenseFileId: true,
+            reputationScore: true,
+            restrictedAt: true,
           },
         },
         companyMembers: true,

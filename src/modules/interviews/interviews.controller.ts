@@ -24,8 +24,10 @@ import {
 import { ActorType } from '@prisma/client';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AllowWhenRestricted } from '../../common/decorators/allow-when-restricted.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { RestrictedModeGuard } from '../auth/guards/restricted-mode.guard';
 import { CreateInterviewDto } from './dto/create-interview.dto';
 import { RescheduleInterviewDto } from './dto/reschedule-interview.dto';
 import { CancelInterviewDto } from './dto/cancel-interview.dto';
@@ -34,7 +36,7 @@ import { InterviewsService } from './interviews.service';
 
 @ApiTags('Interviews')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
 @Controller('interviews')
 export class InterviewsController {
   constructor(private readonly interviewsService: InterviewsService) {}
@@ -52,6 +54,7 @@ export class InterviewsController {
 
   @Get()
   @Roles(ActorType.CANDIDATE, ActorType.RECRUITER, ActorType.ADMIN)
+  @AllowWhenRestricted()
   @ApiOperation({ summary: 'Lấy danh sách các cuộc phỏng vấn' })
   @ApiQuery({ name: 'applicationId', required: false, description: 'Lọc theo ID của Application' })
   @ApiOkResponse({ description: 'Lấy danh sách thành công' })
@@ -61,6 +64,7 @@ export class InterviewsController {
 
   @Get(':id')
   @Roles(ActorType.CANDIDATE, ActorType.RECRUITER, ActorType.ADMIN)
+  @AllowWhenRestricted()
   @ApiOperation({ summary: 'Lấy thông tin chi tiết cuộc phỏng vấn kèm logs' })
   @ApiParam({ name: 'id', description: 'Interview UUID' })
   @ApiOkResponse({ description: 'Lấy chi tiết thành công' })

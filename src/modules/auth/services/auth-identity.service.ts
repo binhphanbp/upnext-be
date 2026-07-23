@@ -43,6 +43,7 @@ export class AuthIdentityService {
         email: true,
         companyId: true,
         recruiterRoleId: true,
+        company: { select: { status: true } },
         recruiterRole: {
           select: {
             rolePermissions: {
@@ -59,6 +60,7 @@ export class AuthIdentityService {
       email: account.email,
       role: ActorType.RECRUITER,
       companyId: account.companyId,
+      companyStatus: account.company?.status ?? null,
       recruiterRoleId: account.recruiterRoleId,
       permissions:
         account.recruiterRole?.rolePermissions.map((entry) => entry.recruiterPermission.code) ?? [],

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import { EmailService } from '../../common/email/email.service';
+import { ReputationLedgerService } from '../reputation/reputation-ledger.service';
 import { CompaniesController } from './companies.controller';
 import { CompaniesService } from './companies.service';
 
@@ -37,6 +38,12 @@ describe('CompaniesController', () => {
             sendCompanyPendingReviewToAdmin: jest.fn(),
             sendCompanySubmittedToRecruiter: jest.fn(),
             sendCompanyVerificationResult: jest.fn(),
+          },
+        },
+        {
+          provide: ReputationLedgerService,
+          useValue: {
+            applyDelta: jest.fn(),
           },
         },
       ],

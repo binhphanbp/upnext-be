@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
   ForbiddenException,
   NotFoundException,
@@ -36,6 +37,8 @@ type RecruiterTokenAccount = {
 
 @Injectable()
 export class RecruiterAuthService {
+  private readonly logger = new Logger(RecruiterAuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
@@ -45,11 +48,22 @@ export class RecruiterAuthService {
 
   async register(dto: RegisterRecruiterDto): Promise<RecruiterRegisterResponse> {
     try {
+      const ownerRole = await this.prisma.recruiterRole.findFirst({
+        where: { code: 'OWNER' },
+        select: { id: true },
+      });
+      if (!ownerRole) {
+        this.logger.warn(
+          'OWNER recruiter role not found — new recruiter account will have no permissions until manually assigned a role',
+        );
+      }
+
       const account = await this.prisma.recruiterAccount.create({
         data: {
           email: dto.email.toLowerCase(),
           passwordHash: await this.authService.hashPassword(dto.password),
           status: AccountStatus.ACTIVE,
+          ...(ownerRole ? { recruiterRoleId: ownerRole.id } : {}),
         },
         select: {
           id: true,
@@ -279,6 +293,37 @@ export class RecruiterAuthService {
       message: account.emailVerifiedAt
         ? 'Email của bạn đã được xác thực.'
         : 'Hệ thống đã gửi link xác thực đến email của bạn.',
+    };
+  }
+
+  async getEmailVerificationStatusByEmail(
+    email: string,
+  ): Promise<RecruiterEmailVerificationRequest> {
+    const normalizedEmail = email.toLowerCase();
+    const account = await this.prisma.recruiterAccount.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        email: true,
+        emailVerifiedAt: true,
+      },
+    });
+
+    // Do not disclose whether an arbitrary address has an account. The
+    // registration page only needs to know whether it can proceed.
+    if (!account) {
+      return {
+        email: normalizedEmail,
+        emailVerified: false,
+        emailVerifiedAt: null,
+        message: 'ÄÃ£ kiá»ƒm tra tráº¡ng thÃ¡i xÃ¡c thá»±c email.',
+      };
+    }
+
+    return {
+      email: normalizedEmail,
+      emailVerified: Boolean(account.emailVerifiedAt),
+      emailVerifiedAt: account.emailVerifiedAt,
+      message: 'ÄÃ£ kiá»ƒm tra tráº¡ng thÃ¡i xÃ¡c thá»±c email.',
     };
   }
 

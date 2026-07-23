@@ -8,7 +8,9 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  AccountStatus,
   ActorType,
+  CompanyStatus,
   CompanyVerificationStatus,
   FilePurpose,
   FileVisibility,
@@ -26,6 +28,68 @@ import { VerifyCompanyDto } from './dto/verify-company.dto';
 import { slugify } from '../../common/utils/slugify';
 import { CreateJobLocationDto } from '../job-locations/dto/create-job-location.dto';
 import { UpdateJobLocationDto } from '../job-locations/dto/update-job-location.dto';
+import { ReputationLedgerService } from '../reputation/reputation-ledger.service';
+import { REPUTATION_CONFIG } from '../reputation/reputation.config';
+
+const COMPANY_INFO_COMPLETION_ACTION_TYPE = 'COMPANY_INFO_COMPLETED';
+const COMPANY_INFO_REQUIRED_FIELDS = [
+  'description',
+  'address',
+  'phone',
+  'companySize',
+  'workingDays',
+] as const;
+
+const DEFAULT_RECRUITER_PERMISSIONS = [
+  {
+    code: 'jobs:manage',
+    module: 'jobs',
+    action: 'manage',
+    description: 'Manage job posts',
+  },
+  {
+    code: 'applications:manage',
+    module: 'applications',
+    action: 'manage',
+    description: 'Manage candidate applications',
+  },
+  {
+    code: 'applications:review_assigned',
+    module: 'applications',
+    action: 'review_assigned',
+    description: 'Review assigned candidate applications',
+  },
+  {
+    code: 'interviews:manage',
+    module: 'interviews',
+    action: 'manage',
+    description: 'Manage interviews',
+  },
+  {
+    code: 'interviews:review_assigned',
+    module: 'interviews',
+    action: 'review_assigned',
+    description: 'Review assigned interviews',
+  },
+  {
+    code: 'company:manage',
+    module: 'company',
+    action: 'manage',
+    description: 'Manage company profile and settings',
+  },
+  {
+    code: 'members:manage',
+    module: 'members',
+    action: 'manage',
+    description: 'Manage company members and roles',
+  },
+  {
+    code: 'billing:manage',
+    module: 'billing',
+    action: 'manage',
+    description: 'Manage subscription and resources',
+  },
+] as const;
 
 @Injectable()
 export class CompaniesService {
@@ -34,11 +98,24 @@ export class CompaniesService {
     private readonly cloudinaryService: CloudinaryService,
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
+    private readonly reputationLedger: ReputationLedgerService,
   ) {}
 
   private readonly logger = new Logger(CompaniesService.name);
 
   async create(createCompanyDto: CreateCompanyDto, user?: AuthenticatedUser) {
+    if (createCompanyDto.taxCode) {
+      const blacklisted = await this.prisma.taxCodeBlacklist.findUnique({
+        where: { taxCode: createCompanyDto.taxCode },
+        select: { id: true },
+      });
+      if (blacklisted) {
+        throw new ForbiddenException(
+          'This tax code has been blacklisted and cannot be used to register a company',
+        );
+      }
+    }
+
     let slug = slugify(createCompanyDto.name);
     const existing = await this.prisma.company.findUnique({ where: { slug } });
     if (existing) {
@@ -70,38 +147,74 @@ export class CompaniesService {
   }
 
   private async attachCreatorAsOwner(companyId: string, recruiterAccountId: string) {
-    const ownerRole = await this.prisma.recruiterRole.findFirst({
-      where: { code: 'OWNER' },
-      select: { id: true },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      const ownerRole = await this.ensureOwnerRole(tx);
+      const existingMember = await tx.companyMember.findFirst({
+        where: { recruiterAccountId, companyId },
+        select: { id: true },
+      });
 
-    const existingMember = await this.prisma.companyMember.findFirst({
-      where: { recruiterAccountId, companyId },
-      select: { id: true },
-    });
-
-    await this.prisma.$transaction([
-      this.prisma.recruiterAccount.update({
+      await tx.recruiterAccount.update({
         where: { id: recruiterAccountId },
         data: {
           companyId,
-          ...(ownerRole ? { recruiterRoleId: ownerRole.id } : {}),
+          recruiterRoleId: ownerRole.id,
         },
-      }),
-      ...(ownerRole && !existingMember
-        ? [
-            this.prisma.companyMember.create({
-              data: {
-                recruiterAccountId,
-                companyId,
-                roleId: ownerRole.id,
-                status: 'ACTIVE',
-                joinedAt: new Date(),
-              },
-            }),
-          ]
-        : []),
-    ]);
+      });
+
+      if (!existingMember) {
+        await tx.companyMember.create({
+          data: {
+            recruiterAccountId,
+            companyId,
+            roleId: ownerRole.id,
+            status: 'ACTIVE',
+            joinedAt: new Date(),
+          },
+        });
+      }
+    });
+  }
+
+  private async ensureOwnerRole(tx: Prisma.TransactionClient) {
+    const permissions = await Promise.all(
+      DEFAULT_RECRUITER_PERMISSIONS.map((permission) =>
+        tx.recruiterPermission.upsert({
+          where: { code: permission.code },
+          update: {
+            module: permission.module,
+            action: permission.action,
+            description: permission.description,
+          },
+          create: permission,
+          select: { id: true },
+        }),
+      ),
+    );
+
+    const ownerRole = await tx.recruiterRole.upsert({
+      where: { code: 'OWNER' },
+      update: {
+        name: 'Owner',
+        description: 'Chu tai khoan - Toan quyen quan ly',
+      },
+      create: {
+        code: 'OWNER',
+        name: 'Owner',
+        description: 'Chu tai khoan - Toan quyen quan ly',
+      },
+      select: { id: true },
+    });
+
+    await tx.recruiterRolePermission.createMany({
+      data: permissions.map((permission) => ({
+        recruiterRoleId: ownerRole.id,
+        recruiterPermissionId: permission.id,
+      })),
+      skipDuplicates: true,
+    });
+
+    return ownerRole;
   }
 
   async findAll(query: ListCompaniesQueryDto) {
@@ -251,7 +364,7 @@ export class CompaniesService {
       }
     }
 
-    return this.prisma.company
+    const updated = await this.prisma.company
       .update({
         where: { id },
         data: updateCompanyDto,
@@ -262,6 +375,54 @@ export class CompaniesService {
         }
         throw e;
       });
+
+    await this.awardCompanyInfoBonusIfEligible(id).catch((error: unknown) => {
+      this.logger.warn(
+        `Failed to evaluate company-info reputation bonus for ${id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
+
+    return updated;
+  }
+
+  /**
+   * Cộng +STATIC_COMPANY_INFO_BONUS một lần duy nhất khi company đã điền đủ các field thông
+   * tin cốt lõi. Idempotent qua CompanyReputationActivity.actionType — không cộng lại lần sau.
+   */
+  private async awardCompanyInfoBonusIfEligible(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        description: true,
+        address: true,
+        phone: true,
+        companySize: true,
+        workingDays: true,
+      },
+    });
+
+    if (!company) return;
+
+    const isComplete = COMPANY_INFO_REQUIRED_FIELDS.every((field) => Boolean(company[field]));
+    if (!isComplete) return;
+
+    const alreadyAwarded = await this.prisma.companyReputationActivity.findFirst({
+      where: { companyId, actionType: COMPANY_INFO_COMPLETION_ACTION_TYPE },
+      select: { id: true },
+    });
+    if (alreadyAwarded) return;
+
+    await this.prisma.$transaction((tx) =>
+      this.reputationLedger.applyDelta(
+        tx,
+        companyId,
+        REPUTATION_CONFIG.STATIC_COMPANY_INFO_BONUS,
+        COMPANY_INFO_COMPLETION_ACTION_TYPE,
+        'Đã cập nhật đầy đủ thông tin công ty',
+      ),
+    );
   }
 
   async uploadLogo(id: string, file: UploadedFile, user: AuthenticatedUser) {
@@ -626,37 +787,30 @@ Fields: name, taxCode, city, address, email, phone, website.`;
     const company = await this.ensureCompanyExists(id);
 
     const isVerified = dto.status === 'VERIFIED';
-    const scoreChange = isVerified ? 50.0 : -5.0;
-    const actionType = isVerified ? 'BUSINESS_LICENSE_VERIFIED' : 'REJECTED_VERIFICATION';
+    const scoreChange = isVerified ? REPUTATION_CONFIG.STATIC_TAX_CODE_BONUS : -5.0;
+    const actionType = isVerified ? 'TAX_CODE_VERIFIED' : 'REJECTED_VERIFICATION';
     const defaultReason = isVerified
-      ? 'Giấy phép đăng ký kinh doanh được phê duyệt'
+      ? 'Mã số thuế / Giấy phép đăng ký kinh doanh được xác thực'
       : 'Yêu cầu xác thực doanh nghiệp bị từ chối';
     const reason = dto.reason ?? defaultReason;
 
     const updatedCompany = await this.prisma.$transaction(async (tx) => {
-      const currentScore = Number(company.reputationScore);
-      const newScore = Math.max(0, currentScore + scoreChange);
-
-      const comp = await tx.company.update({
+      await tx.company.update({
         where: { id },
         data: {
           verificationStatus: dto.status,
-          reputationScore: new Prisma.Decimal(newScore),
           lockedReason: isVerified ? null : reason,
         },
       });
 
-      await tx.companyReputationActivity.create({
-        data: {
-          companyId: id,
-          actionType,
-          score: new Prisma.Decimal(scoreChange),
-          reason,
-          byAdminId: adminUser.id,
-        },
-      });
-
-      return comp;
+      return this.reputationLedger.applyDelta(
+        tx,
+        id,
+        scoreChange,
+        actionType,
+        reason,
+        adminUser.id,
+      );
     });
 
     // Notify the company's recruiters of the result. Fire-and-forget.
@@ -674,6 +828,57 @@ Fields: name, taxCode, city, address, email, phone, website.`;
       message: `Company verification status updated to ${dto.status} successfully.`,
       company: updatedCompany,
     };
+  }
+
+  /**
+   * Hành động thủ công của Admin cho case lừa đảo: khoá vĩnh viễn công ty, ban toàn bộ
+   * RecruiterAccount trực thuộc, và đưa MST vào blacklist để chặn đăng ký lại. Tách biệt hoàn
+   * toàn khỏi Restricted Mode (tự động khi có report) — đây không thể tự động hoá ngược lại.
+   */
+  async banCompanyForFraud(id: string, reason: string, adminUser: AuthenticatedUser) {
+    const company = await this.ensureCompanyExists(id);
+
+    if (!company.taxCode) {
+      throw new BadRequestException('Company has no tax code to blacklist');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedCompany = await tx.company.update({
+        where: { id },
+        data: {
+          status: CompanyStatus.LOCKED,
+          lockedReason: 'BLACKLISTED_FRAUD',
+          lockedAt: new Date(),
+          reputationScore: new Prisma.Decimal(0),
+        },
+      });
+
+      await tx.recruiterAccount.updateMany({
+        where: { companyId: id },
+        data: { status: AccountStatus.BANNED },
+      });
+
+      await tx.taxCodeBlacklist.upsert({
+        where: { taxCode: company.taxCode! },
+        update: { reason, byAdminId: adminUser.id },
+        create: { taxCode: company.taxCode!, reason, byAdminId: adminUser.id },
+      });
+
+      await tx.companyReputationActivity.create({
+        data: {
+          companyId: id,
+          actionType: 'BANNED_FOR_FRAUD',
+          score: new Prisma.Decimal(-Number(company.reputationScore)),
+          reason,
+          byAdminId: adminUser.id,
+        },
+      });
+
+      return {
+        message: 'Company has been banned for fraud and its tax code blacklisted.',
+        company: updatedCompany,
+      };
+    });
   }
 
   /**

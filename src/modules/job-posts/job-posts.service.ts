@@ -19,6 +19,7 @@ import {
 import { ListAdminJobPostsQueryDto } from './dto/list-admin-job-posts-query.dto';
 import { UpdateJobPostDto } from './dto/update-job-post.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { REPUTATION_CONFIG } from '../reputation/reputation.config';
 
 
 @Injectable()
@@ -450,6 +451,7 @@ export class JobPostsService {
       select: {
         verificationStatus: true,
         businessLicenseFileId: true,
+        reputationScore: true,
       },
     });
 
@@ -461,6 +463,12 @@ export class JobPostsService {
 
     if (company.verificationStatus !== CompanyVerificationStatus.VERIFIED) {
       throw new ForbiddenException('Company must be verified before publishing job posts');
+    }
+
+    if (Number(company.reputationScore) < REPUTATION_CONFIG.MIN_SCORE_TO_PUBLISH) {
+      throw new ForbiddenException(
+        `Company reputation score must be at least ${REPUTATION_CONFIG.MIN_SCORE_TO_PUBLISH} to publish job posts`,
+      );
     }
   }
 

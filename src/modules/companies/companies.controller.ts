@@ -29,9 +29,11 @@ import {
 import { ActorType } from '@prisma/client';
 import { AdminPermissions } from '../../common/decorators/admin-permissions.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AllowWhenRestricted } from '../../common/decorators/allow-when-restricted.decorator';
 import { AdminPermissionsGuard } from '../auth/guards/admin-permissions.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { RestrictedModeGuard } from '../auth/guards/restricted-mode.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { documentUploadOptions, imageUploadOptions } from '../../common/upload/multer-options';
 import { CompaniesService } from './companies.service';
@@ -40,6 +42,7 @@ import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { VerifyCompanyDto } from './dto/verify-company.dto';
+import { BanCompanyFraudDto } from './dto/ban-company-fraud.dto';
 import { CreateJobLocationDto } from '../job-locations/dto/create-job-location.dto';
 import { UpdateJobLocationDto } from '../job-locations/dto/update-job-location.dto';
 import {
@@ -161,7 +164,7 @@ export class CompaniesController {
   @ApiBadRequestResponse({ description: 'Payload không hợp lệ' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy công ty' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Patch(':id')
   update(
@@ -200,7 +203,7 @@ export class CompaniesController {
   @ApiBadRequestResponse({ description: 'File không được để trống hoặc ID không hợp lệ' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy công ty' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post(':id/logo')
   @UseInterceptors(FileInterceptor('file', imageUploadOptions))
@@ -240,7 +243,7 @@ export class CompaniesController {
   @ApiBadRequestResponse({ description: 'File không được để trống hoặc ID không hợp lệ' })
   @ApiNotFoundResponse({ description: 'Không tìm thấy công ty' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post(':id/cover')
   @UseInterceptors(FileInterceptor('file', imageUploadOptions))
@@ -496,6 +499,30 @@ export class CompaniesController {
   }
 
   /**
+   * Ban vĩnh viễn công ty vì lừa đảo: khoá công ty, ban toàn bộ tài khoản NTD trực thuộc,
+   * và đưa MST vào blacklist để chặn đăng ký lại (Chỉ Admin).
+   */
+  @ApiOperation({
+    summary: 'Ban công ty vì lừa đảo (ADMIN)',
+    description:
+      'Khoá vĩnh viễn công ty, ban toàn bộ tài khoản NTD trực thuộc, và đưa MST vào blacklist.',
+  })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiOkResponse({ description: 'Ban công ty thành công.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, AdminPermissionsGuard)
+  @Roles(ActorType.ADMIN)
+  @AdminPermissions('companies:verify')
+  @Post(':id/ban-fraud')
+  banCompanyForFraud(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: BanCompanyFraudDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.banCompanyForFraud(id, dto.reason, user);
+  }
+
+  /**
    * Xem lịch sử biến động điểm uy tín của công ty.
    * @param id ID (UUID) của công ty
    * @param user Thông tin user đang đăng nhập
@@ -510,8 +537,9 @@ export class CompaniesController {
     description: 'Lấy lịch sử thành công.',
   })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @AllowWhenRestricted()
   @Get(':id/reputation-activities')
   getReputationActivities(
     @Param('id', new ParseUUIDPipe()) id: string,

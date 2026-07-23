@@ -77,14 +77,16 @@ export class EmailService {
       html,
       attachments: [
         {
-          filename: 'upnext-logo.png',
-          path: this.resolveEmailAssetPath('upnext-logo.png'),
-          cid: 'upnext-logo',
+          filename: 'flaticon.png',
+          path: this.resolveEmailAssetPath('flaticon.png'),
+          cid: 'flaticon',
+          contentDisposition: 'inline',
         },
         {
-          filename: 'hero-banner.png',
-          path: this.resolveEmailAssetPath('hero-banner.png'),
-          cid: 'hero-banner',
+          filename: 'image-footer.png',
+          path: this.resolveEmailAssetPath('image-footer.png'),
+          cid: 'image-footer',
+          contentDisposition: 'inline',
         },
       ],
       fallbackLog: `Recruiter email verification link for ${params.to}: ${params.verificationLink}`,

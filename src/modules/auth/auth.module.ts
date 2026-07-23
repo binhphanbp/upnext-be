@@ -14,6 +14,7 @@ import { RecruiterGoogleAuthGuard } from './guards/recruiter-google-auth.guard';
 import { CurrentAuthController } from './current-auth.controller';
 import { AdminPermissionsGuard } from './guards/admin-permissions.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
+import { RestrictedModeGuard } from './guards/restricted-mode.guard';
 import { AuthIdentityService } from './services/auth-identity.service';
 @Global()
 @Module({
@@ -42,6 +43,7 @@ import { AuthIdentityService } from './services/auth-identity.service';
     RolesGuard,
     PermissionsGuard,
     AdminPermissionsGuard,
+    RestrictedModeGuard,
     GoogleAuthGuard,
     GoogleStrategy,
     RecruiterGoogleAuthGuard,
@@ -54,6 +56,7 @@ import { AuthIdentityService } from './services/auth-identity.service';
     RolesGuard,
     PermissionsGuard,
     AdminPermissionsGuard,
+    RestrictedModeGuard,
     AuthIdentityService,
     JwtModule,
     GoogleAuthGuard,

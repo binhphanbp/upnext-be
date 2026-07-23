@@ -61,6 +61,21 @@ export class RecruiterAccountEmailVerificationController {
   }
 
   @Public()
+  @Post('status')
+  @ApiOperation({
+    summary: 'Kiá»ƒm tra tráº¡ng thÃ¡i xÃ¡c thá»±c email nhÃ  tuyá»ƒn dá»¥ng',
+  })
+  @ApiBody({ type: RequestRecruiterEmailVerificationDto })
+  @ApiOkResponse({
+    description: 'Tráº¡ng thÃ¡i xÃ¡c thá»±c email',
+    type: RecruiterEmailVerificationRequest,
+  })
+  @ApiBadRequestResponse({ description: 'Payload khÃ´ng há»£p lá»‡' })
+  getEmailVerificationStatus(@Body() dto: RequestRecruiterEmailVerificationDto) {
+    return this.recruiterAuthService.getEmailVerificationStatusByEmail(dto.email);
+  }
+
+  @Public()
   @Post('verify')
   @ApiOperation({ summary: 'Xác thực email nhà tuyển dụng bằng token' })
   @ApiBody({ type: VerifyRecruiterEmailDto })
