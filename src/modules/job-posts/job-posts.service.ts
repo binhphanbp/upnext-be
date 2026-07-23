@@ -50,6 +50,7 @@ export class JobPostsService {
         status: JobStatus.PUBLISHED,
         deletedAt: null,
         isHidden: false,
+        OR: [{ expiredAt: null }, { expiredAt: { gte: new Date() } }],
       },
       include: this.publicJobPostInclude(),
       orderBy: { publishedAt: 'desc' },

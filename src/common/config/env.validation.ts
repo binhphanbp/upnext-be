@@ -19,6 +19,21 @@ function isLocalhostOrigin(origin: string): boolean {
   }
 }
 
+function normalizeCredential(value: string): string {
+  const trimmed = value.trim();
+  const hasMatchingQuotes =
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"));
+
+  return hasMatchingQuotes ? trimmed.slice(1, -1).trim() : trimmed;
+}
+
+const optionalCredentialSchema = z
+  .string()
+  .transform(normalizeCredential)
+  .pipe(z.string().min(1))
+  .optional();
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -48,8 +63,8 @@ const envSchema = z
         'https://upnext.works,https://staging.upnext.works,http://localhost:5173,http://localhost:3000',
       ),
     GEMINI_API_KEY: z.string().optional(),
-    GOOGLE_CLIENT_ID: z.string().optional(),
-    GOOGLE_CLIENT_SECRET: z.string().optional(),
+    GOOGLE_CLIENT_ID: optionalCredentialSchema,
+    GOOGLE_CLIENT_SECRET: optionalCredentialSchema,
     APP_BACKEND_URL: z.string().url().default('http://localhost:3001'),
     ZALO_BOT_TOKEN: z.string().optional(),
     ZALO_BOT_WEBHOOK_SECRET: z.string().min(8).max(256).optional(),

@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EducationLevel } from '@prisma/client';
 import { CV_SCORING_RUBRIC, CvScoringCriterionBreakdown } from './scoring-rubric';
 
 const SCORING_MODEL = 'gemini-2.5-flash';
@@ -7,6 +8,16 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MAX_JOB_TEXT_LENGTH = 8000;
 const MAX_CV_TEXT_LENGTH = 6000;
 const RECOMMENDATIONS = ['strong_fit', 'fit', 'borderline', 'not_fit'] as const;
+const GEMINI_SCORING_RUBRIC = CV_SCORING_RUBRIC.filter(
+  (criterion) => criterion.key !== 'education',
+);
+const EXTRACTABLE_EDUCATION_LEVELS = [
+  EducationLevel.HIGH_SCHOOL,
+  EducationLevel.VOCATIONAL,
+  EducationLevel.COLLEGE,
+  EducationLevel.BACHELOR,
+  EducationLevel.POSTGRADUATE,
+] as const;
 
 type Recommendation = (typeof RECOMMENDATIONS)[number];
 
@@ -15,15 +26,15 @@ export type ScoringCandidateInput = {
   candidateName: string;
   cvText: string;
   semanticScore: number;
+  candidateEducationLevel: EducationLevel | null;
 };
 
 export type GeminiScoreResult = {
   applicationId: string;
-  overallScore?: number;
   skillScore: number;
   experienceScore: number;
   projectScore: number;
-  educationScore: number;
+  candidateEducationLevel: EducationLevel | null;
   matchedSkills: string[];
   missingSkills: string[];
   strengths: string[];
@@ -124,6 +135,8 @@ export class GeminiScoringService {
         applicationId: candidate.applicationId,
         candidateName: candidate.candidateName,
         semanticScore: candidate.semanticScore,
+        knownCandidateEducationLevel: candidate.candidateEducationLevel,
+        needsEducationLevelExtraction: candidate.candidateEducationLevel === null,
         cvText: this.truncateText(candidate.cvText, MAX_CV_TEXT_LENGTH),
       })),
     };
@@ -139,13 +152,11 @@ Quy tắc bắt buộc:
 - skillScore nằm trong khoảng 0 đến 40.
 - experienceScore nằm trong khoảng 0 đến 30.
 - projectScore nằm trong khoảng 0 đến 20.
-- educationScore nằm trong khoảng 0 đến 10.
-- overallScore phải bằng skillScore + experienceScore + projectScore + educationScore.
 - recommendation chỉ được là một trong các mã: strong_fit, fit, borderline, not_fit.
 - Chỉ dùng semanticScore như yếu tố phụ khi phân vân. Bằng chứng trong CV và yêu cầu công việc quan trọng hơn.
 - Tất cả nội dung tự nhiên trong summary, strengths, weaknesses, matchedSkills, missingSkills, criteriaBreakdown.summary, reason và evidence phải viết bằng tiếng Việt.
 - Không viết câu tiếng Anh trong kết quả. Chỉ giữ nguyên tên công nghệ, framework, công cụ, công ty, trường học, chứng chỉ hoặc chức danh nếu đó là tên riêng/thuật ngữ kỹ thuật.
-- criteriaBreakdown phải có đúng 4 nhóm và đúng mọi hạng mục con trong rubric bên dưới, không thêm hoặc bỏ hạng mục.
+- criteriaBreakdown chỉ có đúng 3 nhóm skills, experience và projects, với đúng mọi hạng mục con trong rubric bên dưới.
 - awardedScore của từng hạng mục nằm trong khoảng 0 đến maxScore tương ứng.
 - Điểm của mỗi nhóm phải bằng tổng awardedScore của các hạng mục con trong nhóm đó.
 - reason phải giải thích trực tiếp vì sao được số điểm đó. evidence phải nêu bằng chứng cụ thể trong CV; nếu CV không có bằng chứng, ghi rõ "CV chưa cung cấp bằng chứng".
@@ -155,7 +166,22 @@ Thang chấm:
 - skillScore: mức khớp kỹ năng bắt buộc và ưu tiên, công nghệ, framework, công cụ, tín hiệu seniority và độ thành thạo. Trừ mạnh khi thiếu kỹ năng cốt lõi.
 - experienceScore: số năm kinh nghiệm liên quan, độ giống vai trò, mức phù hợp domain, mức trách nhiệm và độ gần đây. Không chấm cao kinh nghiệm không liên quan.
 - projectScore: dự án cụ thể, sản phẩm đã triển khai, độ sâu kỹ thuật, quy mô và bằng chứng phù hợp với công việc.
-- educationScore: bằng cấp, chuyên ngành, chứng chỉ và đào tạo liên quan.
+- Nhóm projects chỉ có project-relevance, technical-depth và impact-evidence. Không trả impact-scale hoặc evidence-quality.
+- Với impact-evidence, đánh giá đồng thời quy mô, người dùng/khách hàng, phạm vi triển khai, kết quả, hiệu quả, vai trò cá nhân, đóng góp cụ thể và mức độ kiểm chứng của bằng chứng.
+- impact-evidence: 0 điểm khi không có dự án hoặc không có thông tin về vai trò, kết quả hay quy mô.
+- impact-evidence: 1-2 điểm khi chỉ mô tả nhiệm vụ chung chung, không rõ ứng viên làm gì và không có kết quả cụ thể.
+- impact-evidence: 3-4 điểm khi có vai trò và kết quả nhưng thiếu số liệu hoặc khó xác định đóng góp cá nhân.
+- impact-evidence: 5-6 điểm khi vai trò cá nhân rõ, có kết quả/quy mô/phạm vi/hiệu quả cụ thể và bằng chứng tương đối đầy đủ.
+- impact-evidence: 7 điểm chỉ khi có đầy đủ vai trò cá nhân, đóng góp cụ thể, quy mô và kết quả đo lường được với bằng chứng rõ ràng, nhất quán trong CV.
+- Không mặc định chấm cao vì tên dự án hoặc công ty nổi tiếng. Không suy đoán người dùng, doanh thu, hiệu quả, quy mô đội, vai trò lãnh đạo hoặc tác động kinh doanh.
+- Các từ "tham gia", "hỗ trợ", "phát triển" không phải bằng chứng mạnh nếu không mô tả đóng góp cụ thể.
+- Có số liệu nhưng không rõ vai trò cá nhân thì impact-evidence không được 7 điểm. Có vai trò rõ nhưng thiếu số liệu chỉ được mức trung bình hoặc khá tùy bằng chứng.
+- Không dùng lặp lại quá mức cùng một thông tin ở nhiều tiêu chí. Phân biệt quy mô/tác động ở impact-evidence với độ phức tạp và quyết định kỹ thuật ở technical-depth.
+- Không chấm điểm học vấn và không đánh giá chuyên ngành, chứng chỉ, khóa đào tạo, đồ án, luận văn, nghiên cứu, thành tích học thuật, trường học hoặc GPA.
+- Chỉ khi needsEducationLevelExtraction=true, trích xuất trình độ học vấn cao nhất được nêu rõ trong cvText vào candidateEducationLevel.
+- candidateEducationLevel chỉ được là HIGH_SCHOOL, VOCATIONAL, COLLEGE, BACHELOR, POSTGRADUATE hoặc null.
+- Thạc sĩ và Tiến sĩ đều ánh xạ thành POSTGRADUATE. Không suy đoán trình độ từ chức danh, kinh nghiệm, tuổi, công ty hoặc kỹ năng.
+- Khi needsEducationLevelExtraction=false, giữ candidateEducationLevel đúng bằng knownCandidateEducationLevel.
 - strong_fit: 85-100 điểm, có bằng chứng rõ về kỹ năng bắt buộc và kinh nghiệm phù hợp.
 - fit: 70-84 điểm, đáp ứng hầu hết yêu cầu chính.
 - borderline: 50-69 điểm hoặc bằng chứng còn thiếu ở yêu cầu quan trọng.
@@ -164,10 +190,10 @@ Thang chấm:
 - Mỗi mảng tối đa 8 mục, mỗi trường văn bản tối đa 280 ký tự.
 
 Rubric bắt buộc:
-${JSON.stringify(CV_SCORING_RUBRIC)}
+${JSON.stringify(GEMINI_SCORING_RUBRIC)}
 
 Trả về một mảng JSON. Mỗi phần tử phải có:
-applicationId, overallScore, skillScore, experienceScore, projectScore, educationScore, matchedSkills, missingSkills, strengths, weaknesses, criteriaBreakdown, summary, recommendation.
+applicationId, skillScore, experienceScore, projectScore, candidateEducationLevel, matchedSkills, missingSkills, strengths, weaknesses, criteriaBreakdown, summary, recommendation.
 
 Dữ liệu đầu vào:
 ${JSON.stringify(payload)}`;
@@ -180,11 +206,14 @@ ${JSON.stringify(payload)}`;
         type: 'OBJECT',
         properties: {
           applicationId: { type: 'STRING' },
-          overallScore: { type: 'NUMBER' },
           skillScore: { type: 'NUMBER' },
           experienceScore: { type: 'NUMBER' },
           projectScore: { type: 'NUMBER' },
-          educationScore: { type: 'NUMBER' },
+          candidateEducationLevel: {
+            type: 'STRING',
+            enum: [...EXTRACTABLE_EDUCATION_LEVELS],
+            nullable: true,
+          },
           matchedSkills: { type: 'ARRAY', items: { type: 'STRING' } },
           missingSkills: { type: 'ARRAY', items: { type: 'STRING' } },
           strengths: { type: 'ARRAY', items: { type: 'STRING' } },
@@ -196,7 +225,7 @@ ${JSON.stringify(payload)}`;
               properties: {
                 key: {
                   type: 'STRING',
-                  enum: CV_SCORING_RUBRIC.map((criterion) => criterion.key),
+                  enum: GEMINI_SCORING_RUBRIC.map((criterion) => criterion.key),
                 },
                 summary: { type: 'STRING' },
                 items: {
@@ -221,11 +250,10 @@ ${JSON.stringify(payload)}`;
         },
         required: [
           'applicationId',
-          'overallScore',
           'skillScore',
           'experienceScore',
           'projectScore',
-          'educationScore',
+          'candidateEducationLevel',
           'matchedSkills',
           'missingSkills',
           'strengths',
@@ -279,25 +307,21 @@ ${JSON.stringify(payload)}`;
     const projectScore = hasDetailedBreakdown
       ? this.getCriterionScore(criteriaBreakdown, 'projects', 20)
       : this.clampScore(value.projectScore, 20);
-    const educationScore = hasDetailedBreakdown
-      ? this.getCriterionScore(criteriaBreakdown, 'education', 10)
-      : this.clampScore(value.educationScore, 10);
-    const computedOverallScore = skillScore + experienceScore + projectScore + educationScore;
+    const computedSubtotal = skillScore + experienceScore + projectScore;
 
     return {
       applicationId: value.applicationId,
-      overallScore: this.toOptionalNumber(value.overallScore),
       skillScore,
       experienceScore,
       projectScore,
-      educationScore,
+      candidateEducationLevel: this.normalizeEducationLevel(value.candidateEducationLevel),
       matchedSkills: this.toStringArray(value.matchedSkills),
       missingSkills: this.toStringArray(value.missingSkills),
       strengths: this.toStringArray(value.strengths),
       weaknesses: this.toStringArray(value.weaknesses),
       criteriaBreakdown,
       summary: typeof value.summary === 'string' ? value.summary : '',
-      recommendation: this.normalizeRecommendation(value.recommendation, computedOverallScore),
+      recommendation: this.normalizeRecommendation(value.recommendation, computedSubtotal),
       raw: { ...value, criteriaBreakdown },
     };
   }
@@ -305,7 +329,7 @@ ${JSON.stringify(payload)}`;
   private normalizeCriteriaBreakdown(value: unknown): CvScoringCriterionBreakdown[] {
     const rawCriteria = Array.isArray(value) ? value.filter((item) => this.isRecord(item)) : [];
 
-    return CV_SCORING_RUBRIC.map((rubricCriterion) => {
+    return GEMINI_SCORING_RUBRIC.map((rubricCriterion) => {
       const rawCriterion = rawCriteria.find((item) => item.key === rubricCriterion.key);
       const rawItems = Array.isArray(rawCriterion?.items)
         ? rawCriterion.items.filter((item) => this.isRecord(item))
@@ -352,10 +376,6 @@ ${JSON.stringify(payload)}`;
     return Math.min(max, Math.max(0, score));
   }
 
-  private toOptionalNumber(value: unknown) {
-    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-  }
-
   private toStringArray(value: unknown) {
     if (!Array.isArray(value)) {
       return [];
@@ -382,6 +402,14 @@ ${JSON.stringify(payload)}`;
     }
 
     return 'not_fit';
+  }
+
+  private normalizeEducationLevel(value: unknown): EducationLevel | null {
+    return EXTRACTABLE_EDUCATION_LEVELS.includes(
+      value as (typeof EXTRACTABLE_EDUCATION_LEVELS)[number],
+    )
+      ? (value as EducationLevel)
+      : null;
   }
 
   private isRecommendation(value: string): value is Recommendation {

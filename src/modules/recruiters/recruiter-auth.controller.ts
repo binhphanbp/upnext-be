@@ -93,6 +93,19 @@ export class RecruiterAuthController {
   async googleAuthCallback(@Req() req: any, @Res() res: Response) {
     const locale = req.query.state === 'en' ? 'en' : 'vi';
     const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
+    const loginUrl = new URL(`/${locale}/recruiter/login`, frontendUrl);
+    const googleOAuthError: unknown = req.googleOAuthError;
+
+    if (googleOAuthError || !req.user) {
+      loginUrl.searchParams.set(
+        'error',
+        typeof googleOAuthError === 'string'
+          ? googleOAuthError
+          : 'Đăng nhập Google thất bại. Vui lòng thử lại.',
+      );
+      return res.redirect(loginUrl.toString());
+    }
+
     try {
       const googleUser = req.user as { providerUserId: string; email: string; fullName: string };
       const result = await this.recruiterAuthService.loginOrRegisterGoogle(googleUser);
@@ -104,9 +117,8 @@ export class RecruiterAuthController {
       return res.redirect(redirectUrl.toString());
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Đăng nhập thất bại';
-      return res.redirect(
-        `${frontendUrl}/${locale}/recruiter/login?error=${encodeURIComponent(message)}`,
-      );
+      loginUrl.searchParams.set('error', message);
+      return res.redirect(loginUrl.toString());
     }
   }
 }

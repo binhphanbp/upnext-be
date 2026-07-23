@@ -5,12 +5,19 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { CvScreeningRunStatus, Prisma } from '@prisma/client';
+import { CvScreeningRunStatus, EducationLevel, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RunCvScreeningDto } from './dto/run-cv-screening.dto';
 import { EmbeddingResult, EmbeddingService } from './embedding.service';
 import { GeminiScoringService, GeminiScoreResult } from './gemini-scoring.service';
-import { CV_SCORING_RUBRIC } from './scoring-rubric';
+import {
+  calculateEducationMatchScore,
+  EducationMatchScoreResult,
+  EducationEvidenceInput,
+  extractHighestEducationLevel,
+  getEducationLevelLabel,
+} from './education-scoring';
+import { CV_SCORING_RUBRIC, CvScoringCriterionBreakdown } from './scoring-rubric';
 
 const DEFAULT_DETAILED_LIMIT = 100;
 const MAX_DETAILED_LIMIT = 200;
@@ -18,7 +25,7 @@ const EMBEDDING_CONCURRENCY = 8;
 const GEMINI_BATCH_SIZE = 8;
 const GEMINI_BATCH_CONCURRENCY = 1;
 const GEMINI_FALLBACK_CONCURRENCY = 1;
-const SCORING_VERSION = 'cv-screening-v7-explainable-rubric-vi';
+const SCORING_VERSION = 'cv-screening-v9-impact-evidence-vi';
 
 type ApplicationForScreening = Prisma.ApplicationGetPayload<{
   select: {
@@ -29,6 +36,18 @@ type ApplicationForScreening = Prisma.ApplicationGetPayload<{
     candidateProfile: {
       select: {
         account: { select: { fullName: true; email: true } };
+        educations: {
+          select: {
+            degree: true;
+            schoolName: true;
+          };
+        };
+      };
+    };
+    cvVersion: {
+      select: {
+        contentJson: true;
+        parsedText: true;
       };
     };
   };
@@ -39,6 +58,8 @@ type RankedApplication = {
   semanticScore: number;
   cvText: string;
   cvEmbeddingUpdatedAt: Date;
+  candidateEducationLevel: EducationLevel | null;
+  candidateEducationEvidence: string | null;
 };
 
 @Injectable()
@@ -257,7 +278,7 @@ export class CvScreeningService {
     });
 
     try {
-      const [jobEmbedding, applications] = await Promise.all([
+      const [jobEmbedding, applications, jobPost] = await Promise.all([
         this.embeddingService.getOrCreateJobEmbedding(run.jobPostId),
         this.prisma.application.findMany({
           where: { jobPostId: run.jobPostId },
@@ -269,12 +290,33 @@ export class CvScreeningService {
             candidateProfile: {
               select: {
                 account: { select: { fullName: true, email: true } },
+                educations: {
+                  select: {
+                    degree: true,
+                    schoolName: true,
+                  },
+                  orderBy: { sortOrder: 'asc' },
+                },
+              },
+            },
+            cvVersion: {
+              select: {
+                contentJson: true,
+                parsedText: true,
               },
             },
           },
           orderBy: { submittedAt: 'asc' },
         }),
+        this.prisma.jobPost.findUnique({
+          where: { id: run.jobPostId },
+          select: { educationLevel: true },
+        }),
       ]);
+
+      if (!jobPost) {
+        throw new NotFoundException('Job post not found');
+      }
 
       const cvEmbeddings = await this.embeddingService.getOrCreateCvEmbeddings(
         applications.map((application) => application.cvVersionId),
@@ -303,6 +345,7 @@ export class CvScreeningService {
         if (!application) {
           return [];
         }
+        const candidateEducation = this.resolveCandidateEducation(application);
 
         return [
           {
@@ -310,6 +353,8 @@ export class CvScreeningService {
             semanticScore: this.roundScore(embedding.semanticScore),
             cvText: embedding.text,
             cvEmbeddingUpdatedAt: embedding.updatedAt,
+            candidateEducationLevel: candidateEducation?.level ?? null,
+            candidateEducationEvidence: candidateEducation?.evidence ?? null,
           },
         ];
       });
@@ -318,7 +363,8 @@ export class CvScreeningService {
       await this.mapLimit(
         this.chunk(toScore, GEMINI_BATCH_SIZE),
         GEMINI_BATCH_CONCURRENCY,
-        (batch) => this.scoreAndPersistBatch(runId, jobEmbedding.text, batch),
+        (batch) =>
+          this.scoreAndPersistBatch(runId, jobEmbedding.text, jobPost.educationLevel, batch),
       );
 
       const latestRun = await this.prisma.cvScreeningRun.findUnique({
@@ -429,6 +475,7 @@ export class CvScreeningService {
   private async scoreAndPersistBatch(
     runId: string,
     jobText: string,
+    requiredEducationLevel: EducationLevel,
     batch: RankedApplication[],
     canFallback = true,
   ) {
@@ -444,6 +491,7 @@ export class CvScreeningService {
           candidateName: item.application.candidateProfile.account.fullName,
           cvText: item.cvText,
           semanticScore: item.semanticScore,
+          candidateEducationLevel: item.candidateEducationLevel,
         })),
       );
       const resultByApplicationId = new Map(
@@ -465,7 +513,7 @@ export class CvScreeningService {
 
         persistOperations.push({
           item,
-          operation: this.persistScore(runId, item, result),
+          operation: this.persistScore(runId, item, result, requiredEducationLevel),
         });
       }
 
@@ -488,7 +536,13 @@ export class CvScreeningService {
       await this.incrementProgress(runId, persistOperations.length, persistFailureCount);
 
       if (missingResultItems.length > 0) {
-        await this.retryMissingScores(runId, jobText, missingResultItems, canFallback);
+        await this.retryMissingScores(
+          runId,
+          jobText,
+          requiredEducationLevel,
+          missingResultItems,
+          canFallback,
+        );
       }
     } catch (error) {
       if (canFallback && batch.length > 1) {
@@ -497,7 +551,7 @@ export class CvScreeningService {
           this.getErrorStack(error),
         );
         await this.mapLimit(batch, GEMINI_FALLBACK_CONCURRENCY, (item) =>
-          this.scoreAndPersistBatch(runId, jobText, [item], false),
+          this.scoreAndPersistBatch(runId, jobText, requiredEducationLevel, [item], false),
         );
         return;
       }
@@ -515,6 +569,7 @@ export class CvScreeningService {
   private async retryMissingScores(
     runId: string,
     jobText: string,
+    requiredEducationLevel: EducationLevel,
     missingItems: RankedApplication[],
     canFallback: boolean,
   ) {
@@ -523,7 +578,7 @@ export class CvScreeningService {
         `Gemini missed ${missingItems.length} application(s); retrying each CV separately`,
       );
       await this.mapLimit(missingItems, GEMINI_FALLBACK_CONCURRENCY, (item) =>
-        this.scoreAndPersistBatch(runId, jobText, [item], false),
+        this.scoreAndPersistBatch(runId, jobText, requiredEducationLevel, [item], false),
       );
       return;
     }
@@ -534,13 +589,37 @@ export class CvScreeningService {
     await this.incrementProgress(runId, missingItems.length, missingItems.length);
   }
 
-  private async persistScore(runId: string, item: RankedApplication, result: GeminiScoreResult) {
+  private async persistScore(
+    runId: string,
+    item: RankedApplication,
+    result: GeminiScoreResult,
+    requiredEducationLevel: EducationLevel,
+  ) {
     const skillScore = this.roundScore(result.skillScore);
     const experienceScore = this.roundScore(result.experienceScore);
     const projectScore = this.roundScore(result.projectScore);
-    const educationScore = this.roundScore(result.educationScore);
+    const candidateEducationLevel = item.candidateEducationLevel ?? result.candidateEducationLevel;
+    const educationMatch = calculateEducationMatchScore(
+      candidateEducationLevel,
+      requiredEducationLevel,
+    );
+    const educationScore = educationMatch.score;
     const aiScore = this.roundScore(skillScore + experienceScore + projectScore + educationScore);
     const finalScore = aiScore;
+    const educationBreakdown = this.buildEducationBreakdown(
+      educationMatch,
+      item.candidateEducationEvidence ??
+        (result.candidateEducationLevel
+          ? `CV ghi nhận trình độ học vấn: ${getEducationLevelLabel(result.candidateEducationLevel)}.`
+          : null),
+    );
+    const criteriaBreakdown = [...result.criteriaBreakdown, educationBreakdown];
+    const rawAiResponse = {
+      ...(this.isRecord(result.raw) ? result.raw : {}),
+      criteriaBreakdown,
+      candidateEducationLevel: educationMatch.candidateLevel,
+      requiredEducationLevel: educationMatch.requiredLevel,
+    };
 
     const data = {
       runId,
@@ -558,8 +637,8 @@ export class CvScreeningService {
       strengths: result.strengths as Prisma.InputJsonValue,
       weaknesses: result.weaknesses as Prisma.InputJsonValue,
       summary: result.summary,
-      recommendation: result.recommendation,
-      rawAiResponse: result.raw as Prisma.InputJsonValue,
+      recommendation: this.recommendationForScore(finalScore),
+      rawAiResponse: rawAiResponse as Prisma.InputJsonValue,
       modelName: this.geminiScoringService.modelName,
       scoringVersion: SCORING_VERSION,
     };
@@ -572,6 +651,100 @@ export class CvScreeningService {
         ...data,
       },
     });
+  }
+
+  private resolveCandidateEducation(application: ApplicationForScreening) {
+    const structuredInputs: EducationEvidenceInput[] = application.candidateProfile.educations.map(
+      (education) => ({
+        text: education.degree,
+        evidence: education.degree
+          ? `Hồ sơ ứng viên ghi nhận: ${education.degree}${
+              education.schoolName ? ` tại ${education.schoolName}` : ''
+            }.`
+          : null,
+      }),
+    );
+
+    structuredInputs.push(...this.getCvContentEducationInputs(application.cvVersion.contentJson));
+    const structuredLevel = extractHighestEducationLevel(structuredInputs);
+    if (structuredLevel) {
+      return structuredLevel;
+    }
+
+    return extractHighestEducationLevel([
+      {
+        text: application.cvVersion.parsedText,
+      },
+    ]);
+  }
+
+  private getCvContentEducationInputs(value: Prisma.JsonValue | null): EducationEvidenceInput[] {
+    if (!this.isRecord(value) || !Array.isArray(value.educations)) {
+      return [];
+    }
+
+    return value.educations.flatMap((education): EducationEvidenceInput[] => {
+      if (!this.isRecord(education) || typeof education.degree !== 'string') {
+        return [];
+      }
+
+      const schoolName =
+        typeof education.schoolName === 'string' ? education.schoolName.trim() : '';
+      return [
+        {
+          text: education.degree,
+          evidence: `CV ghi nhận: ${education.degree}${schoolName ? ` tại ${schoolName}` : ''}.`,
+        },
+      ];
+    });
+  }
+
+  private buildEducationBreakdown(
+    match: EducationMatchScoreResult,
+    candidateEvidence: string | null,
+  ): CvScoringCriterionBreakdown {
+    const evidence =
+      match.requiredLevel === null
+        ? 'Ứng viên không bị giới hạn bởi tiêu chí học vấn.'
+        : match.candidateLevel === null
+          ? null
+          : candidateEvidence;
+
+    return {
+      key: 'education',
+      summary: this.educationSummary(match),
+      items: [
+        {
+          key: 'education-level-match',
+          awardedScore: match.score,
+          reason: match.reason,
+          evidence,
+          candidateEducationLevel: match.candidateLevel,
+          requiredEducationLevel: match.requiredLevel,
+          difference: match.difference,
+        },
+      ],
+    };
+  }
+
+  private educationSummary(match: EducationMatchScoreResult) {
+    if (match.requiredLevel === null) {
+      return 'Tin tuyển dụng không giới hạn trình độ học vấn của ứng viên.';
+    }
+    if (match.candidateLevel === null) {
+      return 'Hồ sơ ứng viên chưa cung cấp thông tin học vấn để đối chiếu.';
+    }
+    if (match.score === 10) {
+      return 'Ứng viên đáp ứng hoặc cao hơn yêu cầu học vấn của vị trí.';
+    }
+    return `Ứng viên thấp hơn yêu cầu học vấn ${match.difference} bậc.`;
+  }
+
+  private recommendationForScore(score: number) {
+    if (score >= 85) return 'strong_fit';
+    if (score >= 70) return 'fit';
+    if (score >= 50) return 'borderline';
+    return 'not_fit';
   }
 
   private async incrementProgress(runId: string, processedDelta: number, failedDelta: number) {
@@ -667,6 +840,10 @@ export class CvScreeningService {
 
     const criteriaBreakdown = value.criteriaBreakdown;
     return Array.isArray(criteriaBreakdown) ? criteriaBreakdown : [];
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 
   private toVietnameseRecommendation(value: string | null) {

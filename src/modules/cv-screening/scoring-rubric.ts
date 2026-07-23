@@ -86,18 +86,11 @@ export const CV_SCORING_RUBRIC = [
           'Độ phức tạp, quyết định kỹ thuật và chiều sâu triển khai được thể hiện trong CV.',
       },
       {
-        key: 'impact-scale',
-        label: 'Tác động và quy mô',
-        maxScore: 4,
+        key: 'impact-evidence',
+        label: 'Tác động và bằng chứng dự án',
+        maxScore: 7,
         description:
-          'Kết quả triển khai, người dùng, hiệu quả hoặc quy mô có số liệu và bằng chứng rõ ràng.',
-      },
-      {
-        key: 'evidence-quality',
-        label: 'Chất lượng bằng chứng',
-        maxScore: 3,
-        description:
-          'Vai trò cá nhân, đóng góp và kết quả dự án được mô tả cụ thể, có thể kiểm chứng.',
+          'Đánh giá quy mô, kết quả triển khai, vai trò và đóng góp cá nhân của ứng viên dựa trên các thông tin cụ thể, có số liệu hoặc bằng chứng rõ ràng.',
       },
     ],
   },
@@ -107,23 +100,11 @@ export const CV_SCORING_RUBRIC = [
     maxScore: 10,
     criteria: [
       {
-        key: 'degree-major',
-        label: 'Bằng cấp và chuyên ngành',
-        maxScore: 5,
-        description: 'Bậc học và chuyên ngành có liên quan đến yêu cầu của vị trí.',
-      },
-      {
-        key: 'certifications',
-        label: 'Chứng chỉ và đào tạo',
-        maxScore: 3,
-        description: 'Chứng chỉ hoặc chương trình đào tạo có liên quan và còn giá trị áp dụng.',
-      },
-      {
-        key: 'academic-evidence',
-        label: 'Bằng chứng học thuật liên quan',
-        maxScore: 2,
+        key: 'education-level-match',
+        label: 'Mức độ đáp ứng yêu cầu học vấn',
+        maxScore: 10,
         description:
-          'Môn học, đồ án, nghiên cứu hoặc thành tích học thuật hỗ trợ trực tiếp cho vị trí.',
+          'Đối chiếu trình độ học vấn cao nhất của ứng viên với yêu cầu học vấn trong tin tuyển dụng.',
       },
     ],
   },
@@ -135,7 +116,10 @@ export type CvScoringBreakdownItem = {
   key: string;
   awardedScore: number;
   reason: string;
-  evidence: string;
+  evidence: string | null;
+  candidateEducationLevel?: string | null;
+  requiredEducationLevel?: string | null;
+  difference?: number | null;
 };
 
 export type CvScoringCriterionBreakdown = {
