@@ -54,6 +54,7 @@ Client
 ```
 
 **Luồng gửi tin nhắn điển hình:**
+
 1. Client gọi `POST /conversations/:id/messages` hoặc emit `message:send` qua WS.
 2. Server kiểm tra participant, rate limit, trùng lặp (`clientMessageId`).
 3. Tạo message trong DB, cập nhật `latestMessage` của conversation.
@@ -64,11 +65,11 @@ Client
 
 ## 2. Loại hội thoại (ConversationType)
 
-| Giá trị | Mô tả | Được tạo khi | Feature flag |
-|---------|-------|--------------|--------------|
-| `APPLICATION_CHAT` | Chat giữa candidate và recruiter trong một đơn ứng tuyển | Application chuyển sang `INTERVIEWING`, `OFFERED`, hoặc `HIRED` | `CHAT_APPLICATION_ENABLED=true` |
-| `TALENT_OUTREACH` | Recruiter chủ động liên hệ candidate (không qua application) | Recruiter tạo `TalentContactRequest` được chấp nhận | `CHAT_OUTREACH_ENABLED=true` |
-| `SUPPORT` | Chat hỗ trợ giữa recruiter và admin | Recruiter tạo support case | `CHAT_SUPPORT_ENABLED=true` |
+| Giá trị            | Mô tả                                                        | Được tạo khi                                        | Feature flag                    |
+| ------------------ | ------------------------------------------------------------ | --------------------------------------------------- | ------------------------------- |
+| `APPLICATION_CHAT` | Chat giữa candidate và recruiter trong một đơn ứng tuyển     | Candidate nộp hồ sơ thành công (`SUBMITTED`)        | `CHAT_APPLICATION_ENABLED=true` |
+| `TALENT_OUTREACH`  | Recruiter chủ động liên hệ candidate (không qua application) | Recruiter tạo `TalentContactRequest` được chấp nhận | `CHAT_OUTREACH_ENABLED=true`    |
+| `SUPPORT`          | Chat hỗ trợ giữa recruiter và admin                          | Recruiter tạo support case                          | `CHAT_SUPPORT_ENABLED=true`     |
 
 > **Lưu ý:** Ba feature flag trên phải được bật trong `.env` để từng loại conversation hoạt động. Xem [mục 10](#10-biến-môi-trường-bậttắt-tính-năng).
 
@@ -102,6 +103,7 @@ Khi chuyển sang READ_ONLY, server tự động tạo message hệ thống `CON
 ## 4. REST API
 
 Tất cả endpoint yêu cầu header:
+
 ```
 Authorization: Bearer <access_token>
 ```
@@ -114,14 +116,15 @@ Lấy danh sách các hội thoại mà người dùng hiện tại tham gia, s�
 
 **Query Parameters:**
 
-| Tham số | Kiểu | Mô tả | Mặc định |
-|---------|------|-------|----------|
-| `type` | `ConversationType` (enum) | Lọc theo loại: `APPLICATION_CHAT`, `TALENT_OUTREACH`, `SUPPORT` | (tất cả) |
-| `status` | `ConversationStatus` (enum) | Lọc theo trạng thái: `ACTIVE`, `READ_ONLY`, `CLOSED` | Ẩn `CLOSED` |
-| `cursor` | `string` | Cursor để lấy trang tiếp theo (base64url) | (trang đầu) |
-| `limit` | `integer` [1–50] | Số lượng hội thoại mỗi trang | `20` |
+| Tham số  | Kiểu                        | Mô tả                                                           | Mặc định    |
+| -------- | --------------------------- | --------------------------------------------------------------- | ----------- |
+| `type`   | `ConversationType` (enum)   | Lọc theo loại: `APPLICATION_CHAT`, `TALENT_OUTREACH`, `SUPPORT` | (tất cả)    |
+| `status` | `ConversationStatus` (enum) | Lọc theo trạng thái: `ACTIVE`, `READ_ONLY`, `CLOSED`            | Ẩn `CLOSED` |
+| `cursor` | `string`                    | Cursor để lấy trang tiếp theo (base64url)                       | (trang đầu) |
+| `limit`  | `integer` [1–50]            | Số lượng hội thoại mỗi trang                                    | `20`        |
 
 **Response `200 OK`:**
+
 ```json
 {
   "data": [
@@ -177,6 +180,7 @@ Lấy thông tin chi tiết của một hội thoại, kèm thông tin liên k�
 | `id` | `string` (UUID) | ID của hội thoại |
 
 **Response `200 OK`:**
+
 ```json
 {
   "data": {
@@ -206,6 +210,7 @@ Lấy thông tin chi tiết của một hội thoại, kèm thông tin liên k�
 ```
 
 **Lỗi:**
+
 - `403 Forbidden` – Người dùng không phải participant của hội thoại.
 - `404 Not Found` – Hội thoại không tồn tại.
 
@@ -229,6 +234,7 @@ Lấy danh sách tin nhắn của một hội thoại theo thứ tự thời gia
 > **Ghi chú phân trang:** Server query theo `DESC` rồi `.reverse()` để trả về theo `ASC`. `meta.nextCursor` trỏ đến tin nhắn cũ nhất trong trang hiện tại – dùng làm giá trị `before` để tải trang trước đó (scroll lên).
 
 **Response `200 OK`:**
+
 ```json
 {
   "data": [
@@ -254,6 +260,7 @@ Lấy danh sách tin nhắn của một hội thoại theo thứ tự thời gia
 ```
 
 **Lỗi:**
+
 - `403 Forbidden` – Không phải participant.
 
 ---
@@ -268,6 +275,7 @@ Gửi tin nhắn văn bản và/hoặc đính kèm file (đã upload trước b�
 | `id` | `string` (UUID) | ID của hội thoại |
 
 **Request Body (JSON):**
+
 ```json
 {
   "clientMessageId": "my-unique-msg-id-001",
@@ -277,14 +285,15 @@ Gửi tin nhắn văn bản và/hoặc đính kèm file (đã upload trước b�
 }
 ```
 
-| Trường | Kiểu | Bắt buộc | Mô tả |
-|--------|------|----------|-------|
-| `clientMessageId` | `string` (max 100 ký tự) | Có | ID do client tạo ra, dùng để dedup (idempotency). Nếu cùng `clientMessageId` gửi lại, server trả về tin nhắn cũ mà không tạo mới. |
-| `content` | `string` (max 4000 ký tự) | Không | Nội dung văn bản. Bắt buộc nếu không có `attachmentIds`. |
-| `attachmentIds` | `string[]` (UUID[], tối đa 5) | Không | Danh sách ID attachment đã upload. Phải thuộc conversation này và chưa được gắn vào message nào. |
-| `replyToMessageId` | `string` (UUID) | Không | ID tin nhắn muốn reply. Tin nhắn đó phải thuộc cùng conversation và chưa bị xóa. |
+| Trường             | Kiểu                          | Bắt buộc | Mô tả                                                                                                                             |
+| ------------------ | ----------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `clientMessageId`  | `string` (max 100 ký tự)      | Có       | ID do client tạo ra, dùng để dedup (idempotency). Nếu cùng `clientMessageId` gửi lại, server trả về tin nhắn cũ mà không tạo mới. |
+| `content`          | `string` (max 4000 ký tự)     | Không    | Nội dung văn bản. Bắt buộc nếu không có `attachmentIds`.                                                                          |
+| `attachmentIds`    | `string[]` (UUID[], tối đa 5) | Không    | Danh sách ID attachment đã upload. Phải thuộc conversation này và chưa được gắn vào message nào.                                  |
+| `replyToMessageId` | `string` (UUID)               | Không    | ID tin nhắn muốn reply. Tin nhắn đó phải thuộc cùng conversation và chưa bị xóa.                                                  |
 
 **Loại message tự động xác định:**
+
 - Chỉ có `content` → `type = TEXT`
 - Chỉ có `attachmentIds` → `type = ATTACHMENT`
 - Có cả hai → `type = MIXED`
@@ -292,6 +301,7 @@ Gửi tin nhắn văn bản và/hoặc đính kèm file (đã upload trước b�
 **Response `201 Created`:** Trả về object message vừa tạo (giống cấu trúc trong list messages).
 
 **Lỗi:**
+
 - `400 Bad Request` – Thiếu cả content và attachmentIds; hoặc `replyToMessageId` không hợp lệ.
 - `403 Forbidden` – Không phải participant.
 - `409 Conflict` – Hội thoại đang ở trạng thái không ghi được (`CONVERSATION_NOT_WRITABLE`), hoặc attachment đã được claimed.
@@ -304,6 +314,7 @@ Gửi tin nhắn văn bản và/hoặc đính kèm file (đã upload trước b�
 Cập nhật vị trí đã đọc cuối cùng của người dùng trong hội thoại. Không làm gì nếu `messageId` cũ hơn vị trí đã đọc hiện tại.
 
 **Request Body (JSON):**
+
 ```json
 {
   "messageId": "uuid-of-last-read-message"
@@ -338,6 +349,7 @@ Upload một file vào conversation. File được lưu trên Cloudinary với `
 **Giới hạn:** Không cho phép upload attachment trong conversation loại `TALENT_OUTREACH`.
 
 **Response `201 Created`:**
+
 ```json
 {
   "data": {
@@ -363,11 +375,13 @@ Upload một file vào conversation. File được lưu trên Cloudinary với `
 ```
 
 **Vòng đời attachment:**
+
 - `UPLOADED` – File đã upload, chưa gắn vào message nào.
 - `CLAIMED` – Đã gắn vào message qua `attachmentIds` trong `POST /messages`.
 - Orphan cleanup: Cron chạy **mỗi giờ** xóa các attachment ở trạng thái `UPLOADED` và không có `messageId` sau **24 giờ**.
 
 **Lỗi:**
+
 - `400 Bad Request` – Thiếu file.
 - `403 Forbidden` – Không phải participant.
 - `409 Conflict` – Conversation loại `TALENT_OUTREACH` không cho phép attachment.
@@ -388,6 +402,7 @@ Tạo URL có chữ ký (signed URL) để tải/xem file đính kèm. URL hợp
 **Điều kiện:** Attachment phải có `status = CLAIMED` và chưa bị xóa (`deletedAt = null`).
 
 **Response `200 OK`:**
+
 ```json
 {
   "data": {
@@ -398,6 +413,7 @@ Tạo URL có chữ ký (signed URL) để tải/xem file đính kèm. URL hợp
 ```
 
 **Lỗi:**
+
 - `403 Forbidden` – Không phải participant.
 - `404 Not Found` – Attachment không tồn tại, chưa claimed, hoặc đã bị xóa.
 
@@ -417,13 +433,14 @@ Tạo URL có chữ ký (signed URL) để tải/xem file đính kèm. URL hợp
 const socket = io('/chat', {
   transports: ['websocket'],
   auth: {
-    token: 'Bearer eyJhbGciOiJIUzI1NiIsInR...'
+    token: 'Bearer eyJhbGciOiJIUzI1NiIsInR...',
     // hoặc chỉ: token: 'eyJhbGciOiJIUzI1NiIsInR...'
-  }
+  },
 });
 ```
 
 **Sau khi kết nối thành công**, server emit:
+
 ```json
 // event: "connection:ready"
 {
@@ -435,6 +452,7 @@ const socket = io('/chat', {
 ```
 
 **Nếu token không hợp lệ**, server emit rồi ngắt kết nối ngay:
+
 ```json
 // event: "auth:revoked"
 {
@@ -445,6 +463,7 @@ const socket = io('/chat', {
 ```
 
 **Rooms tự động join sau kết nối thành công:**
+
 - `user:{role}:{userId}` – Room cá nhân nhận notification (vd: `user:candidate:uuid`)
 - (Admin thêm) `support-department:{dept}` – Room theo quyền `support:{dept}:handle`
 
@@ -455,11 +474,13 @@ const socket = io('/chat', {
 Tất cả sự kiện đều trả về một **acknowledgement** theo format chung:
 
 **Thành công:**
+
 ```json
-{ "ok": true, "data": { }, "serverTime": "2026-07-18T00:00:00.000Z" }
+{ "ok": true, "data": {}, "serverTime": "2026-07-18T00:00:00.000Z" }
 ```
 
 **Thất bại:**
+
 ```json
 {
   "ok": false,
@@ -472,13 +493,13 @@ Tất cả sự kiện đều trả về một **acknowledgement** theo format c
 }
 ```
 
-| `error.code` | Retry? | Nguyên nhân |
-|---|---|---|
-| `AUTH_EXPIRED` | Không | Token hết hạn |
-| `FORBIDDEN` | Không | Không có quyền truy cập |
-| `CONFLICT` | Không | Conversation không ghi được |
-| `RATE_LIMITED` | Có | Vượt giới hạn tốc độ |
-| `INTERNAL_ERROR` | Có | Lỗi server |
+| `error.code`     | Retry? | Nguyên nhân                 |
+| ---------------- | ------ | --------------------------- |
+| `AUTH_EXPIRED`   | Không  | Token hết hạn               |
+| `FORBIDDEN`      | Không  | Không có quyền truy cập     |
+| `CONFLICT`       | Không  | Conversation không ghi được |
+| `RATE_LIMITED`   | Có     | Vượt giới hạn tốc độ        |
+| `INTERNAL_ERROR` | Có     | Lỗi server                  |
 
 ---
 
@@ -521,18 +542,23 @@ socket.emit('conversation:leave', { conversationId: 'uuid' }, (ack) => {});
 Gửi tin nhắn qua WebSocket. Logic giống `POST /conversations/:id/messages` nhưng realtime hơn.
 
 ```javascript
-socket.emit('message:send', {
-  conversationId: 'uuid',
-  clientMessageId: 'my-unique-id-001',
-  content: 'Nội dung tin nhắn',
-  attachmentIds: [],
-  replyToMessageId: null
-}, (ack) => {
-  if (ack.ok) console.log('Sent', ack.data);
-});
+socket.emit(
+  'message:send',
+  {
+    conversationId: 'uuid',
+    clientMessageId: 'my-unique-id-001',
+    content: 'Nội dung tin nhắn',
+    attachmentIds: [],
+    replyToMessageId: null,
+  },
+  (ack) => {
+    if (ack.ok) console.log('Sent', ack.data);
+  },
+);
 ```
 
 **Payload:**
+
 ```typescript
 {
   conversationId: string;
@@ -554,10 +580,14 @@ socket.emit('message:send', {
 Đánh dấu đã đọc đến một tin nhắn cụ thể, giống `PATCH /conversations/:id/read`.
 
 ```javascript
-socket.emit('message:read', {
-  conversationId: 'uuid',
-  messageId: 'uuid'
-}, (ack) => {});
+socket.emit(
+  'message:read',
+  {
+    conversationId: 'uuid',
+    messageId: 'uuid',
+  },
+  (ack) => {},
+);
 ```
 
 **Payload:** `{ conversationId: string; messageId: string }`
@@ -735,19 +765,19 @@ Token không hợp lệ, server sẽ ngắt kết nối sau khi emit event này.
   fileAsset: {
     originalName: string;
     mimeType: string;
-    sizeBytes: string;  // string vì BigInt serialization
-  };
+    sizeBytes: string; // string vì BigInt serialization
+  }
 }
 ```
 
 ### System Messages (tự động tạo bởi server)
 
-| `systemEventType` | Nội dung | Khi nào |
-|---|---|---|
-| `APPLICATION_CHAT_OPENED` | "Hội thoại ứng tuyển đã được mở." | Conversation APPLICATION_CHAT được tạo lần đầu |
-| `APPLICATION_CHAT_REOPENED` | "Hội thoại ứng tuyển đã được mở." | Conversation được reactivate |
-| `APPLICATION_CHAT_GRACE_STARTED` | "Hội thoại sẽ chuyển sang chỉ đọc sau 7 ngày." | Application bị reject hoặc candidate rút đơn |
-| `CONVERSATION_READ_ONLY` | "Hội thoại đã chuyển sang chế độ chỉ đọc." | Hết grace period, cron đổi trạng thái |
+| `systemEventType`                | Nội dung                                       | Khi nào                                        |
+| -------------------------------- | ---------------------------------------------- | ---------------------------------------------- |
+| `APPLICATION_CHAT_OPENED`        | "Hội thoại ứng tuyển đã được mở."              | Conversation APPLICATION_CHAT được tạo lần đầu |
+| `APPLICATION_CHAT_REOPENED`      | "Hội thoại ứng tuyển đã được mở."              | Conversation được reactivate                   |
+| `APPLICATION_CHAT_GRACE_STARTED` | "Hội thoại sẽ chuyển sang chỉ đọc sau 7 ngày." | Application bị reject hoặc candidate rút đơn   |
+| `CONVERSATION_READ_ONLY`         | "Hội thoại đã chuyển sang chế độ chỉ đọc."     | Hết grace period, cron đổi trạng thái          |
 
 ---
 
@@ -755,13 +785,14 @@ Token không hợp lệ, server sẽ ngắt kết nối sau khi emit event này.
 
 Mỗi user chỉ thấy conversation mà họ là **participant** (`leftAt = null`). Server kiểm tra qua `ConversationPolicyService.assertAccess()`:
 
-| Actor | Điều kiện participant |
-|---|---|
+| Actor       | Điều kiện participant          |
+| ----------- | ------------------------------ |
 | `CANDIDATE` | `candidateAccountId = user.id` |
 | `RECRUITER` | `recruiterAccountId = user.id` |
-| `ADMIN` | `adminUserId = user.id` |
+| `ADMIN`     | `adminUserId = user.id`        |
 
 **Participant được thêm tự động** khi conversation tạo:
+
 - `APPLICATION_CHAT`: candidate từ application + recruiter(s) được assign (hoặc người tạo job nếu chưa assign).
 - `TALENT_OUTREACH`: recruiter gửi outreach + candidate nhận.
 - `SUPPORT`: recruiter tạo case + admin support được assign.
@@ -770,17 +801,17 @@ Mỗi user chỉ thấy conversation mà họ là **participant** (`leftAt = nul
 
 ## 8. Rate Limiting & Giới hạn
 
-| Giới hạn | Giá trị | Áp dụng cho |
-|----------|---------|-------------|
-| Tin nhắn tối đa/phút | **30 tin** | Mỗi participant trong một conversation |
-| Attachment tối đa/message | **5 file** | Mỗi lần gửi (`attachmentIds`) |
-| Nội dung tin nhắn | **4000 ký tự** | `content` field |
-| `clientMessageId` | **100 ký tự** | Dùng để đảm bảo idempotency |
-| Attachment formats | PDF, JPEG, PNG, WebP | Kiểm tra cả MIME type và magic bytes |
-| Attachment URL TTL | **5 phút** | Signed URL từ access endpoint |
-| Orphan attachment cleanup | Sau **24 giờ** | Cron mỗi giờ |
-| Grace period khi close | **7 ngày** | Sau khi application reject/withdraw |
-| Expiration check | Mỗi **1 phút** | Cron `ConversationExpirationService` |
+| Giới hạn                  | Giá trị              | Áp dụng cho                            |
+| ------------------------- | -------------------- | -------------------------------------- |
+| Tin nhắn tối đa/phút      | **30 tin**           | Mỗi participant trong một conversation |
+| Attachment tối đa/message | **5 file**           | Mỗi lần gửi (`attachmentIds`)          |
+| Nội dung tin nhắn         | **4000 ký tự**       | `content` field                        |
+| `clientMessageId`         | **100 ký tự**        | Dùng để đảm bảo idempotency            |
+| Attachment formats        | PDF, JPEG, PNG, WebP | Kiểm tra cả MIME type và magic bytes   |
+| Attachment URL TTL        | **5 phút**           | Signed URL từ access endpoint          |
+| Orphan attachment cleanup | Sau **24 giờ**       | Cron mỗi giờ                           |
+| Grace period khi close    | **7 ngày**           | Sau khi application reject/withdraw    |
+| Expiration check          | Mỗi **1 phút**       | Cron `ConversationExpirationService`   |
 
 ---
 
@@ -789,17 +820,20 @@ Mỗi user chỉ thấy conversation mà họ là **participant** (`leftAt = nul
 Cả danh sách conversation lẫn danh sách messages đều dùng cursor-based pagination thay vì offset.
 
 **Cursor là base64url của JSON:**
+
 ```json
 { "createdAt": "2026-07-18T00:00:00.000Z", "id": "uuid" }
 ```
 
 **Điều kiện WHERE tương đương:**
+
 ```sql
 WHERE (updatedAt < cursor.createdAt)
    OR (updatedAt = cursor.createdAt AND id < cursor.id)
 ```
 
 **Ví dụ dùng cursor:**
+
 ```javascript
 // Trang 1 – conversations
 const res1 = await fetch('/conversations?limit=20');
@@ -828,7 +862,7 @@ Ba loại conversation có thể bật/tắt độc lập trong `.env`:
 
 ```env
 # Bật chat trong đơn ứng tuyển (APPLICATION_CHAT)
-# Conversation tự động tạo khi application chuyển sang INTERVIEWING/OFFERED/HIRED
+# Conversation tự động tạo ngay khi candidate nộp hồ sơ thành công (SUBMITTED)
 CHAT_APPLICATION_ENABLED=false
 
 # Bật chat outreach (TALENT_OUTREACH)

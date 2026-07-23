@@ -111,6 +111,17 @@ export class ApplicationsService {
           reason: 'Assigned to the recruiter who created the job post',
         },
       });
+
+      await this.conversationLifecycle.applyApplicationStatus(
+        tx,
+        createdApp.id,
+        ApplicationStatus.SUBMITTED,
+        {
+          type: ActorType.CANDIDATE,
+          id: candidateAccountId,
+        },
+      );
+
       await this.outbox.enqueue(
         {
           aggregateType: 'application',

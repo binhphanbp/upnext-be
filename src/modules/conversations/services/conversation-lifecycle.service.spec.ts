@@ -20,6 +20,58 @@ describe('ConversationLifecycleService', () => {
     createSystemMessage.mockReset();
   });
 
+  it('opens the application conversation when the candidate submits an application', async () => {
+    const conversationUpsert = jest.fn().mockResolvedValue({
+      id: 'conversation-id',
+      type: ConversationType.APPLICATION_CHAT,
+      status: ConversationStatus.ACTIVE,
+      writableUntil: null,
+    });
+    const tx = {
+      application: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          id: 'application-id',
+          candidateProfile: { candidateAccountId: 'candidate-id' },
+          jobPost: {
+            id: 'job-id',
+            companyId: 'company-id',
+            createdByRecruiterId: 'job-creator-id',
+          },
+          assignments: [{ recruiterAccountId: 'job-creator-id' }],
+        }),
+      },
+      conversation: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: conversationUpsert,
+      },
+      conversationParticipant: { upsert: jest.fn().mockResolvedValue({}) },
+    } as unknown as Prisma.TransactionClient;
+
+    await service.applyApplicationStatus(tx, 'application-id', ApplicationStatus.SUBMITTED, {
+      type: ActorType.CANDIDATE,
+      id: 'candidate-id',
+    });
+
+    expect(conversationUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          type: ConversationType.APPLICATION_CHAT,
+          status: ConversationStatus.ACTIVE,
+          applicationId: 'application-id',
+          createdByActorType: ActorType.CANDIDATE,
+          createdByActorId: 'candidate-id',
+        }),
+      }),
+    );
+    expect(createSystemMessage).toHaveBeenCalledWith(
+      tx,
+      'conversation-id',
+      'APPLICATION_CHAT_OPENED',
+      expect.any(String),
+      { reason: ApplicationStatus.SUBMITTED },
+    );
+  });
+
   it('adds the recruiter who opens the interview chat even when they did not create the job', async () => {
     const participantUpsert = jest.fn().mockResolvedValue({});
     const tx = {

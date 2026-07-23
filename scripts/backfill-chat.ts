@@ -7,7 +7,6 @@ import {
   ConversationParticipantRole,
   ConversationStatus,
   ConversationType,
-  InterviewStatus,
   MessageType,
   PrismaClient,
 } from '@prisma/client';
@@ -25,15 +24,13 @@ async function main() {
         {
           status: {
             in: [
+              ApplicationStatus.SUBMITTED,
+              ApplicationStatus.VIEWED,
+              ApplicationStatus.SHORTLISTED,
               ApplicationStatus.INTERVIEWING,
               ApplicationStatus.OFFERED,
               ApplicationStatus.HIRED,
             ],
-          },
-        },
-        {
-          interviews: {
-            some: { status: { in: [InterviewStatus.SCHEDULED, InterviewStatus.RESCHEDULED] } },
           },
         },
       ],

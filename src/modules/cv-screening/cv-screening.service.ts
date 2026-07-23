@@ -209,6 +209,7 @@ export class CvScreeningService {
         jobPost: { select: { title: true } },
         application: {
           select: {
+            status: true,
             cvVersion: {
               select: { sourceFile: { select: { publicUrl: true } } },
             },
@@ -225,6 +226,7 @@ export class CvScreeningService {
       id: score.id,
       runId: score.runId,
       applicationId: score.applicationId,
+      status: score.application.status,
       candidateName: score.candidateProfile.account.fullName,
       jobTitle: score.jobPost.title,
       finalScore: Number(score.finalScore),

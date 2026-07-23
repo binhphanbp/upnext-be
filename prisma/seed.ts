@@ -1220,6 +1220,23 @@ async function cleanHomeSeedData() {
 
   const jobIds = jobPosts.map((job) => job.id);
 
+  // Clear chat, messages, participants, support cases and outreach to prevent FK violations
+  await prisma.conversation.updateMany({
+    data: { latestMessageId: null },
+  });
+  await prisma.talentContactRequest.updateMany({
+    data: { currentAttemptId: null },
+  });
+  await prisma.talentContactAttempt.deleteMany({});
+  await prisma.talentContactRequest.deleteMany({});
+  await prisma.supportCaseAssignmentHistory.deleteMany({});
+  await prisma.supportCaseStatusHistory.deleteMany({});
+  await prisma.supportCase.deleteMany({});
+  await prisma.messageAttachment.deleteMany({});
+  await prisma.message.deleteMany({});
+  await prisma.conversationParticipant.deleteMany({});
+  await prisma.conversation.deleteMany({});
+
   if (jobIds.length > 0) {
     await prisma.jobBoostMetric.deleteMany({
       where: {
@@ -1406,6 +1423,125 @@ async function cleanHomeSeedData() {
   }
 
   if (candidateProfileIds.length > 0) {
+    const candidateAppIds = (
+      await prisma.application.findMany({
+        where: {
+          candidateProfileId: {
+            in: candidateProfileIds,
+          },
+        },
+        select: {
+          id: true,
+        },
+      })
+    ).map((application) => application.id);
+
+    if (candidateAppIds.length > 0) {
+      await prisma.companyReview.deleteMany({
+        where: {
+          applicationId: {
+            in: candidateAppIds,
+          },
+        },
+      });
+
+      await prisma.interviewLog.deleteMany({
+        where: {
+          interview: {
+            applicationId: {
+              in: candidateAppIds,
+            },
+          },
+        },
+      });
+
+      await prisma.interview.deleteMany({
+        where: {
+          applicationId: {
+            in: candidateAppIds,
+          },
+        },
+      });
+
+      await prisma.applicationStatusLog.deleteMany({
+        where: {
+          applicationId: {
+            in: candidateAppIds,
+          },
+        },
+      });
+
+      await prisma.applicationAiScore.deleteMany({
+        where: {
+          applicationId: {
+            in: candidateAppIds,
+          },
+        },
+      });
+
+      await prisma.applicationAssignment.deleteMany({
+        where: {
+          applicationId: {
+            in: candidateAppIds,
+          },
+        },
+      });
+
+      const conversationIds = (
+        await prisma.conversation.findMany({
+          where: {
+            applicationId: {
+              in: candidateAppIds,
+            },
+          },
+          select: {
+            id: true,
+          },
+        })
+      ).map((c) => c.id);
+
+      if (conversationIds.length > 0) {
+        await prisma.conversation.updateMany({
+          where: {
+            id: {
+              in: conversationIds,
+            },
+          },
+          data: {
+            latestMessageId: null,
+          },
+        });
+        await prisma.messageAttachment.deleteMany({
+          where: {
+            conversationId: {
+              in: conversationIds,
+            },
+          },
+        });
+        await prisma.message.deleteMany({
+          where: {
+            conversationId: {
+              in: conversationIds,
+            },
+          },
+        });
+        await prisma.conversationParticipant.deleteMany({
+          where: {
+            conversationId: {
+              in: conversationIds,
+            },
+          },
+        });
+        await prisma.conversation.deleteMany({
+          where: {
+            id: {
+              in: conversationIds,
+            },
+          },
+        });
+      }
+    }
+
     await prisma.savedJob.deleteMany({
       where: {
         candidateProfileId: {
