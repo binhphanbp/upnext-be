@@ -1476,13 +1476,17 @@ model Post {
 
 model PostCategory {
   id        String   @id @default(uuid()) @db.Uuid
+  parentId  String?  @map("parent_id") @db.Uuid
   name      String   @db.VarChar(120)
   slug      String   @unique @db.VarChar(150)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  posts Post[]
+  parent   PostCategory?  @relation("PostCategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children PostCategory[] @relation("PostCategoryHierarchy")
+  posts    Post[]
 
+  @@index([parentId])
   @@map("post_categories")
 }
 

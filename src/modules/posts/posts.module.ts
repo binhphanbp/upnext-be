@@ -1,9 +1,17 @@
 import { Module } from '@nestjs/common';
+import { AdminPostCategoriesController } from './admin-post-categories.controller';
+import { AdminPostTagsController } from './admin-post-tags.controller';
 import { AdminPostsController } from './admin-posts.controller';
 import { PostsService } from './posts.service';
+import { PublicPostsController } from './public-posts.controller';
 
 @Module({
-  controllers: [AdminPostsController],
+  controllers: [
+    PublicPostsController,
+    AdminPostsController,
+    AdminPostCategoriesController,
+    AdminPostTagsController,
+  ],
   providers: [PostsService],
   exports: [PostsService],
 })
