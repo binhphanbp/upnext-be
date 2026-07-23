@@ -935,6 +935,7 @@ model RecruiterAccount {
   cvScreeningRuns          CvScreeningRun[]
   conversationParticipants ConversationParticipant[]
   applicationAssignments   ApplicationAssignment[]
+  hiringTeamMemberships    JobHiringTeamMember[]
   talentRecommendationRuns TalentRecommendationRun[]
   talentContactAttempts    TalentContactAttempt[]
   createdSupportCases      SupportCase[]                 @relation("SupportCaseCreatedByRecruiter")
@@ -1056,6 +1057,7 @@ model JobPost {
   cvScreeningRuns          CvScreeningRun[]
   applicationAiScores      ApplicationAiScore[]
   conversations            Conversation[]
+  hiringTeamMembers        JobHiringTeamMember[]
   talentRecommendationRuns TalentRecommendationRun[]
   talentRecommendations    TalentRecommendation[]
   talentContactRequests    TalentContactRequest[]
@@ -1069,6 +1071,28 @@ model JobPost {
   @@index([employmentTypeId])
   @@index([status, moderationStatus, publishedAt])
   @@map("job_posts")
+}
+
+// Recruiters who should join every application conversation for this job post.
+// The job author is intentionally not stored here: they are always included by
+// the application-chat lifecycle as the responsible recruiter.
+model JobHiringTeamMember {
+  id                 String    @id @default(uuid()) @db.Uuid
+  jobPostId          String    @map("job_post_id") @db.Uuid
+  recruiterAccountId String    @map("recruiter_account_id") @db.Uuid
+  addedByRecruiterId String?   @map("added_by_recruiter_id") @db.Uuid
+  joinedAt           DateTime  @default(now()) @map("joined_at")
+  leftAt             DateTime? @map("left_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  jobPost          JobPost          @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+  recruiterAccount RecruiterAccount @relation(fields: [recruiterAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([jobPostId, recruiterAccountId])
+  @@index([jobPostId, leftAt])
+  @@index([recruiterAccountId, leftAt])
+  @@map("job_hiring_team_members")
 }
 
 model JobPostSkill {
@@ -2036,6 +2060,7 @@ model ConversationParticipant {
   leftAt             DateTime?                   @map("left_at")
   archivedAt         DateTime?                   @map("archived_at")
   mutedUntil         DateTime?                   @map("muted_until")
+  explicitlyAdded    Boolean                     @default(false) @map("explicitly_added")
   tags               String[]                    @default([])
   lastReadMessageId  String?                     @map("last_read_message_id") @db.Uuid
   lastReadAt         DateTime?                   @map("last_read_at")

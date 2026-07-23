@@ -82,15 +82,7 @@ export class MessageService {
     }
 
     const message = await this.prisma.$transaction(async (tx) => {
-      const participant = await tx.conversationParticipant.findFirst({
-        where: {
-          conversationId,
-          leftAt: null,
-          ...this.policy.actorParticipantWhere(user),
-        },
-        include: { conversation: true },
-      });
-      if (!participant) throw new NotFoundException('Conversation not found');
+      const participant = await this.policy.ensureParticipantAccess(conversationId, user, tx);
 
       const duplicate = await tx.message.findUnique({
         where: {
@@ -262,7 +254,7 @@ export class MessageService {
   }
 
   async markRead(conversationId: string, messageId: string, user: AuthenticatedUser) {
-    const participant = await this.policy.assertAccess(conversationId, user);
+    const participant = await this.policy.ensureParticipantAccess(conversationId, user);
     const target = await this.prisma.message.findFirst({
       where: { id: messageId, conversationId },
       select: { id: true, createdAt: true },

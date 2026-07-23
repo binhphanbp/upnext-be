@@ -127,4 +127,48 @@ describe('ConversationLifecycleService', () => {
       }),
     );
   });
+
+  it('adds active job hiring-team members to a new application conversation', async () => {
+    const participantUpsert = jest.fn().mockResolvedValue({});
+    const tx = {
+      application: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          id: 'application-id',
+          candidateProfile: { candidateAccountId: 'candidate-id' },
+          jobPost: {
+            id: 'job-id',
+            companyId: 'company-id',
+            createdByRecruiterId: 'job-creator-id',
+            hiringTeamMembers: [{ recruiterAccountId: 'team-member-id' }],
+          },
+          assignments: [{ recruiterAccountId: 'job-creator-id' }],
+        }),
+      },
+      conversation: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({
+          id: 'conversation-id',
+          status: ConversationStatus.ACTIVE,
+          writableUntil: null,
+        }),
+      },
+      conversationParticipant: { upsert: participantUpsert },
+    } as unknown as Prisma.TransactionClient;
+
+    await service.applyApplicationStatus(tx, 'application-id', ApplicationStatus.SUBMITTED, {
+      type: ActorType.CANDIDATE,
+      id: 'candidate-id',
+    });
+
+    expect(participantUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          conversationId_recruiterAccountId: {
+            conversationId: 'conversation-id',
+            recruiterAccountId: 'team-member-id',
+          },
+        },
+      }),
+    );
+  });
 });

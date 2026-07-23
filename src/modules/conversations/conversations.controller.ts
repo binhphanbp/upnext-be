@@ -21,7 +21,9 @@ import { MessageCursorQueryDto } from './dto/message-cursor-query.dto';
 import { ReadMessageDto } from './dto/read-message.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { UpdateConversationTagsDto } from './dto/update-conversation-tags.dto';
+import { AddRecruiterToConversationDto } from './dto/add-recruiter-to-conversation.dto';
 import { ConversationService } from './services/conversation.service';
+import { ConversationMembershipService } from './services/conversation-membership.service';
 import { MessageService } from './services/message.service';
 import { MessageAttachmentService } from './services/message-attachment.service';
 
@@ -30,6 +32,7 @@ import { MessageAttachmentService } from './services/message-attachment.service'
 export class ConversationsController {
   constructor(
     private readonly conversations: ConversationService,
+    private readonly memberships: ConversationMembershipService,
     private readonly messages: MessageService,
     private readonly attachments: MessageAttachmentService,
   ) {}
@@ -56,6 +59,37 @@ export class ConversationsController {
     @Body() dto: UpdateConversationTagsDto,
   ) {
     return this.conversations.updateTags(id, dto, user);
+  }
+
+  /** Recruiters available to add, with their current per-chat/team state. */
+  @Get(':id/recruiters')
+  listRecruiters(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.memberships.listRecruiters(id, user);
+  }
+
+  @Get(':id/hiring-team')
+  listHiringTeam(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.memberships.listHiringTeam(id, user);
+  }
+
+  /** Adds a colleague to this one conversation only. */
+  @Post(':id/recruiter-participants')
+  addRecruiterToConversation(
+    @Param('id') id: string,
+    @Body() dto: AddRecruiterToConversationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.memberships.addToConversation(id, dto.recruiterAccountId, user);
+  }
+
+  /** Adds a colleague to the job hiring team and every existing chat for that job. */
+  @Post(':id/hiring-team/recruiters')
+  addRecruiterToHiringTeam(
+    @Param('id') id: string,
+    @Body() dto: AddRecruiterToConversationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.memberships.addToHiringTeam(id, dto.recruiterAccountId, user);
   }
 
   @Get(':id/messages')

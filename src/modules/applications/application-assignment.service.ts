@@ -87,14 +87,30 @@ export class ApplicationAssignmentService {
           data: { unassignedAt: new Date(), reason: dto.reason ?? assignment.reason },
         });
         if (context.conversation) {
-          await tx.conversationParticipant.updateMany({
+          const remainsOnJobTeam = await tx.jobHiringTeamMember.findFirst({
+            where: {
+              jobPostId: context.jobPost.id,
+              recruiterAccountId: assignment.recruiterAccountId,
+              leftAt: null,
+            },
+            select: { id: true },
+          });
+          const participant = await tx.conversationParticipant.findFirst({
             where: {
               conversationId: context.conversation.id,
               recruiterAccountId: assignment.recruiterAccountId,
               leftAt: null,
             },
-            data: { leftAt: new Date() },
+            select: { id: true, explicitlyAdded: true },
           });
+          const isJobAuthor =
+            context.jobPost.createdByRecruiterId === assignment.recruiterAccountId;
+          if (participant && !isJobAuthor && !remainsOnJobTeam && !participant.explicitlyAdded) {
+            await tx.conversationParticipant.update({
+              where: { id: participant.id },
+              data: { leftAt: new Date() },
+            });
+          }
         }
         return updated;
       },
@@ -105,7 +121,10 @@ export class ApplicationAssignmentService {
   private applicationContext(applicationId: string) {
     return this.prisma.application.findUniqueOrThrow({
       where: { id: applicationId },
-      select: { jobPost: { select: { companyId: true } }, conversation: { select: { id: true } } },
+      select: {
+        jobPost: { select: { id: true, companyId: true, createdByRecruiterId: true } },
+        conversation: { select: { id: true } },
+      },
     });
   }
 

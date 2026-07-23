@@ -25,6 +25,8 @@ describe('ConversationService', () => {
   const policy = {
     actorParticipantWhere: jest.fn().mockReturnValue({ recruiterAccountId: recruiter.id }),
     assertAccess: jest.fn(),
+    ensureParticipantAccess: jest.fn(),
+    canListAllCompanyApplicationChats: jest.fn().mockResolvedValue(false),
   };
   const service = new ConversationService(
     prisma as unknown as PrismaService,
@@ -34,6 +36,7 @@ describe('ConversationService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     policy.actorParticipantWhere.mockReturnValue({ recruiterAccountId: recruiter.id });
+    policy.canListAllCompanyApplicationChats.mockResolvedValue(false);
   });
 
   it('filters tags inside the current actor participant boundary', async () => {
@@ -44,13 +47,21 @@ describe('ConversationService', () => {
     expect(prisma.conversation.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          participants: {
-            some: {
-              recruiterAccountId: recruiter.id,
-              leftAt: null,
-              tags: { has: 'vip' },
+          AND: expect.arrayContaining([
+            {
+              OR: [
+                {
+                  participants: {
+                    some: {
+                      recruiterAccountId: recruiter.id,
+                      leftAt: null,
+                      tags: { has: 'vip' },
+                    },
+                  },
+                },
+              ],
             },
-          },
+          ]),
         }),
       }),
     );
@@ -74,7 +85,7 @@ describe('ConversationService', () => {
   });
 
   it('normalizes, deduplicates and updates only the current participant tags', async () => {
-    policy.assertAccess.mockResolvedValue({ id: 'own-participant' });
+    policy.ensureParticipantAccess.mockResolvedValue({ id: 'own-participant' });
     prisma.conversationParticipant.update.mockResolvedValue({
       tags: ['vip', 'cần phản hồi'],
     });
