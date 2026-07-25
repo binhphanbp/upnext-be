@@ -3,6 +3,7 @@ import {
   CompanyStatus,
   CompanyVerificationStatus,
   JobStatus,
+  PostStatus,
   Prisma,
   WorkingModel,
 } from '@prisma/client';
@@ -14,6 +15,7 @@ import {
   HomeJobCard,
   HomeJobsSectionTab,
   HomeLatestJobCard,
+  HomePostCard,
 } from './home.types';
 
 const SALARY_BUCKETS = [
@@ -33,13 +35,15 @@ export class HomeService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getHome(query: HomeQueryDto): Promise<HomeApiResponse<HomeData>> {
-    const [stats, jobsSection, topCompanies, marketInsight, companyLogos] = await Promise.all([
-      this.getStatsOverview(),
-      this.getJobsSection(query.jobPage, query.jobLimit),
-      this.getTopCompanies(query.topCompaniesLimit),
-      this.getMarketInsight(query.latestJobsLimit),
-      this.getCompanyLogos(5),
-    ]);
+    const [stats, jobsSection, topCompanies, marketInsight, companyLogos, latestPosts] =
+      await Promise.all([
+        this.getStatsOverview(),
+        this.getJobsSection(query.jobPage, query.jobLimit),
+        this.getTopCompanies(query.topCompaniesLimit),
+        this.getMarketInsight(query.latestJobsLimit),
+        this.getCompanyLogos(5),
+        this.getLatestPosts(8),
+      ]);
 
     return {
       success: true,
@@ -49,6 +53,7 @@ export class HomeService {
         topCompanies,
         marketInsight,
         companyLogos,
+        latestPosts,
       },
     };
   }
@@ -469,6 +474,55 @@ export class HomeService {
         },
       },
     });
+  }
+
+  private async getLatestPosts(limit: number): Promise<HomePostCard[]> {
+    const posts = await this.prisma.post.findMany({
+      where: {
+        status: PostStatus.PUBLISHED,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        type: true,
+        metaDescription: true,
+        createdAt: true,
+        thumbnailFile: {
+          select: { publicUrl: true },
+        },
+        coverImageFile: {
+          select: { publicUrl: true },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
+    });
+
+    return posts.map((post) => ({
+      id: post.id,
+      title: post.title,
+      slug: post.slug,
+      type: String(post.type),
+      thumbnailUrl: post.thumbnailFile?.publicUrl ?? undefined,
+      coverImageUrl: post.coverImageFile?.publicUrl ?? undefined,
+      metaDescription: post.metaDescription ?? undefined,
+      category: post.category
+        ? {
+            id: post.category.id,
+            name: post.category.name,
+            slug: post.category.slug,
+          }
+        : undefined,
+      createdAt: post.createdAt.toISOString(),
+    }));
   }
 
   private buildPublicJobWhere(tab: HomeJobTab): Prisma.JobPostWhereInput {
