@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   v2 as cloudinary,
@@ -6,7 +6,6 @@ import {
   UploadApiResponse,
   UploadApiErrorResponse,
 } from 'cloudinary';
-import { extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 export type UploadedFile = {
@@ -38,7 +37,6 @@ export class CloudinaryService {
 
     this.ensureConfigured();
 
-    const extension = extname(file.originalname).replace('.', '');
     const publicId = [options.fileNamePrefix, randomUUID()].filter(Boolean).join('-');
 
     const result = await new Promise<UploadApiResponse>((resolve, reject) => {
@@ -51,16 +49,21 @@ export class CloudinaryService {
           use_filename: false,
           unique_filename: false,
           overwrite: false,
-          ...(extension ? { format: extension } : {}),
+          // Do NOT set `format` explicitly — forcing format triggers Cloudinary
+          // image processing for non-image files (e.g. PDFs → "Invalid image file").
         },
         (error: UploadApiErrorResponse | undefined, response: UploadApiResponse | undefined) => {
           if (error) {
-            reject(new Error(error.message ?? 'Cloudinary upload failed'));
+            reject(
+              new BadGatewayException(
+                error.message ?? 'Cloudinary upload failed',
+              ),
+            );
             return;
           }
 
           if (!response) {
-            reject(new Error('Cloudinary upload failed'));
+            reject(new BadGatewayException('Cloudinary upload failed: empty response'));
             return;
           }
 
@@ -101,12 +104,14 @@ export class CloudinaryService {
       });
     }
 
+    // For 'upload' delivery type: files are publicly accessible on the Cloudinary CDN.
+    // Do NOT add sign_url/expires_at here — Cloudinary translates expires_at into an
+    // e_<timestamp> transformation which is NOT supported on raw resources and causes
+    // the download to fail with a non-PDF response ("Failed to load PDF document").
     return cloudinary.url(storageKey, {
       resource_type: resourceType,
       type: deliveryType,
       secure: true,
-      sign_url: true,
-      expires_at: expiresAt,
     });
   }
 

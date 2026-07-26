@@ -186,8 +186,16 @@ export class CvVersionsService {
         throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ');
       }
     } else {
+      // Determine the Cloudinary resource_type based on the stored MIME type:
+      // - PDFs and other documents were uploaded as 'raw' (stored as-is)
+      // - Images were uploaded as 'image'
+      // Also use deliveryType 'upload' to match how files were stored (not 'authenticated').
+      const cloudinaryResourceType = version.sourceFile.mimeType.startsWith('image/')
+        ? 'image'
+        : 'raw';
       const signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
-        resourceType: 'image',
+        resourceType: cloudinaryResourceType,
+        deliveryType: 'upload',
       });
 
       try {
@@ -196,12 +204,25 @@ export class CvVersionsService {
           throw new Error('Cloudinary download failed');
         }
 
-        const nodeStream = Readable.fromWeb(
-          response.body as unknown as Parameters<typeof Readable.fromWeb>[0],
-        );
+        // Guard against Cloudinary returning an HTML error page (e.g. for missing/wrong-type files).
+        // Without this check, the HTML bytes would be streamed to FE and displayed as
+        // "Failed to load PDF document" in the browser.
+        const contentType = response.headers.get('content-type') ?? '';
+        if (contentType.startsWith('text/html')) {
+          throw new Error(`Cloudinary returned unexpected HTML (content-type: ${contentType})`);
+        }
+
+        const fileBuffer = Buffer.from(await response.arrayBuffer());
+        const isPdf = version.sourceFile.mimeType === 'application/pdf';
+        const hasPdfMagic =
+          fileBuffer.length >= 5 && fileBuffer.subarray(0, 5).toString('latin1') === '%PDF-';
+
+        if (isPdf && !hasPdfMagic) {
+          throw new Error('Cloudinary returned invalid PDF content');
+        }
 
         return {
-          stream: nodeStream,
+          stream: Readable.from(fileBuffer),
           fileName: version.sourceFile.originalName,
           mimeType: version.sourceFile.mimeType,
         };
