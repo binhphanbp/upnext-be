@@ -263,7 +263,11 @@ export class ApplicationsService {
         },
         jobPost: {
           include: {
-            company: true,
+            company: {
+              include: {
+                logoFile: true,
+              },
+            },
           },
         },
         cvVersion: {
@@ -312,7 +316,11 @@ export class ApplicationsService {
       include: {
         jobPost: {
           include: {
-            company: true,
+            company: {
+              include: {
+                logoFile: true,
+              },
+            },
             experienceLevel: true,
             employmentType: true,
           },

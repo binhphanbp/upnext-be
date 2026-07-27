@@ -14,6 +14,8 @@ import {
   CompanyVerificationStatus,
   FilePurpose,
   FileVisibility,
+  JobStatus,
+  ModerationStatus,
   Prisma,
 } from '@prisma/client';
 import { CloudinaryService, UploadedFile } from '../../common/cloudinary/cloudinary.service';
@@ -218,6 +220,7 @@ export class CompaniesService {
   }
 
   async findAll(query: ListCompaniesQueryDto) {
+    const now = new Date();
     const where: Prisma.CompanyWhereInput = {
       ...(query.q
         ? {
@@ -239,6 +242,19 @@ export class CompaniesService {
         orderBy: { createdAt: 'desc' },
         include: {
           logoFile: true,
+          _count: {
+            select: {
+              jobPosts: {
+                where: {
+                  status: JobStatus.PUBLISHED,
+                  moderationStatus: ModerationStatus.APPROVED,
+                  isHidden: false,
+                  deletedAt: null,
+                  OR: [{ expiredAt: null }, { expiredAt: { gt: now } }],
+                },
+              },
+            },
+          },
         },
         ...toPagination(query),
       }),
@@ -246,7 +262,10 @@ export class CompaniesService {
     ]);
 
     return {
-      items,
+      items: items.map(({ _count, ...company }) => ({
+        ...company,
+        activeJobsCount: _count.jobPosts,
+      })),
       meta: {
         page: query.page,
         limit: query.limit,

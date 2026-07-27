@@ -130,7 +130,27 @@ function normalizeLogoDevCompanySeed(rawData: any) {
     const companyId = uuidFromSeed(`logo-dev-company:${item.slug}`);
     const logoFileId = uuidFromSeed(`logo-dev-logo:${item.slug}`);
     const coverFileId = uuidFromSeed(`logo-dev-cover:${item.slug}`);
-    const coverUrl = Array.isArray(item.environmentImages) ? item.environmentImages[0] : null;
+    const environmentImages = Array.isArray(item.environmentImages)
+      ? item.environmentImages.filter(
+          (imageUrl: unknown): imageUrl is string =>
+            typeof imageUrl === 'string' && imageUrl.trim().length > 0,
+        )
+      : [];
+    const coverUrl = environmentImages[0] ?? null;
+    const photoAssets = environmentImages.map((imageUrl: string, index: number) => ({
+      id: uuidFromSeed(`logo-dev-photo:${item.slug}:${index + 1}`),
+      ownerType: 'company_photo',
+      ownerId: companyId,
+      purpose: 'OTHER',
+      visibility: 'PUBLIC',
+      storageKey: `upnext/seed/company-workplaces/${item.slug}/workplace-${index + 1}`,
+      originalName: `${item.slug}-workplace-${index + 1}.jpg`,
+      mimeType: 'image/jpeg',
+      sizeBytes: '0',
+      publicUrl: imageUrl,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    }));
 
     return [
       {
@@ -163,6 +183,7 @@ function normalizeLogoDevCompanySeed(rawData: any) {
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       },
+      ...photoAssets,
     ];
   });
 

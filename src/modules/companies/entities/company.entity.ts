@@ -104,6 +104,9 @@ export class CompanyListItem {
   @ApiPropertyOptional({ type: CompanyUploadedFile })
   logoFile?: CompanyUploadedFile | null;
 
+  @ApiProperty({ example: 12 })
+  activeJobsCount!: number;
+
   @ApiProperty({ example: 'Công ty cổ phần UPNEXT Việt Nam' })
   name!: string;
 

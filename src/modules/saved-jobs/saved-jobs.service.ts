@@ -55,7 +55,11 @@ export class SavedJobsService {
       include: {
         jobPost: {
           include: {
-            company: true,
+            company: {
+              include: {
+                logoFile: true,
+              },
+            },
             jobCategory: true,
             employmentType: true,
           },
