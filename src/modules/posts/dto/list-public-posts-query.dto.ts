@@ -22,12 +22,36 @@ export class ListPublicPostsQueryDto extends PaginationQueryDto {
   categoryId?: string;
 
   @ApiPropertyOptional({
+    description: 'Lọc theo Slug danh mục bài viết (VD: blog-upnext, su-nghiep-it).',
+    example: 'blog-upnext',
+  })
+  @IsOptional()
+  @IsString()
+  categorySlug?: string;
+
+  @ApiPropertyOptional({
+    description: 'Từ khóa tìm kiếm bài viết (tương đương q).',
+    example: 'cloud',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
     description: 'Lọc theo ID thẻ bài viết.',
     example: '8e10280c-ae2d-4579-a048-c25279447a3e',
   })
   @IsOptional()
   @IsUUID()
   tagId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Lọc theo Slug hoặc Tên thẻ bài viết.',
+    example: 'reactjs',
+  })
+  @IsOptional()
+  @IsString()
+  tag?: string;
 
   @ApiPropertyOptional({
     description: 'Trường sắp xếp (mặc định: createdAt)',
