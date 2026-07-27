@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PostStatus, PostType } from '@prisma/client';
-import { IsArray, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class CreatePostDto {
   @ApiProperty({ description: 'Tiêu đề bài viết' })
@@ -62,4 +62,10 @@ export class CreatePostDto {
   @IsArray()
   @IsUUID('4', { each: true })
   tagIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Số lượt xem bài viết', example: 100 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  viewCount?: number;
 }

@@ -52,6 +52,7 @@ export class PostsService {
         metaTitle: dto.metaTitle ?? null,
         metaDescription: dto.metaDescription ?? null,
         metaKeywords: dto.metaKeywords ?? null,
+        viewCount: dto.viewCount ?? 0,
         postTags:
           dto.tagIds && dto.tagIds.length > 0
             ? {
@@ -149,10 +150,21 @@ export class PostsService {
   }
 
   async findAllPublic(query: ListPublicPostsQueryDto) {
+    const searchKeyword = query.q || query.search;
     const where: Prisma.PostWhereInput = {
       status: PostStatus.PUBLISHED,
       ...(query.type ? { type: query.type } : {}),
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.categorySlug
+        ? {
+            category: {
+              OR: [
+                { slug: query.categorySlug },
+                { parent: { slug: query.categorySlug } },
+              ],
+            },
+          }
+        : {}),
       ...(query.tagId
         ? {
             postTags: {
@@ -162,20 +174,31 @@ export class PostsService {
             },
           }
         : {}),
-      ...(query.q
+      ...(query.tag
+        ? {
+            postTags: {
+              some: {
+                tag: {
+                  OR: [{ id: query.tag }, { slug: query.tag }, { name: query.tag }],
+                },
+              },
+            },
+          }
+        : {}),
+      ...(searchKeyword
         ? {
             OR: [
-              { title: { contains: query.q, mode: 'insensitive' } },
-              { content: { contains: query.q, mode: 'insensitive' } },
-              { metaTitle: { contains: query.q, mode: 'insensitive' } },
-              { metaDescription: { contains: query.q, mode: 'insensitive' } },
-              { metaKeywords: { contains: query.q, mode: 'insensitive' } },
+              { title: { contains: searchKeyword, mode: 'insensitive' } },
+              { content: { contains: searchKeyword, mode: 'insensitive' } },
+              { metaTitle: { contains: searchKeyword, mode: 'insensitive' } },
+              { metaDescription: { contains: searchKeyword, mode: 'insensitive' } },
+              { metaKeywords: { contains: searchKeyword, mode: 'insensitive' } },
             ],
           }
         : {}),
     };
 
-    const validSortFields = ['createdAt', 'updatedAt', 'title'];
+    const validSortFields = ['createdAt', 'updatedAt', 'title', 'viewCount'];
     const sortBy = validSortFields.includes(query.sortBy || '') ? query.sortBy : 'createdAt';
     const sortOrder = query.sortOrder === 'asc' ? 'asc' : 'desc';
     const orderBy = { [sortBy!]: sortOrder };
@@ -253,6 +276,12 @@ export class PostsService {
       throw new NotFoundException('Post not found');
     }
 
+    await this.prisma.post.update({
+      where: { id: post.id },
+      data: { viewCount: { increment: 1 } },
+    });
+    post.viewCount += 1;
+
     return post;
   }
 
@@ -284,6 +313,12 @@ export class PostsService {
     if (!post) {
       throw new NotFoundException('Post not found');
     }
+
+    await this.prisma.post.update({
+      where: { id: post.id },
+      data: { viewCount: { increment: 1 } },
+    });
+    post.viewCount += 1;
 
     return post;
   }
