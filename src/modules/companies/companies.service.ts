@@ -261,10 +261,26 @@ export class CompaniesService {
       this.prisma.company.count({ where }),
     ]);
 
+    const companyIds = items.map((c) => c.id);
+    const coverFiles = await this.prisma.fileAsset.findMany({
+      where: {
+        ownerType: 'company_cover',
+        ownerId: { in: companyIds },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const coverMap = new Map<string, (typeof coverFiles)[0]>();
+    for (const cover of coverFiles) {
+      if (cover.ownerId && !coverMap.has(cover.ownerId)) {
+        coverMap.set(cover.ownerId, cover);
+      }
+    }
+
     return {
       items: items.map(({ _count, ...company }) => ({
         ...company,
         activeJobsCount: _count.jobPosts,
+        coverFile: coverMap.get(company.id) ?? null,
       })),
       meta: {
         page: query.page,
