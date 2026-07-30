@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OutboxService } from '../outbox/outbox.service';
@@ -114,5 +115,27 @@ describe('ApplicationsService', () => {
         id: 'candidate-id',
       },
     );
+  });
+
+  it('rejects applying to a job post whose deadline has already passed', async () => {
+    prismaMock.candidateAccount.findUnique.mockResolvedValue({
+      emailVerifiedAt: new Date(),
+      fullName: 'Candidate',
+      profile: { id: 'candidate-profile-id' },
+    });
+    prismaMock.jobPost.findUnique.mockResolvedValue({
+      id: 'job-post-id',
+      title: 'Backend Developer',
+      status: JobStatus.PUBLISHED,
+      createdByRecruiterId: 'recruiter-id',
+      expiredAt: new Date('2020-01-01T00:00:00.000Z'),
+    });
+
+    await expect(
+      service.applyJob('candidate-id', {
+        jobPostId: 'job-post-id',
+        cvVersionId: 'cv-version-id',
+      }),
+    ).rejects.toThrow(BadRequestException);
   });
 });

@@ -10,6 +10,7 @@ import { compare, hash } from 'bcryptjs';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { toPagination } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { REPUTATION_CONFIG } from '../reputation/reputation.config';
 import { ListRecruiterAccountsQueryDto } from './dto/recruiter-accounts/list-recruiter-accounts-query.dto';
 import { UpdateRecruiterAccountDto } from './dto/recruiter-accounts/update-recruiter-account.dto';
 import { ChangePasswordDto } from './dto/recruiter-accounts/change-password.dto';
@@ -62,7 +63,19 @@ export class RecruitersService {
       where: { id },
       include: {
         profile: true,
-        recruiterRole: true,
+        recruiterRole: {
+          include: {
+            rolePermissions: {
+              select: {
+                recruiterPermission: {
+                  select: {
+                    code: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         company: {
           select: {
             id: true,
@@ -82,7 +95,17 @@ export class RecruitersService {
       throw new NotFoundException(`Recruiter account ${id} not found`);
     }
 
-    return account;
+    // The publish threshold is server-side config, and the recruiter UI needs it beside the score
+    // to say "20/50" before a submit is attempted instead of only after one is refused.
+    return {
+      ...account,
+      company: account.company
+        ? {
+            ...account.company,
+            minReputationScoreToPublish: REPUTATION_CONFIG.MIN_SCORE_TO_PUBLISH,
+          }
+        : account.company,
+    };
   }
 
   async updateAccount(id: string, dto: UpdateRecruiterAccountDto, user: AuthenticatedUser) {

@@ -9,12 +9,24 @@ import {
   ParseUUIDPipe,
   HttpCode,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { ActorType } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RestrictedModeGuard } from '../auth/guards/restricted-mode.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { SkillsService } from './skills.service';
 import { CreateSkillDto, CreateSkillCategoryDto } from './dto/create-skill.dto';
 import { UpdateSkillDto } from './dto/update-skill.dto';
 
+/**
+ * Reads stay public: the job search, the public job pages and the recruiter form all load the
+ * catalog before anyone signs in. Writes are the opposite — they used to be open to the internet,
+ * which is how a shared catalog fills up with junk, so each one now names the roles it accepts.
+ */
 @ApiTags('Skills')
 @Controller()
 export class SkillsController {
@@ -22,7 +34,10 @@ export class SkillsController {
 
   // ─── Skill Categories ────────────────────────────────────────────────────
 
-  @ApiOperation({ summary: 'Tạo danh mục kỹ năng' })
+  @ApiOperation({ summary: 'Tạo danh mục kỹ năng (chỉ admin)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN)
   @Post('skill-categories')
   createCategory(@Body() dto: CreateSkillCategoryDto) {
     return this.skillsService.createCategory(dto);
@@ -36,7 +51,13 @@ export class SkillsController {
 
   // ─── Skills ──────────────────────────────────────────────────────────────
 
-  @ApiOperation({ summary: 'Tạo kỹ năng' })
+  // Candidates add skills to their profile and recruiters to their job posts, so both may extend
+  // the catalog — but only while signed in, and at a rate that rules out bulk insertion.
+  @ApiOperation({ summary: 'Tạo kỹ năng (ứng viên, recruiter hoặc admin đã đăng nhập)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard, ThrottlerGuard)
+  @Roles(ActorType.CANDIDATE, ActorType.RECRUITER, ActorType.ADMIN)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('skills')
   create(@Body() dto: CreateSkillDto) {
     return this.skillsService.create(dto);
@@ -62,13 +83,21 @@ export class SkillsController {
     return this.skillsService.findOne(id);
   }
 
-  @ApiOperation({ summary: 'Cập nhật kỹ năng' })
+  // Renaming or deleting an entry affects every profile and job post already pointing at it, so
+  // curation stays with admins even though creation does not.
+  @ApiOperation({ summary: 'Cập nhật kỹ năng (chỉ admin)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN)
   @Patch('skills/:id')
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateSkillDto) {
     return this.skillsService.update(id, dto);
   }
 
-  @ApiOperation({ summary: 'Xóa kỹ năng' })
+  @ApiOperation({ summary: 'Xóa kỹ năng (chỉ admin)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN)
   @HttpCode(204)
   @Delete('skills/:id')
   remove(@Param('id', ParseUUIDPipe) id: string) {

@@ -811,30 +811,30 @@ model Specialization {
 // =========================
 
 model Company {
-  id                    String                    @id @default(uuid()) @db.Uuid
-  logoFileId            String?                   @map("logo_file_id") @db.Uuid
-  businessLicenseFileId String?                   @map("business_license_file_id") @db.Uuid
-  type                  CompanyType               @default(OTHER)
-  name                  String                    @db.VarChar(200)
-  slug                  String                    @unique @db.VarChar(200)
-  taxCode               String?                   @unique @map("tax_code") @db.VarChar(50)
-  address               String?                   @db.VarChar(255)
-  email                 String?                   @db.VarChar(255)
-  phone                 String?                   @db.VarChar(30)
-  website               String?                   @db.VarChar(500)
-  description           String?                   @db.Text
-  benefits              String?                   @db.Text
-  companySize           String?                   @map("company_size") @db.VarChar(80)
-  workingDays           String?                   @map("working_days") @db.VarChar(150)
-  verificationStatus    CompanyVerificationStatus @default(UNVERIFIED) @map("verification_status")
-  reputationScore       Decimal                   @default(35) @map("reputation_score") @db.Decimal(6, 2)
-  scoreBeforeRestriction Decimal?                 @map("score_before_restriction") @db.Decimal(6, 2)
-  restrictedAt          DateTime?                 @map("restricted_at")
-  status                CompanyStatus             @default(ACTIVE)
-  lockedReason          String?                   @map("locked_reason") @db.Text
-  lockedAt              DateTime?                 @map("locked_at")
-  createdAt             DateTime                  @default(now()) @map("created_at")
-  updatedAt             DateTime                  @updatedAt @map("updated_at")
+  id                     String                    @id @default(uuid()) @db.Uuid
+  logoFileId             String?                   @map("logo_file_id") @db.Uuid
+  businessLicenseFileId  String?                   @map("business_license_file_id") @db.Uuid
+  type                   CompanyType               @default(OTHER)
+  name                   String                    @db.VarChar(200)
+  slug                   String                    @unique @db.VarChar(200)
+  taxCode                String?                   @unique @map("tax_code") @db.VarChar(50)
+  address                String?                   @db.VarChar(255)
+  email                  String?                   @db.VarChar(255)
+  phone                  String?                   @db.VarChar(30)
+  website                String?                   @db.VarChar(500)
+  description            String?                   @db.Text
+  benefits               String?                   @db.Text
+  companySize            String?                   @map("company_size") @db.VarChar(80)
+  workingDays            String?                   @map("working_days") @db.VarChar(150)
+  verificationStatus     CompanyVerificationStatus @default(UNVERIFIED) @map("verification_status")
+  reputationScore        Decimal                   @default(35) @map("reputation_score") @db.Decimal(6, 2)
+  scoreBeforeRestriction Decimal?                  @map("score_before_restriction") @db.Decimal(6, 2)
+  restrictedAt           DateTime?                 @map("restricted_at")
+  status                 CompanyStatus             @default(ACTIVE)
+  lockedReason           String?                   @map("locked_reason") @db.Text
+  lockedAt               DateTime?                 @map("locked_at")
+  createdAt              DateTime                  @default(now()) @map("created_at")
+  updatedAt              DateTime                  @updatedAt @map("updated_at")
 
   logoFile            FileAsset? @relation("CompanyLogoFile", fields: [logoFileId], references: [id], onDelete: SetNull)
   businessLicenseFile FileAsset? @relation("CompanyBusinessLicenseFile", fields: [businessLicenseFileId], references: [id], onDelete: SetNull)
@@ -936,6 +936,7 @@ model RecruiterAccount {
   conversationParticipants ConversationParticipant[]
   applicationAssignments   ApplicationAssignment[]
   hiringTeamMemberships    JobHiringTeamMember[]
+  jobPostAccessRevocations JobPostAccessRevocation[]
   talentRecommendationRuns TalentRecommendationRun[]
   talentContactAttempts    TalentContactAttempt[]
   createdSupportCases      SupportCase[]                 @relation("SupportCaseCreatedByRecruiter")
@@ -1058,6 +1059,7 @@ model JobPost {
   applicationAiScores      ApplicationAiScore[]
   conversations            Conversation[]
   hiringTeamMembers        JobHiringTeamMember[]
+  accessRevocations        JobPostAccessRevocation[]
   talentRecommendationRuns TalentRecommendationRun[]
   talentRecommendations    TalentRecommendation[]
   talentContactRequests    TalentContactRequest[]
@@ -1093,6 +1095,23 @@ model JobHiringTeamMember {
   @@index([jobPostId, leftAt])
   @@index([recruiterAccountId, leftAt])
   @@map("job_hiring_team_members")
+}
+
+// Company recruiters can access every company job post by default.
+// A row here is an explicit per-job exception that revokes one recruiter's access.
+model JobPostAccessRevocation {
+  id                   String   @id @default(uuid()) @db.Uuid
+  jobPostId            String   @map("job_post_id") @db.Uuid
+  recruiterAccountId   String   @map("recruiter_account_id") @db.Uuid
+  revokedByRecruiterId String   @map("revoked_by_recruiter_id") @db.Uuid
+  revokedAt            DateTime @default(now()) @map("revoked_at")
+
+  jobPost          JobPost          @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+  recruiterAccount RecruiterAccount @relation(fields: [recruiterAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([jobPostId, recruiterAccountId])
+  @@index([recruiterAccountId])
+  @@map("job_post_access_revocations")
 }
 
 model JobPostSkill {

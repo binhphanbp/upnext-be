@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
 import { ProficiencyLevel, SkillPriority } from '@prisma/client';
 
 export class AddSkillToJobDto {
@@ -65,4 +65,34 @@ export class AddSpecializationToJobDto {
   @IsBoolean()
   @IsOptional()
   isRequired?: boolean;
+}
+
+export class SetJobSkillsDto {
+  @ApiProperty({
+    description: 'Danh sách đầy đủ UUID kỹ năng — thay thế toàn bộ danh sách hiện có.',
+    type: [String],
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  skillIds: string[];
+}
+
+export class SetJobLocationsDto {
+  @ApiProperty({
+    description: 'Danh sách đầy đủ UUID địa điểm làm việc — thay thế toàn bộ danh sách hiện có.',
+    type: [String],
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  jobLocationIds: string[];
+}
+
+export class SetJobSpecializationsDto {
+  @ApiProperty({
+    description: 'Danh sách đầy đủ UUID chuyên ngành — thay thế toàn bộ danh sách hiện có.',
+    type: [String],
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  specializationIds: string[];
 }
