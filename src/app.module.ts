@@ -56,6 +56,7 @@ import { SupportCasesModule } from './modules/support-cases/support-cases.module
 import { ReputationModule } from './modules/reputation/reputation.module';
 import { HiringReportsModule } from './modules/hiring-reports/hiring-reports.module';
 import { AppealsModule } from './modules/appeals/appeals.module';
+import { JobPostAiModule } from './modules/job-post-ai/job-post-ai.module';
 
 @Module({
   imports: [
@@ -96,6 +97,7 @@ import { AppealsModule } from './modules/appeals/appeals.module';
     CandidateLinksModule,
     CandidateProjectsModule,
     JobPostsModule,
+    JobPostAiModule,
     SavedJobsModule,
     CompanyFollowsModule,
     CompanyReviewsModule,

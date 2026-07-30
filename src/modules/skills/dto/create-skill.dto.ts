@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateSkillCategoryDto {
   @ApiProperty()
@@ -32,6 +40,7 @@ export class CreateSkillDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(120)
   name: string;
 
   @ApiPropertyOptional()

@@ -1,17 +1,37 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { NotificationsService } from '../notifications/notifications.service';
 import { JobPostsService } from './job-posts.service';
-import { ModerationStatus } from '@prisma/client';
+import {
+  ActorType,
+  CompanyVerificationStatus,
+  JobStatus,
+  ModerationStatus,
+} from '@prisma/client';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 describe('JobPostsService', () => {
   let service: JobPostsService;
 
   const prismaMock: any = {
+    recruiterAccount: {
+      findUnique: jest.fn(),
+    },
     jobPost: {
+      create: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
+    },
+    companyMember: {
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+    },
+    jobPostAccessRevocation: {
+      findMany: jest.fn(),
+      upsert: jest.fn(),
+      deleteMany: jest.fn(),
     },
   };
 
@@ -40,6 +60,173 @@ describe('JobPostsService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('create', () => {
+    const recruiter = { id: 'recruiter-id', role: ActorType.RECRUITER } as AuthenticatedUser;
+    const dto = { title: 'Senior React Developer', description: 'Mô tả công việc.' };
+
+    it('lets a verified company create a draft without a business licence file on record', async () => {
+      prismaMock.recruiterAccount.findUnique.mockResolvedValue({
+        id: 'recruiter-id',
+        company: {
+          id: 'company-id',
+          verificationStatus: CompanyVerificationStatus.VERIFIED,
+          businessLicenseFileId: null,
+        },
+      });
+      prismaMock.jobPost.create.mockResolvedValue({ id: 'job-id' });
+
+      await expect(service.create(recruiter, dto)).resolves.toEqual({ id: 'job-id' });
+      expect(prismaMock.jobPost.create).toHaveBeenCalled();
+    });
+
+    it('still asks an unverified company for its business licence', async () => {
+      prismaMock.recruiterAccount.findUnique.mockResolvedValue({
+        id: 'recruiter-id',
+        company: {
+          id: 'company-id',
+          verificationStatus: CompanyVerificationStatus.UNVERIFIED,
+          businessLicenseFileId: null,
+        },
+      });
+
+      await expect(service.create(recruiter, dto)).rejects.toThrow(
+        'Company business license is required before creating job posts',
+      );
+      expect(prismaMock.jobPost.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getCompanyJobPosts', () => {
+    it('returns all non-deleted job posts in the recruiter company', async () => {
+      prismaMock.recruiterAccount.findUnique.mockResolvedValue({ companyId: 'company-id' });
+      prismaMock.jobPost.findMany.mockResolvedValue([]);
+
+      await service.getCompanyJobPosts('recruiter-id');
+
+      expect(prismaMock.jobPost.findMany).toHaveBeenCalledWith({
+        where: {
+          companyId: 'company-id',
+          deletedAt: null,
+          OR: [
+            { createdByRecruiterId: 'recruiter-id' },
+            {
+              accessRevocations: {
+                none: { recruiterAccountId: 'recruiter-id' },
+              },
+            },
+          ],
+        },
+        include: expect.objectContaining({
+          createdByRecruiter: expect.any(Object),
+        }),
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+
+    it('rejects a recruiter without a company', async () => {
+      prismaMock.recruiterAccount.findUnique.mockResolvedValue(null);
+
+      await expect(service.getCompanyJobPosts('recruiter-id')).rejects.toThrow(BadRequestException);
+      expect(prismaMock.jobPost.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('job-post member access', () => {
+    const manager: AuthenticatedUser = {
+      id: 'manager-id',
+      email: 'manager@example.com',
+      role: ActorType.RECRUITER,
+      companyId: 'company-id',
+      permissions: ['jobs:manage'],
+    };
+
+    it('marks a company member as revoked while keeping the job creator accessible', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({
+        id: 'job-id',
+        title: 'Backend Developer',
+        companyId: 'company-id',
+        createdByRecruiterId: 'creator-id',
+        accessRevocations: [],
+      });
+      prismaMock.companyMember.findMany.mockResolvedValue([
+        {
+          id: 'creator-member-id',
+          status: 'ACTIVE',
+          recruiterAccount: {
+            id: 'creator-id',
+            email: 'creator@example.com',
+            status: 'ACTIVE',
+            profile: { fullName: 'Creator', avatarUrl: null },
+          },
+          role: { id: 'role-1', code: 'OWNER', name: 'Owner' },
+        },
+        {
+          id: 'member-id',
+          status: 'ACTIVE',
+          recruiterAccount: {
+            id: 'member-account-id',
+            email: 'member@example.com',
+            status: 'ACTIVE',
+            profile: { fullName: 'Member', avatarUrl: null },
+          },
+          role: { id: 'role-2', code: 'HR', name: 'HR' },
+        },
+      ]);
+      prismaMock.jobPostAccessRevocation.findMany.mockResolvedValue([
+        { recruiterAccountId: 'member-account-id', revokedAt: new Date('2026-07-26') },
+      ]);
+
+      const result = await service.listJobPostAccessMembers('job-id', manager);
+
+      expect(result.members).toEqual([
+        expect.objectContaining({
+          recruiterAccountId: 'creator-id',
+          isJobCreator: true,
+          hasAccess: true,
+        }),
+        expect.objectContaining({
+          recruiterAccountId: 'member-account-id',
+          isJobCreator: false,
+          hasAccess: false,
+        }),
+      ]);
+    });
+
+    it('creates a revocation for a company member', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({
+        id: 'job-id',
+        title: 'Backend Developer',
+        companyId: 'company-id',
+        createdByRecruiterId: 'creator-id',
+        accessRevocations: [],
+      });
+      prismaMock.companyMember.findFirst.mockResolvedValue({
+        id: 'member-id',
+        recruiterAccountId: 'member-account-id',
+      });
+
+      await service.updateJobPostMemberAccess('job-id', 'member-account-id', false, manager);
+
+      expect(prismaMock.jobPostAccessRevocation.upsert).toHaveBeenCalledWith({
+        where: {
+          jobPostId_recruiterAccountId: {
+            jobPostId: 'job-id',
+            recruiterAccountId: 'member-account-id',
+          },
+        },
+        update: {
+          revokedByRecruiterId: 'manager-id',
+          revokedAt: expect.any(Date),
+        },
+        create: {
+          jobPostId: 'job-id',
+          recruiterAccountId: 'member-account-id',
+          revokedByRecruiterId: 'manager-id',
+        },
+      });
+    });
   });
 
   describe('approveJobPost', () => {
@@ -168,13 +355,119 @@ describe('JobPostsService', () => {
     });
   });
 
+  describe('findAll', () => {
+    it('only returns published AND approved job posts', async () => {
+      prismaMock.jobPost.findMany.mockResolvedValue([]);
+
+      await service.findAll();
+
+      expect(prismaMock.jobPost.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: 'PUBLISHED',
+            moderationStatus: ModerationStatus.APPROVED,
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('findOne', () => {
+    it('requires moderationStatus=APPROVED to return a job post', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue(null);
+
+      await expect(service.findOne('job-id')).rejects.toThrow(NotFoundException);
+      expect(prismaMock.jobPost.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: 'job-id',
+            status: 'PUBLISHED',
+            moderationStatus: ModerationStatus.APPROVED,
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('update', () => {
+    it('resets moderationStatus to PENDING when editing an already-reviewed job post', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({
+        id: 'job-id',
+        createdByRecruiterId: 'recruiter-id',
+        companyId: 'company-id',
+        status: 'PUBLISHED',
+        moderationStatus: ModerationStatus.APPROVED,
+      });
+      prismaMock.jobPost.update.mockResolvedValue({});
+
+      await service.update('job-id', 'recruiter-id', { title: 'New title' });
+
+      expect(prismaMock.jobPost.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: 'New title',
+            moderationStatus: ModerationStatus.PENDING,
+            reason: null,
+            moderationNote: null,
+          }),
+        }),
+      );
+    });
+
+    it('does not touch moderationStatus when the job post is still pending review', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({
+        id: 'job-id',
+        createdByRecruiterId: 'recruiter-id',
+        companyId: 'company-id',
+        status: 'DRAFT',
+        moderationStatus: ModerationStatus.PENDING,
+      });
+      prismaMock.jobPost.update.mockResolvedValue({});
+
+      await service.update('job-id', 'recruiter-id', { title: 'New title' });
+
+      const callData = prismaMock.jobPost.update.mock.calls[0][0].data;
+      expect(callData).not.toHaveProperty('moderationStatus');
+    });
+  });
+
+  describe('updateStatus', () => {
+    it('rejects publishing a job post that is neither DRAFT nor CLOSED', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({
+        id: 'job-id',
+        createdByRecruiterId: 'recruiter-id',
+        companyId: 'company-id',
+        status: 'PUBLISHED',
+        moderationStatus: ModerationStatus.APPROVED,
+      });
+
+      await expect(
+        service.updateStatus('job-id', 'recruiter-id', JobStatus.PUBLISHED),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects closing a job post that is not currently published', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({
+        id: 'job-id',
+        createdByRecruiterId: 'recruiter-id',
+        companyId: 'company-id',
+        status: 'DRAFT',
+        moderationStatus: ModerationStatus.PENDING,
+      });
+
+      await expect(
+        service.updateStatus('job-id', 'recruiter-id', JobStatus.CLOSED),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
   describe('updateVisibility', () => {
     it('should throw NotFoundException if job post does not exist', async () => {
       prismaMock.jobPost.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.updateVisibility('job-id', { isHidden: true }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.updateVisibility('job-id', { isHidden: true })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should successfully update job post visibility', async () => {

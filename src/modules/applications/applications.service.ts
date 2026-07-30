@@ -110,6 +110,9 @@ export class ApplicationsService {
     if (jobPost.status !== JobStatus.PUBLISHED) {
       throw new BadRequestException('Cannot apply to a job post that is not published');
     }
+    if (jobPost.expiredAt && jobPost.expiredAt < new Date()) {
+      throw new BadRequestException('Tin tuyển dụng đã hết hạn nộp hồ sơ');
+    }
 
     const cvVersion = await this.prisma.cVVersion.findUnique({
       where: { id: dto.cvVersionId },

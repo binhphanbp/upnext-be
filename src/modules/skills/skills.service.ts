@@ -1,5 +1,11 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { toComparableName } from '../../common/utils/comparable-name';
 import { CreateSkillDto, CreateSkillCategoryDto } from './dto/create-skill.dto';
 import { UpdateSkillDto } from './dto/update-skill.dto';
 
@@ -25,10 +31,21 @@ export class SkillsService {
   // ─── Skills ──────────────────────────────────────────────────────────────
 
   async create(dto: CreateSkillDto) {
-    const existing = await this.prisma.skill.findUnique({ where: { name: dto.name } });
-    if (existing) throw new ConflictException('Skill name already exists');
+    const name = dto.name.trim().replace(/\s+/g, ' ');
+    if (!name) throw new BadRequestException('Tên kỹ năng không được để trống');
+
+    // The unique index only catches an exact string match, which lets "ReactJS", "React JS" and
+    // "react js" all land in the catalog as separate skills. Compare on the normalised key instead.
+    const comparable = toComparableName(name);
+    const duplicate = (await this.prisma.skill.findMany({ select: { id: true, name: true } })).find(
+      (skill) => toComparableName(skill.name) === comparable,
+    );
+    if (duplicate) {
+      throw new ConflictException(`Kỹ năng "${duplicate.name}" đã có trong danh mục`);
+    }
+
     return this.prisma.skill.create({
-      data: dto,
+      data: { ...dto, name },
       include: { category: true },
     });
   }

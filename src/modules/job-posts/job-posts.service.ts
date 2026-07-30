@@ -4,7 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CompanyVerificationStatus, JobStatus, Prisma, ModerationStatus, ActorType } from '@prisma/client';
+import {
+  CompanyVerificationStatus,
+  JobStatus,
+  Prisma,
+  ModerationStatus,
+  ActorType,
+} from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateJobPostDto } from './dto/create-job-post.dto';
@@ -20,7 +26,6 @@ import { ListAdminJobPostsQueryDto } from './dto/list-admin-job-posts-query.dto'
 import { UpdateJobPostDto } from './dto/update-job-post.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { REPUTATION_CONFIG } from '../reputation/reputation.config';
-
 
 @Injectable()
 export class JobPostsService {
@@ -49,6 +54,7 @@ export class JobPostsService {
     return this.prisma.jobPost.findMany({
       where: {
         status: JobStatus.PUBLISHED,
+        moderationStatus: ModerationStatus.APPROVED,
         deletedAt: null,
         isHidden: false,
         OR: [{ expiredAt: null }, { expiredAt: { gte: new Date() } }],
@@ -63,6 +69,7 @@ export class JobPostsService {
       where: {
         id,
         status: JobStatus.PUBLISHED,
+        moderationStatus: ModerationStatus.APPROVED,
         deletedAt: null,
         isHidden: false,
       },
@@ -77,11 +84,22 @@ export class JobPostsService {
   }
 
   async update(id: string, recruiterId: string, updateJobPostDto: UpdateJobPostDto) {
-    await this.verifyJobOwner(id, recruiterId);
+    const job = await this.verifyJobOwner(id, recruiterId);
+
+    const needsReReview = job.moderationStatus !== ModerationStatus.PENDING;
 
     return this.prisma.jobPost.update({
       where: { id },
-      data: updateJobPostDto,
+      data: {
+        ...updateJobPostDto,
+        ...(needsReReview
+          ? {
+              moderationStatus: ModerationStatus.PENDING,
+              reason: null,
+              moderationNote: null,
+            }
+          : {}),
+      },
       include: this.ownerJobPostInclude(),
     });
   }
@@ -100,6 +118,20 @@ export class JobPostsService {
   async updateStatus(id: string, recruiterId: string, status: JobStatus) {
     const job = await this.verifyJobOwner(id, recruiterId);
 
+    if (
+      status === JobStatus.PUBLISHED &&
+      job.status !== JobStatus.DRAFT &&
+      job.status !== JobStatus.CLOSED
+    ) {
+      throw new BadRequestException(
+        'Chỉ có thể đăng hoặc mở lại tin từ trạng thái bản nháp hoặc đã đóng.',
+      );
+    }
+
+    if (status === JobStatus.CLOSED && job.status !== JobStatus.PUBLISHED) {
+      throw new BadRequestException('Chỉ có thể đóng tin đang ở trạng thái đã đăng.');
+    }
+
     if (status === JobStatus.PUBLISHED) {
       await this.ensureCompanyCanPublish(job.companyId);
     }
@@ -116,12 +148,159 @@ export class JobPostsService {
     });
   }
 
-  async getMyJobPosts(recruiterId: string) {
+  async getCompanyJobPosts(recruiterId: string) {
+    const account = await this.prisma.recruiterAccount.findUnique({
+      where: { id: recruiterId },
+      select: { companyId: true },
+    });
+    if (!account?.companyId) {
+      throw new BadRequestException('Recruiter account has not been attached to a company');
+    }
+
     return this.prisma.jobPost.findMany({
-      where: { createdByRecruiterId: recruiterId },
+      where: {
+        companyId: account.companyId,
+        deletedAt: null,
+        OR: [
+          { createdByRecruiterId: recruiterId },
+          {
+            accessRevocations: {
+              none: { recruiterAccountId: recruiterId },
+            },
+          },
+        ],
+      },
       include: this.ownerJobPostInclude(),
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async listJobPostAccessMembers(jobId: string, user: AuthenticatedUser) {
+    const job = await this.verifyCanManageJobAccess(jobId, user);
+    const [members, revocations] = await Promise.all([
+      this.prisma.companyMember.findMany({
+        where: {
+          companyId: job.companyId,
+          recruiterAccountId: { not: null },
+        },
+        include: {
+          recruiterAccount: {
+            select: {
+              id: true,
+              email: true,
+              status: true,
+              profile: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+          role: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { joinedAt: 'asc' },
+      }),
+      this.prisma.jobPostAccessRevocation.findMany({
+        where: { jobPostId: jobId },
+        select: { recruiterAccountId: true, revokedAt: true },
+      }),
+    ]);
+    const revocationByRecruiterId = new Map(
+      revocations.map((revocation) => [revocation.recruiterAccountId, revocation.revokedAt]),
+    );
+
+    return {
+      jobPost: {
+        id: job.id,
+        title: job.title,
+        createdByRecruiterId: job.createdByRecruiterId,
+      },
+      members: members.flatMap((member) => {
+        const account = member.recruiterAccount;
+        if (!account) return [];
+
+        const isJobCreator = account.id === job.createdByRecruiterId;
+        const revokedAt = revocationByRecruiterId.get(account.id) ?? null;
+        return [
+          {
+            companyMemberId: member.id,
+            recruiterAccountId: account.id,
+            email: account.email,
+            fullName: account.profile?.fullName ?? account.email,
+            avatarUrl: account.profile?.avatarUrl ?? null,
+            role: member.role,
+            memberStatus: member.status,
+            accountStatus: account.status,
+            isJobCreator,
+            hasAccess: isJobCreator || revokedAt === null,
+            revokedAt: isJobCreator ? null : revokedAt,
+          },
+        ];
+      }),
+    };
+  }
+
+  async updateJobPostMemberAccess(
+    jobId: string,
+    recruiterAccountId: string,
+    hasAccess: boolean,
+    user: AuthenticatedUser,
+  ) {
+    const job = await this.verifyCanManageJobAccess(jobId, user);
+    const targetMember = await this.prisma.companyMember.findFirst({
+      where: {
+        companyId: job.companyId,
+        recruiterAccountId,
+      },
+      select: {
+        id: true,
+        recruiterAccountId: true,
+      },
+    });
+
+    if (!targetMember?.recruiterAccountId) {
+      throw new NotFoundException('Không tìm thấy thành viên trong công ty.');
+    }
+    if (recruiterAccountId === job.createdByRecruiterId && !hasAccess) {
+      throw new BadRequestException('Không thể thu hồi quyền của người tạo tin tuyển dụng.');
+    }
+    if (recruiterAccountId === user.id && !hasAccess) {
+      throw new BadRequestException('Bạn không thể tự thu hồi quyền truy cập của mình.');
+    }
+
+    if (hasAccess) {
+      await this.prisma.jobPostAccessRevocation.deleteMany({
+        where: { jobPostId: jobId, recruiterAccountId },
+      });
+    } else {
+      await this.prisma.jobPostAccessRevocation.upsert({
+        where: {
+          jobPostId_recruiterAccountId: {
+            jobPostId: jobId,
+            recruiterAccountId,
+          },
+        },
+        update: {
+          revokedByRecruiterId: user.id,
+          revokedAt: new Date(),
+        },
+        create: {
+          jobPostId: jobId,
+          recruiterAccountId,
+          revokedByRecruiterId: user.id,
+        },
+      });
+    }
+
+    return { recruiterAccountId, hasAccess };
   }
 
   async findAllForAdmin(query: ListAdminJobPostsQueryDto) {
@@ -290,7 +469,6 @@ export class JobPostsService {
     };
   }
 
-
   async addSkillToJob(jobId: string, recruiterId: string, dto: AddSkillToJobDto) {
     await this.verifyJobOwner(jobId, recruiterId);
     return this.prisma.jobPostSkill.create({
@@ -357,6 +535,39 @@ export class JobPostsService {
     });
   }
 
+  async setJobSkills(jobId: string, recruiterId: string, skillIds: string[]) {
+    await this.verifyJobOwner(jobId, recruiterId);
+    await this.prisma.$transaction([
+      this.prisma.jobPostSkill.deleteMany({ where: { jobPostId: jobId } }),
+      this.prisma.jobPostSkill.createMany({
+        data: skillIds.map((skillId) => ({ jobPostId: jobId, skillId })),
+        skipDuplicates: true,
+      }),
+    ]);
+  }
+
+  async setJobLocations(jobId: string, recruiterId: string, jobLocationIds: string[]) {
+    await this.verifyJobOwner(jobId, recruiterId);
+    await this.prisma.$transaction([
+      this.prisma.jobPostLocation.deleteMany({ where: { jobPostId: jobId } }),
+      this.prisma.jobPostLocation.createMany({
+        data: jobLocationIds.map((jobLocationId) => ({ jobPostId: jobId, jobLocationId })),
+        skipDuplicates: true,
+      }),
+    ]);
+  }
+
+  async setJobSpecializations(jobId: string, recruiterId: string, specializationIds: string[]) {
+    await this.verifyJobOwner(jobId, recruiterId);
+    await this.prisma.$transaction([
+      this.prisma.jobPostSpecialization.deleteMany({ where: { jobPostId: jobId } }),
+      this.prisma.jobPostSpecialization.createMany({
+        data: specializationIds.map((specializationId) => ({ jobPostId: jobId, specializationId })),
+        skipDuplicates: true,
+      }),
+    ]);
+  }
+
   async recordView(
     jobId: string,
     ipAddress?: string,
@@ -403,6 +614,8 @@ export class JobPostsService {
         id: true,
         createdByRecruiterId: true,
         companyId: true,
+        status: true,
+        moderationStatus: true,
       },
     });
 
@@ -412,6 +625,38 @@ export class JobPostsService {
 
     if (job.createdByRecruiterId !== recruiterId) {
       throw new ForbiddenException('You are not allowed to modify this job post');
+    }
+
+    return job;
+  }
+
+  private async verifyCanManageJobAccess(jobId: string, user: AuthenticatedUser) {
+    const job = await this.prisma.jobPost.findFirst({
+      where: { id: jobId, deletedAt: null },
+      select: {
+        id: true,
+        title: true,
+        companyId: true,
+        createdByRecruiterId: true,
+        accessRevocations: {
+          where: { recruiterAccountId: user.id },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Job post not found');
+    }
+    if (job.companyId !== user.companyId) {
+      throw new ForbiddenException('Bạn không có quyền quản lý truy cập của tin tuyển dụng này.');
+    }
+
+    const isJobCreator = job.createdByRecruiterId === user.id;
+    const canManageJobs = user.permissions.includes('jobs:manage');
+    if (!isJobCreator && (!canManageJobs || job.accessRevocations.length > 0)) {
+      throw new ForbiddenException('Bạn không có quyền quản lý truy cập của tin tuyển dụng này.');
     }
 
     return job;
@@ -436,7 +681,13 @@ export class JobPostsService {
       throw new BadRequestException('Recruiter account has not been attached to a company');
     }
 
-    if (!account.company.businessLicenseFileId) {
+    // A verified company has already been through review, so the licence file is not what proves
+    // it: companies verified by tax code carry no file and were being locked out of creating a
+    // draft at all. Keep the file requirement for companies that have not been verified yet.
+    if (
+      !account.company.businessLicenseFileId &&
+      account.company.verificationStatus !== CompanyVerificationStatus.VERIFIED
+    ) {
       throw new BadRequestException(
         'Company business license is required before creating job posts',
       );
@@ -450,18 +701,13 @@ export class JobPostsService {
       where: { id: companyId },
       select: {
         verificationStatus: true,
-        businessLicenseFileId: true,
         reputationScore: true,
       },
     });
 
-    if (!company?.businessLicenseFileId) {
-      throw new BadRequestException(
-        'Company business license is required before publishing job posts',
-      );
-    }
-
-    if (company.verificationStatus !== CompanyVerificationStatus.VERIFIED) {
+    if (company?.verificationStatus !== CompanyVerificationStatus.VERIFIED) {
+      // Verification is the gate here. Reporting the missing licence first told a company that was
+      // simply not verified yet to go upload a file, which is not what unblocks it.
       throw new ForbiddenException('Company must be verified before publishing job posts');
     }
 
@@ -548,6 +794,18 @@ export class JobPostsService {
       jobPostSkills: { include: { skill: true } },
       jobPostLocations: { include: { jobLocation: true } },
       jobPostSpecializations: { include: { specialization: true } },
+      createdByRecruiter: {
+        select: {
+          id: true,
+          email: true,
+          profile: {
+            select: {
+              id: true,
+              fullName: true,
+            },
+          },
+        },
+      },
       _count: {
         select: {
           applications: true,
