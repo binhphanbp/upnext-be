@@ -34,6 +34,7 @@ import { ApplicationsService } from './applications.service';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { AssignApplicationDto, UnassignApplicationDto } from './dto/assign-application.dto';
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
+import { UpdateApplicationCvDto } from './dto/update-application-cv.dto';
 import { ApplicationAssignmentService } from './application-assignment.service';
 import { ApplicationEntity, CheckAppliedJobResponse } from './entities/application.entity';
 
@@ -81,6 +82,30 @@ export class ApplicationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.applicationsService.withdrawApplication(user.id, id);
+  }
+
+  @Patch('applications/:id/cv')
+  @ApiOperation({ summary: 'Cập nhật CV cho hồ sơ ứng tuyển' })
+  @ApiParam({ name: 'id', description: 'UUID của hồ sơ ứng tuyển' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.CANDIDATE)
+  @ApiOkResponse({
+    type: ApplicationEntity,
+    description: 'CV của hồ sơ ứng tuyển được cập nhật thành công.',
+  })
+  @ApiBadRequestResponse({ description: 'CV không thuộc về ứng viên.' })
+  @ApiForbiddenResponse({ description: 'Ứng viên không sở hữu hồ sơ ứng tuyển này.' })
+  @ApiNotFoundResponse({
+    description: 'Không tìm thấy hồ sơ ứng tuyển, hồ sơ ứng viên hoặc bản CV.',
+  })
+  @ApiConflictResponse({ description: 'Không thể đổi CV khi hồ sơ đã được xem hoặc xử lý.' })
+  updateCv(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateApplicationCvDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.applicationsService.updateCv(user.id, id, dto);
   }
 
   @Get('applications/me')

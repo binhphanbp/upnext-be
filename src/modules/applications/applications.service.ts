@@ -14,6 +14,7 @@ import { OutboxService } from '../outbox/outbox.service';
 import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
 import { ApplicationTransitionPolicy } from './application-transition.policy';
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
+import { UpdateApplicationCvDto } from './dto/update-application-cv.dto';
 import { CV_SCORING_RUBRIC } from '../cv-screening/scoring-rubric';
 
 const PIPELINE_SCORE_FIELD_BY_RUBRIC_KEY: Record<string, string> = {
@@ -247,6 +248,55 @@ export class ApplicationsService {
 
       return updatedApp;
     });
+  }
+
+  async updateCv(candidateAccountId: string, id: string, dto: UpdateApplicationCvDto) {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { candidateAccountId },
+    });
+    if (!profile) {
+      throw new NotFoundException('Candidate profile not found');
+    }
+
+    const application = await this.prisma.application.findUnique({
+      where: { id },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+    if (application.candidateProfileId !== profile.id) {
+      throw new ForbiddenException('You do not own this application');
+    }
+    if (application.status !== ApplicationStatus.SUBMITTED) {
+      throw new ConflictException({
+        code: 'APPLICATION_CV_LOCKED',
+        message: 'CV can only be changed while the application has not been viewed yet',
+      });
+    }
+
+    const cvVersion = await this.prisma.cVVersion.findUnique({
+      where: { id: dto.cvVersionId },
+      include: { cv: true },
+    });
+    if (!cvVersion) {
+      throw new NotFoundException('CV version not found');
+    }
+    if (cvVersion.cv.candidateProfileId !== profile.id) {
+      throw new BadRequestException('CV version does not belong to the candidate');
+    }
+
+    const changed = await this.prisma.application.updateMany({
+      where: { id, status: ApplicationStatus.SUBMITTED },
+      data: { cvVersionId: dto.cvVersionId, version: { increment: 1 } },
+    });
+    if (changed.count !== 1) {
+      throw new ConflictException({
+        code: 'APPLICATION_CV_LOCKED',
+        message: 'Application changed; reload and retry',
+      });
+    }
+
+    return this.prisma.application.findUniqueOrThrow({ where: { id } });
   }
 
   async findOne(id: string, candidateAccountId?: string, recruiterId?: string) {
