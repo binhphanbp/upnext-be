@@ -130,7 +130,27 @@ function normalizeLogoDevCompanySeed(rawData: any) {
     const companyId = uuidFromSeed(`logo-dev-company:${item.slug}`);
     const logoFileId = uuidFromSeed(`logo-dev-logo:${item.slug}`);
     const coverFileId = uuidFromSeed(`logo-dev-cover:${item.slug}`);
-    const coverUrl = Array.isArray(item.environmentImages) ? item.environmentImages[0] : null;
+    const environmentImages = Array.isArray(item.environmentImages)
+      ? item.environmentImages.filter(
+          (imageUrl: unknown): imageUrl is string =>
+            typeof imageUrl === 'string' && imageUrl.trim().length > 0,
+        )
+      : [];
+    const coverUrl = environmentImages[0] ?? null;
+    const photoAssets = environmentImages.map((imageUrl: string, index: number) => ({
+      id: uuidFromSeed(`logo-dev-photo:${item.slug}:${index + 1}`),
+      ownerType: 'company_photo',
+      ownerId: companyId,
+      purpose: 'OTHER',
+      visibility: 'PUBLIC',
+      storageKey: `upnext/seed/company-workplaces/${item.slug}/workplace-${index + 1}`,
+      originalName: `${item.slug}-workplace-${index + 1}.jpg`,
+      mimeType: 'image/jpeg',
+      sizeBytes: '0',
+      publicUrl: imageUrl,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    }));
 
     return [
       {
@@ -163,6 +183,7 @@ function normalizeLogoDevCompanySeed(rawData: any) {
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       },
+      ...photoAssets,
     ];
   });
 
@@ -4179,13 +4200,13 @@ async function main() {
       benefits: job.benefits,
       workingDays: job.workingDays,
       educationLevel: job.educationLevel as EducationLevel,
-      salaryMin: new Prisma.Decimal(job.salaryMin),
-      salaryMax: new Prisma.Decimal(job.salaryMax),
+      salaryMin: job.salaryMin != null ? new Prisma.Decimal(job.salaryMin) : null,
+      salaryMax: job.salaryMax != null ? new Prisma.Decimal(job.salaryMax) : null,
       salaryCurrency: job.salaryCurrency,
       salaryPeriod: job.salaryPeriod as SalaryPeriod,
       salaryIsNegotiable: job.salaryIsNegotiable,
       salaryIsVisible: job.salaryIsVisible,
-      vacanciesCount: job.vacanciesCount,
+      vacanciesCount: job.vacanciesCount ?? job.numberOfRecruits ?? 3,
       status: job.status as JobStatus,
       moderationStatus: job.moderationStatus as ModerationStatus,
       moderationNote: job.moderationNote,
@@ -6278,8 +6299,8 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
           benefits: jobDef.benefits,
           workingDays: 'Thứ 2 - Thứ 6',
           educationLevel: 'BACHELOR',
-          salaryMin: new Prisma.Decimal(jobDef.salaryMin),
-          salaryMax: new Prisma.Decimal(jobDef.salaryMax),
+          salaryMin: jobDef.salaryMin != null ? new Prisma.Decimal(jobDef.salaryMin) : null,
+          salaryMax: jobDef.salaryMax != null ? new Prisma.Decimal(jobDef.salaryMax) : null,
           salaryCurrency: 'VND',
           salaryPeriod: 'MONTH',
           salaryIsNegotiable: true,
@@ -6571,6 +6592,157 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
     `[SEED] Successfully created ${applicationSuccessCount} applications across ${createdJobs.length} jobs.`,
   );
   console.log(`[SEED] Successfully created ${interviewCreatedCount} mock interviews.`);
+
+  await seedCompanyCovers(prisma);
+}
+
+async function seedCompanyCovers(prisma: PrismaClient) {
+  const domainCovers: Record<string, string> = {
+    momo: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=1600&auto=format&fit=crop&q=85',
+    zalopay: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=1600&auto=format&fit=crop&q=85',
+    vnpay: 'https://images.unsplash.com/photo-1556742049-0a67daf4005a?w=1600&auto=format&fit=crop&q=85',
+    vietcombank: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1600&auto=format&fit=crop&q=85',
+    techcombank: 'https://images.unsplash.com/photo-1541354329998-f4d9a9f9297f?w=1600&auto=format&fit=crop&q=85',
+    'mb-bank': 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=1600&auto=format&fit=crop&q=85',
+    vpbank: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1600&auto=format&fit=crop&q=85',
+    acb: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=1600&auto=format&fit=crop&q=85',
+    bidv: 'https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?w=1600&auto=format&fit=crop&q=85',
+    agribank: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1600&auto=format&fit=crop&q=85',
+    hdbank: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&auto=format&fit=crop&q=85',
+    sacombank: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=1600&auto=format&fit=crop&q=85',
+    tpbank: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=1600&auto=format&fit=crop&q=85',
+    vib: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1600&auto=format&fit=crop&q=85',
+    vietinbank: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1600&auto=format&fit=crop&q=85',
+    msb: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=1600&auto=format&fit=crop&q=85',
+    ocb: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=1600&auto=format&fit=crop&q=85',
+    'fpt-software': 'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=1600&auto=format&fit=crop&q=85',
+    'fpt-corporation': 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=1600&auto=format&fit=crop&q=85',
+    'fpt-is': 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1600&auto=format&fit=crop&q=85',
+    'vng-corporation': 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1600&auto=format&fit=crop&q=85',
+    rikkeisoft: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1600&auto=format&fit=crop&q=85',
+    'cmc-global': 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1600&auto=format&fit=crop&q=85',
+    'cmc-corporation': 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1600&auto=format&fit=crop&q=85',
+    'nashtech-vietnam': 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=1600&auto=format&fit=crop&q=85',
+    'axon-active-vietnam': 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=1600&auto=format&fit=crop&q=85',
+    'dek-technologies-vietnam': 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=1600&auto=format&fit=crop&q=85',
+    'kms-technology-vietnam': 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=1600&auto=format&fit=crop&q=85',
+    'luvina-software': 'https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?w=1600&auto=format&fit=crop&q=85',
+    smartosc: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=1600&auto=format&fit=crop&q=85',
+    'tma-solutions': 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=1600&auto=format&fit=crop&q=85',
+    'ntq-solution': 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1600&auto=format&fit=crop&q=85',
+    vti: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1600&auto=format&fit=crop&q=85',
+    'bosch-global-software-technologies-vietnam': 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=85',
+    'viettel-group': 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1600&auto=format&fit=crop&q=85',
+    'viettel-cyber-security': 'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=1600&auto=format&fit=crop&q=85',
+    'viettel-idc': 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1600&auto=format&fit=crop&q=85',
+    'fpt-telecom': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1600&auto=format&fit=crop&q=85',
+    vnpt: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1600&auto=format&fit=crop&q=85',
+    'vnpt-technology': 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&auto=format&fit=crop&q=85',
+    netnam: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1600&auto=format&fit=crop&q=85',
+    'shopee-vietnam': 'https://images.unsplash.com/photo-1556740758-90de374c12ad?w=1600&auto=format&fit=crop&q=85',
+    'tiki-group': 'https://images.unsplash.com/photo-1556740738-b6a63e27c4df?w=1600&auto=format&fit=crop&q=85',
+    'sendo-technology': 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1600&auto=format&fit=crop&q=85',
+    'grab-vietnam': 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=1600&auto=format&fit=crop&q=85',
+    'be-group': 'https://images.unsplash.com/photo-1508873696983-2df515122519?w=1600&auto=format&fit=crop&q=85',
+    haravan: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1600&auto=format&fit=crop&q=85',
+    kiotviet: 'https://images.unsplash.com/photo-1556742044-3c52d6e88c62?w=1600&auto=format&fit=crop&q=85',
+    'base-vn': 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=1600&auto=format&fit=crop&q=85',
+    misa: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1600&auto=format&fit=crop&q=85',
+    sapo: 'https://images.unsplash.com/photo-1556740749-887f6717d7e4?w=1600&auto=format&fit=crop&q=85',
+    'topcv-vietnam': 'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1600&auto=format&fit=crop&q=85',
+    'one-mount-group': 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&auto=format&fit=crop&q=85',
+    vccorp: 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1600&auto=format&fit=crop&q=85',
+    'elsa-speak-vietnam': 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1600&auto=format&fit=crop&q=85',
+    vnvc: 'https://images.unsplash.com/photo-1631815588090-d4bfec5b1cdb?w=1600&auto=format&fit=crop&q=85',
+    pharmacity: 'https://images.unsplash.com/photo-1586015555751-63bb77f4322a?w=1600&auto=format&fit=crop&q=85',
+    'dhg-pharma': 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1600&auto=format&fit=crop&q=85',
+    imexpharm: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=1600&auto=format&fit=crop&q=85',
+    traphaco: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=1600&auto=format&fit=crop&q=85',
+    'vietnam-airlines': 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1600&auto=format&fit=crop&q=85',
+    'vietjet-air': 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1600&auto=format&fit=crop&q=85',
+    'bamboo-airways': 'https://images.unsplash.com/photo-1506015391300-4802dc74de2e?w=1600&auto=format&fit=crop&q=85',
+    'airports-corporation-of-vietnam': 'https://images.unsplash.com/photo-1517059224940-d4af9eec41b7?w=1600&auto=format&fit=crop&q=85',
+    'vietnam-post': 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=1600&auto=format&fit=crop&q=85',
+    'viettel-post': 'https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?w=1600&auto=format&fit=crop&q=85',
+    vietravel: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1600&auto=format&fit=crop&q=85',
+    vinfast: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=1600&auto=format&fit=crop&q=85',
+    vingroup: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1600&auto=format&fit=crop&q=85',
+    'vincom-retail': 'https://images.unsplash.com/photo-1567449303078-57ad995bd301?w=1600&auto=format&fit=crop&q=85',
+    evn: 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=1600&auto=format&fit=crop&q=85',
+    'pv-gas': 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1600&auto=format&fit=crop&q=85',
+    'pv-power': 'https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=1600&auto=format&fit=crop&q=85',
+    petrolimex: 'https://images.unsplash.com/photo-1545261380-72e50587d609?w=1600&auto=format&fit=crop&q=85',
+    'binh-son-refining-and-petrochemical': 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1600&auto=format&fit=crop&q=85',
+    'ree-corporation': 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&auto=format&fit=crop&q=85',
+    'mobile-world-investment': 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1600&auto=format&fit=crop&q=85',
+    'fpt-retail': 'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=1600&auto=format&fit=crop&q=85',
+    pnj: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=1600&auto=format&fit=crop&q=85',
+    digiworld: 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=1600&auto=format&fit=crop&q=85',
+    vinamilk: 'https://images.unsplash.com/photo-1527153857715-3908f2bae5e8?w=1600&auto=format&fit=crop&q=85',
+    'masan-group': 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=1600&auto=format&fit=crop&q=85',
+    'masan-consumer': 'https://images.unsplash.com/photo-1607344645866-009c320c5ab8?w=1600&auto=format&fit=crop&q=85',
+    sabeco: 'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=1600&auto=format&fit=crop&q=85',
+    'the-pan-group': 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=1600&auto=format&fit=crop&q=85',
+    'dabaco-group': 'https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=1600&auto=format&fit=crop&q=85',
+    vissan: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=1600&auto=format&fit=crop&q=85',
+    'hoa-phat-group': 'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?w=1600&auto=format&fit=crop&q=85',
+    'hoa-sen-group': 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1600&auto=format&fit=crop&q=85',
+    'vietnam-rubber-group': 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=1600&auto=format&fit=crop&q=85',
+    'highlands-coffee': 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1600&auto=format&fit=crop&q=85',
+    'phuc-long-heritage': 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=1600&auto=format&fit=crop&q=85',
+    'trung-nguyen-group': 'https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=1600&auto=format&fit=crop&q=85',
+    'golden-gate-group': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1600&auto=format&fit=crop&q=85',
+    coteccons: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1600&auto=format&fit=crop&q=85',
+    'hoa-binh-construction-group': 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=1600&auto=format&fit=crop&q=85',
+    'novaland-group': 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1600&auto=format&fit=crop&q=85',
+    'khang-dien-house': 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1600&auto=format&fit=crop&q=85',
+    'nam-long-group': 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1600&auto=format&fit=crop&q=85',
+    'becamex-idc': 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1600&auto=format&fit=crop&q=85',
+  };
+
+  const defaultFallbackCover = 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&auto=format&fit=crop&q=85';
+  const companies = await prisma.company.findMany({
+    select: { id: true, slug: true },
+  });
+
+  const now = new Date();
+  for (const company of companies) {
+    const coverUrl = domainCovers[company.slug] || defaultFallbackCover;
+    const fileId = createHash('md5').update(`company-cover:${company.slug}`).digest('hex');
+    const formattedId = `${fileId.slice(0, 8)}-${fileId.slice(8, 12)}-${fileId.slice(12, 16)}-${fileId.slice(16, 20)}-${fileId.slice(20, 32)}`;
+
+    await prisma.fileAsset.upsert({
+      where: { id: formattedId },
+      update: {
+        ownerType: 'company_cover',
+        ownerId: company.id,
+        purpose: FilePurpose.OTHER,
+        visibility: FileVisibility.PUBLIC,
+        storageKey: `upnext/seed/company-covers/${company.slug}`,
+        originalName: `${company.slug}-cover.jpg`,
+        mimeType: 'image/jpeg',
+        sizeBytes: BigInt(0),
+        publicUrl: coverUrl,
+        updatedAt: now,
+      },
+      create: {
+        id: formattedId,
+        ownerType: 'company_cover',
+        ownerId: company.id,
+        purpose: FilePurpose.OTHER,
+        visibility: FileVisibility.PUBLIC,
+        storageKey: `upnext/seed/company-covers/${company.slug}`,
+        originalName: `${company.slug}-cover.jpg`,
+        mimeType: 'image/jpeg',
+        sizeBytes: BigInt(0),
+        publicUrl: coverUrl,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  }
+
+  console.log(`[SEED] Successfully seeded domain-specific cover photos for all ${companies.length} companies.`);
 }
 
 main()

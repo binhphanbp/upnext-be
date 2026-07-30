@@ -49,6 +49,22 @@ export type HomeLatestJobCard = {
   postedAtText?: string;
 };
 
+export type HomePostCard = {
+  id: string;
+  title: string;
+  slug: string;
+  type: string;
+  thumbnailUrl?: string;
+  coverImageUrl?: string;
+  metaDescription?: string;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  createdAt: string;
+};
+
 export type HomeData = {
   stats: {
     jobsCount: number;
@@ -101,6 +117,7 @@ export type HomeData = {
     name: string;
     logo: string;
   }>;
+  latestPosts: HomePostCard[];
 };
 
 export type HomeJobsSectionTab = {

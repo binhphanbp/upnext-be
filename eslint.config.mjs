@@ -13,6 +13,8 @@ export default tseslint.config(
       'eslint.config.mjs',
       'prettier.config.cjs',
       'prisma/**',
+      '*.js',
+      '*.html',
     ],
   },
   js.configs.recommended,

@@ -1512,6 +1512,7 @@ model Post {
   metaTitle        String?    @map("meta_title") @db.VarChar(255)
   metaDescription  String?    @map("meta_description") @db.Text
   metaKeywords     String?    @map("meta_keywords") @db.VarChar(500)
+  viewCount        Int        @default(0) @map("view_count")
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
 
