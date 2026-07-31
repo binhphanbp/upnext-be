@@ -3,12 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { NotificationsService } from '../notifications/notifications.service';
 import { JobPostsService } from './job-posts.service';
-import {
-  ActorType,
-  CompanyVerificationStatus,
-  JobStatus,
-  ModerationStatus,
-} from '@prisma/client';
+import { ActorType, CompanyVerificationStatus, JobStatus, ModerationStatus } from '@prisma/client';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 describe('JobPostsService', () => {
@@ -369,6 +364,37 @@ describe('JobPostsService', () => {
           }),
         }),
       );
+    });
+
+    it('adds keyword and city constraints for personalized public search', async () => {
+      prismaMock.jobPost.findMany.mockResolvedValue([]);
+
+      await service.findAll({ keyword: 'React', location: 'TP. Hồ Chí Minh' });
+
+      const where = prismaMock.jobPost.findMany.mock.calls[0][0].where;
+      expect(where.AND).toEqual([
+        expect.objectContaining({
+          OR: expect.arrayContaining([
+            { title: { contains: 'React', mode: 'insensitive' } },
+            { description: { contains: 'React', mode: 'insensitive' } },
+          ]),
+        }),
+      ]);
+      expect(where.jobPostLocations.some.jobLocation.OR).toEqual(
+        expect.arrayContaining([
+          { city: { contains: 'Hồ Chí Minh', mode: 'insensitive' } },
+          { city: { contains: 'TP. Hồ Chí Minh', mode: 'insensitive' } },
+        ]),
+      );
+    });
+
+    it('does not add an automatic location constraint for all locations', async () => {
+      prismaMock.jobPost.findMany.mockResolvedValue([]);
+
+      await service.findAll({ location: 'Tất cả địa điểm' });
+
+      const where = prismaMock.jobPost.findMany.mock.calls[0][0].where;
+      expect(where).not.toHaveProperty('jobPostLocations');
     });
   });
 

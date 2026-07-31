@@ -23,6 +23,12 @@ export class UpdateCandidateProfileDto {
   @MaxLength(255)
   address?: string;
 
+  @ApiPropertyOptional({ example: 'Thành phố Hồ Chí Minh', maxLength: 100, nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  preferredSearchCity?: string | null;
+
   @ApiPropertyOptional({ example: '2000-01-01' })
   @IsOptional()
   @IsDateString()

@@ -51,6 +51,7 @@ import {
 import { ListAdminJobPostsQueryDto } from "./dto/list-admin-job-posts-query.dto";
 import { UpdateJobPostDto } from "./dto/update-job-post.dto";
 import { UpdateJobPostMemberAccessDto } from "./dto/update-job-post-member-access.dto";
+import { PublicJobPostQueryDto } from "./dto/public-job-post-query.dto";
 import { JobPostsService } from "./job-posts.service";
 
 @ApiTags("Job - Posts")
@@ -82,8 +83,8 @@ export class JobPostsController {
   })
   @ApiOkResponse({ description: "Lấy danh sách tin tuyển dụng thành công." })
   @Get()
-  findAll() {
-    return this.jobPostsService.findAll();
+  findAll(@Query() query: PublicJobPostQueryDto) {
+    return this.jobPostsService.findAll(query);
   }
 
   @ApiOperation({
