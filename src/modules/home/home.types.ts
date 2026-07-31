@@ -28,6 +28,10 @@ export type HomeJobCard = {
     avatar?: string;
   };
   deadline: string | null;
+  publishedAt?: string | null;
+  daysRemaining?: number | null;
+  urgencyTone?: 'URGENT' | 'WARNING' | 'NORMAL' | null;
+  badges?: Array<'NEW' | 'REMOTE'>;
   createdAt: string;
 };
 
@@ -47,6 +51,7 @@ export type HomeLatestJobCard = {
   positionName?: string;
   createdAt: string;
   postedAtText?: string;
+  publishedAt?: string | null;
 };
 
 export type HomePostCard = {
@@ -70,12 +75,16 @@ export type HomeData = {
     jobsCount: number;
     companiesCount: number;
     candidatesCount: number;
+    openJobsCount: number;
+    activeEmployersCount: number;
+    newJobs7dCount: number;
   };
   jobsSection: {
     all: HomeJobsSectionTab;
     remote: HomeJobsSectionTab;
     partTime: HomeJobsSectionTab;
     latest: HomeJobsSectionTab;
+    expiring: HomeJobsSectionTab;
   };
   topCompanies: Array<{
     id: string;
@@ -86,6 +95,7 @@ export type HomeData = {
     shortDescription: string;
     activeJobsCount: number;
     applicationsCount: number;
+    latestPublishedAt?: string | null;
   }>;
   marketInsight: {
     summary: {
@@ -94,6 +104,10 @@ export type HomeData = {
       newJobsCount: number;
       activeJobsCount: number;
       hiringCompaniesCount: number;
+      openJobsCount: number;
+      activeEmployersCount: number;
+      newJobs7dCount: number;
+      newJobs24hCount: number;
     };
     jobGrowthLineChart: {
       from: string;
@@ -118,6 +132,41 @@ export type HomeData = {
     logo: string;
   }>;
   latestPosts: HomePostCard[];
+  personalization?: HomePersonalization;
+  actions?: HomeAction[];
+  recommendations?: HomeRecommendationSection;
+};
+
+export type HomePersonalization = {
+  state: 'GUEST' | 'INSUFFICIENT' | 'ELIGIBLE' | 'NOT_LOOKING';
+  signalGroups: string[];
+  missingSignals: string[];
+};
+
+export type HomeRecommendation = {
+  job: HomeJobCard;
+  score: number;
+  reasonCodes: string[];
+  matchedSkills: string[];
+};
+
+export type HomeRecommendationSection = {
+  title: 'RECOMMENDED' | 'LATEST';
+  items: HomeRecommendation[];
+};
+
+export type HomeAction = {
+  type:
+    | 'APPLICATION_UPDATED'
+    | 'SAVED_JOB_EXPIRING'
+    | 'FOLLOWED_COMPANY_NEW_JOB'
+    | 'MISSING_CV'
+    | 'MISSING_PREFERENCES';
+  jobId?: string;
+  applicationId?: string;
+  companyId?: string;
+  status?: string;
+  expiresAt?: string | null;
 };
 
 export type HomeJobsSectionTab = {

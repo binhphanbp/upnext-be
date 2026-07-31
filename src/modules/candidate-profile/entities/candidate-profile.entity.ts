@@ -67,6 +67,9 @@ export class CandidateProfile {
   @ApiPropertyOptional({ example: 'Ho Chi Minh City, Vietnam', nullable: true })
   address: string | null;
 
+  @ApiPropertyOptional({ example: 'Thành phố Hồ Chí Minh', nullable: true })
+  preferredSearchCity: string | null;
+
   @ApiPropertyOptional({ example: '2000-01-01T00:00:00.000Z', nullable: true })
   birthdate: Date | null;
 

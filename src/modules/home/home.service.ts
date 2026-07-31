@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  ApplicationStatus,
   CompanyStatus,
-  CompanyVerificationStatus,
   JobStatus,
+  JobSearchStatus,
+  ModerationStatus,
   PostStatus,
   Prisma,
   WorkingModel,
@@ -16,6 +18,10 @@ import {
   HomeJobsSectionTab,
   HomeLatestJobCard,
   HomePostCard,
+  HomeAction,
+  HomePersonalization,
+  HomeRecommendation,
+  HomeRecommendationSection,
 } from './home.types';
 
 const SALARY_BUCKETS = [
@@ -29,15 +35,20 @@ const SALARY_BUCKETS = [
 type FeaturedJobRecord = Prisma.PromiseReturnType<HomeService['findFeaturedJobRecords']>[number];
 type LatestJobRecord = Prisma.PromiseReturnType<HomeService['findLatestJobRecords']>[number];
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+const RECOMMENDATION_MIN_SCORE = 50;
+const RECOMMENDATION_MIN_ITEMS = 6;
+
 @Injectable()
 export class HomeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getHome(query: HomeQueryDto): Promise<HomeApiResponse<HomeData>> {
+  async getHome(query: HomeQueryDto, candidateProfileId?: string): Promise<HomeApiResponse<HomeData>> {
     const [stats, jobsSection, topCompanies, marketInsight, companyLogos, latestPosts] =
       await Promise.all([
         this.getStatsOverview(),
-        this.getJobsSection(query.jobPage, query.jobLimit),
+        this.getJobsSection(query.jobPage, query.jobLimit, candidateProfileId),
         this.getTopCompanies(query.topCompaniesLimit),
         this.getMarketInsight(query.latestJobsLimit),
         this.getCompanyLogos(5),
@@ -57,8 +68,40 @@ export class HomeService {
     };
   }
 
-  async getFeaturedJobs(tab: HomeJobTab, page: number, limit: number): Promise<HomeJobsSectionTab> {
-    const where = this.buildPublicJobWhere(tab);
+  async getCandidateHome(candidateAccountId: string, query: HomeQueryDto) {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { candidateAccountId },
+      select: { id: true },
+    });
+    if (!profile) {
+      throw new NotFoundException('Candidate profile not found');
+    }
+
+    const [base, personalization, recommendations, actions] = await Promise.all([
+      this.getHome(query, profile.id),
+      this.getPersonalization(profile.id),
+      this.getRecommendations(profile.id),
+      this.getCandidateActions(profile.id),
+    ]);
+
+    return {
+      ...base,
+      data: {
+        ...base.data,
+        personalization,
+        recommendations: personalization.state === 'ELIGIBLE' ? recommendations : undefined,
+        actions,
+      },
+    };
+  }
+
+  async getFeaturedJobs(
+    tab: HomeJobTab,
+    page: number,
+    limit: number,
+    candidateProfileId?: string,
+  ): Promise<HomeJobsSectionTab> {
+    const where = this.buildPublicJobWhere(tab, candidateProfileId);
     const skip = (page - 1) * limit;
     const orderBy = this.getFeaturedJobOrderBy(tab);
 
@@ -93,6 +136,7 @@ export class HomeService {
         cover_url: string | null;
         active_jobs_count: bigint | number;
         applications_count: bigint | number;
+        latest_published_at: Date | null;
       }>
     >(Prisma.sql`
       SELECT
@@ -103,7 +147,8 @@ export class HomeService {
         f.public_url AS logo_url,
         cover.public_url AS cover_url,
         COUNT(DISTINCT jp.id) AS active_jobs_count,
-        COUNT(a.id) AS applications_count
+        COUNT(DISTINCT a.id) AS applications_count,
+        MAX(jp.published_at) AS latest_published_at
       FROM companies c
       LEFT JOIN files f ON f.id = c.logo_file_id
       LEFT JOIN LATERAL (
@@ -117,13 +162,15 @@ export class HomeService {
       LEFT JOIN job_posts jp
         ON jp.company_id = c.id
        AND jp.status = ${'published'}::"JobStatus"
+       AND jp.moderation_status = ${'approved'}::"ModerationStatus"
+       AND jp.is_hidden = FALSE
        AND jp.deleted_at IS NULL
+       AND jp.published_at IS NOT NULL
        AND (jp.expired_at IS NULL OR jp.expired_at >= NOW())
       LEFT JOIN applications a ON a.job_post_id = jp.id
       WHERE c.status = ${'active'}::"CompanyStatus"
-         OR c.verification_status = ${'verified'}::"CompanyVerificationStatus"
       GROUP BY c.id, c.name, c.type, c.description, f.public_url, cover.public_url
-      ORDER BY applications_count DESC, active_jobs_count DESC, c.created_at DESC
+      ORDER BY active_jobs_count DESC, latest_published_at DESC NULLS LAST, c.name ASC
       LIMIT ${limit}
     `);
 
@@ -136,6 +183,7 @@ export class HomeService {
       shortDescription: row.description ?? '',
       activeJobsCount: this.toNumber(row.active_jobs_count),
       applicationsCount: this.toNumber(row.applications_count),
+      latestPublishedAt: row.latest_published_at?.toISOString() ?? null,
     }));
   }
 
@@ -192,42 +240,228 @@ export class HomeService {
     };
   }
 
-  private async getJobsSection(page: number, limit: number) {
-    const [all, remote, partTime, latest] = await Promise.all([
-      this.getFeaturedJobs('all', page, limit),
-      this.getFeaturedJobs('remote', page, limit),
-      this.getFeaturedJobs('parttime', page, limit),
-      this.getFeaturedJobs('latest', page, limit),
+  private async getJobsSection(page: number, limit: number, candidateProfileId?: string) {
+    const [all, remote, partTime, latest, expiring] = await Promise.all([
+      this.getFeaturedJobs('all', page, limit, candidateProfileId),
+      this.getFeaturedJobs('remote', page, limit, candidateProfileId),
+      this.getFeaturedJobs('parttime', page, limit, candidateProfileId),
+      this.getFeaturedJobs('latest', page, limit, candidateProfileId),
+      this.getFeaturedJobs('expiring', page, Math.min(limit, 8), candidateProfileId),
     ]);
+
+    const expiringIds = new Set(expiring.items.map((item) => item.id));
+    latest.items = latest.items.filter((item) => !expiringIds.has(item.id));
 
     return {
       all,
       remote,
       partTime,
       latest,
+      expiring,
     };
   }
 
+  private async getPersonalization(candidateProfileId: string): Promise<HomePersonalization> {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { id: candidateProfileId },
+      select: {
+        jobSearchStatus: true,
+        skills: { select: { skill: { select: { id: true, name: true } } } },
+        jobPreference: {
+          select: {
+            desiredPosition: true,
+            desiredSalaryMin: true,
+            desiredSalaryMax: true,
+            workingModel: true,
+            desiredLevelId: true,
+          },
+        },
+      },
+    });
+    if (!profile) return { state: 'INSUFFICIENT', signalGroups: [], missingSignals: ['PROFILE'] };
+    if (profile.jobSearchStatus === JobSearchStatus.NOT_LOOKING) {
+      return { state: 'NOT_LOOKING', signalGroups: [], missingSignals: [] };
+    }
+
+    const signalGroups: string[] = [];
+    if (profile.skills.length > 0) signalGroups.push('SKILLS');
+    if (profile.jobPreference?.desiredPosition) signalGroups.push('POSITION');
+    if (profile.jobPreference?.workingModel) signalGroups.push('WORKING_MODEL');
+    if (profile.jobPreference?.desiredLevelId) signalGroups.push('LEVEL');
+    if (profile.jobPreference?.desiredSalaryMin || profile.jobPreference?.desiredSalaryMax) {
+      signalGroups.push('SALARY');
+    }
+
+    return {
+      state: signalGroups.length >= 2 ? 'ELIGIBLE' : 'INSUFFICIENT',
+      signalGroups,
+      missingSignals: [
+        profile.skills.length === 0 ? 'SKILLS' : '',
+        profile.jobPreference?.desiredPosition ? '' : 'POSITION',
+      ].filter(Boolean),
+    };
+  }
+
+  private async getRecommendations(candidateProfileId: string): Promise<HomeRecommendationSection> {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { id: candidateProfileId },
+      select: {
+        jobSearchStatus: true,
+        skills: { select: { skillId: true, skill: { select: { name: true } } } },
+        companyFollows: { select: { companyId: true } },
+        jobPreference: {
+          select: {
+            desiredPosition: true,
+            desiredSalaryMin: true,
+            desiredSalaryMax: true,
+            workingModel: true,
+            desiredLevelId: true,
+          },
+        },
+      },
+    });
+    if (!profile || profile.jobSearchStatus === JobSearchStatus.NOT_LOOKING) {
+      return { title: 'LATEST', items: [] };
+    }
+
+    const jobs = await this.prisma.jobPost.findMany({
+      where: this.buildPublicJobWhere('all', candidateProfileId),
+      take: 200,
+      orderBy: { publishedAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        companyId: true,
+        experienceLevelId: true,
+        salaryMin: true,
+        salaryMax: true,
+        jobPostSkills: { select: { skillId: true, skill: { select: { name: true } } } },
+        jobPostLocations: { select: { jobLocation: { select: { workingModel: true } } } },
+      },
+    });
+    const desiredPosition = profile.jobPreference?.desiredPosition?.toLowerCase();
+    const desiredSkillIds = new Set(profile.skills.map((item) => item.skillId));
+    const followedCompanies = new Set(profile.companyFollows.map((item) => item.companyId));
+    const scored = jobs
+      .map((job) => {
+        const matchingSkills = job.jobPostSkills
+          .filter((item) => desiredSkillIds.has(item.skillId))
+          .map((item) => item.skill.name);
+        const positionMatch = Boolean(desiredPosition && job.title.toLowerCase().includes(desiredPosition));
+        const modelMatch = Boolean(
+          profile.jobPreference?.workingModel &&
+            job.jobPostLocations.some((item) => item.jobLocation.workingModel === profile.jobPreference?.workingModel),
+        );
+        const salaryMatch = this.salaryOverlap(
+          job.salaryMin,
+          job.salaryMax,
+          profile.jobPreference?.desiredSalaryMin,
+          profile.jobPreference?.desiredSalaryMax,
+        );
+        const reasons: string[] = [];
+        let score = 0;
+        if (matchingSkills.length) { score += 40; reasons.push('SKILL_MATCH'); }
+        if (positionMatch) { score += 25; reasons.push('POSITION_MATCH'); }
+        if (modelMatch) { score += 10; reasons.push('WORKING_MODEL_MATCH'); }
+        if (profile.jobPreference?.desiredLevelId && job.experienceLevelId === profile.jobPreference.desiredLevelId) {
+          score += 10; reasons.push('LEVEL_MATCH');
+        }
+        if (salaryMatch) { score += 10; reasons.push('SALARY_OVERLAP'); }
+        if (followedCompanies.has(job.companyId)) { score += 5; reasons.push('FOLLOWED_COMPANY'); }
+        return { id: job.id, score, reasons, matchingSkills };
+      })
+      .filter((job) => job.score >= RECOMMENDATION_MIN_SCORE)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 12);
+
+    if (scored.length < RECOMMENDATION_MIN_ITEMS) {
+      const latest = await this.getFeaturedJobs('latest', 1, RECOMMENDATION_MIN_ITEMS, candidateProfileId);
+      return {
+        title: 'LATEST',
+        items: latest.items.map((job): HomeRecommendation => ({
+          job,
+          score: 0,
+          reasonCodes: [],
+          matchedSkills: [],
+        })),
+      };
+    }
+    const cards = await this.findFeaturedJobRecords(
+      { ...this.buildPublicJobWhere('all', candidateProfileId), id: { in: scored.map((item) => item.id) } },
+      [{ publishedAt: 'desc' }],
+      0,
+      scored.length,
+    );
+    const cardById = new Map(cards.map((card) => [card.id, this.mapJobCard(card)]));
+    return {
+      title: 'RECOMMENDED',
+      items: scored.flatMap((item) => {
+        const job = cardById.get(item.id);
+        return job ? [{ job, score: item.score, reasonCodes: item.reasons, matchedSkills: item.matchingSkills }] : [];
+      }),
+    };
+  }
+
+  private async getCandidateActions(candidateProfileId: string): Promise<HomeAction[]> {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { id: candidateProfileId },
+      select: { jobSearchStatus: true, jobPreference: { select: { id: true } }, cvs: { select: { id: true }, take: 1 } },
+    });
+    if (!profile || profile.jobSearchStatus === JobSearchStatus.NOT_LOOKING) return [];
+    const actions: HomeAction[] = [];
+    if (profile.cvs.length === 0) actions.push({ type: 'MISSING_CV' });
+    if (!profile.jobPreference) actions.push({ type: 'MISSING_PREFERENCES' });
+    const application = await this.prisma.application.findFirst({
+      where: { candidateProfileId, status: { in: [ApplicationStatus.VIEWED, ApplicationStatus.SHORTLISTED, ApplicationStatus.INTERVIEWING] } },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, jobPostId: true, status: true },
+    });
+    if (application) actions.push({ type: 'APPLICATION_UPDATED', applicationId: application.id, jobId: application.jobPostId, status: application.status });
+    return actions;
+  }
+
+  private salaryOverlap(
+    jobMin: Prisma.Decimal | null,
+    jobMax: Prisma.Decimal | null,
+    desiredMin?: Prisma.Decimal | null,
+    desiredMax?: Prisma.Decimal | null,
+  ) {
+    if (!desiredMin && !desiredMax) return false;
+    const min = jobMin ? Number(jobMin) : Number(jobMax ?? 0);
+    const max = jobMax ? Number(jobMax) : Number(jobMin ?? 0);
+    const wantedMin = desiredMin ? Number(desiredMin) : 0;
+    const wantedMax = desiredMax ? Number(desiredMax) : Number.MAX_SAFE_INTEGER;
+    return max >= wantedMin && min <= wantedMax;
+  }
+
   private async getStatsOverview() {
-    const [jobsCount, companiesCount, candidatesCount] = await Promise.all([
+    const sevenDaysAgo = new Date(Date.now() - SEVEN_DAYS_MS);
+    const [jobsCount, companiesCount, candidatesCount, newJobs7dCount] = await Promise.all([
       this.prisma.jobPost.count({
         where: this.buildPublicJobWhere('all'),
       }),
       this.prisma.company.count({
         where: {
-          OR: [
-            { status: CompanyStatus.ACTIVE },
-            { verificationStatus: CompanyVerificationStatus.VERIFIED },
-          ],
+          status: CompanyStatus.ACTIVE,
+          jobPosts: { some: this.buildPublicJobWhere('all') },
         },
       }),
       this.prisma.candidateProfile.count(),
+      this.prisma.jobPost.count({
+        where: {
+          ...this.buildPublicJobWhere('all'),
+          publishedAt: { gte: sevenDaysAgo },
+        },
+      }),
     ]);
 
     return {
       jobsCount,
       companiesCount,
       candidatesCount,
+      openJobsCount: jobsCount,
+      activeEmployersCount: companiesCount,
+      newJobs7dCount,
     };
   }
 
@@ -236,11 +470,13 @@ export class HomeService {
     currentMonthStart: Date,
     lastMonthEnd: Date,
   ) {
-    const [newJobsCount, activeJobsCount, hiringCompaniesCount] = await Promise.all([
+    const sevenDaysAgo = new Date(Date.now() - SEVEN_DAYS_MS);
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [newJobsCount, activeJobsCount, hiringCompaniesCount, openJobsCount, activeEmployersCount, newJobs7dCount, newJobs24hCount] = await Promise.all([
       this.prisma.jobPost.count({
         where: {
           ...this.buildPublicJobWhere('all'),
-          createdAt: {
+          publishedAt: {
             gte: lastMonthStart,
             lt: currentMonthStart,
           },
@@ -249,7 +485,7 @@ export class HomeService {
       this.prisma.jobPost.count({
         where: {
           ...this.buildPublicJobWhere('all'),
-          createdAt: { lte: lastMonthEnd },
+          publishedAt: { lte: lastMonthEnd },
           OR: [{ expiredAt: null }, { expiredAt: { gte: lastMonthEnd } }],
         },
       }),
@@ -257,7 +493,7 @@ export class HomeService {
         .findMany({
           where: {
             ...this.buildPublicJobWhere('all'),
-            createdAt: { lte: lastMonthEnd },
+            publishedAt: { lte: lastMonthEnd },
             OR: [{ expiredAt: null }, { expiredAt: { gte: lastMonthEnd } }],
           },
           select: {
@@ -266,6 +502,10 @@ export class HomeService {
           distinct: ['companyId'],
         })
         .then((rows) => rows.length),
+      this.prisma.jobPost.count({ where: this.buildPublicJobWhere('all') }),
+      this.prisma.company.count({ where: { status: CompanyStatus.ACTIVE, jobPosts: { some: this.buildPublicJobWhere('all') } } }),
+      this.prisma.jobPost.count({ where: { ...this.buildPublicJobWhere('all'), publishedAt: { gte: sevenDaysAgo } } }),
+      this.prisma.jobPost.count({ where: { ...this.buildPublicJobWhere('all'), publishedAt: { gte: oneDayAgo } } }),
     ]);
 
     return {
@@ -274,31 +514,37 @@ export class HomeService {
       newJobsCount,
       activeJobsCount,
       hiringCompaniesCount,
+      openJobsCount,
+      activeEmployersCount,
+      newJobs7dCount,
+      newJobs24hCount,
     };
   }
 
   private async getJobGrowthLineChart(from: Date, to: Date) {
-    const totalJobs = await this.prisma.jobPost.count({
-      where: this.buildPublicJobWhere('all'),
+    const jobs = await this.prisma.jobPost.findMany({
+      where: {
+        ...this.buildPublicJobWhere('all'),
+        publishedAt: { gte: from, lte: to },
+      },
+      select: { publishedAt: true },
     });
-
-    const now = new Date();
     const points: Array<{ date: string; jobsCount: number }> = [];
-    const factors = [0.72, 0.86, 0.78, 0.92, 1.0];
+    const interval = (to.getTime() - from.getTime()) / 4;
 
-    for (let i = 4; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i * 7);
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(from.getTime() + interval * i);
+      const start = new Date(from.getTime() + interval * i);
+      const end = i === 4 ? to : new Date(from.getTime() + interval * (i + 1));
       const dayStr = String(d.getDate()).padStart(2, '0');
       const monthStr = String(d.getMonth() + 1).padStart(2, '0');
       const dateLabel = `${dayStr}/${monthStr}`;
-
-      const factorIndex = 4 - i;
-      const count = Math.max(1, Math.round(totalJobs * factors[factorIndex]));
-
       points.push({
         date: dateLabel,
-        jobsCount: count,
+        jobsCount: jobs.filter((job) => {
+          const publishedAt = job.publishedAt?.getTime() ?? 0;
+          return publishedAt >= start.getTime() && publishedAt <= end.getTime();
+        }).length,
       });
     }
 
@@ -324,12 +570,14 @@ export class HomeService {
         salaryMin: true,
         salaryMax: true,
         salaryIsNegotiable: true,
+        salaryIsVisible: true,
       },
     });
 
     const counts = new Map<string, number>(SALARY_BUCKETS.map((bucket) => [bucket.key, 0]));
 
     for (const job of jobs) {
+      if (!job.salaryIsVisible) continue;
       const bucket = this.resolveSalaryBucket(job.salaryMin, job.salaryMax, job.salaryIsNegotiable);
       if (bucket) {
         counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
@@ -367,6 +615,7 @@ export class HomeService {
         salaryCurrency: true,
         salaryIsNegotiable: true,
         salaryIsVisible: true,
+        publishedAt: true,
         expiredAt: true,
         createdAt: true,
         company: {
@@ -402,7 +651,6 @@ export class HomeService {
           },
         },
         jobPostLocations: {
-          take: 1,
           select: {
             jobLocation: {
               select: {
@@ -422,12 +670,13 @@ export class HomeService {
   private findLatestJobRecords(limit: number) {
     return this.prisma.jobPost.findMany({
       where: this.buildPublicJobWhere('latest'),
-      orderBy: [{ createdAt: 'desc' }],
+      orderBy: [{ publishedAt: 'desc' }],
       take: limit,
       select: {
         id: true,
         title: true,
         slug: true,
+        publishedAt: true,
         createdAt: true,
         company: {
           select: {
@@ -522,14 +771,26 @@ export class HomeService {
     }));
   }
 
-  private buildPublicJobWhere(tab: HomeJobTab): Prisma.JobPostWhereInput {
+  private buildPublicJobWhere(tab: HomeJobTab, candidateProfileId?: string): Prisma.JobPostWhereInput {
     const now = new Date();
     const baseWhere: Prisma.JobPostWhereInput = {
       status: JobStatus.PUBLISHED,
+      moderationStatus: ModerationStatus.APPROVED,
       deletedAt: null,
       isHidden: false,
-      OR: [{ expiredAt: null }, { expiredAt: { gte: now } }],
+      publishedAt: { not: null },
+      company: { status: CompanyStatus.ACTIVE },
     };
+
+    if (tab === 'expiring') {
+      baseWhere.expiredAt = { gt: now, lte: new Date(now.getTime() + FOURTEEN_DAYS_MS) };
+    } else {
+      baseWhere.OR = [{ expiredAt: null }, { expiredAt: { gte: now } }];
+    }
+
+    if (candidateProfileId) {
+      baseWhere.applications = { none: { candidateProfileId } };
+    }
 
     if (tab === 'remote') {
       return {
@@ -561,7 +822,10 @@ export class HomeService {
 
   private getFeaturedJobOrderBy(tab: HomeJobTab): Prisma.JobPostOrderByWithRelationInput[] {
     if (tab === 'latest') {
-      return [{ createdAt: 'desc' }];
+      return [{ publishedAt: 'desc' }];
+    }
+    if (tab === 'expiring') {
+      return [{ expiredAt: 'asc' }];
     }
 
     return [
@@ -575,6 +839,15 @@ export class HomeService {
   private mapJobCard(job: FeaturedJobRecord): HomeJobCard {
     const primaryLocation = job.jobPostLocations[0]?.jobLocation;
     const logoUrl = job.company.logoFile?.publicUrl ?? undefined;
+    const now = Date.now();
+    const daysRemaining = job.expiredAt
+      ? Math.max(0, Math.ceil((job.expiredAt.getTime() - now) / (24 * 60 * 60 * 1000)))
+      : null;
+    const badges: Array<'NEW' | 'REMOTE'> = [];
+    if (job.publishedAt && now - job.publishedAt.getTime() <= SEVEN_DAYS_MS) badges.push('NEW');
+    if (job.jobPostLocations.some((item) => item.jobLocation.workingModel === WorkingModel.REMOTE)) {
+      badges.push('REMOTE');
+    }
 
     return {
       id: job.id,
@@ -599,6 +872,15 @@ export class HomeService {
         avatar: logoUrl,
       },
       deadline: job.expiredAt?.toISOString() ?? null,
+      publishedAt: job.publishedAt?.toISOString() ?? null,
+      daysRemaining,
+      urgencyTone:
+        daysRemaining !== null && daysRemaining <= 3
+          ? 'URGENT'
+          : daysRemaining !== null && daysRemaining <= 7
+            ? 'WARNING'
+            : 'NORMAL',
+      badges,
       createdAt: job.createdAt.toISOString(),
     };
   }
@@ -622,6 +904,7 @@ export class HomeService {
       employmentType: this.normalizeEmploymentType(job.employmentType?.name),
       positionName: job.jobCategory?.name ?? job.experienceLevel?.name ?? undefined,
       createdAt: job.createdAt.toISOString(),
+      publishedAt: job.publishedAt?.toISOString() ?? null,
     };
   }
 
@@ -685,9 +968,7 @@ export class HomeService {
     max: Prisma.Decimal | null,
     isNegotiable: boolean,
   ) {
-    if (isNegotiable) {
-      return '20-30';
-    }
+    if (isNegotiable) return null;
 
     const minValue = min ? Number(min) : null;
     const maxValue = max ? Number(max) : null;
@@ -697,7 +978,7 @@ export class HomeService {
         : (minValue ?? maxValue);
 
     if (!anchor) {
-      return '20-30';
+      return null;
     }
 
     if (anchor < 10_000_000) {

@@ -431,17 +431,18 @@ model CandidateAccount {
 }
 
 model CandidateProfile {
-  id                 String            @id @default(uuid()) @db.Uuid
-  candidateAccountId String            @unique @map("candidate_account_id") @db.Uuid
-  phoneNumber        String?           @map("phone_number") @db.VarChar(30)
-  gender             Gender?
-  address            String?           @db.VarChar(255)
-  birthdate          DateTime?         @db.Date
-  description        String?           @db.Text
-  jobSearchStatus    JobSearchStatus   @default(NOT_LOOKING) @map("job_search_status")
-  profileVisibility  ProfileVisibility @default(PUBLIC) @map("profile_visibility")
-  createdAt          DateTime          @default(now()) @map("created_at")
-  updatedAt          DateTime          @updatedAt @map("updated_at")
+  id                  String            @id @default(uuid()) @db.Uuid
+  candidateAccountId  String            @unique @map("candidate_account_id") @db.Uuid
+  phoneNumber         String?           @map("phone_number") @db.VarChar(30)
+  gender              Gender?
+  address             String?           @db.VarChar(255)
+  preferredSearchCity String?           @map("preferred_search_city") @db.VarChar(100)
+  birthdate           DateTime?         @db.Date
+  description         String?           @db.Text
+  jobSearchStatus     JobSearchStatus   @default(NOT_LOOKING) @map("job_search_status")
+  profileVisibility   ProfileVisibility @default(PUBLIC) @map("profile_visibility")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
 
   account               CandidateAccount              @relation(fields: [candidateAccountId], references: [id], onDelete: Cascade)
   educations            CandidateEducation[]
@@ -1072,6 +1073,7 @@ model JobPost {
   @@index([experienceLevelId])
   @@index([employmentTypeId])
   @@index([status, moderationStatus, publishedAt])
+  @@index([status, moderationStatus, publishedAt, expiredAt])
   @@map("job_posts")
 }
 
@@ -1190,6 +1192,7 @@ model SavedJob {
 
   @@unique([candidateProfileId, jobPostId])
   @@index([jobPostId])
+  @@index([jobPostId, createdAt])
   @@map("saved_jobs")
 }
 
@@ -1276,6 +1279,7 @@ model Application {
 
   @@unique([candidateProfileId, jobPostId])
   @@index([jobPostId, status])
+  @@index([jobPostId, submittedAt])
   @@index([candidateProfileId, status])
   @@map("applications")
 }
@@ -1524,6 +1528,7 @@ model Post {
 
   @@index([categoryId])
   @@index([status, type])
+  @@index([status, createdAt])
   @@map("posts")
 }
 

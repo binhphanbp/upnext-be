@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   CompanyVerificationStatus,
+  CompanyStatus,
   JobStatus,
   Prisma,
   ModerationStatus,
@@ -26,6 +27,7 @@ import { ListAdminJobPostsQueryDto } from './dto/list-admin-job-posts-query.dto'
 import { UpdateJobPostDto } from './dto/update-job-post.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { REPUTATION_CONFIG } from '../reputation/reputation.config';
+import { PublicJobPostQueryDto } from './dto/public-job-post-query.dto';
 
 @Injectable()
 export class JobPostsService {
@@ -50,14 +52,61 @@ export class JobPostsService {
     });
   }
 
-  async findAll() {
+  async findAll(query: PublicJobPostQueryDto = {}) {
+    const keyword = query.keyword?.trim();
+    const location = query.location?.trim();
+    const locationTerms = location ? this.locationSearchTerms(location) : [];
+
     return this.prisma.jobPost.findMany({
       where: {
         status: JobStatus.PUBLISHED,
         moderationStatus: ModerationStatus.APPROVED,
+        publishedAt: { not: null },
         deletedAt: null,
         isHidden: false,
+        company: { status: CompanyStatus.ACTIVE },
         OR: [{ expiredAt: null }, { expiredAt: { gte: new Date() } }],
+        ...(keyword
+          ? {
+              AND: [
+                {
+                  OR: [
+                    { title: { contains: keyword, mode: 'insensitive' } },
+                    { description: { contains: keyword, mode: 'insensitive' } },
+                    { requirements: { contains: keyword, mode: 'insensitive' } },
+                    { benefits: { contains: keyword, mode: 'insensitive' } },
+                    { company: { name: { contains: keyword, mode: 'insensitive' } } },
+                    { jobCategory: { name: { contains: keyword, mode: 'insensitive' } } },
+                    {
+                      jobPostSkills: {
+                        some: { skill: { name: { contains: keyword, mode: 'insensitive' } } },
+                      },
+                    },
+                    {
+                      jobPostSpecializations: {
+                        some: {
+                          specialization: { name: { contains: keyword, mode: 'insensitive' } },
+                        },
+                      },
+                    },
+                  ],
+                },
+              ],
+            }
+          : {}),
+        ...(locationTerms.length > 0
+          ? {
+              jobPostLocations: {
+                some: {
+                  jobLocation: {
+                    OR: locationTerms.map((term) => ({
+                      city: { contains: term, mode: 'insensitive' as const },
+                    })),
+                  },
+                },
+              },
+            }
+          : {}),
       },
       include: this.publicJobPostInclude(),
       orderBy: { publishedAt: 'desc' },
@@ -70,8 +119,11 @@ export class JobPostsService {
         id,
         status: JobStatus.PUBLISHED,
         moderationStatus: ModerationStatus.APPROVED,
+        publishedAt: { not: null },
         deletedAt: null,
         isHidden: false,
+        company: { status: CompanyStatus.ACTIVE },
+        OR: [{ expiredAt: null }, { expiredAt: { gte: new Date() } }],
       },
       include: this.publicJobPostInclude(),
     });
@@ -776,6 +828,26 @@ export class JobPostsService {
       },
       jobPostSpecializations: { include: { specialization: true } },
     } satisfies Prisma.JobPostInclude;
+  }
+
+  private locationSearchTerms(location: string) {
+    const normalized = location.toLowerCase();
+    if (normalized === 'tất cả địa điểm') return [];
+    if (
+      normalized.includes('hồ chí minh') ||
+      normalized.includes('ho chi minh') ||
+      normalized.includes('hcm')
+    ) {
+      return ['Hồ Chí Minh', 'TP. Hồ Chí Minh', 'Ho Chi Minh'];
+    }
+    if (
+      normalized.includes('hà nội') ||
+      normalized.includes('ha noi') ||
+      normalized.includes('hanoi')
+    ) {
+      return ['Hà Nội', 'TP. Hà Nội', 'Ha Noi'];
+    }
+    return [location];
   }
 
   private ownerJobPostInclude() {
