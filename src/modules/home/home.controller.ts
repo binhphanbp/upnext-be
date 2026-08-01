@@ -9,7 +9,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Home')
-@Controller({ path: 'home', version: VERSION_NEUTRAL })
+@Controller({ path: 'home', version: ['1', VERSION_NEUTRAL] })
 export class HomeController {
   constructor(private readonly homeService: HomeService) {}
 
