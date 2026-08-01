@@ -22,13 +22,13 @@ export class HomeQueryDto {
   @Max(50)
   jobLimit = 8;
 
-  @ApiPropertyOptional({ default: 6, minimum: 1, maximum: 20 })
+  @ApiPropertyOptional({ default: 30, minimum: 1, maximum: 50 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(20)
-  topCompaniesLimit = 6;
+  @Max(50)
+  topCompaniesLimit = 30;
 
   @ApiPropertyOptional({ default: 5, minimum: 1, maximum: 20 })
   @IsOptional()
