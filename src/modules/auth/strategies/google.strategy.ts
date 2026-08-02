@@ -12,22 +12,15 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       scope: ['email', 'profile'],
     });
   }
-  async validate(
-    accessToken: string,
-    refreshToken: string,
-    profile: Profile,
-    done: (err: any, user: any, info?: any) => void,
-  ): Promise<any> {
+  async validate(accessToken: string, refreshToken: string, profile: Profile) {
     const { id, name, emails } = profile;
 
-    const user = {
+    return {
       providerUserId: id,
       email: emails?.[0]?.value,
       fullName: name
         ? `${name.familyName || ''} ${name.givenName || ''}`.trim()
         : profile.displayName,
     };
-
-    done(null, user);
   }
 }
