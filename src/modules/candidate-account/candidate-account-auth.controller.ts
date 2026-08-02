@@ -61,10 +61,31 @@ export class CandidateAccountAuthController {
   @UseGuards(GoogleAuthGuard)
   @ApiOperation({ summary: 'Callback xử lý đăng nhập Google từ Backend và redirect về Frontend' })
   async googleAuthCallback(@Req() req: any, @Res() res: Response) {
-    const googleUser = req.user as { providerUserId: string; email: string; fullName: string };
-    const result = await this.candidateAccountAuthService.loginOrRegisterGoogle(googleUser);
-    const { accessToken } = result;
+    const locale = req.query.state === 'en' ? 'en' : 'vi';
     const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
-    return res.redirect(`${frontendUrl}/auth/callback?token=${accessToken}`);
+    const loginUrl = new URL(`/${locale}/login`, frontendUrl);
+    const googleOAuthError: unknown = req.googleOAuthError;
+
+    if (googleOAuthError || !req.user) {
+      loginUrl.searchParams.set(
+        'error',
+        typeof googleOAuthError === 'string'
+          ? googleOAuthError
+          : 'Đăng nhập Google thất bại. Vui lòng thử lại.',
+      );
+      return res.redirect(loginUrl.toString());
+    }
+
+    try {
+      const googleUser = req.user as { providerUserId: string; email: string; fullName: string };
+      const result = await this.candidateAccountAuthService.loginOrRegisterGoogle(googleUser);
+      const redirectUrl = new URL(`/${locale}/candidate/auth/callback`, frontendUrl);
+      redirectUrl.searchParams.set('token', result.accessToken);
+      return res.redirect(redirectUrl.toString());
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Đăng nhập Google thất bại';
+      loginUrl.searchParams.set('error', message);
+      return res.redirect(loginUrl.toString());
+    }
   }
 }
