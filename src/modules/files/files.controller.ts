@@ -16,7 +16,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { documentUploadOptions } from '../../common/upload/multer-options';
+import { filesUploadOptions } from '../../common/upload/multer-options';
 import { UploadedFile as CloudinaryUploadedFile } from '../../common/cloudinary/cloudinary.service';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -32,8 +32,12 @@ export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file', documentUploadOptions))
-  @ApiOperation({ summary: 'Upload file lên Cloudinary' })
+  @UseInterceptors(FileInterceptor('file', filesUploadOptions))
+  @ApiOperation({
+    summary: 'Upload file lên Cloudinary',
+    description:
+      'CV hỗ trợ PDF, DOCX, DOC, TXT, MD và TEX (tối đa 10 MB). Máy chủ kiểm tra phần mở rộng, MIME và nội dung thực tế trước khi tải lên.',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -59,7 +63,7 @@ export class FilesController {
   }
 
   @Post('upload-many')
-  @UseInterceptors(FilesInterceptor('files', 20, documentUploadOptions))
+  @UseInterceptors(FilesInterceptor('files', 20, filesUploadOptions))
   @ApiOperation({ summary: 'Upload nhiều file lên Cloudinary' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({

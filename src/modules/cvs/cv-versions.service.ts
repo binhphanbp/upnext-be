@@ -20,6 +20,7 @@ import {
   resolveUploadStoragePath,
   UPLOAD_STORAGE_PREFIX,
 } from '../../common/upload/upload-paths';
+import { hasPdfHeader } from '../../common/upload/cv-file-validation';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadCvVersionDto } from './dto/upload-cv-version.dto';
 
@@ -214,10 +215,7 @@ export class CvVersionsService {
 
         const fileBuffer = Buffer.from(await response.arrayBuffer());
         const isPdf = version.sourceFile.mimeType === 'application/pdf';
-        const hasPdfMagic =
-          fileBuffer.length >= 5 && fileBuffer.subarray(0, 5).toString('latin1') === '%PDF-';
-
-        if (isPdf && !hasPdfMagic) {
+        if (isPdf && !hasPdfHeader(fileBuffer)) {
           throw new Error('Cloudinary returned invalid PDF content');
         }
 
@@ -349,10 +347,7 @@ export class CvVersionsService {
 
     // Require the declared MIME type to be PDF and verify the actual content
     // starts with the PDF magic bytes (%PDF-). Do not trust the filename.
-    const hasPdfMagicBytes =
-      file.buffer.length >= 5 && file.buffer.subarray(0, 5).toString('latin1') === '%PDF-';
-
-    if (file.mimetype !== 'application/pdf' || !hasPdfMagicBytes) {
+    if (file.mimetype !== 'application/pdf' || !hasPdfHeader(file.buffer)) {
       throw new BadRequestException('File CV phải có định dạng PDF hợp lệ');
     }
   }

@@ -1,12 +1,15 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ActorType, FilePurpose, FileVisibility } from '@prisma/client';
 import { CloudinaryService, UploadedFile } from '../../common/cloudinary/cloudinary.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { CV_DECLARED_MIME_TYPES, validateCvUpload } from '../../common/upload/cv-file-validation';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadFileDto } from './dto/upload-file.dto';
 
 @Injectable()
 export class FilesService {
+  private readonly logger = new Logger(FilesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
@@ -20,7 +23,8 @@ export class FilesService {
     const purpose = dto.purpose ?? FilePurpose.OTHER;
     const visibility = dto.visibility ?? FileVisibility.PRIVATE;
     const owner = this.resolveOwner(dto, user);
-    this.ensureValidCvContent(file, purpose);
+    this.ensurePurposeAllowsFileType(file, purpose);
+    const validatedCv = purpose === FilePurpose.CV ? validateCvUpload(file) : undefined;
 
     // Use 'image' resource_type for images, 'raw' for all other files (PDFs, docs).
     // 'raw' stores the file as-is without image processing — avoids Cloudinary
@@ -36,19 +40,25 @@ export class FilesService {
       deliveryType: 'upload',
     });
 
-    const asset = await this.prisma.fileAsset.create({
-      data: {
-        ownerType: owner.ownerType,
-        ownerId: owner.ownerId,
-        purpose,
-        visibility,
-        storageKey: upload.storageKey,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
-        sizeBytes: BigInt(file.size),
-        publicUrl: visibility === FileVisibility.PUBLIC ? upload.publicUrl : null,
-      },
-    });
+    let asset;
+    try {
+      asset = await this.prisma.fileAsset.create({
+        data: {
+          ownerType: owner.ownerType,
+          ownerId: owner.ownerId,
+          purpose,
+          visibility,
+          storageKey: upload.storageKey,
+          originalName: validatedCv?.originalName ?? file.originalname,
+          mimeType: validatedCv?.mimeType ?? file.mimetype,
+          sizeBytes: BigInt(file.size),
+          publicUrl: visibility === FileVisibility.PUBLIC ? upload.publicUrl : null,
+        },
+      });
+    } catch (error) {
+      await this.removeOrphanedUpload(upload.storageKey, resourceType);
+      throw error;
+    }
 
     return {
       message: 'Tải lên thành công',
@@ -86,31 +96,25 @@ export class FilesService {
     };
   }
 
-  private ensureValidCvContent(file: UploadedFile, purpose: FilePurpose) {
-    if (purpose !== FilePurpose.CV) {
-      return;
+  private async removeOrphanedUpload(storageKey: string, resourceType: 'image' | 'raw') {
+    try {
+      await this.cloudinaryService.deleteAsset(storageKey, resourceType, 'upload');
+    } catch (cleanupError) {
+      this.logger.error(
+        `Could not remove orphaned Cloudinary asset ${storageKey} after a database failure`,
+        cleanupError instanceof Error ? cleanupError.stack : undefined,
+      );
     }
+  }
 
-    const isPdf = file.mimetype === 'application/pdf';
-    const hasPdfMagic =
-      file.buffer.length >= 5 && file.buffer.subarray(0, 5).toString('latin1') === '%PDF-';
+  private ensurePurposeAllowsFileType(file: UploadedFile, purpose: FilePurpose) {
+    const isCvDocument = CV_DECLARED_MIME_TYPES.includes(file.mimetype.toLowerCase());
+    const isPdf = file.mimetype.toLowerCase() === 'application/pdf';
 
-    if (isPdf && !hasPdfMagic) {
-      throw new BadRequestException('File CV không phải là tài liệu PDF hợp lệ');
-    }
-
-    const isDocx =
-      file.mimetype ===
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    const hasZipMagic =
-      file.buffer.length >= 4 &&
-      file.buffer[0] === 0x50 &&
-      file.buffer[1] === 0x4b &&
-      [0x03, 0x05, 0x07].includes(file.buffer[2]) &&
-      [0x04, 0x06, 0x08].includes(file.buffer[3]);
-
-    if (isDocx && !hasZipMagic) {
-      throw new BadRequestException('File CV không phải là tài liệu DOCX hợp lệ');
+    if (purpose !== FilePurpose.CV && isCvDocument && !isPdf) {
+      throw new BadRequestException(
+        'Định dạng DOC, DOCX, TXT, MD hoặc TEX chỉ được hỗ trợ khi tải CV',
+      );
     }
   }
 
