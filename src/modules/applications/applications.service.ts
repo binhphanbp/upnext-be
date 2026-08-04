@@ -13,6 +13,7 @@ import { ApplyJobDto } from './dto/apply-job.dto';
 import { OutboxService } from '../outbox/outbox.service';
 import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
 import { ApplicationTransitionPolicy } from './application-transition.policy';
+import { isValidVietnamesePhoneNumber } from '../../common/validation/vietnamese-phone';
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
 import { UpdateApplicationCvDto } from './dto/update-application-cv.dto';
 import { CV_SCORING_RUBRIC } from '../cv-screening/scoring-rubric';
@@ -100,6 +101,12 @@ export class ApplicationsService {
 
     if (!profile) {
       throw new NotFoundException('Candidate profile not found');
+    }
+
+    if (!isValidVietnamesePhoneNumber(profile.phoneNumber)) {
+      throw new BadRequestException(
+        'Vui lòng cập nhật số điện thoại Việt Nam hợp lệ trước khi nộp hồ sơ',
+      );
     }
 
     const jobPost = await this.prisma.jobPost.findUnique({

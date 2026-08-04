@@ -83,7 +83,7 @@ describe('ApplicationsService', () => {
     prismaMock.candidateAccount.findUnique.mockResolvedValue({
       emailVerifiedAt: new Date(),
       fullName: 'Candidate',
-      profile: { id: 'candidate-profile-id' },
+      profile: { id: 'candidate-profile-id', phoneNumber: '0901234567' },
     });
     prismaMock.jobPost.findUnique.mockResolvedValue({
       id: 'job-post-id',
@@ -121,7 +121,7 @@ describe('ApplicationsService', () => {
     prismaMock.candidateAccount.findUnique.mockResolvedValue({
       emailVerifiedAt: new Date(),
       fullName: 'Candidate',
-      profile: { id: 'candidate-profile-id' },
+      profile: { id: 'candidate-profile-id', phoneNumber: '0901234567' },
     });
     prismaMock.jobPost.findUnique.mockResolvedValue({
       id: 'job-post-id',
@@ -137,5 +137,20 @@ describe('ApplicationsService', () => {
         cvVersionId: 'cv-version-id',
       }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects an application when the candidate has no valid contact number', async () => {
+    prismaMock.candidateAccount.findUnique.mockResolvedValue({
+      emailVerifiedAt: new Date(),
+      fullName: 'Candidate',
+      profile: { id: 'candidate-profile-id', phoneNumber: '0' },
+    });
+
+    await expect(
+      service.applyJob('candidate-id', {
+        jobPostId: 'job-post-id',
+        cvVersionId: 'cv-version-id',
+      }),
+    ).rejects.toThrow('Vui lòng cập nhật số điện thoại Việt Nam hợp lệ trước khi nộp hồ sơ');
   });
 });
