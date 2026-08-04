@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ActorType } from '@prisma/client';
@@ -137,26 +137,17 @@ describe('CvVersionsService', () => {
   });
 
   it('tải PDF Cloudinary bằng đúng resource type raw và delivery type upload', async () => {
-    prismaMock.cVVersion.findUnique
-      .mockResolvedValueOnce({ cvId: 'cv-id' })
-      .mockResolvedValueOnce({
-        id: 'version-id',
-        sourceFile: {
-          storageKey: 'upnext/cv/cv-file-id',
-          originalName: 'candidate.pdf',
-          mimeType: 'application/pdf',
-        },
-      });
+    prismaMock.cVVersion.findUnique.mockResolvedValueOnce({ cvId: 'cv-id' }).mockResolvedValueOnce({
+      id: 'version-id',
+      sourceFile: {
+        storageKey: 'upnext/cv/cv-file-id',
+        originalName: 'candidate.pdf',
+        mimeType: 'application/pdf',
+      },
+    });
     prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
     cloudinaryMock.createSignedUrl.mockReturnValue('https://cdn.example.com/candidate.pdf');
-    const fetchMock = jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue(
-        new Response(new Uint8Array(Buffer.from('%PDF-1.7 test')), {
-          headers: { 'content-type': 'application/octet-stream' },
-          status: 200,
-        }),
-      );
+    const fetchMock = jest.spyOn(global, 'fetch');
 
     const download = await service.prepareDownload('version-id', adminUser);
 
@@ -167,6 +158,11 @@ describe('CvVersionsService', () => {
     });
     expect(download.fileName).toBe('candidate.pdf');
     expect(download.mimeType).toBe('application/pdf');
+    expect(download).toMatchObject({
+      kind: 'redirect',
+      url: 'https://cdn.example.com/candidate.pdf',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
 
     fetchMock.mockRestore();
   });
@@ -182,48 +178,36 @@ describe('CvVersionsService', () => {
     });
     prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
     cloudinaryMock.createSignedUrl.mockReturnValue('https://cdn.example.com/candidate.docx');
-    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
-      new Response(new Uint8Array([0x50, 0x4b, 0x03, 0x04]), {
-        headers: { 'content-type': 'application/octet-stream' },
-        status: 200,
-      }),
-    );
-
-    await service.prepareDownload('version-id', adminUser);
+    const download = await service.prepareDownload('version-id', adminUser);
 
     expect(cloudinaryMock.createSignedUrl).toHaveBeenCalledWith('upnext/cv/candidate-docx', {
       resourceType: 'raw',
       deliveryType: 'upload',
       format: 'docx',
     });
-
-    fetchMock.mockRestore();
+    expect(download).toMatchObject({
+      kind: 'redirect',
+      url: 'https://cdn.example.com/candidate.docx',
+    });
   });
 
-  it('không truyền nội dung HTML giả PDF về trình xem CV', async () => {
-    prismaMock.cVVersion.findUnique
-      .mockResolvedValueOnce({ cvId: 'cv-id' })
-      .mockResolvedValueOnce({
-        id: 'version-id',
-        sourceFile: {
-          storageKey: 'upnext/cv/invalid-file-id',
-          originalName: 'candidate.pdf',
-          mimeType: 'application/pdf',
-        },
-      });
+  it('không tải hộ file Cloudinary qua mạng của máy chủ', async () => {
+    prismaMock.cVVersion.findUnique.mockResolvedValueOnce({ cvId: 'cv-id' }).mockResolvedValueOnce({
+      id: 'version-id',
+      sourceFile: {
+        storageKey: 'upnext/cv/invalid-file-id',
+        originalName: 'candidate.pdf',
+        mimeType: 'application/pdf',
+      },
+    });
     prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
     cloudinaryMock.createSignedUrl.mockReturnValue('https://cdn.example.com/candidate.pdf');
-    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
-      new Response('<!DOCTYPE html><html></html>', {
-        headers: { 'content-type': 'application/octet-stream' },
-        status: 200,
-      }),
-    );
+    const fetchMock = jest.spyOn(global, 'fetch');
 
-    await expect(service.prepareDownload('version-id', adminUser)).rejects.toThrow(
-      NotFoundException,
-    );
+    const download = await service.prepareDownload('version-id', adminUser);
 
+    expect(download).toMatchObject({ kind: 'redirect' });
+    expect(fetchMock).not.toHaveBeenCalled();
     fetchMock.mockRestore();
   });
 });

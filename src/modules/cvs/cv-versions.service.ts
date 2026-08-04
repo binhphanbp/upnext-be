@@ -31,6 +31,20 @@ type UploadedFile = {
   size: number;
 };
 
+export type PreparedCvDownload =
+  | {
+      kind: 'stream';
+      stream: Readable;
+      fileName: string;
+      mimeType: string;
+    }
+  | {
+      kind: 'redirect';
+      url: string;
+      fileName: string;
+      mimeType: string;
+    };
+
 @Injectable()
 export class CvVersionsService {
   constructor(
@@ -134,7 +148,7 @@ export class CvVersionsService {
     return version;
   }
 
-  async prepareDownload(id: string, user: AuthenticatedUser) {
+  async prepareDownload(id: string, user: AuthenticatedUser): Promise<PreparedCvDownload> {
     const versionRef = await this.prisma.cVVersion.findUnique({
       where: { id },
       select: { cvId: true },
@@ -179,6 +193,7 @@ export class CvVersionsService {
         await stat(absolutePath);
 
         return {
+          kind: 'stream',
           stream: createReadStream(absolutePath),
           fileName: version.sourceFile.originalName,
           mimeType: version.sourceFile.mimeType,
@@ -203,34 +218,15 @@ export class CvVersionsService {
         ),
       });
 
-      try {
-        const response = await fetch(signedUrl);
-        if (!response.ok) {
-          throw new Error('Cloudinary download failed');
-        }
-
-        // Guard against Cloudinary returning an HTML error page (e.g. for missing/wrong-type files).
-        // Without this check, the HTML bytes would be streamed to FE and displayed as
-        // "Failed to load PDF document" in the browser.
-        const contentType = response.headers.get('content-type') ?? '';
-        if (contentType.startsWith('text/html')) {
-          throw new Error(`Cloudinary returned unexpected HTML (content-type: ${contentType})`);
-        }
-
-        const fileBuffer = Buffer.from(await response.arrayBuffer());
-        const isPdf = version.sourceFile.mimeType === 'application/pdf';
-        if (isPdf && !hasPdfHeader(fileBuffer)) {
-          throw new Error('Cloudinary returned invalid PDF content');
-        }
-
-        return {
-          stream: Readable.from(fileBuffer),
-          fileName: version.sourceFile.originalName,
-          mimeType: version.sourceFile.mimeType,
-        };
-      } catch {
-        throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ đám mây');
-      }
+      // Cloudinary documents are delivered directly to the browser after authorization.
+      // This avoids proxying binary files through the API server, which creates a fragile
+      // dependency on the VPS being able to fetch Cloudinary's delivery domain.
+      return {
+        kind: 'redirect',
+        url: signedUrl,
+        fileName: version.sourceFile.originalName,
+        mimeType: version.sourceFile.mimeType,
+      };
     }
   }
 

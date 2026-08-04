@@ -107,6 +107,11 @@ export class CvScreeningController {
     );
     const download = await this.cvVersionsService.prepareDownload(cvVersionId, user);
 
+    if (download.kind === 'redirect') {
+      response.set('Cache-Control', 'private, no-store');
+      return response.redirect(302, download.url);
+    }
+
     response.set({
       'Content-Type': download.mimeType,
       'Content-Disposition': `inline; filename="${encodeURIComponent(download.fileName)}"`,
