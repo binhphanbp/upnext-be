@@ -1,12 +1,23 @@
+import { Transform, type TransformFnParams } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender, JobSearchStatus, ProfileVisibility } from '@prisma/client';
-import { IsDateString, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import {
+  normalizeVietnamesePhoneNumber,
+  VIETNAMESE_PHONE_PATTERN,
+} from '../../../common/validation/vietnamese-phone';
 
 export class UpdateCandidateProfileDto {
   @ApiPropertyOptional({ example: '0916110241', maxLength: 30 })
   @IsOptional()
   @IsString()
   @MaxLength(30)
+  @Transform(({ value }: TransformFnParams): unknown =>
+    typeof value === 'string' ? normalizeVietnamesePhoneNumber(value) : value,
+  )
+  @Matches(VIETNAMESE_PHONE_PATTERN, {
+    message: 'Số điện thoại Việt Nam chưa hợp lệ',
+  })
   phoneNumber?: string;
 
   @ApiPropertyOptional({ enum: Gender })
