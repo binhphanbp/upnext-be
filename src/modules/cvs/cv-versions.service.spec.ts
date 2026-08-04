@@ -136,7 +136,7 @@ describe('CvVersionsService', () => {
     await expect(service.remove('version-id', adminUser)).rejects.toThrow(ConflictException);
   });
 
-  it('tải PDF Cloudinary bằng đúng resource type raw và delivery type upload', async () => {
+  it('tải PDF Cloudinary bằng public id gốc, resource type raw và delivery type upload', async () => {
     prismaMock.cVVersion.findUnique.mockResolvedValueOnce({ cvId: 'cv-id' }).mockResolvedValueOnce({
       id: 'version-id',
       sourceFile: {
@@ -154,7 +154,6 @@ describe('CvVersionsService', () => {
     expect(cloudinaryMock.createSignedUrl).toHaveBeenCalledWith('upnext/cv/cv-file-id', {
       resourceType: 'raw',
       deliveryType: 'upload',
-      format: 'pdf',
     });
     expect(download.fileName).toBe('candidate.pdf');
     expect(download.mimeType).toBe('application/pdf');
@@ -167,7 +166,7 @@ describe('CvVersionsService', () => {
     fetchMock.mockRestore();
   });
 
-  it('khôi phục phần mở rộng của tài liệu Cloudinary từ MIME type', async () => {
+  it('không thêm phần mở rộng vào public id của tài liệu Cloudinary', async () => {
     prismaMock.cVVersion.findUnique.mockResolvedValueOnce({ cvId: 'cv-id' }).mockResolvedValueOnce({
       id: 'version-id',
       sourceFile: {
@@ -183,7 +182,6 @@ describe('CvVersionsService', () => {
     expect(cloudinaryMock.createSignedUrl).toHaveBeenCalledWith('upnext/cv/candidate-docx', {
       resourceType: 'raw',
       deliveryType: 'upload',
-      format: 'docx',
     });
     expect(download).toMatchObject({
       kind: 'redirect',

@@ -54,11 +54,7 @@ export class CloudinaryService {
         },
         (error: UploadApiErrorResponse | undefined, response: UploadApiResponse | undefined) => {
           if (error) {
-            reject(
-              new BadGatewayException(
-                error.message ?? 'Cloudinary upload failed',
-              ),
-            );
+            reject(new BadGatewayException(error.message ?? 'Cloudinary upload failed'));
             return;
           }
 
@@ -88,12 +84,6 @@ export class CloudinaryService {
       resourceType?: UploadApiOptions['resource_type'];
       deliveryType?: UploadApiOptions['type'];
       expiresAt?: number;
-      /**
-       * Raw Cloudinary assets are delivered with their file extension. The
-       * upload response stores the extension separately from `public_id`, so
-       * callers that only persist the storage key must provide it here.
-       */
-      format?: string;
     },
   ) {
     this.ensureConfigured();
@@ -115,7 +105,6 @@ export class CloudinaryService {
     // e_<timestamp> transformation which is NOT supported on raw resources and causes
     // the download to fail with a non-PDF response ("Failed to load PDF document").
     return cloudinary.url(storageKey, {
-      format: options?.format,
       resource_type: resourceType,
       type: deliveryType,
       secure: true,
