@@ -83,7 +83,7 @@ describe('ApplicationsService', () => {
     prismaMock.candidateAccount.findUnique.mockResolvedValue({
       emailVerifiedAt: new Date(),
       fullName: 'Candidate',
-      profile: { id: 'candidate-profile-id', phoneNumber: '0901234567' },
+      profile: { id: 'candidate-profile-id', phoneNumber: '+14155552671' },
     });
     prismaMock.jobPost.findUnique.mockResolvedValue({
       id: 'job-post-id',
@@ -121,7 +121,7 @@ describe('ApplicationsService', () => {
     prismaMock.candidateAccount.findUnique.mockResolvedValue({
       emailVerifiedAt: new Date(),
       fullName: 'Candidate',
-      profile: { id: 'candidate-profile-id', phoneNumber: '0901234567' },
+      profile: { id: 'candidate-profile-id', phoneNumber: '+14155552671' },
     });
     prismaMock.jobPost.findUnique.mockResolvedValue({
       id: 'job-post-id',
@@ -151,6 +151,6 @@ describe('ApplicationsService', () => {
         jobPostId: 'job-post-id',
         cvVersionId: 'cv-version-id',
       }),
-    ).rejects.toThrow('Vui lòng cập nhật số điện thoại Việt Nam hợp lệ trước khi nộp hồ sơ');
+    ).rejects.toThrow('Vui lòng cập nhật số điện thoại hợp lệ trước khi nộp hồ sơ');
   });
 });

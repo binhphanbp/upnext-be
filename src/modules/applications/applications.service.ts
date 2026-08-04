@@ -13,7 +13,7 @@ import { ApplyJobDto } from './dto/apply-job.dto';
 import { OutboxService } from '../outbox/outbox.service';
 import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
 import { ApplicationTransitionPolicy } from './application-transition.policy';
-import { isValidVietnamesePhoneNumber } from '../../common/validation/vietnamese-phone';
+import { isValidPhoneNumber } from '../../common/validation/phone-number';
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
 import { UpdateApplicationCvDto } from './dto/update-application-cv.dto';
 import { CV_SCORING_RUBRIC } from '../cv-screening/scoring-rubric';
@@ -103,9 +103,9 @@ export class ApplicationsService {
       throw new NotFoundException('Candidate profile not found');
     }
 
-    if (!isValidVietnamesePhoneNumber(profile.phoneNumber)) {
+    if (!isValidPhoneNumber(profile.phoneNumber)) {
       throw new BadRequestException(
-        'Vui lòng cập nhật số điện thoại Việt Nam hợp lệ trước khi nộp hồ sơ',
+        'Vui lòng cập nhật số điện thoại hợp lệ trước khi nộp hồ sơ',
       );
     }
 
