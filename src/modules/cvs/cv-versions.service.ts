@@ -10,7 +10,7 @@ import { ActorType, FilePurpose, FileVisibility, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, extname } from 'node:path';
 import { Readable } from 'stream';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -197,6 +197,10 @@ export class CvVersionsService {
       const signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
         resourceType: cloudinaryResourceType,
         deliveryType: 'upload',
+        format: this.getCloudinaryDeliveryFormat(
+          version.sourceFile.mimeType,
+          version.sourceFile.originalName,
+        ),
       });
 
       try {
@@ -365,6 +369,31 @@ export class CvVersionsService {
     await writeFile(absolutePath, file.buffer);
 
     return { storageKey };
+  }
+
+  /**
+   * Cloudinary keeps a raw asset's extension outside its public id.  We store
+   * only that id in FileAsset, so restore the canonical extension when
+   * creating its delivery URL. This keeps existing and newly uploaded CVs
+   * downloadable without changing persisted data.
+   */
+  private getCloudinaryDeliveryFormat(mimeType: string, originalName: string) {
+    const formatByMimeType: Record<string, string> = {
+      'application/msword': 'doc',
+      'application/pdf': 'pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+      'application/x-tex': 'tex',
+      'text/markdown': 'md',
+      'text/plain': 'txt',
+    };
+
+    const format = formatByMimeType[mimeType.toLowerCase()];
+    if (format) {
+      return format;
+    }
+
+    const extension = extname(originalName).slice(1).toLowerCase();
+    return ['pdf', 'doc', 'docx', 'txt', 'md', 'tex'].includes(extension) ? extension : undefined;
   }
 
   private async getNextVersionNo(tx: Prisma.TransactionClient, cvId: string) {

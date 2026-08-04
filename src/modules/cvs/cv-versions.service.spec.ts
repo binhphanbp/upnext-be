@@ -163,9 +163,39 @@ describe('CvVersionsService', () => {
     expect(cloudinaryMock.createSignedUrl).toHaveBeenCalledWith('upnext/cv/cv-file-id', {
       resourceType: 'raw',
       deliveryType: 'upload',
+      format: 'pdf',
     });
     expect(download.fileName).toBe('candidate.pdf');
     expect(download.mimeType).toBe('application/pdf');
+
+    fetchMock.mockRestore();
+  });
+
+  it('khôi phục phần mở rộng của tài liệu Cloudinary từ MIME type', async () => {
+    prismaMock.cVVersion.findUnique.mockResolvedValueOnce({ cvId: 'cv-id' }).mockResolvedValueOnce({
+      id: 'version-id',
+      sourceFile: {
+        storageKey: 'upnext/cv/candidate-docx',
+        originalName: 'candidate-profile',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      },
+    });
+    prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
+    cloudinaryMock.createSignedUrl.mockReturnValue('https://cdn.example.com/candidate.docx');
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([0x50, 0x4b, 0x03, 0x04]), {
+        headers: { 'content-type': 'application/octet-stream' },
+        status: 200,
+      }),
+    );
+
+    await service.prepareDownload('version-id', adminUser);
+
+    expect(cloudinaryMock.createSignedUrl).toHaveBeenCalledWith('upnext/cv/candidate-docx', {
+      resourceType: 'raw',
+      deliveryType: 'upload',
+      format: 'docx',
+    });
 
     fetchMock.mockRestore();
   });
