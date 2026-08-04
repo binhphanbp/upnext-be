@@ -113,6 +113,11 @@ export class CvVersionsController {
   ) {
     const download = await this.cvVersionsService.prepareDownload(id, user);
 
+    if (download.kind === 'redirect') {
+      response.set('Cache-Control', 'private, no-store');
+      return response.redirect(302, download.url);
+    }
+
     response.set({
       'Content-Type': download.mimeType,
       'Content-Disposition': `attachment; filename="${encodeURIComponent(download.fileName)}"`,
