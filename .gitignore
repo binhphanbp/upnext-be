@@ -11,4 +11,5 @@ coverage
 .idea
 .vscode
 tmp
-uploads
+uploads/*
+!uploads/cv/
