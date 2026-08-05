@@ -28,10 +28,16 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts
+# Bake seed CV files into the image at a separate path so they survive volume mounts
+COPY --from=build --chown=node:node /app/uploads/cv /app/seed-cv
 RUN mkdir -p /app/uploads/cv /app/uploads/cvs \
     && chown -R node:node /app/uploads
 VOLUME ["/app/uploads"]
+# Entrypoint script copies seed CVs into the volume on first run
+COPY --chown=node:node docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 USER node
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD wget -qO- "http://127.0.0.1:${PORT}/health" || exit 1
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "dist/main.js"]
