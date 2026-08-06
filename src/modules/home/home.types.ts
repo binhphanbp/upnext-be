@@ -28,6 +28,8 @@ export type HomeJobCard = {
     avatar?: string;
   };
   deadline: string | null;
+  /** Aggregate public views supplied by the server; the client must not infer this value. */
+  viewCount: number;
   publishedAt?: string | null;
   daysRemaining?: number | null;
   urgencyTone?: 'URGENT' | 'WARNING' | 'NORMAL' | null;
@@ -84,6 +86,7 @@ export type HomeData = {
     remote: HomeJobsSectionTab;
     partTime: HomeJobsSectionTab;
     latest: HomeJobsSectionTab;
+    popular: HomeJobsSectionTab;
     expiring: HomeJobsSectionTab;
   };
   topCompanies: Array<{

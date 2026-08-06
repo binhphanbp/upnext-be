@@ -37,14 +37,21 @@ type LatestJobRecord = Prisma.PromiseReturnType<HomeService['findLatestJobRecord
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+const INTEREST_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 const RECOMMENDATION_MIN_SCORE = 50;
-const RECOMMENDATION_MIN_ITEMS = 6;
+// Three distinct matches are enough to establish a useful personalized set;
+// a larger desktop grid may still be paginated by the client without hiding
+// relevant recommendations from candidates with a narrower profile.
+const RECOMMENDATION_MIN_ITEMS = 3;
 
 @Injectable()
 export class HomeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getHome(query: HomeQueryDto, candidateProfileId?: string): Promise<HomeApiResponse<HomeData>> {
+  async getHome(
+    query: HomeQueryDto,
+    candidateProfileId?: string,
+  ): Promise<HomeApiResponse<HomeData>> {
     const [stats, jobsSection, topCompanies, marketInsight, companyLogos, latestPosts] =
       await Promise.all([
         this.getStatsOverview(),
@@ -241,11 +248,12 @@ export class HomeService {
   }
 
   private async getJobsSection(page: number, limit: number, candidateProfileId?: string) {
-    const [all, remote, partTime, latest, expiring] = await Promise.all([
+    const [all, remote, partTime, latest, popular, expiring] = await Promise.all([
       this.getFeaturedJobs('all', page, limit, candidateProfileId),
       this.getFeaturedJobs('remote', page, limit, candidateProfileId),
       this.getFeaturedJobs('parttime', page, limit, candidateProfileId),
       this.getFeaturedJobs('latest', page, limit, candidateProfileId),
+      this.getFeaturedJobs('popular', page, limit, candidateProfileId),
       this.getFeaturedJobs('expiring', page, Math.min(limit, 8), candidateProfileId),
     ]);
 
@@ -257,6 +265,7 @@ export class HomeService {
       remote,
       partTime,
       latest,
+      popular,
       expiring,
     };
   }
@@ -347,10 +356,14 @@ export class HomeService {
         const matchingSkills = job.jobPostSkills
           .filter((item) => desiredSkillIds.has(item.skillId))
           .map((item) => item.skill.name);
-        const positionMatch = Boolean(desiredPosition && job.title.toLowerCase().includes(desiredPosition));
+        const positionMatch = Boolean(
+          desiredPosition && job.title.toLowerCase().includes(desiredPosition),
+        );
         const modelMatch = Boolean(
           profile.jobPreference?.workingModel &&
-            job.jobPostLocations.some((item) => item.jobLocation.workingModel === profile.jobPreference?.workingModel),
+          job.jobPostLocations.some(
+            (item) => item.jobLocation.workingModel === profile.jobPreference?.workingModel,
+          ),
         );
         const salaryMatch = this.salaryOverlap(
           job.salaryMin,
@@ -360,14 +373,33 @@ export class HomeService {
         );
         const reasons: string[] = [];
         let score = 0;
-        if (matchingSkills.length) { score += 40; reasons.push('SKILL_MATCH'); }
-        if (positionMatch) { score += 25; reasons.push('POSITION_MATCH'); }
-        if (modelMatch) { score += 10; reasons.push('WORKING_MODEL_MATCH'); }
-        if (profile.jobPreference?.desiredLevelId && job.experienceLevelId === profile.jobPreference.desiredLevelId) {
-          score += 10; reasons.push('LEVEL_MATCH');
+        if (matchingSkills.length) {
+          score += 40;
+          reasons.push('SKILL_MATCH');
         }
-        if (salaryMatch) { score += 10; reasons.push('SALARY_OVERLAP'); }
-        if (followedCompanies.has(job.companyId)) { score += 5; reasons.push('FOLLOWED_COMPANY'); }
+        if (positionMatch) {
+          score += 25;
+          reasons.push('POSITION_MATCH');
+        }
+        if (modelMatch) {
+          score += 10;
+          reasons.push('WORKING_MODEL_MATCH');
+        }
+        if (
+          profile.jobPreference?.desiredLevelId &&
+          job.experienceLevelId === profile.jobPreference.desiredLevelId
+        ) {
+          score += 10;
+          reasons.push('LEVEL_MATCH');
+        }
+        if (salaryMatch) {
+          score += 10;
+          reasons.push('SALARY_OVERLAP');
+        }
+        if (followedCompanies.has(job.companyId)) {
+          score += 5;
+          reasons.push('FOLLOWED_COMPANY');
+        }
         return { id: job.id, score, reasons, matchingSkills };
       })
       .filter((job) => job.score >= RECOMMENDATION_MIN_SCORE)
@@ -375,19 +407,29 @@ export class HomeService {
       .slice(0, 12);
 
     if (scored.length < RECOMMENDATION_MIN_ITEMS) {
-      const latest = await this.getFeaturedJobs('latest', 1, RECOMMENDATION_MIN_ITEMS, candidateProfileId);
+      const latest = await this.getFeaturedJobs(
+        'latest',
+        1,
+        RECOMMENDATION_MIN_ITEMS,
+        candidateProfileId,
+      );
       return {
         title: 'LATEST',
-        items: latest.items.map((job): HomeRecommendation => ({
-          job,
-          score: 0,
-          reasonCodes: [],
-          matchedSkills: [],
-        })),
+        items: latest.items.map(
+          (job): HomeRecommendation => ({
+            job,
+            score: 0,
+            reasonCodes: [],
+            matchedSkills: [],
+          }),
+        ),
       };
     }
     const cards = await this.findFeaturedJobRecords(
-      { ...this.buildPublicJobWhere('all', candidateProfileId), id: { in: scored.map((item) => item.id) } },
+      {
+        ...this.buildPublicJobWhere('all', candidateProfileId),
+        id: { in: scored.map((item) => item.id) },
+      },
       [{ publishedAt: 'desc' }],
       0,
       scored.length,
@@ -397,7 +439,16 @@ export class HomeService {
       title: 'RECOMMENDED',
       items: scored.flatMap((item) => {
         const job = cardById.get(item.id);
-        return job ? [{ job, score: item.score, reasonCodes: item.reasons, matchedSkills: item.matchingSkills }] : [];
+        return job
+          ? [
+              {
+                job,
+                score: item.score,
+                reasonCodes: item.reasons,
+                matchedSkills: item.matchingSkills,
+              },
+            ]
+          : [];
       }),
     };
   }
@@ -405,18 +456,37 @@ export class HomeService {
   private async getCandidateActions(candidateProfileId: string): Promise<HomeAction[]> {
     const profile = await this.prisma.candidateProfile.findUnique({
       where: { id: candidateProfileId },
-      select: { jobSearchStatus: true, jobPreference: { select: { id: true } }, cvs: { select: { id: true }, take: 1 } },
+      select: {
+        jobSearchStatus: true,
+        jobPreference: { select: { id: true } },
+        cvs: { select: { id: true }, take: 1 },
+      },
     });
     if (!profile || profile.jobSearchStatus === JobSearchStatus.NOT_LOOKING) return [];
     const actions: HomeAction[] = [];
     if (profile.cvs.length === 0) actions.push({ type: 'MISSING_CV' });
     if (!profile.jobPreference) actions.push({ type: 'MISSING_PREFERENCES' });
     const application = await this.prisma.application.findFirst({
-      where: { candidateProfileId, status: { in: [ApplicationStatus.VIEWED, ApplicationStatus.SHORTLISTED, ApplicationStatus.INTERVIEWING] } },
+      where: {
+        candidateProfileId,
+        status: {
+          in: [
+            ApplicationStatus.VIEWED,
+            ApplicationStatus.SHORTLISTED,
+            ApplicationStatus.INTERVIEWING,
+          ],
+        },
+      },
       orderBy: { updatedAt: 'desc' },
       select: { id: true, jobPostId: true, status: true },
     });
-    if (application) actions.push({ type: 'APPLICATION_UPDATED', applicationId: application.id, jobId: application.jobPostId, status: application.status });
+    if (application)
+      actions.push({
+        type: 'APPLICATION_UPDATED',
+        applicationId: application.id,
+        jobId: application.jobPostId,
+        status: application.status,
+      });
     return actions;
   }
 
@@ -472,7 +542,15 @@ export class HomeService {
   ) {
     const sevenDaysAgo = new Date(Date.now() - SEVEN_DAYS_MS);
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const [newJobsCount, activeJobsCount, hiringCompaniesCount, openJobsCount, activeEmployersCount, newJobs7dCount, newJobs24hCount] = await Promise.all([
+    const [
+      newJobsCount,
+      activeJobsCount,
+      hiringCompaniesCount,
+      openJobsCount,
+      activeEmployersCount,
+      newJobs7dCount,
+      newJobs24hCount,
+    ] = await Promise.all([
       this.prisma.jobPost.count({
         where: {
           ...this.buildPublicJobWhere('all'),
@@ -503,9 +581,18 @@ export class HomeService {
         })
         .then((rows) => rows.length),
       this.prisma.jobPost.count({ where: this.buildPublicJobWhere('all') }),
-      this.prisma.company.count({ where: { status: CompanyStatus.ACTIVE, jobPosts: { some: this.buildPublicJobWhere('all') } } }),
-      this.prisma.jobPost.count({ where: { ...this.buildPublicJobWhere('all'), publishedAt: { gte: sevenDaysAgo } } }),
-      this.prisma.jobPost.count({ where: { ...this.buildPublicJobWhere('all'), publishedAt: { gte: oneDayAgo } } }),
+      this.prisma.company.count({
+        where: {
+          status: CompanyStatus.ACTIVE,
+          jobPosts: { some: this.buildPublicJobWhere('all') },
+        },
+      }),
+      this.prisma.jobPost.count({
+        where: { ...this.buildPublicJobWhere('all'), publishedAt: { gte: sevenDaysAgo } },
+      }),
+      this.prisma.jobPost.count({
+        where: { ...this.buildPublicJobWhere('all'), publishedAt: { gte: oneDayAgo } },
+      }),
     ]);
 
     return {
@@ -663,6 +750,11 @@ export class HomeService {
             },
           },
         },
+        _count: {
+          select: {
+            views: true,
+          },
+        },
       },
     });
   }
@@ -771,7 +863,10 @@ export class HomeService {
     }));
   }
 
-  private buildPublicJobWhere(tab: HomeJobTab, candidateProfileId?: string): Prisma.JobPostWhereInput {
+  private buildPublicJobWhere(
+    tab: HomeJobTab,
+    candidateProfileId?: string,
+  ): Prisma.JobPostWhereInput {
     const now = new Date();
     const baseWhere: Prisma.JobPostWhereInput = {
       status: JobStatus.PUBLISHED,
@@ -784,6 +879,17 @@ export class HomeService {
 
     if (tab === 'expiring') {
       baseWhere.expiredAt = { gt: now, lte: new Date(now.getTime() + FOURTEEN_DAYS_MS) };
+    } else if (tab === 'popular') {
+      // Keep the interest feed separate from expiring opportunities. A recent
+      // view is a real interaction signal; zero-view jobs are never labelled
+      // as being "of interest" merely to fill a homepage slot.
+      baseWhere.OR = [
+        { expiredAt: null },
+        { expiredAt: { gt: new Date(now.getTime() + FOURTEEN_DAYS_MS) } },
+      ];
+      baseWhere.views = {
+        some: { viewedAt: { gte: new Date(now.getTime() - INTEREST_WINDOW_MS) } },
+      };
     } else {
       baseWhere.OR = [{ expiredAt: null }, { expiredAt: { gte: now } }];
     }
@@ -827,6 +933,13 @@ export class HomeService {
     if (tab === 'expiring') {
       return [{ expiredAt: 'asc' }];
     }
+    if (tab === 'popular') {
+      return [
+        { views: { _count: 'desc' } },
+        { savedJobs: { _count: 'desc' } },
+        { publishedAt: 'desc' },
+      ];
+    }
 
     return [
       { applications: { _count: 'desc' } },
@@ -845,7 +958,9 @@ export class HomeService {
       : null;
     const badges: Array<'NEW' | 'REMOTE'> = [];
     if (job.publishedAt && now - job.publishedAt.getTime() <= SEVEN_DAYS_MS) badges.push('NEW');
-    if (job.jobPostLocations.some((item) => item.jobLocation.workingModel === WorkingModel.REMOTE)) {
+    if (
+      job.jobPostLocations.some((item) => item.jobLocation.workingModel === WorkingModel.REMOTE)
+    ) {
       badges.push('REMOTE');
     }
 
@@ -872,6 +987,7 @@ export class HomeService {
         avatar: logoUrl,
       },
       deadline: job.expiredAt?.toISOString() ?? null,
+      viewCount: job._count.views,
       publishedAt: job.publishedAt?.toISOString() ?? null,
       daysRemaining,
       urgencyTone:
@@ -972,10 +1088,7 @@ export class HomeService {
 
     const minValue = min ? Number(min) : null;
     const maxValue = max ? Number(max) : null;
-    const anchor =
-      minValue && maxValue
-        ? (minValue + maxValue) / 2
-        : (minValue ?? maxValue);
+    const anchor = minValue && maxValue ? (minValue + maxValue) / 2 : (minValue ?? maxValue);
 
     if (!anchor) {
       return null;

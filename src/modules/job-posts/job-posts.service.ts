@@ -625,9 +625,11 @@ export class JobPostsService {
     ipAddress?: string,
     userAgent?: string,
     candidateAccountId?: string,
+    visitorKey?: string,
   ) {
     await this.findOne(jobId);
     let profileId: string | undefined;
+    const normalizedVisitorKey = visitorKey?.trim().slice(0, 120) || undefined;
 
     if (candidateAccountId) {
       const profile = await this.prisma.candidateProfile.findUnique({
@@ -638,12 +640,38 @@ export class JobPostsService {
       profileId = profile?.id;
     }
 
+    // A page refresh or a React remount must not inflate a public popularity
+    // signal. Prefer a signed-in candidate identity; otherwise use the
+    // anonymous browser key and only fall back to IP for legacy callers.
+    const deduplicationKeys = profileId
+      ? [{ candidateProfileId: profileId }]
+      : normalizedVisitorKey
+        ? [{ visitorKey: normalizedVisitorKey }]
+        : ipAddress
+          ? [{ ipAddress }]
+          : [];
+
+    if (deduplicationKeys.length > 0) {
+      const seenSince = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const existingView = await this.prisma.jobView.findFirst({
+        where: {
+          jobPostId: jobId,
+          viewedAt: { gte: seenSince },
+          OR: deduplicationKeys,
+        },
+        orderBy: { viewedAt: 'desc' },
+      });
+
+      if (existingView) return existingView;
+    }
+
     return this.prisma.jobView.create({
       data: {
         jobPostId: jobId,
         ipAddress,
         userAgent,
         candidateProfileId: profileId,
+        visitorKey: normalizedVisitorKey,
       },
     });
   }

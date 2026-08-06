@@ -2,7 +2,14 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
-export const HOME_JOB_TABS = ['all', 'remote', 'parttime', 'latest', 'expiring'] as const;
+export const HOME_JOB_TABS = [
+  'all',
+  'remote',
+  'parttime',
+  'latest',
+  'popular',
+  'expiring',
+] as const;
 
 export type HomeJobTab = (typeof HOME_JOB_TABS)[number];
 
