@@ -18,6 +18,8 @@ import {
   JobSearchStatus,
   JobStatus,
   ModerationStatus,
+  PostStatus,
+  PostType,
   Prisma,
   PrismaClient,
   ProfileVisibility,
@@ -64,6 +66,64 @@ const SEED_TAX_CODE_PREFIX = 'SEED_HOME_TEST_';
 const SEED_STORAGE_PREFIX = `${SEED_KEY}/`;
 const SEED_ADDRESS_PREFIX = '[SEED_HOME_TEST]';
 const DAY = 24 * 60 * 60 * 1000;
+const POST_IMAGE_SEED_VERSION = 'v20260806';
+
+type SeedPostPresentation = {
+  daysAgo: number;
+  viewCount: number;
+  imageUrl: string;
+};
+
+const HOME_POST_PRESENTATION_BY_SLUG: Record<string, SeedPostPresentation> = {
+  [`${SEED_KEY}-top-5-cv-writing-tips`]: {
+    daysAgo: 87,
+    viewCount: 5346,
+    imageUrl:
+      'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1600&q=85',
+  },
+  [`${SEED_KEY}-how-ai-revolutionizing-hiring`]: {
+    daysAgo: 20,
+    viewCount: 16950,
+    imageUrl:
+      'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=1600&q=85',
+  },
+  [`${SEED_KEY}-salary-negotiation-guide`]: {
+    daysAgo: 157,
+    viewCount: 10265,
+    imageUrl:
+      'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1600&q=85',
+  },
+  [`${SEED_KEY}-why-nestjs-best-framework`]: {
+    daysAgo: 4,
+    viewCount: 22417,
+    imageUrl:
+      'https://images.unsplash.com/photo-1607799279861-4dd421887fb3?auto=format&fit=crop&w=1600&q=85',
+  },
+  [`${SEED_KEY}-getting-started-typescript-5`]: {
+    daysAgo: 37,
+    viewCount: 388,
+    imageUrl:
+      'https://images.unsplash.com/photo-1551650975-87deedd944c3?auto=format&fit=crop&w=1600&q=85',
+  },
+  [`${SEED_KEY}-legacy-coding-standards-2024`]: {
+    daysAgo: 801,
+    viewCount: 7124,
+    imageUrl:
+      'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1600&q=85',
+  },
+  [`${SEED_KEY}-faq-how-to-apply`]: {
+    daysAgo: 57,
+    viewCount: 3184,
+    imageUrl:
+      'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1600&q=85',
+  },
+  [`${SEED_KEY}-understanding-web3`]: {
+    daysAgo: 114,
+    viewCount: 762,
+    imageUrl:
+      'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1600&q=85',
+  },
+};
 
 function addDays(date: Date, days: number) {
   return new Date(date.getTime() + days * DAY);
@@ -2494,6 +2554,19 @@ async function main() {
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const futureDeadline = addDays(now, 45);
+  const getHomePostSeedMetadata = (slug: string) => {
+    const presentation = HOME_POST_PRESENTATION_BY_SLUG[slug];
+    if (!presentation) {
+      throw new Error(`Missing presentation metadata for home post: ${slug}`);
+    }
+
+    const createdAt = addDays(now, -presentation.daysAgo);
+    return {
+      viewCount: presentation.viewCount,
+      createdAt,
+      updatedAt: addDays(createdAt, Math.min(14, Math.floor(presentation.daysAgo / 24))),
+    };
+  };
 
   const companiesPath = path.join(__dirname, 'data/companies_detailed.json');
   let companiesWithLogo: any[] = [];
@@ -5149,7 +5222,7 @@ async function main() {
       metaDescription:
         'Learn how to write a standout resume for software engineering roles with our top 5 CV writing tips.',
       metaKeywords: 'cv writing, resume tips, software engineer resume, it resume',
-      createdAt: addDays(now, -5),
+      ...getHomePostSeedMetadata(`${SEED_KEY}-top-5-cv-writing-tips`),
     },
   });
 
@@ -5167,7 +5240,7 @@ async function main() {
       metaDescription:
         'Discover the latest trends in tech recruitment and how AI is helping recruiters find top developer talent.',
       metaKeywords: 'ai recruiting, developer hiring, recruitment automation',
-      createdAt: addDays(now, -3),
+      ...getHomePostSeedMetadata(`${SEED_KEY}-how-ai-revolutionizing-hiring`),
     },
   });
 
@@ -5185,7 +5258,7 @@ async function main() {
       metaDescription:
         'A step-by-step guide to help software developers negotiate salary, benefits, and equity packages.',
       metaKeywords: 'salary negotiation, developer salary, compensation package',
-      createdAt: addDays(now, -2),
+      ...getHomePostSeedMetadata(`${SEED_KEY}-salary-negotiation-guide`),
     },
   });
 
@@ -5203,7 +5276,7 @@ async function main() {
       metaDescription:
         'Explore the key features of NestJS that make it the industry standard for backend development.',
       metaKeywords: 'nestjs, nodejs, backend framework, web architecture',
-      createdAt: addDays(now, -1),
+      ...getHomePostSeedMetadata(`${SEED_KEY}-why-nestjs-best-framework`),
     },
   });
 
@@ -5220,7 +5293,7 @@ async function main() {
       metaTitle: 'Getting Started with TypeScript 5.x | UpNext',
       metaDescription: 'A beginner-friendly guide to setting up and starting with TypeScript 5.x.',
       metaKeywords: 'typescript, ts, javascript development, typed js',
-      createdAt: addDays(now, -10),
+      ...getHomePostSeedMetadata(`${SEED_KEY}-getting-started-typescript-5`),
     },
   });
 
@@ -5237,7 +5310,7 @@ async function main() {
       metaTitle: 'Legacy Coding Standards in 2024 | UpNext',
       metaDescription: 'Archived coding practices and standards for Node.js projects.',
       metaKeywords: 'legacy code, coding standards, javascript guidelines',
-      createdAt: addDays(now, -30),
+      ...getHomePostSeedMetadata(`${SEED_KEY}-legacy-coding-standards-2024`),
     },
   });
 
@@ -5255,7 +5328,7 @@ async function main() {
       metaDescription:
         'Frequently asked questions about applying for software engineering jobs on UpNext.',
       metaKeywords: 'faq, job application, candidate guide, support',
-      createdAt: addDays(now, -8),
+      ...getHomePostSeedMetadata(`${SEED_KEY}-faq-how-to-apply`),
     },
   });
 
@@ -5272,7 +5345,7 @@ async function main() {
       metaTitle: 'Understanding Web3 and Smart Contracts | UpNext',
       metaDescription: 'Learn the fundamentals of Web3 and how smart contracts work on Ethereum.',
       metaKeywords: 'web3, blockchain, smart contract, solidity, ethereum',
-      createdAt: addDays(now, -15),
+      ...getHomePostSeedMetadata(`${SEED_KEY}-understanding-web3`),
     },
   });
 
@@ -5501,6 +5574,7 @@ async function main() {
   );
 
   await seedCandidatesAndApplications(prisma);
+  await seedRichPosts(adminUser.id, now);
 }
 
 async function cleanImportedData() {
@@ -6706,39 +6780,8 @@ async function seedCompanyCovers(prisma: PrismaClient) {
   });
 
   const now = new Date();
-  const coversDir = path.join(uploadRoot, 'company-covers');
-
   for (const company of companies) {
-    const pngPath = path.join(coversDir, `${company.slug}.png`);
-    const jpgPath = path.join(coversDir, `${company.slug}.jpg`);
-    const jpegPath = path.join(coversDir, `${company.slug}.jpeg`);
-
-    let coverUrl = domainCovers[company.slug] || defaultFallbackCover;
-    let mimeType = 'image/jpeg';
-    let originalName = `${company.slug}-cover.jpg`;
-    let storageKey = `upnext/seed/company-covers/${company.slug}`;
-    let sizeBytes = BigInt(0);
-
-    if (fs.existsSync(pngPath)) {
-      coverUrl = `${appBackendUrl}/uploads/company-covers/${company.slug}.png`;
-      mimeType = 'image/png';
-      originalName = `${company.slug}.png`;
-      storageKey = `company-covers/${company.slug}.png`;
-      sizeBytes = BigInt(fs.statSync(pngPath).size);
-    } else if (fs.existsSync(jpgPath)) {
-      coverUrl = `${appBackendUrl}/uploads/company-covers/${company.slug}.jpg`;
-      mimeType = 'image/jpeg';
-      originalName = `${company.slug}.jpg`;
-      storageKey = `company-covers/${company.slug}.jpg`;
-      sizeBytes = BigInt(fs.statSync(jpgPath).size);
-    } else if (fs.existsSync(jpegPath)) {
-      coverUrl = `${appBackendUrl}/uploads/company-covers/${company.slug}.jpeg`;
-      mimeType = 'image/jpeg';
-      originalName = `${company.slug}.jpeg`;
-      storageKey = `company-covers/${company.slug}.jpeg`;
-      sizeBytes = BigInt(fs.statSync(jpegPath).size);
-    }
-
+    const coverUrl = domainCovers[company.slug] || defaultFallbackCover;
     const fileId = createHash('md5').update(`company-cover:${company.slug}`).digest('hex');
     const formattedId = `${fileId.slice(0, 8)}-${fileId.slice(8, 12)}-${fileId.slice(12, 16)}-${fileId.slice(16, 20)}-${fileId.slice(20, 32)}`;
 
@@ -6749,10 +6792,10 @@ async function seedCompanyCovers(prisma: PrismaClient) {
         ownerId: company.id,
         purpose: FilePurpose.OTHER,
         visibility: FileVisibility.PUBLIC,
-        storageKey,
-        originalName,
-        mimeType,
-        sizeBytes,
+        storageKey: `upnext/seed/company-covers/${company.slug}`,
+        originalName: `${company.slug}-cover.jpg`,
+        mimeType: 'image/jpeg',
+        sizeBytes: BigInt(0),
         publicUrl: coverUrl,
         updatedAt: now,
       },
@@ -6762,10 +6805,10 @@ async function seedCompanyCovers(prisma: PrismaClient) {
         ownerId: company.id,
         purpose: FilePurpose.OTHER,
         visibility: FileVisibility.PUBLIC,
-        storageKey,
-        originalName,
-        mimeType,
-        sizeBytes,
+        storageKey: `upnext/seed/company-covers/${company.slug}`,
+        originalName: `${company.slug}-cover.jpg`,
+        mimeType: 'image/jpeg',
+        sizeBytes: BigInt(0),
         publicUrl: coverUrl,
         createdAt: now,
         updatedAt: now,
@@ -6774,6 +6817,876 @@ async function seedCompanyCovers(prisma: PrismaClient) {
   }
 
   console.log(`[SEED] Successfully seeded domain-specific cover photos for all ${companies.length} companies.`);
+}
+
+
+// =========================
+// Rich post, taxonomy and image seed
+// =========================
+
+/** Helper to generate fixed UUIDs for deterministic seed runs */
+const postSeedId = (n: number) => `b0e80b22-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+async function fetchImageBuffer(imageUrl: string): Promise<Buffer> {
+  const res = await fetch(imageUrl);
+  if (!res.ok) {
+    throw new Error(`Unable to download post image from ${imageUrl}: HTTP ${res.status}`);
+  }
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length === 0) {
+    throw new Error(`Unable to download post image from ${imageUrl}: empty response`);
+  }
+  return buffer;
+}
+
+async function seedRichPosts(adminId: string, seedReferenceDate: Date) {
+  console.log('🚀 === BẮT ĐẦU SEED DỮ LIỆU BÀI VIẾT (POST, CATEGORY, TAG & REAL JPEG THUMBNAILS) ===\n');
+
+  // Ensure uploads/posts directory exists
+  const uploadDir = path.join(uploadRoot, 'posts');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log(`✅ Đã tạo thư mục lưu trữ ảnh bài viết: ${uploadDir}`);
+  }
+
+  const admin = { id: adminId };
+
+  // 2. Tạo 3 Danh mục CHA (Parent Categories)
+  console.log('\n--- 1. SEED DANH MỤC PHÂN CẤP (PARENT & CHILD CATEGORIES) ---');
+  const parent1 = await prisma.postCategory.upsert({
+    where: { slug: 'blog-upnext' },
+    update: { name: 'Blog UpNext' },
+    create: { id: postSeedId(1), name: 'Blog UpNext', slug: 'blog-upnext' },
+  });
+
+  const parent2 = await prisma.postCategory.upsert({
+    where: { slug: 'su-nghiep-it' },
+    update: { name: 'Sự nghiệp IT' },
+    create: { id: postSeedId(2), name: 'Sự nghiệp IT', slug: 'su-nghiep-it' },
+  });
+
+  const parent3 = await prisma.postCategory.upsert({
+    where: { slug: 'chuyen-mon-it' },
+    update: { name: 'Chuyên môn IT' },
+    create: { id: postSeedId(3), name: 'Chuyên môn IT', slug: 'chuyen-mon-it' },
+  });
+
+  console.log('✅ Đã khởi tạo 3 Danh mục Cha: Blog UpNext, Sự nghiệp IT, Chuyên môn IT.');
+
+  // Tạo các Danh mục CON (Child Categories)
+  const childCategoriesData = [
+    // Con của Sự nghiệp IT
+    { id: postSeedId(10), name: 'Developer', slug: 'su-nghiep-developer', parentId: parent2.id },
+    { id: postSeedId(11), name: 'Ứng tuyển & Thăng tiến', slug: 'ung-tuyen-thang-tien', parentId: parent2.id },
+    { id: postSeedId(12), name: 'Phỏng vấn & Lương thưởng', slug: 'phong-van-luong-thuong', parentId: parent2.id },
+    { id: postSeedId(13), name: 'Kỹ năng mềm & Định hướng', slug: 'ky-nang-mem-dinh-huong', parentId: parent2.id },
+
+    // Con của Chuyên môn IT
+    { id: postSeedId(20), name: 'AI & Data', slug: 'ai-data-specialty', parentId: parent3.id },
+    { id: postSeedId(21), name: 'Backend & Architecture', slug: 'backend-architecture', parentId: parent3.id },
+    { id: postSeedId(22), name: 'DevOps & Cloud', slug: 'devops-cloud', parentId: parent3.id },
+    { id: postSeedId(23), name: 'Mobile & Frontend', slug: 'mobile-frontend', parentId: parent3.id },
+
+    // Con của Blog UpNext
+    { id: postSeedId(30), name: 'Tin tức UpNext', slug: 'tin-tuc-upnext', parentId: parent1.id },
+    { id: postSeedId(31), name: 'Sự kiện IT', slug: 'su-kien-it-upnext', parentId: parent1.id },
+    { id: postSeedId(32), name: 'Báo cáo thị trường IT', slug: 'bao-cao-thi-truong-it', parentId: parent1.id },
+    { id: postSeedId(33), name: 'FAQ & Hướng dẫn', slug: 'faq-huong-dan', parentId: parent1.id },
+  ];
+
+  const categoriesMap: Record<string, { id: string; name: string }> = {};
+  categoriesMap['blog-upnext'] = { id: parent1.id, name: parent1.name };
+  categoriesMap['su-nghiep-it'] = { id: parent2.id, name: parent2.name };
+  categoriesMap['chuyen-mon-it'] = { id: parent3.id, name: parent3.name };
+
+  for (const c of childCategoriesData) {
+    const created = await prisma.postCategory.upsert({
+      where: { slug: c.slug },
+      update: { name: c.name, parentId: c.parentId },
+      create: { id: c.id, name: c.name, slug: c.slug, parentId: c.parentId },
+    });
+    categoriesMap[c.slug] = { id: created.id, name: created.name };
+  }
+  console.log(`✅ Đã tạo thành công ${childCategoriesData.length} Danh mục Con.`);
+
+  // 3. Tạo các TAGS
+  console.log('\n--- 2. SEED TAGS BÀI VIẾT ---');
+  const tagsData = [
+    { name: 'ReactJS', slug: 'reactjs' },
+    { name: 'NestJS', slug: 'nestjs' },
+    { name: 'AI & Data', slug: 'ai-data' },
+    { name: 'Cloud & AWS', slug: 'cloud-aws' },
+    { name: 'Developer', slug: 'developer' },
+    { name: 'Big Data', slug: 'big-data' },
+    { name: 'Python', slug: 'python' },
+    { name: 'Technical Lead', slug: 'technical-lead' },
+    { name: 'Phỏng vấn IT', slug: 'phong-van-it' },
+    { name: 'Lương IT', slug: 'luong-it' },
+    { name: 'DevOps', slug: 'devops' },
+    { name: 'Machine Learning', slug: 'machine-learning' },
+    { name: 'System Architecture', slug: 'system-architecture' },
+    { name: 'Agile & Scrum', slug: 'agile-scrum' },
+    { name: 'Career Path', slug: 'career-path' },
+    { name: 'Xu hướng công nghệ', slug: 'xu-huong-cong-nghe' },
+    { name: 'Backend & Architecture', slug: 'backend-architecture-tag' },
+    { name: 'Sự kiện IT', slug: 'su-kien-it-tag' },
+    { name: 'Báo cáo thị trường IT', slug: 'bao-cao-thi-truong-it-tag' },
+    { name: 'Tin tức UpNext', slug: 'tin-tuc-upnext-tag' },
+    { name: 'FAQ & Hướng dẫn', slug: 'faq-huong-dan-tag' },
+    { name: 'Tuyển dụng IT', slug: 'tuyen-dung-it-tag' },
+  ];
+
+  const tagsMap: Record<string, string> = {};
+  for (const t of tagsData) {
+    const createdTag = await prisma.tag.upsert({
+      where: { slug: t.slug },
+      update: { name: t.name },
+      create: { name: t.name, slug: t.slug },
+    });
+    tagsMap[t.name] = createdTag.id;
+  }
+  console.log(`✅ Đã khởi tạo ${tagsData.length} Thẻ (Tag) bài viết.`);
+
+  // 4. Khởi tạo danh sách BÀI VIẾT với ảnh JPEG chất lượng cao
+  console.log('\n--- 3. SEED BÀI VIẾT & DOWNLOADING REAL JPEG THUMBNAIL IMAGES ---');
+
+  const buildArticle = (
+    title: string,
+    intro: string,
+    sections: Array<{ heading: string; body: string }>,
+  ) => `
+<article class="entry-content is-layout-flow">
+  <h1>${title}</h1>
+  <p><strong>${intro}</strong></p>
+  ${sections.map((section) => `<section><h2>${section.heading}</h2><p>${section.body}</p></section>`).join('\n  ')}
+  <h2>Kết luận</h2>
+  <p>Hãy biến những gợi ý trên thành một kế hoạch nhỏ, đo lường kết quả và điều chỉnh sau mỗi vòng thực hành.</p>
+</article>`.trim();
+
+  const postsData = [
+    {
+      id: postSeedId(200),
+      title: "AI tự hành trong HR: Chuẩn data, tuyển nhanh, chọn đúng",
+      slug: "ai-tu-hanh-trong-hr-chuan-data-tuyen-nhanh-chon-dung",
+      imageUrl: 'https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 6,
+      content: "<h1 class=\"page-title\">AI tự hành trong HR: Chuẩn data, tuyển nhanh, chọn đúng</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/danh-cho-nha-tuyen-dung-it/\"><span>Dành cho Nhà tuyển dụng IT</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1677442136019-21780efad99a?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</div></figure>\n\n<div class=\"entry-content is-layout-flow\">\n\t\t\t\n<nav>\n\n<ul class='ez-toc-list ez-toc-list-level-1 ' ><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-1\" href=\"#AI_khong_giup_doanh_nghiep_tuyen_dung_nguoi_neu_quy_trinh_tuyen_dung_chua_dung\" >AI không giúp doanh nghiệp tuyển đúng người nếu quy trình tuyển dụng chưa đúng</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-2\" href=\"#Tu_Job_Description_den_Ideal_Candidate_Profile_Thay_doi_diem_khoi_dau_cua_tuyen_dung\" >Từ Job Description đến Ideal Candidate Profile: Thay đổi điểm khởi đầu của tuyển dụng</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-3\" href=\"#Khi_da_co_tieu_chi_dung_AI_co_the_tu_dong_hoa_phan_con_lai_cua_quy_trinh\" >Khi đã có tiêu chí đúng, AI có thể tự động hóa phần còn lại của quy trình</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-4\" href=\"#Tong_ket_AI_khong_thay_the_HR_ma_cung_co_vai_tro_cua_HR\" >Tổng kết: AI không thay thế HR, mà củng cố vai trò của HR</a></li></ul>\n\n</nav></div>\n\n<p><strong><em>Trong bối cảnh thị trường tuyển dụng công nghệ ngày càng nhiều biến động, việc ứng dụng AI vào tuyển dụng không còn là câu chuyện &#8220;có nên hay không&#8221;, mà là &#8220;ứng dụng như thế nào để tuyển đúng người&#8221;. Đây cũng là thông điệp xuyên suốt được chia sẻ tại sự kiện “AI Tự Hành Trong HR: Chuẩn data, tuyển nhanh, chọn đúng” do UpNext và Diaflow đồng tổ chức.</em></strong></p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</figure>\n\n<p class=\"has-text-align-center\"><em>Sự kiện &#8220;AI Tự Hành Trong HR: Chuẩn Data, Tuyển Nhanh, Chọn Đúng&#8221; do UpNext và Diaflow đồng tổ chức thu hút đông đảo HR, HRM, HRD và TA Lead cùng thảo luận về ứng dụng AI trong tuyển dụng.</em></p>\n\n<h2 class=\"wp-block-heading\" id=\"h-ai-khong-giup-doanh-nghiệp-tuyển-dung-người-nếu-quy-trinh-tuyển-dụng-chưa-dung\"><span class=\"ez-toc-section\" id=\"AI_khong_giup_doanh_nghiep_tuyen_dung_nguoi_neu_quy_trinh_tuyen_dung_chua_dung\"></span><strong>AI không giúp doanh nghiệp tuyển đúng người nếu quy trình tuyển dụng chưa đúng</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Theo chia sẻ của ông Tân Cao, bức tranh tuyển dụng công nghệ đang thay đổi nhanh chóng. Có đến 15,4% doanh nghiệp công nghệ đã cắt giảm hoặc đóng băng tuyển dụng, tăng gần ba lần so với cùng kỳ năm trước (5,9%).</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</figure>\n\n<p class=\"has-text-align-center\"><em>Ông Tân Cao &#8211; Manager of Recruitment Consulting, UpNext</em>,<em> chia sẻ những thay đổi trong chiến lược tuyển dụng khi AI ngày càng phổ biến.</em></p>\n\n<p>Trong khi đó, nhiều doanh nghiệp vẫn liên tục đầu tư vào các công cụ AI với kỳ vọng nâng cao hiệu quả tuyển dụng. Tuy nhiên, thực tế cho thấy AI không tự động giải quyết được bài toán tuyển sai người nếu ngay từ đầu doanh nghiệp chưa xác định đúng tiêu chí tuyển dụng.</p>\n\n<p>Một ví dụ được ông Tân chia sẻ tại sự kiện đã minh họa rõ điều này. Khi yêu cầu hai ứng viên (Junior và Senior) thực hiện cùng một bài kiểm tra sàng lọc hồ sơ bằng AI, nếu chấm trên thang điểm 100 thì ứng viên Junior tăng từ 2 lên 20 điểm, trong khi ứng viên Senior tăng từ 8 lên 80 điểm.</p>\n\n<blockquote class=\"wp-block-quote is-layout-flow wp-block-quote-is-layout-flow\">\n\n<p>Ông nhấn mạnh: <em>“AI không tự nhiên làm cho con người giỏi hơn, mà AI giúp nới rộng khoảng cách năng lực và gia tăng giá trị mà mỗi cá nhân mang lại cho công việc.”</em></p>\n\n</blockquote>\n\n<p>Điều đó cũng lý giải vì sao cách đánh giá ứng viên tại nhiều doanh nghiệp công nghệ đang dần thay đổi. Theo chia sẻ tại sự kiện, các doanh nghiệp như Google hay MoMo không còn đặt mục tiêu kiểm tra ứng viên có sử dụng AI hay không, mà tập trung đánh giá liệu ứng viên có thể sử dụng AI để tạo ra kết quả chính xác và hiệu quả hơn hay không.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-từ-job-description-dến-ideal-candidate-profile-thay-dổi-diểm-khởi-dầu-của-tuyển-dụng\"><span class=\"ez-toc-section\" id=\"Tu_Job_Description_den_Ideal_Candidate_Profile_Thay_doi_diem_khoi_dau_cua_tuyen_dung\"></span><strong>Từ Job Description đến Ideal Candidate Profile: Thay đổi điểm khởi đầu của tuyển dụng</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Một trong những nội dung được quan tâm nhất tại sự kiện là sự dịch chuyển từ Job Description (JD) sang Ideal Candidate Profile (ICP).</p>\n\n<p>Theo ông Tân Cao, JD phản ánh nhu cầu tuyển dụng từ góc nhìn của doanh nghiệp, nhưng chưa trả lời được ba câu hỏi quan trọng:</p>\n\n<ul class=\"wp-block-list\">\n<li>Doanh nghiệp thực sự cần giải quyết bài toán kinh doanh nào?</li>\n\n<li>Chân dung ứng viên đó có tồn tại trên thị trường hay không?</li>\n\n<li>Ngân sách của doanh nghiệp có phù hợp với mặt bằng thị trường hay không?</li>\n</ul>\n\n<p>Ngay cả khi doanh nghiệp sẵn sàng tăng ngân sách để tuyển nhân sự AI, nếu quy trình tuyển dụng vẫn giữ nguyên cách tiếp cận cũ thì nguy cơ tuyển sai người vẫn không thay đổi. Thay vào đó, UpNext đề xuất xây dựng Ideal Candidate Profile (ICP) dựa trên sự giao thoa của ba yếu tố:</p>\n\n<ul class=\"wp-block-list\">\n<li>Nhu cầu thực tế của doanh nghiệp.</li>\n\n<li>Nguồn cung nhân tài trên thị trường.</li>\n\n<li>Mức lương và ngân sách tuyển dụng khả thi.</li>\n</ul>\n\n<p>Từ nền tảng ICP, ông Tân Cao đề xuất bốn tiêu chí giúp HR đánh giá ứng viên toàn diện hơn trong bối cảnh AI đang thay đổi cách làm việc.</p>\n\n<ol class=\"wp-block-list\">\n<li><strong>AI Capability</strong>: Ứng viên không chỉ biết sử dụng AI, mà phải có khả năng ứng dụng AI để xây dựng kế hoạch hoặc triển khai các công việc thực tế.</li>\n\n<li><strong>Business Impact</strong>: Giá trị của AI được đo bằng khả năng giải quyết các nút thắt của doanh nghiệp thay vì chỉ tạo ra các kết quả mang tính trình diễn.</li>\n\n<li><strong>Learning Velocity</strong>: Tốc độ học hỏi và thích nghi trở thành lợi thế quan trọng khi công nghệ AI liên tục thay đổi.</li>\n\n<li><strong>Market Fit</strong>: Năng lực của ứng viên khi kết hợp với AI cần tạo ra giá trị cạnh tranh cho doanh nghiệp và phù hợp với nhu cầu của thị trường.</li>\n</ol>\n\n<h2 class=\"wp-block-heading\" id=\"h-khi-da-co-tieu-chi-dung-ai-co-thể-tự-dộng-hoa-phần-con-lại-của-quy-trinh\"><span class=\"ez-toc-section\" id=\"Khi_da_co_tieu_chi_dung_AI_co_the_tu_dong_hoa_phan_con_lai_cua_quy_trinh\"></span><strong>Khi đã có tiêu chí đúng, AI có thể tự động hóa phần còn lại của quy trình</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Nếu phần chia sẻ của UpNext tập trung vào chiến lược tuyển dụng, thì nhiệm vụ của Diaflow là hướng dẫn người tham dự cách hiện thực hóa chiến lược đó bằng AI. Thay vì bắt đầu từ việc đọc hàng chục hoặc hàng trăm CV, quy trình được giới thiệu tại sự kiện bắt đầu từ việc chuẩn hóa tiêu chí tuyển dụng.</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</figure>\n\n<p class=\"has-text-align-center\"><em>Ông Võ Hoàng Nam &#8211; Country Manager, Diaflow, trình diễn cách tự động hóa quy trình tuyển dụng bằng AI workflow.</em></p>\n\n<p>Đầu tiên, AI hỗ trợ HR khai thác đầy đủ yêu cầu từ Hiring Manager thông qua ghi âm, chuyển đổi nội dung thành văn bản và tổng hợp thành bộ tiêu chí đánh giá thống nhất.</p>\n\n<p>Tiếp theo, khi HR tải JD hoặc ICP cùng tập CV lên hệ thống, AI sẽ tự động đối chiếu hồ sơ với các tiêu chí đã thiết lập, chấm điểm, phân loại ứng viên đạt hoặc không đạt, đồng thời tạo bản tóm tắt về điểm mạnh, điểm cần lưu ý của từng ứng viên để HR có thêm cơ sở đánh giá.</p>\n\n<p>Sau khi hoàn tất bước sàng lọc, AI tiếp tục tự động thực hiện các tác vụ lặp lại như lưu trữ hồ sơ, phân loại CV và gửi email mời phỏng vấn hoặc thông báo kết quả theo mẫu mà doanh nghiệp thiết lập.</p>\n\n<p>Theo ông Võ Hoàng Nam, toàn bộ quy trình được xây dựng theo hướng doanh nghiệp có thể chuẩn hóa và tái sử dụng, đồng thời đáp ứng các yêu cầu về bảo mật dữ liệu với các tiêu chuẩn như SOC2 và GDPR. Dữ liệu của doanh nghiệp cũng không được sử dụng để huấn luyện các mô hình AI công cộng.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-tổng-kết-ai-khong-thay-thế-hr-ma-củng-cố-vai-tro-của-hr\"><span class=\"ez-toc-section\" id=\"Tong_ket_AI_khong_thay_the_HR_ma_cung_co_vai_tro_cua_HR\"></span><strong>Tổng kết: AI không thay thế HR, mà củng cố vai trò của HR</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Một thông điệp được nhắc lại xuyên suốt sự kiện là AI không thay thế người làm tuyển dụng: <em>“AI hoàn toàn không thể nào thay thế con người được.”</em></p>\n\n<p>AI có thể giúp HR tự động hóa nhiều tác vụ như tổng hợp yêu cầu tuyển dụng, sàng lọc hồ sơ hay gửi email đến ứng viên. Tuy nhiên, việc xác định doanh nghiệp cần tìm ai, đánh giá mức độ phù hợp của ứng viên và đưa ra quyết định tuyển dụng cuối cùng vẫn là vai trò của con người. Trong kỷ nguyên AI, lợi thế cạnh tranh của HR không còn nằm ở việc xử lý nhiều công việc thủ công hơn, mà ở khả năng xây dựng đúng tiêu chí tuyển dụng, thiết kế quy trình hiệu quả và đưa ra những quyết định tuyển dụng chính xác hơn.</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "tin-tuc-upnext",
+      metaTitle: "AI tự hành trong HR: Chuẩn data, tuyển nhanh, chọn đúng",
+      metaDescription: "Đầu tư AI nhưng vẫn tuyển sai người? Khám phá chiến lược tuyển dụng mới cùng UpNext và Diaflow, từ ICP đến AI workflow tự động hóa quy trình.",
+      viewCount: 26410,
+      tags: ["Tin tức UpNext","Xu hướng công nghệ","Developer"],
+    },
+    {
+      id: postSeedId(201),
+      title: "F88 &#8211; Hành trình “Không Ngừng Chuyển Hóa” để tạo sự khác biệt",
+      slug: "phong-van-cio-hanh-trinh-chuyen-doi-so-f88",
+      imageUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 278,
+      content: "<h1 class=\"page-title\">F88 &#8211; Hành trình “Không Ngừng Chuyển Hóa” để tạo sự khác biệt</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/lanh-dao-it/\"><span>Lãnh đạo IT</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</div></figure>\n\n<div class=\"entry-content is-layout-flow\">\n\t\t\t\n<nav>\n\n<ul class='ez-toc-list ez-toc-list-level-1 ' ><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-1\" href=\"#Start-up_va_kho_khan_tu_su_%E2%80%9CBat_Dau%E2%80%9D\" >Start-up và khó khăn từ sự “Bắt Đầu”</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-2\" href=\"#Hanh_trinh_%E2%80%9CKhong_Ngung_Chuyen_Hoa%E2%80%9D_de_tao_ra_su_khac_biet\" >Hành trình “Không Ngừng Chuyển Hóa” để tạo ra sự khác biệt</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-3\" href=\"#Khat_khao_%E2%80%9Clam_chu%E2%80%9D_voi_tinh_than_%E2%80%9CDam_nghi_Dam_lam%E2%80%9D\" >Khát khao “làm chủ” với tinh thần “Dám nghĩ, Dám làm”</a></li></ul>\n\n</nav></div>\n\n<p><span >Trong những năm trở lại đây, Việt Nam đã trở thành một trong những quốc gia năng động nhất trên thế giới trong việc phát triển kinh tế số và tài chính số, đặc biệt là trong giai đoạn hậu Covid-19. Theo dự báo của Quỹ Tiền tệ Quốc tế (IMF), đến năm 2025, nền kinh tế Việt Nam sẽ vươn lên vị trí thứ ba trong khu vực Đông Nam Á về quy mô kinh tế và thị trường Fintech của Việt Nam sở hữu nhiều yếu tố để có thể trở thành một trong những thị trường hấp dẫn nhất khu vực.</span></p>\n\n<p><span >Trong bối cảnh ấy, ngành Dịch vụ Tài chính – Ngân hàng đối mặt với yêu cầu thúc đẩy dịch vụ số để đáp ứng sự phát triển tất yếu của thời đại. Điều này mang tới vô vàn cơ hội nhưng cũng không ít thách thức, bởi chuyển đổi số không phải đơn thuần là câu chuyện về công nghệ mà đó là bài toán tổng thể cần tìm ra được chiến lược riêng phù hợp với bối cảnh &amp; đặc thù doanh nghiệp để vươn lên trên hành trình đầy thách thức ấy.</span></p>\n\n<p><span >Là một start-up trong lĩnh vực tài chính cá nhân, chỉ trong hơn 10 năm hình thành và phát triển, F88 đã vươn mình từ một đội ngũ với hơn chục nhân sự trở thành một hệ thống với đội ngũ hơn 4,000 nhân tài, hơn 800 Phòng Giao dịch và phục vụ hơn 10 triệu khách hàng trên khắp mọi miền Tổ quốc. </span></p>\n\n<p><span >Để đáp ứng tốc độ tăng trưởng mạnh mẽ ấy, hạ tầng &amp; nhân tài công nghệ tại F88 được đầu tư ra sao? Và chiến lược nào được F88 lựa chọn để bắt kịp làn sóng chuyển đổi số vô cùng tốc độ của ngành Tài chính – Ngân hàng tại Việt Nam?</span></p>\n\n<p><span >Cùng gặp gỡ <strong>Giám đốc Công nghệ Thông tin (CIO) của F88 – anh Đinh Gia Hiếu</strong> để tìm hiểu hành trình hơn 1 thập kỷ vươn mình trên hành trình chuyển đổi số của F88 và những điều doanh nghiệp này mang tới cho đội ngũ nhân tài Công nghệ của mình.</span></p>\n\n<h2><span class=\"ez-toc-section\" id=\"Start-up_va_kho_khan_tu_su_%E2%80%9CBat_Dau%E2%80%9D\"></span><b>Start-up và khó khăn từ sự “Bắt Đầu”</b><span class=\"ez-toc-section-end\"></span></h2>\n\n<p><b><i>Với kinh nghiệm dày dặn về chuyển đổi số trong các tổ chức tài chính – ngân hàng, theo anh, yếu tố cốt lõi nào sẽ mang tới thành công cho hoạt động phát triển hệ thống Công nghệ và số hóa tại một doanh nghiệp tài chính cá nhân như F88?</i></b></p>\n\n<p><span >Với gần 20 năm làm việc tại nhiều tổ chức tài chính – ngân hàng trong và ngoài nước, cá nhân tôi cho rằng chuyển đổi số không chỉ là công nghệ, mà là sự kết hợp của chiến lược, quy trình, văn hóa doanh nghiệp, quản trị nhân tài,…trong một tổ chức. Bởi vậy, để có thể chuyển đổi số thành công, chúng ta cần đảm bảo 03 yếu tố:</span></p>\n\n<ol>\n<li  aria-level=\"1\"><strong>Chiến lược phù hợp:</strong><span > Mỗi tổ chức có một bối cảnh, nền tảng, nguồn lực &amp; nhu cầu khác nhau mà chúng ta cần phân tích, thấu hiểu để đưa ra mục tiêu, định hướng phù hợp. Không phải cứ áp dụng công nghệ mới nhất, công cụ hiện đại nhất hay đi với tốc độ nhanh nhất mới là tốt. Điều quan trọng là tìm ra giải pháp phù hợp nhất với thực trạng doanh nghiệp, đáp ứng toàn bộ về mặt vận hành, ngân sách, nguồn lực… và hướng tới mục tiêu đặt ra.</span></li>\n<li  aria-level=\"1\"><strong>Sự đồng thuận:</strong><span > Chuyển đổi số chỉ có thể thành công khi mọi cá nhân trong tổ chức hiểu được tầm quan trọng của nó và chuyển đổi tư duy, năng lực, cách thức vận hành theo nó. Đó là một sự chuyển đổi mang tính hệ thống với sự đồng thuận từ cấp lãnh đạo tới cán bộ nhân viên. Định hướng, chiến lược &amp; công cụ có thể đi từ khối Công nghệ, nhưng cần được lan tỏa, chia sẻ &amp; đồng hành từ tất cả các phòng ban. </span></li>\n<li  aria-level=\"1\"><strong>Sự quyết tâm:</strong> Quá trình chuyển đổi, dù là chuyển đổi về vấn đề gì đều sẽ gặp vô số những khó khăn, trở ngại. Sự quyết tâm của toàn bộ đội ngũ nhằm đảm bảo tiến độ, phát triển giải pháp và hướng tới mục tiêu là điều tiên quyết để mọi dự án đạt được kết quả cuối cùng.</li>\n</ol>\n\n<p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</p>\n\n<p><b><i>Nhiều chuyên gia cho rằng các tổ chức ngân hàng thường gặp khó khăn về tốc độ và sự linh hoạt, vậy với doanh nghiệp tài chính cá nhân như F88 có sự khác biệt gì hay không?</i></b><i><span > </span></i></p>\n\n<p><span >Nếu so sánh với Ngân hàng, chuyển đổi số tại các doanh nghiệp, đặc biệt với F88 sẽ có khác biệt lớn về cả cơ hội và thách thức.</span></p>\n\n<p><span >F88 sẽ không gặp những khó khăn về tính linh hoạt. Phát triển từ một start-up, từ ban lãnh đạo tới đội ngũ nhân sự của F88 đều mang một tinh thần “fail fast – learn fast”, “dám nghĩ &#8211; dám làm”. Mọi người rất sẵn sàng trong việc liên tục thay đổi, học hỏi, trải nghiệm, rút kinh nghiệm. Điều đó cho phép tất cả đội ngũ được tạo điều kiện để thử nghiệm những công nghệ mới, giải pháp mới và tiến về phía trước một cách nhanh hơn.</span></p>\n\n<p><span >Bên cạnh đó, việc đơn giản hóa thủ tục, quy trình cho phép đội ngũ công nghệ của F88 thử nghiệm trong một phạm vi nhỏ, một tệp khách hàng riêng biệt. Việc hoàn thiện, nâng cấp các sản phẩm công nghệ từ đó được thuận tiện, liên tục và đảm bảo tính ưu việt cho người dùng cuối.</span></p>\n\n<p><span >Những thuận lợi nói trên cũng đã giúp việc chuyển đổi số của các doanh nghiệp như F88 được triển khai nhanh chóng, linh hoạt, thử nghiệm nhiều hạng mục, nhiều công nghệ. Tuy nhiên, bên cạnh những điểm sáng, F88 cũng sẽ gặp những khó khăn như bao doanh nghiệp khác về hạn chế ngân sách, nguồn lực và việc tìm ra một chiến lược phù hợp như đã nói ở trên cũng là một thách thức.</span></p>\n\n<p><b><i>Hành trình chuyển đổi số của F88 đã bắt đầu như thế nào và ở thời điểm đó, những thách thức mà anh và đội ngũ phải đối diện là gì?</i></b></p>\n\n<p><span >Năm 2024, F88 lựa chọn chủ đề năm là “Không Ngừng Chuyển Hóa” &#8211; Đó không chỉ là một câu khẩu hiệu mà là hành trình thực tế của F88 trong suốt hơn 10 năm qua. Qua từng giai đoạn phát triển, F88 liên tục có những sự chuyển đổi để phù hợp với nhu cầu kinh doanh và tăng trưởng trên toàn hệ thống. </span></p>\n\n<p><span >Nếu nói về thời điểm bắt đầu chuyển hóa, có lẽ dấu mốc chuyển đổi số mạnh mẽ nhất chính là vào năm 2021,</span><span > khi F88 đặt mục tiêu cán mốc 500 Phòng Giao dịch và hơn 3,000 điểm bán trên cả nước – tỉ lệ thuận với sự tăng cao về số lượng nhân sự, số lượng khách hàng và khối lượng công việc vận hành. Chính điều đó tạo nên một khát khao về việc số hóa nhằm tối ưu hiệu suất, hướng tới phục vụ khách hàng và hiện thực hóa mục tiêu đặt ra.</span></p>\n\n<p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1607799279861-4dd421887fb3?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</p>\n\n<p><span >Ở thời điểm đó, hệ thống công nghệ của F88 tương đối mang tính legacy (lâu đời) và monolithic, dẫn tới vấn đề khá lớn về đảm bảo hiệu năng và không đáp ứng được nhu cầu mở rộng quy mô của tổ chức. Đội ngũ Công nghệ không thể tập trung phát triển các sáng kiến mới mà chủ yếu mất thời gian để sửa lỗi và bảo trì hệ thống. Và lúc này, chúng tôi cần phải giải quyết ngay hai bài toán khó chính là: </span></p>\n\n<ul>\n<li  aria-level=\"1\"><span ><strong>Thời gian:</strong> F88 phải thay đổi ngay, thay đổi nhanh và thay đổi một cách toàn diện hệ thống để đảm bảo không bỏ lỡ cơ hội bứt phá </span></li>\n<li  aria-level=\"1\"><span ><strong>Nguồn lực con người:</strong> Về bên ngoài, mức độ cạnh tranh nhân tài trên thị trường vô cùng lớn và F88 chưa phải một thương hiệu mạnh để thu hút nhân tài công nghệ một cách dễ dàng. Ở bên trong, nguồn lực đội ngũ còn mỏng và đã quá quen với hệ thống cũ.</span></li>\n</ul>\n\n<p><b><i>Và trong hoàn cảnh đó, F88 đã làm gì để vượt qua thách thức?</i></b></p>\n\n<p><span >Đứng trước áp lực tăng trưởng &amp; kỳ vọng của nhà đầu tư, đội ngũ Công nghệ Thông tin chúng tôi đã đưa ra một quyết định vô cùng khó khăn, đó là lựa chọn tập trung vào cấu trúc lại hệ thống phần mềm cốt lõi thay vì theo đuổi mục tiêu phát triển ngắn hạn là mở rộng quy mô hạ tầng, bổ sung những ứng dụng mới,&#8230;</span></p>\n\n<p><span >Hướng tới phát triển bền vững, một chiến lược và kế hoạch tổng thể được đưa ra với mục tiêu triển khai một platform mới, theo một kiến trúc mới giải quyết các nhu cầu và vấn đề trọng yếu của doanh nghiệp với sự đồng thuận cao của Ban lãnh đạo. Toàn bộ nguồn lực được tập trung để triển khai các vấn đề trọng yếu.</span></p>\n\n<p><b>Và điều tự hào nhất của chúng tôi chính là sự quyết tâm và khát khao của đội ngũ Công nghệ thời điểm đó.</b><span > Các bạn đã tự đề xuất, tự làm chủ công nghệ mới &#8211; từ các workflow đến business rules với rất nhiều cấu phần. Chỉ với một team 35 nhân sự, trong vòng 9 tháng các bạn đã go-live toàn bộ hệ thống với nhiều công nghệ mới của AWS (Amazon Web Services) được ứng dụng – một hệ thống mà nếu tìm mua bên ngoài có thể có giá trị lên tới hàng triệu USD.</span></p>\n\n<h2><span class=\"ez-toc-section\" id=\"Hanh_trinh_%E2%80%9CKhong_Ngung_Chuyen_Hoa%E2%80%9D_de_tao_ra_su_khac_biet\"></span><b>Hành trình “Không Ngừng Chuyển Hóa” để tạo ra sự khác biệt</b><span class=\"ez-toc-section-end\"></span></h2>\n\n<p><strong><i>Trong quá trình thực hiện chuyển đổi số, F88 đã có những hành động, chiến lược riêng biệt như thế nào để tận dụng lợi thế, vượt qua khó khăn?</i></strong></p>\n\n<p><span >Là một start-up, F88 khó có thể so sánh về nguồn lực tài chính và con người với các ngân hàng hay tổ chức tài chính lớn. Tuy nhiên, chúng tôi đã “giải bài toán” theo cách của riêng mình, với một chiến lược phù hợp và tinh thần “thay đổi liên tục, chuyển hóa liên tục”.</span></p>\n\n<p><span >F88 không gặp vấn đề ràng buộc quá lớn về quy trình, quy định, đặc biệt về hoạt động mua sắm. Chính vì vậy, việc quyết định sử dụng công nghệ, giải pháp nào để thử nghiệm một cách nhanh chóng, hiệu quả nhất được hoàn toàn chủ động bởi đội ngũ Công nghệ Thông tin. Ví dụ, 100% các hạ tầng của của F88 được chạy trên nền tảng AWS (Amazon Web Services) và sử dụng các nền tảng SaaS (Software as a service) và PaaS (Platform as a service). Đó là những nền tảng “pay as you go”, cho phép đội ngũ thử nghiệm với phạm vi nhỏ và chi phí hợp lý. Khi thấy giải pháp chạy thử phù hợp, chúng tôi mới triển khai ở phạm vi lớn và tổng thể hơn nhằm đảm bảo tối ưu về cả hiệu quả và ngân sách.</span></p>\n\n<p><span >Về nguồn lực con người, F88 luôn nỗ lực tạo nên một môi trường giúp đội ngũ nhân sự phát triển một cách tốt nhất. Trong nội bộ, các bạn với chức danh quản lý sẽ có KPI về đào tạo công nghệ mới cho các thành viên của mình nhằm thúc đẩy văn hóa sẻ chia, học hỏi. Về bên ngoài, F88 cũng kết hợp với các đơn vị/ tổ chức công nghệ uy tín như AWS tổ chức các chuỗi đào tạo cho nhân sự trong ngành. Ngoài ra, khi CBNV tham gia các khóa học và đạt những chứng chỉ chuyên môn, F88 cũng có chính sách tài trợ chi phí đào tạo cho các bạn. </span></p>\n\n<p><span >Ngoài những nhân sự thuộc Khối Công nghệ Thông tin, các hoạt động đào tạo về tư duy chuyển đổi số, ứng dụng AI/ số hóa trong công việc hàng ngày,&#8230; cũng được triển khai tới toàn thể CBNV trong nội bộ.</span></p>\n\n<p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</p>\n\n<p><b><i>Trên quá trình phát triển về công nghệ, F88 có làm việc, phối hợp với đơn vị tư vấn hoặc đối tác bên ngoài nào hay không?</i></b></p>\n\n<p><span >Từ năm 2016 tới nay, F88 luôn nhận được sự tư vấn và hỗ trợ chuyên môn từ Quỹ đầu tư Mekong Capital, không chỉ về Công nghệ Thông tin mà về mọi mặt trong hoạt động kinh doanh. Góc nhìn chuyên sâu và toàn diện từ các chuyên gia của Mekong Capital đã giúp F88 rất nhiều trong việc xây dựng và thực thi chiến lược chuyển đổi trên thực tế.</span></p>\n\n<p><span >Ngoài ra, F88 cũng nhận được sự đồng hành của nhiều đối tác uy tín, đặc biệt là Amazon – một trong 03 nhà cung cấp dịch vụ đám mây (cloud) hàng đầu trên thế giới. Amazon đã cam kết cung cấp dịch vụ &amp; chuyên gia hàng đầu để đồng hành cùng F88 trong quá trình tư vấn, triển khai, cùng thử nghiệm những công nghệ mới. </span></p>\n\n<p><span >Ví dụ, sau khi Amazon đầu tư vào Anthropic và phát triển Claude.ai, đơn vị này cũng đang thử nghiệm với F88 để ứng dụng AI vào các bài toán về trải nghiệm khách hàng và tự động hóa; điển hình là việc xây dựng Internal Knowledge Base (cơ sở tri thức nội bộ) để F88 giải quyết các vấn đề giải đáp thắc mắc, phản hồi, hỗ trợ khách hàng cũng như tối ưu các quy trình nội bộ doanh nghiệp.</span></p>\n\n<p><span >Những “người bạn” ấy đã hỗ trợ cho F88 rất nhiều trong quá trình phát triển năng lực, tư duy số và thực thi thành công những giải pháp công nghệ cho tới ngày hôm nay. </span></p>\n\n<p><b><i>Hiện tại F88 có hơn 10 triệu khách hàng trên cả nước với nhiều dịch vụ tài chính khác nhau, làm thế nào để các sản phẩm công nghệ của F88 đáp ứng được nhu cầu và trải nghiệm của khách hàng?</i></b></p>\n\n<p><span >F88 hiện cung cấp dịch vụ cho vay cầm cố, bảo hiểm, thanh toán hóa đơn và nhiều tiện ích tài chính khác cho khách hàng chủ yếu là bà con, người dân lao động. Chính vì thế, chúng tôi luôn tâm niệm phải mang tới những trải nghiệm đơn giản nhất, dễ dàng nhất cho khách hàng. Mọi công nghệ hiện đại sẽ là nền tảng ở phía sau, được ứng dụng, phát triển với đích đến cuối cùng là sự thuận tiện cho khách hàng – đảm bảo họ không cần có kinh nghiệm, trải nghiệm về công nghệ hay số hóa cũng có thể sử dụng.</span></p>\n\n<p><span >Sự khác biệt tại F88 nằm ở việc mỗi thành viên trong đội ngũ đều thấm nhuần giá trị cốt lõi “Khách hàng là trọng tâm”, luôn nỗ lực để thấu hiểu nhu cầu, hành vi, tâm lý khách hàng. Khi phát triển, nâng cấp bất kỳ sản phẩm công nghệ nào, các bạn Developer, Project Owner,&#8230; không chỉ phối hợp sát sao với bộ phận Trải nghiệm Khách hàng mà có những ngày tới Phòng Giao dịch để làm việc, từ đó nắm bắt quy trình nghiệp vụ, sản phẩm và tiếp cận, tìm hiểu khách hàng một cách trực tiếp. Chính nhờ đó, các bạn có thể tự đưa ra sáng kiến, lộ trình cho sản phẩm mà mình quản trị để đáp ứng tốt nhất nhu cầu của đa dạng khách hàng.</span></p>\n\n<h2><span class=\"ez-toc-section\" id=\"Khat_khao_%E2%80%9Clam_chu%E2%80%9D_voi_tinh_than_%E2%80%9CDam_nghi_Dam_lam%E2%80%9D\"></span><b>Khát khao “làm chủ” với tinh thần “Dám nghĩ, Dám làm”</b><span class=\"ez-toc-section-end\"></span></h2>\n\n<p><b><i>Trong chặng đường tiếp theo với những tham vọng và mục tiêu mới, F88 sẽ làm gì để tận dụng lợi thế của mình và đạt được những thành tựu mới trên hành trình chuyển đổi số?</i></b></p>\n\n<p><span >Đội ngũ F88 hiện tại đang nỗ lực hiện thực hóa tầm nhìn năm 2025 “trở thành trở thành tập đoàn cung cấp dịch vụ tài chính cá nhân lớn nhất Việt Nam được mọi người yêu quý và ngưỡng mộ” với mục tiêu đạt 1500 Phòng Giao dịch, hướng tới IPO trong thời gian gần.</span></p>\n\n<p><span >Để làm được điều đó, chúng tôi hiểu rằng, tăng trưởng bền vững chỉ đến khi đội ngũ của mình làm chủ được công nghệ, chủ động làm ra những sản phẩm “vừa vặn” với doanh nghiệp và khách hàng. Chính vì thế, chúng tôi đặt mục tiêu tái cấu trúc, chuyển đổi từ mô hình vận hành truyền thống sang “Agile”.</span></p>\n\n<p><span >Với Khối Công nghệ Thông tin hiện tại, đội ngũ không làm việc theo các phòng ban truyền thống mà được chia thành các Squad Team. Mỗi Squad Team sẽ phụ trách nghiên cứu, phát triển một sản phẩm nhất định và deliver đến kết quả cuối cùng. Mô hình đó xóa nhòa đi những quy trình phức tạp mà hệ thống phân tầng (hierarchy) mang đến, đồng thời tạo cơ hội cho mỗi thành viên được thể hiện năng lực, thúc đẩy sự phát triển và linh hoạt trong giải quyết vấn đề. Mọi nhân sự cũng được trải nghiệm nhiều hơn ở các dự án khác nhau, thay đổi theo giai đoạn và nhu cầu thực tế.</span></p>\n\n<p><span >Không dừng lại ở đó, trong thời gian tới, mô hình Agile cũng được mở rộng ra toàn bộ tổ chức với sự tham gia sâu của các đơn vị nghiệp vụ. Các khối phòng ban, bao gồm cả Kinh doanh, Quản trị Nguồn nhân lực, Tài chính,&#8230; cũng sẽ ứng dụng mô hình này để triển khai những dự án tối ưu năng suất của riêng mình, tạo ra những sự chuyển đổi mang tính đột phá &amp; đồng bộ cho F88.</span></p>\n\n<p><b><i>Trên chặng đường đầy tham vọng ấy, F88 đã và sẽ làm gì để đội ngũ của mình phát huy &amp; phát triển năng lực một cách tốt nhất?</i></b></p>\n\n<p><span >Đội ngũ sáng lập (Founder) của F88 luôn tự hào rằng “F88 vận hành theo mô hình kim tự tháp ngược” với tư duy “lãnh đạo phục vụ” – nghĩa là lãnh đạo cấp càng cao thì càng có trách nhiệm hỗ trợ, tạo điều kiện tốt nhất cho cấp dưới hoàn thành nhiệm vụ. Có một câu quotes mà bản thân tôi rất tâm đắc, đó là “As leaders in technology, our legacy isn&#8217;t in lines of code, but in the impact we make on the lives and careers of our team”. Tôi luôn tâm niệm mình là một người leader (người lãnh đạo), người định hướng, hỗ trợ đội ngũ và tạo được tác động tích cực cho cuộc sống và sự nghiệp của anh em.</span></p>\n\n<p><span >Tôi hiểu rằng các bạn sẽ chỉ có thể phát triển, khi các bạn có cơ hội để được thể hiện, học hỏi và trải nghiệm. Vì thế, tôi xây dựng ra một cơ chế trao quyền, để mỗi Squad Team của mình được tự nghiên cứu, đề xuất và triển khai các phương án kỹ thuật, giải pháp công nghệ của riêng mình. Tôi sẽ đóng vai trò là người quản lý, kiểm soát, dẫn dắt các bạn đến mục tiêu dựa trên KPI để các bạn tạo ra thành quả “on-time, on-target”. Điều đó giúp mỗi thành viên trong đội ngũ có không gian để sáng tạo, thử nghiệm và thực thi những giải pháp mới thay vì đóng khung trong yêu cầu của Ban Lãnh đạo.</span></p>\n\n<p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</p>\n\n<p><span >Tuy nhiên, để làm được điều đó, chúng tôi cũng phải đảm bảo việc đào tạo, phát triển năng lực cho đội ngũ của mình. Việc này là cả một quá trình với vô vàn những hành động từ việc tuyển dụng đúng người, thúc đẩy đào tạo phát triển, nâng cao trải nghiệm nhân sự, ghi nhận và tưởng thưởng xứng đáng,&#8230; mà F88 đã thực hiện trong suốt thời gian qua. </span></p>\n\n<p><span >Minh chứng cho điều đó là tháng 5 vừa qua, F88 đã tự hào được vinh danh trong danh sách 25 &#8220;Nơi làm việc xuất sắc hàng đầu Việt Nam&#8221; năm 2024 do Great Place To Work xếp hạng bên cạnh nhiều thương hiệu lớn như Coca-Cola, Hilton, Schneider Electric, DHL,&#8230;</span></p>\n\n<p><b><i>“Cơn bão” chuyển đổi số phía trước còn nhiều chông gai và thách thức, theo anh, điều gì sẽ là &#8220;vũ khí&#8221; để đội ngũ Công nghệ Thông tin của F88 để tạo nên sự khác biệt, tự tin vươn mình bứt phá?</i></b></p>\n\n<p><b>Điều đặc biệt, cũng là “vũ khí” của riêng F88 chính là con người</b><span > – là sự nhiệt huyết, đồng lòng và tinh thần “dám nghĩ, dám làm” của mỗi thành viên trong đội ngũ.</span></p>\n\n<p><span >Tại F88, chúng tôi xây dựng một văn hóa đặc trưng với định vị “Nơi bạn làm chủ”. Ở đó, mỗi cá nhân được tự chủ ý kiến, chủ động đề xuất, triển khai; được trao cơ hội để thực hiện ước mơ của mình. Có lẽ không ở đâu như F88 mà ngày hôm nay, trong một buổi ăn trưa, bạn nói rằng mình thấy công nghệ này đã phát triển ổn định và có tiềm năng giải quyết tốt một vấn đề của doanh nghiệp; ngày mai, sẽ có 1 nhóm dự án nghiên cứu để thử nghiệm, ứng dụng công nghệ đó trong thực tế. Với tinh thần start-up, chúng tôi không giới hạn những ý tưởng, suy nghĩ mà cho phép mọi cá nhân thể hiện năng lực và tạo ra giá trị của riêng mình.</span></p>\n\n<p><span >Bên cạnh đó, để tăng cường sức mạnh tập thể, chúng tôi có văn hóa “đồng thuận”. Tại F88, bất kỳ quyết định, vấn đề nào được đưa ra đều dựa trên sự đồng thuận của các cá nhân liên quan; và khi “đồng thuận”, nghĩa là bạn cam kết chung tay thực hiện nó với nguồn lực của mình. Hai chữ “đồng thuận” ấy đã tạo nên sự gắn kết, đồng lòng và hỗ trợ chặt chẽ giữa các cá nhân, đội nhóm, phòng ban – từ cấp lãnh đạo tới nhân viên để hướng tới mục tiêu chung.</span></p>\n\n<p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</p>\n\n<p><span >F88 sẽ là nơi dành cho những cá nhân “dám nghĩ, dám làm”, có đam mê và mong muốn tạo ra giá trị, giải pháp, sản phẩm mang dấu ấn của mình. Và khi bạn làm được điều đó, F88 sẵn sàng ghi nhận, tưởng thưởng bằng cả vật chất và tinh thần. Minh chứng cho điều đó là ở thời điểm hiện tại, tỉ lệ quản lý dưới 30 tuổi của F88 đạt 48.7% trên tổng chức danh quản lý trong tổ chức và ngay tại khối Công nghệ Thông tin, có nhiều bạn trẻ sinh năm 1998 &#8211; 1999 đã trở thành Chuyên viên Cao cấp, giữ vai trò quan trọng trong đội nhóm. </span></p>\n\n<p><span >Với chiến lược phù hợp, sự đồng thuận và quyết tâm nội tại, tôi tin F88 sẽ là nơi để đội ngũ nhân tài Công nghệ thể hiện khát vọng, theo đuổi đam mê, tích lũy trải nghiệm và vững bước vượt mọi thử thách, vươn tới thành công.</span></p>\n\n<p>Khám phá ngay các cơ hội <a href=\"https://UpNext.com/nha-tuyen-dung/f88?utm_source=UpNext_blog&amp;utm_medium=fit_jobs_2024&amp;utm_campaign=f88_fit_jobs_sponsored_article_062024\" target=\"_blank\" rel=\"noopener\">việc làm IT hấp dẫn</a> tại F88, hoặc tiếp cận nhanh chóng mọi thông tin hữu ích về sự nghiệp IT trong ngành Tài chính – Ngân hàng <a href=\"https://UpNext.com/viec-lam-it-noi-bat-tai-chinh-ngan-hang-2024?utm_source=UpNext_blog&amp;utm_medium=fit_jobs_2024&amp;utm_campaign=f88_fit_jobs_sponsored_article_062024\" target=\"_blank\" rel=\"noopener\">tại đây</a>.</p>\n\n<p class=\"p1\"><div class=\"post-views content-post post-73717 entry-meta load-dynamic\">\r\n\t\t\t\t<span class=\"post-views-icon dashicons dashicons-chart-bar\"></span> <span class=\"post-views-label\">Post Views:</span> <span class=\"post-views-count\">18.745</span>\r\n\t\t\t</div></p>\n\n<p ><em>Nội dung và hình ảnh được cung cấp bởi F88</em></p>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "tin-tuc-upnext",
+      metaTitle: "F88 &#8211; Hành trình “Không Ngừng Chuyển Hóa” để tạo sự khác biệt",
+      metaDescription: "Gặp gỡ Giám đốc Công nghệ Thông tin (CIO) của F88 – anh Đinh Gia Hiếu để tìm hiểu hành trình chuyển đổi số mạnh mẽ ở F88 và vai trò của nhân tài IT...",
+      viewCount: 14825,
+      tags: ["Tin tức UpNext","Xu hướng công nghệ","Developer"],
+    },
+    {
+      id: postSeedId(202),
+      title: "Designing AI Systems for Millions of Digital Assets: The Orange Logic Approach",
+      slug: "designing-ai-systems-for-millions-of-digital-assets-the-orange-logic-approach",
+      imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 73,
+      content: "<h1 class=\"page-title\">Designing AI Systems for Millions of Digital Assets: The Orange Logic Approach   </h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/ai-data/\"><span>AI &amp; Data</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</div></figure>\n\n<div class=\"entry-content is-layout-flow\">\n\t\t\t\n<nav>\n\n<ul class='ez-toc-list ez-toc-list-level-1 ' ><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-1\" href=\"#Beyond_Magic_The_Philosophy_of_AI\" >Beyond Magic: The Philosophy of AI&nbsp;&nbsp;&nbsp;</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-2\" href=\"#Embedding_AI_into_the_Core_of_Content_Systems\" >Embedding AI into the Core of Content Systems&nbsp;&nbsp;</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-3\" href=\"#From_Theory_to_Impact_The_AI_Transformation_at_AFI\" >From Theory to Impact: The AI Transformation at AFI&nbsp;</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-4\" href=\"#Orange_Logic\" >Orange Logic&nbsp;</a></li></ul>\n\n</nav></div>\n\n<p>Most enterprises have millions of images, videos, and documents they&nbsp;can&#8217;t&nbsp;find when they need them. The assets exist, but the information inside them, such as&nbsp;who&#8217;s&nbsp;in the photo,&nbsp;what&#8217;s&nbsp;said in the recording, or what&nbsp;the document is about, is locked up in files scattered across systems with inconsistent or missing metadata. Searching is slow. Reusing existing work is harder than creating it again from scratch.&nbsp;</p>\n\n<p>The instinct is to treat this as a content management problem with better folders, stricter tagging rules, and more&nbsp;disciplined librarians. That approach scales until it&nbsp;doesn&#8217;t. Manual tagging&nbsp;can&#8217;t&nbsp;keep up with volume. Predefined taxonomies go stale as the business changes.&nbsp;Eventually, organizations are paying to store data they can&#8217;t actually use.&nbsp;</p>\n\n<p>AI changes&nbsp;what&#8217;s&nbsp;possible here. Instead of waiting for humans to describe every asset, modern systems read the assets directly: a face in a photo, a sentence in a recording, a chart in a PDF. The content describes itself, and the archive becomes searchable on its own terms.&nbsp;</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-beyond-magic-the-philosophy-of-ai-nbsp-nbsp-nbsp\"><span class=\"ez-toc-section\" id=\"Beyond_Magic_The_Philosophy_of_AI\"></span><strong>Beyond Magic: The Philosophy of AI&nbsp;</strong>&nbsp;&nbsp;<span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Applying AI in enterprise environments goes far beyond improving user experience. It involves designing systems that can&nbsp;operate&nbsp;reliably across millions of assets, integrate with complex infrastructures, and support evolving business needs.&nbsp;&nbsp;</p>\n\n<p>AI is increasingly used to automate processes such as tagging, classification, workflow routing, and compliance checks. A growing direction is the development of agent-based systems capable of executing multi-step tasks and adapting to specific domains. In this model, AI becomes an active participant in workflows rather than just a supporting tool. </p>\n\n<p><strong>One of the most visible shifts is in search</strong>. Traditional systems depend on exact matches such as filenames or tags, while AI-driven approaches aim to interpret user intent. This enables natural language search, more relevant results despite incomplete metadata, and faster access to information. Behind this experience lies a combination of semantic understanding, pattern recognition, and continuous refinement based on real usage.&nbsp;&nbsp;</p>\n\n<p>For engineers, however, what appears seamless to users involves significant complexity underneath. Building production-ready AI systems requires continuous experimentation, evaluating trade-offs between accuracy and performance, and ensuring scalability over time. The experience may feel intuitive, but it is grounded in disciplined engineering. A useful analogy can be drawn from Alita: Battle Angel, where advanced technology appears almost magical, yet is&nbsp;ultimately the&nbsp;result of thoughtful design and engineering rigor.&nbsp;&nbsp;</p>\n\n<p>Equally important is the <strong>data infrastructure</strong> that supports these capabilities. AI systems depend on scalable storage, high-performance APIs, robust data pipelines, and governance layers to ensure compliance and security. In this context, content platforms evolve into foundational data infrastructure, connecting systems, standardizing access, and enabling organizations to fully&nbsp;leverage&nbsp;their information.&nbsp;&nbsp;</p>\n\n<p>As digital content continues to grow, the distinction between content and data will continue to blur. The future lies in intelligent systems that can understand, connect, and activate information at scale, reshaping how organizations interact with their own data.&nbsp;&nbsp;</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1607799279861-4dd421887fb3?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n<figcaption class=\"wp-element-caption\">A discovery problem for most organizations</figcaption></figure>\n\n<h2 class=\"wp-block-heading\" id=\"h-embedding-ai-into-the-core-of-content-systems-nbsp-nbsp\"><span class=\"ez-toc-section\" id=\"Embedding_AI_into_the_Core_of_Content_Systems\"></span><strong>Embedding AI into the Core of Content Systems</strong>&nbsp;&nbsp;<span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Platforms like those developed by Orange Logic, founded by <strong>Karl Facredyn</strong>, reflect this transition. What began as a solution for managing large photo archives has evolved into systems designed to treat content as a dynamic data layer: one that can be queried, enriched, and acted upon intelligently. AI is no longer positioned as an add-on feature, but as a foundational&nbsp;component&nbsp;of how these systems&nbsp;operate. What truly differentiates an AI team, however, is not just the technology it adopts, but how engineers are empowered to transform ideas into real, production-ready, and impactful solutions.&nbsp;&nbsp;</p>\n\n<p>At Orange Logic, this means working on high-impact AI applications that solve real-world problems:&nbsp;&nbsp;&nbsp;</p>\n\n<ul class=\"wp-block-list\">\n<li><strong>AI Search:</strong>&nbsp;We enable users to search using their own words and find assets even when they&nbsp;don’t&nbsp;know the exact tags, filenames, or where an asset lives. This saves time and removes friction from discovery.&nbsp;&nbsp;&nbsp;&nbsp;</li>\n</ul>\n\n<ul class=\"wp-block-list\">\n<li><strong>AI Assistant</strong>: Transforms simple conversation into action, users effortlessly manage and create assets without needing to learn complex workflows&nbsp;&nbsp;&nbsp;</li>\n</ul>\n\n<ul class=\"wp-block-list\">\n<li><strong>Agentic AI Studio:</strong>&nbsp;Design and deploy your own AI agents with specific personalities and domain knowledge, enable autonomously handling of repetitive tasks at scale.&nbsp;&nbsp;&nbsp;</li>\n</ul>\n\n<p>By handling the heavy lifting behind the scenes, AI frees users to focus on creative, strategic, and high-impact work,&nbsp;ultimately making&nbsp;their day-to-day experience simpler, faster, and more rewarding.&nbsp;&nbsp;</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n<figcaption class=\"wp-element-caption\">How Agent Studio helps with Creatives</figcaption></figure>\n\n<h2 class=\"wp-block-heading\" id=\"h-from-theory-to-impact-the-ai-transformation-at-afi-nbsp\"><span class=\"ez-toc-section\" id=\"From_Theory_to_Impact_The_AI_Transformation_at_AFI\"></span><strong>From Theory to Impact: The AI Transformation at AFI</strong>&nbsp;<span class=\"ez-toc-section-end\"></span></h2>\n\n<p>To illustrate this shift, consider the <strong>American Film Institute (AFI)</strong>, a nonprofit preserving 50 years of cinematic history. Before implementing Orange Logic, their archive of over 1 million still images and 70,000 audio/video recordings was siloed across disorganized servers and physical tapes.&nbsp;</p>\n\n<p>By embedding AI into the core of their archive, AFI achieved three critical technical breakthroughs:&nbsp;</p>\n\n<ul class=\"wp-block-list\">\n<li><strong>Automated Metadata Enrichment:</strong>&nbsp;AFI utilized Facial Recognition to process over a million assets. A batch confirm tool allowed them to go through groups of photos and confirm identifications without reviewing photos one by one.&nbsp;</li>\n</ul>\n\n<ul class=\"wp-block-list\">\n<li><strong>Easy-to-use Search:</strong>&nbsp;For their 700,000 recordings, AFI used AI-driven auto-captioning. This transformed audio into searchable data, allowing users to find not only a specific speaker but also every instance where that person was a topic of discussion across other assets.&nbsp;</li>\n</ul>\n\n<ul class=\"wp-block-list\">\n<li><strong>High-Velocity Asset Orchestration:</strong>&nbsp;With video files as large as 400 GB, users can now use AI to&nbsp;identify&nbsp;specific time codes and download only the necessary&nbsp;subclips<strong>&nbsp;</strong>directly from the DAM.&nbsp;</li>\n</ul>\n\n<p><em>Link for reference:&nbsp;</em><a href=\"https://www.orangelogic.com/case-studies/american-film-institute\" target=\"_blank\" rel=\"noreferrer noopener\"><em>https://www.orangelogic.com/case-studies/american-film-institute</em></a>&nbsp;</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1531482615713-2afd69097998?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n<figcaption class=\"wp-element-caption\">The AI Transformation at American Film Institute</figcaption></figure>\n\n<h2 class=\"wp-block-heading\" id=\"h-orange-logic-nbsp\"><span class=\"ez-toc-section\" id=\"Orange_Logic\"></span><strong>Orange Logic</strong>&nbsp;<span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Orange Logic is more than a software provider; we are the architects of digital ecosystems. We empower organizations to take control of their creative and functional assets through a platform that is as dynamic as their ideas.&nbsp;Our clients include the American Film Institute, the World Bank, and the United Nations. The work spans healthcare archives, humanitarian image libraries, brand archives, and retail content operations with different industries, same underlying problem: too many assets, not enough structure.&nbsp;&nbsp;</p>\n\n<p>What truly defines us is not just our platform, but the people behind the code. We believe that extraordinary engineering begins with human passion, which is why we invest deeply in our teams. We foster a hiring process designed to attract the top-tier engineering minds who are passionate about solving impossible problems at scale. This commitment secures the&nbsp;expertise&nbsp;and creativity needed to elevate our product and ensure our clients maximize their full potential.&nbsp;&nbsp;</p>\n\n<p>Also,&nbsp;strong ownership is a core principle for all engineers, especially the AI team in Vietnam. Engineers are not just contributors to isolated tasks; they own their features end-to-end. From early exploration and prototyping to production deployment and long-term maintenance, teams are trusted to make technical decisions, experiment with&nbsp;new approaches, and take responsibility for outcomes. This ownership culture creates a safe space for innovation, where learning and experimentation are encouraged rather than constrained.&nbsp;&nbsp;</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1677442136019-21780efad99a?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n<figcaption class=\"wp-element-caption\">The Orange Logic Team</figcaption></figure>\n\n<p><a href=\"https://UpNext.com/nha-tuyen-dung/ol-vietnam\">Orange Logic</a> is committed to pushing the boundaries of what is possible in the DAM and MAM spaces. As we continue to expand our footprint, we are looking for engineers, visionaries, and problem solvers who want to work on a product that&nbsp;impacts&nbsp;the world’s most recognizable brands.&nbsp;&nbsp;</p>\n\n<p class=\"has-text-align-right\"><em>Content and images belong to Orange Logic Vietnam.</em></p>\n\n</div>\n<div class=\"entry-tags is-width-constrained \"><span class=\"ct-module-title\">TAGS</span><div class=\"entry-tags-items\"><a href=\"https://UpNext.com/blog/tag/ai-tranformation/\" rel=\"tag\"><span>#</span> AI tranformation</a><a href=\"https://UpNext.com/blog/tag/ai-driven/\" rel=\"tag\"><span>#</span> AI-driven</a><a href=\"https://UpNext.com/blog/tag/tech-trend/\" rel=\"tag\"><span>#</span> Tech trend</a></div></div>\t\t\n\t\t\t\t\t\n\t\t<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "su-nghiep-developer",
+      metaTitle: "Designing AI Systems for Millions of Digital Assets: The Orange Logic Approach",
+      metaDescription: "Beyond the magic of AI: Discover how Orange Logic engineers production-ready AI search and agentic studios to solve complex enterprise data problems.",
+      viewCount: 9680,
+      tags: ["Career Path","Developer","Phỏng vấn IT"],
+    },
+    {
+      id: postSeedId(203),
+      title: "Scala Developer là gì: Kỹ năng yêu cầu và cơ hội nghề nghiệp",
+      slug: "scala-developer-la-gi",
+      imageUrl: 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 387,
+      content: "<h1 class=\"page-title\">Scala Developer là gì: Kỹ năng yêu cầu và cơ hội nghề nghiệp</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/chuyen-mon-it/\"><span>Chuyên môn IT</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<h2 class=\"wp-block-heading\" id=\"h-lộ-trinh-trở-thanh-scala-developer\"><span class=\"ez-toc-section\" id=\"Lo_trinh_tro_thanh_Scala_Developer\"></span><strong>Lộ trình trở thành Scala Developer</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Để trở thành một Scala Developer, bạn cần xây dựng nền tảng lập trình vững chắc, sau đó từng bước tiếp cận hệ sinh thái Scala và các công nghệ liên quan. Vì Scala thường được sử dụng trong backend systems và các nền tảng dữ liệu lớn, lộ trình học thường kết hợp giữa kiến thức lập trình, hệ thống và xử lý dữ liệu.&nbsp;</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-kiến-thức-nền-tảng-cần-nắm-vững\"><strong>Kiến thức nền tảng cần nắm vững</strong></h3>\n\n<p>Trước khi lựa chọn hướng đi cụ thể, bạn cần hiểu rõ những kiến thức cốt lõi sau:</p>\n\n<ul class=\"wp-block-list\">\n<li><strong>Lập trình cơ bản và tư duy giải quyết vấn đề: </strong>Bao gồm cấu trúc dữ liệu, thuật toán, cách tổ chức chương trình và tư duy logic. Đây là nền tảng chung cho mọi ngôn ngữ, không riêng gì Scala.</li>\n\n<li><strong>Lập trình hướng đối tượng (OOP): </strong>Scala chạy trên JVM và có khả năng tương tác chặt chẽ với Java, vì vậy việc hiểu OOP (class, object, inheritance, abstraction…) sẽ giúp bạn tiếp cận Scala dễ dàng hơn</li>\n\n<li><strong>Scala core và cú pháp cơ bản: </strong>Làm quen với cách khai báo biến (val, var), functions, collections, pattern matching và cách Scala tổ chức code.</li>\n\n<li><strong>Tư duy lập trình hàm (Functional Programming): </strong>Đây là điểm khác biệt lớn nhất của Scala. Những khái niệm bạn cần làm quen trước là immutability, pure function, higher-order function, map/filter/reduce, Option, Either… </li>\n\n<li><strong>Hiểu hệ sinh thái JVM: </strong>Scala chạy trên JVM, vì vậy việc hiểu cách JVM hoạt động, cách sử dụng thư viện Java và cách Scala tương tác với Java sẽ giúp bạn làm việc hiệu quả hơn trong môi trường thực tế.</li>\n</ul>\n\n<p>Sau khi đã có nền tảng này, bạn có thể lựa chọn hướng phát triển phù hợp với mục tiêu nghề nghiệp của mình theo hướng Backend/Distributed Systems hoặc Data/platform.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-backend-distributed-systems\"><strong>Backend/Distributed Systems</strong></h3>\n\n<p>Nếu bạn muốn trở thành backend engineer hoặc làm việc với hệ thống phân tán, bạn cần tập trung vào các kỹ năng:</p>\n\n<ul class=\"wp-block-list\">\n<li><strong>Scala core và tư duy Functional Programming: </strong>Việc viết code rõ ràng, immutable và dễ mở rộng là yếu tố rất quan trọng khi xây dựng hệ thống backend lớn.</li>\n\n<li><strong>Hiểu cách thiết kế API và hệ thống backend: </strong>Bạn cần hiểu cách thiết kế RESTful API, xử lý request/response, validation và tổ chức business logic một cách sạch sẽ.</li>\n\n<li><strong>Concurrency và Distributed Systems: </strong>là phần cốt lõi khi dùng Scala cho backend. Bạn cần hiểu cách xử lý bất đồng bộ (async), multi-threading và cách hệ thống hoạt động khi scale.</li>\n\n<li><strong>Các framework và công nghệ phổ biến: </strong>Một số công cụ thường dùng gồm:</li>\n</ul>\n\n<ul class=\"wp-block-list\">\n<li>Play Framework (web framework)</li>\n\n<li>Akka / Apache Pekko (actor model, hệ thống phân tán)</li>\n\n<li>Cats Effect / ZIO (quản lý side effects theo hướng functional)</li>\n\n<li><strong>Database và hệ thống triển khai: </strong>Sử dụng database (SQL/NoSQL) và cách tối ưu hệ thống; làm quen với Docker, CI/CD và cách deploy hệ thống trong production.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-scala-data-big-data-platform\"><strong>Scala Data / Big Data Platform</strong></h3>\n\n<p>Nếu bạn quan tâm đến dữ liệu và hệ thống xử lý dữ liệu, bạn nên tập trung vào:</p>\n\n<ul class=\"wp-block-list\">\n<li><strong>Scala core và xử lý dữ liệu với collections: </strong>Khả năng thao tác dữ liệu bằng functional style là nền tảng quan trọng khi làm việc với Big Data.</li>\n\n<li><strong>Apache Spark (trọng tâm): </strong>Đây là công cụ quan trọng nhất trong hệ sinh thái Scala Data. Bạn cần hiểu:\n\n<ul class=\"wp-block-list\">\n<li>DataFrame / Dataset</li>\n\n<li>Transformation vs Action</li>\n\n<li>Cách Spark xử lý dữ liệu phân tán</li>\n</ul>\n\n</li>\n<li><strong>Streaming data với Kafka: </strong>Hiểu cách dữ liệu được xử lý theo thời gian thực (real-time), event-driven systems.</li>\n<li><strong>Data modeling và pipeline: </strong>Biết cách tổ chức dữ liệu, xây dựng pipeline ETL/ELT và xử lý dữ liệu batch vs streaming.</li>\n<li><strong>Orchestration và Cloud: </strong>Làm quen với các công cụ như Airflow, Dagster và các nền tảng cloud (AWS, GCP, Azure) để vận hành hệ thống dữ liệu.</li>\n</ul>\n\n<h2 class=\"wp-block-heading\" id=\"h-cơ-hội-nghề-nghiệp-của-scala-developer\"><span class=\"ez-toc-section\" id=\"Co_hoi_nghe_nghiep_cua_Scala_Developer\"></span><strong>Cơ hội nghề nghiệp của Scala Developer</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<h3 class=\"wp-block-heading\" id=\"h-linh-vực-phat-triển-nghề-nghiệp-cho-scala-developer\"><strong>Lĩnh vực phát triển nghề nghiệp cho Scala Developer</strong></h3>\n\n<p>So với các ngôn ngữ phổ biến như Java, Python hay JavaScript, Scala không phải là lựa chọn xuất hiện với tần suất dày đặc trong các tin tuyển dụng. Tuy nhiên, trên thực tế, thị trường việc làm Scala có thể được nhìn nhận theo hướng “không quá rộng về số lượng, nhưng tập trung ở những hệ thống quan trọng”.</p>\n\n<p>Các vị trí liên quan đến Scala thường xuất hiện trong những môi trường như hệ thống backend quy mô lớn, nền tảng xử lý dữ liệu, hoặc các hệ thống phân tán cần khả năng mở rộng và xử lý đồng thời tốt. Vì vậy, dù không phải là lựa chọn phổ biến cho mọi dự án, Scala vẫn có chỗ đứng trong những bài toán kỹ thuật phức tạp.</p>\n\n<p>Xét về định hướng nghề nghiệp, Scala Developer thường xuất hiện trong các lĩnh vực cụ thể như:</p>\n\n<ul class=\"wp-block-list\">\n<li>Backend và hệ thống phân tán, nơi Scala được sử dụng để xây dựng các dịch vụ có khả năng xử lý nhiều request và dễ mở rộng.</li>\n\n<li>Data engineering và xử lý dữ liệu, đặc biệt khi làm việc với các nền tảng như Spark hoặc các hệ thống pipeline dữ liệu.</li>\n\n<li>Platform engineering, nơi developer xây dựng các hệ thống nền tảng phục vụ cho các team khác.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-tinh-chất-cong-việc-của-scala-developer\"><strong>Tính chất công việc của Scala Developer</strong></h3>\n\n<p>Một điểm đáng chú ý là dù số lượng cơ hội việc làm không quá nhiều, nhưng các vị trí Scala thường mang tính chuyên môn hóa cao. Điều này có nghĩa là lập trình viên không chỉ làm việc với ngôn ngữ, mà còn phải hiểu về cách hệ thống vận hành, cách dữ liệu được xử lý và cách các thành phần trong hệ thống tương tác với nhau.</p>\n\n<p>Chính vì vậy, Scala Developer thường có cơ hội tham gia vào những hệ thống lớn và có độ phức tạp cao hơn so với nhiều dự án thông thường.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-thu-nhập-của-scala-developer\"><strong>Thu nhập của Scala Developer</strong></h3>\n\n<p>Về mặt thu nhập và lộ trình phát triển, các vị trí Scala thường yêu cầu kinh nghiệm nhất định, đặc biệt là hiểu biết về hệ thống, dữ liệu hoặc lập trình hàm. Do đó, các cơ hội việc làm thường tập trung nhiều hơn ở mức mid-level hoặc senior thay vì entry-level.</p>\n\n<p>Điều này cũng lý giải vì sao Scala đôi khi được xem là một lựa chọn phù hợp hơn khi bạn đã có nền tảng lập trình vững và muốn đi sâu vào các hệ thống kỹ thuật phức tạp.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-cau-hỏi-thường-gặp-về-scala-developer\"><span class=\"ez-toc-section\" id=\"Cau_hoi_thuong_gap_ve_Scala_Developer\"></span><strong>Câu hỏi thường gặp về Scala Developer</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<h3 class=\"wp-block-heading\" id=\"h-scala-developer-co-cần-biết-java-khong\"><strong>Scala Developer có cần biết Java không?</strong></h3>\n\n<p>Không bắt buộc, nhưng biết Java sẽ là một lợi thế rất lớn khi làm việc với Scala. Scala chạy trên JVM (Java Virtual Machine) nên có thể sử dụng trực tiếp hầu hết các thư viện và framework của Java. Vì vậy, việc hiểu Java giúp Scala Developer dễ dàng đọc tài liệu, sử dụng thư viện trong hệ sinh thái JVM và tích hợp Scala với các hệ thống Java sẵn có.</p>\n\n<p>Trong nhiều dự án thực tế, các hệ thống backend thường kết hợp cả Java và Scala, nên kiến thức Java sẽ giúp lập trình viên làm việc hiệu quả hơn.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-co-nen-học-scala-dể-trở-thanh-data-engineer-khong\"><strong>Có nên học Scala để trở thành Data Engineer không?</strong></h3>\n\n<p>Có. Scala được xem là một trong những ngôn ngữ khá quan trọng trong lĩnh vực Data Engineering, đặc biệt khi làm việc với các công cụ Big Data như Apache Spark. Spark được viết chủ yếu bằng Scala và nhiều API gốc của Spark cũng được thiết kế tối ưu cho Scala. Vì vậy, việc hiểu Scala có thể giúp Data Engineer xây dựng các pipeline xử lý dữ liệu, xử lý streaming data và tối ưu các job xử lý dữ liệu hiệu quả hơn.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-cơ-hội-việc-lam-scala-developer-tại-việt-nam-như-thế-nao\"><strong>Cơ hội việc làm Scala Developer tại Việt Nam như thế nào?</strong></h3>\n\n<p>Số lượng việc làm Scala tại Việt Nam không nhiều, nhưng thường xuất hiện trong các công ty làm sản phẩm, fintech hoặc các dự án data. Nhiều vị trí liên quan đến làm việc với hệ thống quốc tế hoặc client nước ngoài.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-tổng-kết\"><span class=\"ez-toc-section\" id=\"Tong_ket\"></span><strong>Tổng kết</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Scala Developer là một vai trò quan trọng trong hệ sinh thái backend và Big Data. Để trở thành Scala Developer, bạn cần nắm vững nền tảng lập trình, hiểu cách hoạt động của Scala và hệ sinh thái JVM, đồng thời làm quen với các công nghệ liên quan như hệ thống backend, hệ thống phân tán và các công cụ xử lý dữ liệu như Apache Spark. Khi kết hợp được những kỹ năng này, Scala Developer có thể tham gia phát triển nhiều hệ thống công nghệ phức tạp trong các lĩnh vực như fintech, data platform hoặc các nền tảng Big Data.</p>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "su-nghiep-developer",
+      metaTitle: "Scala Developer là gì: Kỹ năng yêu cầu và cơ hội nghề nghiệp",
+      metaDescription: "Scala Developer là gì? Tìm hiểu vai trò, kỹ năng cần có, các công cụ phổ biến, lộ trình học và sự khác biệt giữa Scala Dev và Java Dev ngay.",
+      viewCount: 7430,
+      tags: ["Career Path","Developer","Phỏng vấn IT"],
+    },
+    {
+      id: postSeedId(204),
+      title: "Muốn AI tạo ra giá trị dài hạn, doanh nghiệp cần chuẩn bị những gì: Bài học từ GoTymeX",
+      slug: "tu-ai-poc-den-production-bai-hoc-tu-gotymex",
+      imageUrl: 'https://images.unsplash.com/photo-1534972195531-d756b9bfa9f2?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 34,
+      content: "<h1 class=\"page-title\">Muốn AI tạo ra giá trị dài hạn, doanh nghiệp cần chuẩn bị những gì: Bài học từ GoTymeX</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/podcast-phong-van-chuyen-gia/\"><span>Podcast Phỏng vấn chuyên gia</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1607799279861-4dd421887fb3?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</div></figure>\n\n<div class=\"entry-content is-layout-flow\">\n\t\t\t\n<nav>\n\n<ul class='ez-toc-list ez-toc-list-level-1 ' ><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-1\" href=\"#Mo_rong_AI_khong_bat_dau_bang_viec_xay_nhieu_AI_Agent_ma_bang_viec_chon_dung_bai_toan\" >Mở rộng AI không bắt đầu bằng việc xây nhiều AI Agent, mà bằng việc chọn đúng bài toán</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-2\" href=\"#AI_chi_co_the_mo_rong_khi_du_lieu_quy_trinh_va_cach_van_hanh_cua_doanh_nghiep_da_san_sang\" >AI chỉ có thể mở rộng khi dữ liệu, quy trình và cách vận hành của doanh nghiệp đã sẵn sàng</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-3\" href=\"#Thach_thuc_lon_nhat_cua_AI_khong_nam_o_cong_nghe_ma_o_con_nguoi\" >Thách thức lớn nhất của AI không nằm ở công nghệ, mà ở con người</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-4\" href=\"#Ket_luan\" >Kết luận</a></li></ul>\n\n</nav></div>\n\n<p>Trong vài năm qua, nhiều doanh nghiệp đã bắt đầu ứng dụng trí tuệ nhân tạo (AI) vào công việc hằng ngày. Tuy nhiên, khoảng cách giữa việc xây dựng một proof-of-concept (POC) thành công và vận hành AI ở quy mô doanh nghiệp vẫn còn rất lớn. Khi AI bước vào các quy trình cốt lõi, doanh nghiệp không chỉ đối mặt với những thách thức về công nghệ mà còn phải giải quyết các vấn đề về dữ liệu, quy trình, quản trị thay đổi và phát triển nhân sự. Đây cũng là lý do nhiều dự án AI tạo được kết quả ấn tượng trong giai đoạn thử nghiệm nhưng không thể mở rộng thành năng lực vận hành thực sự của tổ chức.</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n<blockquote class=\"wp-block-quote is-layout-flow wp-block-quote-is-layout-flow\">\n\n<p><em>Nội dung dưới đây được tổng hợp từ phần chia sẻ của </em><strong><em>Andrew Pfaff</em></strong><em> &#8211; AI Product Manager tại GoTymeX, trong buổi trò chuyện cùng UpNext.</em></p>\n\n<p><em>Từ kinh nghiệm triển khai AI tại trung tâm công nghệ của tập đoàn ngân hàng số GoTyme phục vụ hơn 20 triệu khách hàng tại Nam Phi và Philippines, ông chia sẻ cách doanh nghiệp từng bước đưa AI từ những thử nghiệm nhỏ trở thành một phần của hệ thống vận hành</em>.</p>\n\n</blockquote>\n\n<h2 class=\"wp-block-heading\" id=\"h-mở-rộng-ai-khong-bắt-dầu-bằng-việc-xay-nhiều-ai-agent-ma-bằng-việc-chọn-dung-bai-toan\"><span class=\"ez-toc-section\" id=\"Mo_rong_AI_khong_bat_dau_bang_viec_xay_nhieu_AI_Agent_ma_bang_viec_chon_dung_bai_toan\"></span><strong>Mở rộng AI không bắt đầu bằng việc xây nhiều AI Agent, mà bằng việc chọn đúng bài toán</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Một trong những ngộ nhận phổ biến khi triển khai AI là cho rằng càng xây nhiều AI Agent thì doanh nghiệp càng tạo ra nhiều giá trị. Thực tế, nếu mọi bài toán đều được giải quyết bằng một dự án AI riêng, doanh nghiệp rất dễ phân tán nguồn lực và tạo ra những hệ thống khó quản trị. Vì vậy, trước khi nghĩ đến việc mở rộng AI, điều quan trọng hơn là xác định đâu là những vấn đề thực sự đáng để đầu tư.</p>\n\n<p>GoTymeX tiếp cận vấn đề này bằng cách chia AI thành hai hướng triển khai song song. Những tác vụ mang tính cá nhân hoặc có phạm vi ảnh hưởng nhỏ được giải quyết bằng các công cụ AI phổ biến như ChatGPT hay Claude, giúp nhân viên tự động hóa công việc hằng ngày mà không cần doanh nghiệp phát triển thêm hệ thống riêng. Trong khi đó, các bài toán tạo ra điểm nghẽn cho toàn tổ chức, chẳng hạn như KYC, chống gian lận hay vận hành hệ thống, mới được giao cho các nhóm AI chuyên trách xây dựng các agent tùy chỉnh.</p>\n\n<p>Andrew Pfaff mô tả cách tiếp cận này bằng hai khái niệm “horizontal leverage” và “vertical depth”: “Một bên là những tác vụ nhỏ có thể được tự động hóa, còn bên kia là những điểm nghẽn lớn của tổ chức”. Thay vì xem AI là một giải pháp duy nhất áp dụng cho mọi trường hợp, GoTymeX coi AI là một danh mục đầu tư, trong đó mức độ đầu tư phụ thuộc vào quy mô tác động của từng vấn đề.</p>\n\n<p>Triết lý này cũng thể hiện rõ trong cách GoTymeX bắt đầu hành trình AI. Đội ngũ của ông Andrew ban đầu chỉ gồm ba người, tập trung thực hiện các POC nhỏ nhằm chứng minh giá trị của AI đối với từng bài toán cụ thể. Khi những kết quả đầu tiên đủ sức thuyết phục ban lãnh đạo, đội ngũ mới từng bước mở rộng lên hơn 35 kỹ sư và chuyên gia quản lý sản phẩm, đồng thời đưa AI vào các nghiệp vụ có ảnh hưởng lớn hơn. Điều này cho thấy việc mở rộng AI không phải là kết quả của một quyết định đầu tư duy nhất mà là quá trình tích lũy thông qua nhiều thành công nhỏ.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-ai-chỉ-co-thể-mở-rộng-khi-dữ-liệu-quy-trinh-va-cach-vận-hanh-của-doanh-nghiệp-da-sẵn-sang\"><span class=\"ez-toc-section\" id=\"AI_chi_co_the_mo_rong_khi_du_lieu_quy_trinh_va_cach_van_hanh_cua_doanh_nghiep_da_san_sang\"></span><strong>AI chỉ có thể mở rộng khi dữ liệu, quy trình và cách vận hành của doanh nghiệp đã sẵn sàng</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Khi AI bắt đầu được triển khai ở quy mô lớn, thách thức lúc này chuyển sang việc tạo ra một nền tảng đủ vững để AI có thể hoạt động ổn định, được quản trị hiệu quả và dễ dàng mở rộng sang nhiều quy trình khác nhau. Nói cách khác, AI chỉ thực sự phát huy giá trị khi doanh nghiệp xem nó là một phần của hệ thống thay vì một công cụ độc lập.</p>\n\n<p>Để đạt được điều đó, GoTymeX xây dựng nền tảng dựa trên ba yếu tố:</p>\n\n<ul class=\"wp-block-list\">\n<li><em>Thứ nhất</em> là dữ liệu, được tổ chức theo các lớp Bronze, Silver và Gold nhằm bảo đảm dữ liệu được làm sạch, chuẩn hóa và có thể được AI sử dụng một cách nhất quán.</li>\n\n<li><em>Thứ hai</em> là ngữ cảnh tổ chức, nơi các tài liệu, quy trình, quyết định và tri thức được tập trung trên các nền tảng như Confluence và Slack để AI có thể truy cập đúng thông tin thay vì phụ thuộc vào kiến thức của từng cá nhân.</li>\n\n<li><em>Cuối cùng</em> là chuẩn hóa cách các nhóm làm việc thông qua mô hình pod, giúp các quy trình có cấu trúc thống nhất và đủ rõ ràng để AI có thể tham gia vào quá trình vận hành.</li>\n</ul>\n\n<p>Theo Andrew Pfaff, “Nếu mọi nhóm đều làm việc theo những cách hoàn toàn khác nhau thì sẽ rất khó để tích hợp AI Agent vào các quy trình đó và tự động hóa chúng”. Nhận định này phản ánh một thực tế mà nhiều doanh nghiệp thường bỏ qua: AI không thể khắc phục sự thiếu nhất quán trong quy trình vận hành. Ngược lại, càng chuẩn hóa được dữ liệu và cách làm việc, doanh nghiệp càng dễ triển khai AI ở quy mô lớn mà không phải xây dựng lại từ đầu cho từng phòng ban.</p>\n\n<p>Từ góc nhìn này, có thể hiểu rằng khi nền tảng đã đủ vững, mỗi dự án AI mới sẽ không còn là một nỗ lực độc lập mà trở thành một phần của hệ thống có thể tiếp tục mở rộng trong tương lai.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-thach-thức-lớn-nhất-của-ai-khong-nằm-ở-cong-nghệ-ma-ở-con-người\"><span class=\"ez-toc-section\" id=\"Thach_thuc_lon_nhat_cua_AI_khong_nam_o_cong_nghe_ma_o_con_nguoi\"></span><strong>Thách thức lớn nhất của AI không nằm ở công nghệ, mà ở con người</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Nhiều doanh nghiệp đầu tư đáng kể vào mô hình, hạ tầng và dữ liệu nhưng vẫn gặp khó khăn khi triển khai AI trên diện rộng. Kinh nghiệm của GoTymeX cho thấy nguyên nhân thường không xuất phát từ công nghệ mà đến từ việc con người chưa sẵn sàng thay đổi cách làm việc.</p>\n\n<p>Thay vì bắt đầu bằng các khóa đào tạo lý thuyết, GoTymeX yêu cầu mọi nhân viên tự xây dựng một AI Agent trong chương trình “Minimum Standard Program”. Mục tiêu của chương trình không phải để tất cả đều trở thành kỹ sư AI, mà để mỗi người trực tiếp trải nghiệm cách AI hoạt động và tự khám phá những cơ hội ứng dụng trong công việc của mình.</p>\n\n<p>Giải thích lý do vì sao, ông Andrew Pfaff chia sẻ: “Chúng tôi chọn cách tiếp cận dựa trên trải nghiệm. Khi tự tay xây dựng một AI Agent, bạn sẽ nhận ra có rất nhiều phần trong công việc của mình có thể được áp dụng AI và trải nghiệm cảm giác wow đó”.</p>\n\n<p>Sự thay đổi còn thể hiện rõ trong cách các chuyên gia nghiệp vụ làm việc với AI. Giờ đây, nhiều chuyên gia không còn là người làm chuyên môn mà đang dần chuyển sang vai trò đánh giá và giám sát kết quả do AI tạo ra. Đây không chỉ là sự thay đổi về quy trình mà còn là sự thay đổi về trách nhiệm và tư duy nghề nghiệp.</p>\n\n<p>Một bài học đáng chú ý khác đến từ dự án AI trong phòng chống rửa tiền (AML). Ban đầu, hệ thống bị đánh giá là có độ chính xác chưa đạt kỳ vọng. Tuy nhiên, khi phân tích sâu hơn, GoTymeX phát hiện các chuyên gia cấp cao thường đưa ra kết luận rất gần với AI, trong khi những chuyên viên ít kinh nghiệm lại có mức độ bất đồng đáng kể với nhau. Điều đó cho thấy vấn đề không hoàn toàn nằm ở mô hình mà còn nằm ở chính cách doanh nghiệp xác định “đáp án đúng”. Từ kinh nghiệm này, GoTymeX áp dụng quy trình đánh giá double-blind và lựa chọn người đánh giá cẩn thận hơn trước khi kết luận về chất lượng của hệ thống AI.</p>\n\n<p>Những thay đổi đó cũng dẫn đến cách tiếp cận mới trong tuyển dụng. GoTymeX đánh giá cao những ứng viên sở hữu khả năng học hỏi có hệ thống, biết chọn lọc thông tin và thử nghiệm nhanh. Trong một lĩnh vực thay đổi gần như mỗi tuần, năng lực học tập liên tục và khả năng thích nghi được xem là nền tảng quan trọng hơn bất kỳ kỹ năng kỹ thuật cụ thể nào.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-kết-luận\"><span class=\"ez-toc-section\" id=\"Ket_luan\"></span><strong>Kết luận</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Hành trình của GoTymeX cho thấy việc đưa AI từ POC đến production không phải là quá trình mở rộng công nghệ, mà là quá trình trưởng thành của cả doanh nghiệp. Việc lựa chọn đúng bài toán, xây dựng nền tảng dữ liệu và quy trình đủ vững, chuẩn bị con người cho những vai trò mới và thiết lập phương pháp đánh giá phù hợp đều quan trọng không kém việc lựa chọn mô hình AI.</p>\n\n<p>Khi những yếu tố này được phát triển đồng thời, AI sẽ không còn là một dự án thử nghiệm riêng lẻ mà trở thành một năng lực cốt lõi có thể liên tục tạo ra giá trị cho tổ chức.</p>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "tin-tuc-upnext",
+      metaTitle: "Muốn AI tạo ra giá trị dài hạn, doanh nghiệp cần chuẩn bị những gì: Bài học từ GoTymeX",
+      metaDescription: "Khám phá cách GoTymeX đưa AI từ POC đến production với những bài học thực tế về chiến lược AI, dữ liệu, xây dựng AI as a System và thay đổi quản trị.",
+      viewCount: 23985,
+      tags: ["Tin tức UpNext","Xu hướng công nghệ","Developer"],
+    },
+    {
+      id: postSeedId(205),
+      title: "Vì sao nhiều dự án Cloud vẫn thất bại dù doanh nghiệp đã đầu tư hàng triệu USD?",
+      slug: "vi-sao-nhieu-du-an-cloud-that-bai",
+      imageUrl: 'https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 119,
+      content: "<h1 class=\"page-title\">Vì sao nhiều dự án Cloud vẫn thất bại dù doanh nghiệp đã đầu tư hàng triệu USD?</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/xu-huong-cong-nghe/\"><span>Xu hướng công nghệ</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</div></figure>\n\n<div class=\"entry-content is-layout-flow\">\n\t\t\t\n<nav>\n\n<ul class='ez-toc-list ez-toc-list-level-1 ' ><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-1\" href=\"#Sai_lam_1_Xem_Cloud_la_du_an_ha_tang_thay_vi_nen_tang_tao_ra_gia_tri_kinh_doanh\" >Sai lầm 1: Xem Cloud là dự án hạ tầng thay vì nền tảng tạo ra giá trị kinh doanh</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-2\" href=\"#Sai_lam_2_Chuyen_he_thong_len_Cloud_nhung_giu_nguyen_mo_hinh_van_hanh\" >Sai lầm 2: Chuyển hệ thống lên Cloud nhưng giữ nguyên mô hình vận hành</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-3\" href=\"#Sai_lam_3_Xem_Compliance_la_%E2%80%9Cdiem_kiem_tra_cuoi%E2%80%9D_thay_vi_tich_hop_ngay_tu_dau\" >Sai lầm 3: Xem Compliance là &#8220;điểm kiểm tra cuối&#8221; thay vì tích hợp ngay từ đầu</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-4\" href=\"#Sai_lam_4_Phu_thuoc_vao_phe_duyet_thu_cong_de_quan_tri_rui_ro\" >Sai lầm 4: Phụ thuộc vào phê duyệt thủ công để quản trị rủi ro</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-5\" href=\"#Sai_lam_5_Dau_tu_AI_nhung_chua_xay_dung_nen_tang_quan_tri_phu_hop\" >Sai lầm 5: Đầu tư AI nhưng chưa xây dựng nền tảng quản trị phù hợp</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-6\" href=\"#Ket_luan\" >Kết luận</a></li></ul>\n\n</nav></div>\n\n<p><strong><em>Cloud đang bước sang một giai đoạn trưởng thành mới, không còn được xem đơn thuần là hạ tầng công nghệ mà đã trở thành nền tảng thúc đẩy đổi mới, AI và tăng trưởng. Theo báo cáo Make Cloud Your Advantage: From Digital Transformation to Breakthrough Performance của UpNext, chỉ khoảng một nửa doanh nghiệp thực sự đạt được mức độ trưởng thành để khai thác giá trị kinh doanh từ Cloud. Khoảng cách này không nằm ở bản thân công nghệ, mà đến từ mô hình vận hành, kiến trúc hệ thống và năng lực tổ chức. Dựa trên những phân tích trong báo cáo cùng góc nhìn của anh Phúc Đặng, Cloud Architect tại GoTymeX, bài viết sẽ chỉ ra những sai lầm phổ biến khiến nhiều dự án Cloud chưa thể tạo ra giá trị như kỳ vọng.</em></strong></p>\n\n<blockquote class=\"wp-block-quote is-layout-flow wp-block-quote-is-layout-flow\">\n\n<p><em>Tải miễn phí báo cáo </em><a href=\"https://marketing.UpNext.com/makecloudyouradvantage\" target=\"_blank\" rel=\"noreferrer noopener\"><strong><em>Make Cloud Your Advantage: From Digital Transformation to Breakthrough Performance</em></strong></a><em> để khám phá đầy đủ những xu hướng mới nhất về Cloud, đồng thời đọc trọn vẹn các chia sẻ của ông Phúc Đặng cùng nhiều chuyên gia hàng đầu trong lĩnh vực Cloud và AI.</em></p>\n\n</blockquote>\n\n<h2 class=\"wp-block-heading\" id=\"h-sai-lầm-1-xem-cloud-la-dự-an-hạ-tầng-thay-vi-nền-tảng-tạo-ra-gia-trị-kinh-doanh\"><span class=\"ez-toc-section\" id=\"Sai_lam_1_Xem_Cloud_la_du_an_ha_tang_thay_vi_nen_tang_tao_ra_gia_tri_kinh_doanh\"></span><strong>Sai lầm 1: Xem Cloud là dự án hạ tầng thay vì nền tảng tạo ra giá trị kinh doanh</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Một trong những kết luận quan trọng của báo cáo <strong><em>Make Cloud Your Advantage: From Digital Transformation to Breakthrough Performance</em></strong> là giá trị lớn nhất của Cloud không đến từ việc tiết kiệm chi phí hạ tầng. Phần lớn giá trị kinh tế mà Cloud tạo ra đến từ đổi mới sản phẩm, AI, dữ liệu và khả năng mở rộng doanh nghiệp. Nói cách khác, Cloud chỉ thực sự phát huy hiệu quả khi trở thành nền tảng phục vụ chiến lược tăng trưởng.</p>\n\n<p>Nếu doanh nghiệp chỉ coi Cloud là một dự án &#8220;lift-and-shift&#8221;, hình thức chuyển hệ thống từ máy chủ vật lý lên Cloud, thì họ mới chỉ thay đổi nơi đặt hạ tầng, chứ chưa thay đổi cách tạo ra giá trị. Đó cũng là lý do nhiều tổ chức đã &#8220;lên Cloud&#8221; nhưng tốc độ phát triển sản phẩm, khả năng triển khai AI hay hiệu quả vận hành vẫn gần như không thay đổi.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-sai-lầm-2-chuyển-hệ-thống-len-cloud-nhưng-giữ-nguyen-mo-hinh-vận-hanh\"><span class=\"ez-toc-section\" id=\"Sai_lam_2_Chuyen_he_thong_len_Cloud_nhung_giu_nguyen_mo_hinh_van_hanh\"></span><strong>Sai lầm 2: Chuyển hệ thống lên Cloud nhưng giữ nguyên mô hình vận hành</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Theo báo cáo <strong><em>Make Cloud Your Advantage: From Digital Transformation to Breakthrough Performance</em></strong>, rào cản lớn nhất của Cloud hiện nay không còn là triển khai công nghệ mà là mức độ trưởng thành của mô hình vận hành. Nhiều doanh nghiệp vẫn quản lý Cloud theo tư duy công nghệ truyền thống: Dev và Ops tách biệt, quy trình phê duyệt nhiều tầng và phụ thuộc nhiều vào thao tác thủ công.</p>\n\n<blockquote class=\"wp-block-quote is-layout-flow wp-block-quote-is-layout-flow\">\n\n<p>Quan điểm này cũng được anh Phúc Đặng nhấn mạnh: <em>“Điểm nghẽn thực sự của nhiều tổ chức tài chính không còn nằm ở việc triển khai kỹ thuật, mà ở mô hình vận hành của tổ chức.”</em></p>\n\n</blockquote>\n\n<p>Theo anh, khi quy mô Cloud ngày càng lớn, câu hỏi quan trọng không còn là “triển khai như thế nào”, mà là “đang áp dụng những tiêu chuẩn quản trị nào, ai ra quyết định và các nhóm phối hợp với nhau ra sao”.</p>\n\n<p>Để minh họa cho cách tiếp cận này, anh chia sẻ rằng tại GoTymeX, đội ngũ Platform Engineering tập trung xây dựng Internal Developer Platform (IDP) nhằm giúp các Product Team có thể tự triển khai và sử dụng các dịch vụ hạ tầng mà không phải phụ thuộc vào Platform Team. Đồng thời, các tiêu chuẩn về bảo mật, giám sát hệ thống và quản trị cũng được tích hợp sẵn, giúp rút ngắn thời gian triển khai mà vẫn đảm bảo tuân thủ.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-sai-lầm-3-xem-compliance-la-diểm-kiểm-tra-cuối-thay-vi-tich-hợp-ngay-từ-dầu\"><span class=\"ez-toc-section\" id=\"Sai_lam_3_Xem_Compliance_la_%E2%80%9Cdiem_kiem_tra_cuoi%E2%80%9D_thay_vi_tich_hop_ngay_tu_dau\"></span><strong>Sai lầm 3: Xem Compliance là &#8220;điểm kiểm tra cuối&#8221; thay vì tích hợp ngay từ đầu</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Một nguyên nhân khác khiến nhiều dự án Cloud chậm tiến độ là doanh nghiệp vẫn xem compliance như một bước kiểm duyệt cuối cùng. Điều này khiến mỗi lần triển khai đều phải trải qua nhiều vòng kiểm tra thủ công, kéo dài thời gian đưa sản phẩm ra thị trường và làm giảm tốc độ đổi mới.</p>\n\n<blockquote class=\"wp-block-quote is-layout-flow wp-block-quote-is-layout-flow\">\n\n<p><em>“Các môi trường Cloud hiện đại không còn chỉ chọn một trong hai: tốc độ hoặc bảo mật. Khi các cơ chế quản trị được tích hợp ngay trong nền tảng, chúng sẽ trở thành hai năng lực bổ trợ và củng cố lẫn nhau.”</em> &#8211; anh Phúc Đặng chia sẻ.</p>\n\n</blockquote>\n\n<p>Thay vì xử lý compliance sau khi hoàn thành hệ thống, anh cho biết doanh nghiệp nên tích hợp các cơ chế quản trị ngay từ nền tảng thông qua mô hình Guardrails-as-Code. Khi các chính sách bảo mật, quy định và tiêu chuẩn được mã hóa và tự động thực thi trong pipeline CI/CD, hạ tầng sẽ trở thành &#8220;compliant by design&#8221;. Engineering Team có thể triển khai nhanh hơn mà vẫn duy trì khả năng kiểm soát cần thiết.</p>\n\n<p>Đây cũng là xu hướng được báo cáo nhấn mạnh khi quản trị Cloud ngày càng trở thành yếu tố quyết định khả năng khai thác giá trị lâu dài của Cloud.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-sai-lầm-4-phụ-thuộc-vao-phe-duyệt-thủ-cong-dể-quản-trị-rủi-ro\"><span class=\"ez-toc-section\" id=\"Sai_lam_4_Phu_thuoc_vao_phe_duyet_thu_cong_de_quan_tri_rui_ro\"></span><strong>Sai lầm 4: Phụ thuộc vào phê duyệt thủ công để quản trị rủi ro</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Không ít doanh nghiệp tin rằng càng nhiều bước phê duyệt thì hệ thống càng an toàn. Trên thực tế, báo cáo <strong><em>Make Cloud Your Advantage: From Digital Transformation to Breakthrough Performance</em></strong> cho thấy phần lớn sự cố bảo mật trên Cloud không đến từ nhà cung cấp dịch vụ mà xuất phát từ phía doanh nghiệp, đặc biệt là các lỗi cấu hình và quản trị. Điều đó đồng nghĩa việc bổ sung thêm quy trình thủ công chưa chắc giúp giảm rủi ro.</p>\n\n<blockquote class=\"wp-block-quote is-layout-flow wp-block-quote-is-layout-flow\">\n\n<p>Anh Phúc Đặng cho rằng: <em>“An toàn trong vận hành ngày càng phụ thuộc vào việc tự động hóa các cơ chế quản trị một cách liên tục, thay vì dựa vào các đợt kiểm soát thủ công.”</em></p>\n\n</blockquote>\n\n<p>Theo anh, các lần triển khai nhỏ, thường xuyên và được kiểm soát bằng cơ chế tự động thường an toàn hơn nhiều so với những đợt phát hành lớn dựa trên hàng loạt bước phê duyệt thủ công. Tại GoTymeX, automation được sử dụng để giảm thiểu lỗi do con người gây ra, đồng thời giúp phát hiện và xử lý vấn đề sớm hơn trong toàn bộ vòng đời phát triển phần mềm.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-sai-lầm-5-dầu-tư-ai-nhưng-chưa-xay-dựng-nền-tảng-quản-trị-phu-hợp\"><span class=\"ez-toc-section\" id=\"Sai_lam_5_Dau_tu_AI_nhung_chua_xay_dung_nen_tang_quan_tri_phu_hop\"></span><strong>Sai lầm 5: Đầu tư AI nhưng chưa xây dựng nền tảng quản trị phù hợp</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Cloud và AI đang ngày càng gắn kết chặt chẽ. Báo cáo <strong><em>Make Cloud Your Advantage: From Digital Transformation to Breakthrough Performance</em></strong> chỉ ra rằng AI sẽ tạo ra phần lớn giá trị kinh tế của Cloud trong những năm tới, đồng thời AI cũng được sử dụng để tối ưu chính môi trường Cloud thông qua tự động hóa, tối ưu chi phí và vận hành thông minh hơn. Tuy nhiên, AI không thể phát huy hiệu quả nếu thiếu nền tảng quản trị.</p>\n\n<p>Theo anh Phúc Đặng, tại GoTymeX, AI được sử dụng để hỗ trợ tối ưu kiến trúc hạ tầng, phân tích chi phí Cloud, kiểm tra cấu hình và hỗ trợ điều tra sự cố. Tuy nhiên, mọi quyết định cuối cùng vẫn thuộc về con người và toàn bộ quá trình đều được lưu vết để đảm bảo khả năng kiểm toán và tuân thủ.</p>\n\n<blockquote class=\"wp-block-quote is-layout-flow wp-block-quote-is-layout-flow\">\n\n<p><em>“Cũng như năng lực của mô hình AI, việc triển khai AI có trách nhiệm còn phụ thuộc vào mô hình quản trị và thiết kế vận hành.” &#8211; anh Phúc Đặng chia sẻ.</em></p>\n\n</blockquote>\n\n<p>Điều này phản ánh một nguyên tắc quan trọng: AI có thể tăng tốc quá trình ra quyết định, nhưng chỉ quản trị mới giúp doanh nghiệp mở rộng AI một cách an toàn và bền vững.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-kết-luận\"><span class=\"ez-toc-section\" id=\"Ket_luan\"></span><strong>Kết luận</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Theo những chia sẻ của anh Phúc Đặng, yếu tố quyết định nằm ở khả năng xây dựng mô hình vận hành phù hợp, thiết lập các cơ chế quản trị Cloud ngay từ đầu, phát triển năng lực Platform Engineering, FinOps và AI, đồng thời giúp các nhóm kỹ thuật có thể triển khai nhanh mà vẫn đảm bảo tính ổn định và tuân thủ. Cloud không còn là câu chuyện của hạ tầng. Cloud đang trở thành bài toán về tổ chức, con người và cách doanh nghiệp vận hành để liên tục tạo ra giá trị.</p>\n\n<p>Đó cũng là thông điệp xuyên suốt mà báo cáo <strong><em>Make Cloud Your Advantage: From Digital Transformation to Breakthrough Performance</em></strong> muốn gửi tới các nhà lãnh đạo công nghệ và doanh nghiệp: chuyển đổi Cloud chỉ thực sự thành công khi tổ chức đồng thời chuyển đổi mô hình vận hành của chính mình.</p>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "tin-tuc-upnext",
+      metaTitle: "Vì sao nhiều dự án Cloud vẫn thất bại dù doanh nghiệp đã đầu tư hàng triệu USD?",
+      metaDescription: "Vì sao nhiều dự án Cloud chưa tạo ra giá trị? Khám phá những nguyên nhân phổ biến qua góc nhìn từ ông Phúc Đặng - Cloud Architect, GoTymeX.",
+      viewCount: 18270,
+      tags: ["Tin tức UpNext","Xu hướng công nghệ","Developer"],
+    },
+    {
+      id: postSeedId(206),
+      title: "Power BI Template: Best practices làm báo cáo Power BI hiệu quả",
+      slug: "power-bi-template",
+      imageUrl: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 305,
+      content: "<h1 class=\"page-title\">Power BI Template: Best practices làm báo cáo Power BI hiệu quả</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/chuyen-mon-it/\"><span>Chuyên môn IT</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<h2 class=\"wp-block-heading\" id=\"h-power-bi-template-nbsp-pbit-co-lợi-ich-gi\"><span class=\"ez-toc-section\" id=\"Power_BI_template_pbit_co_loi_ich_gi\"></span><strong>Power BI template&nbsp; (.pbit) có lợi ích gì?</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Việc dùng Power BI template mang lại các lợi ích:</p>\n\n<ul class=\"wp-block-list\">\n<li>Tái sử dụng báo cáo: Power BI template giúp làm báo cáo nhanh và gọn hơn bằng cách tạo sẵn một mẫu báo cáo từ một file có trước. Khi dùng template, bạn đã có sẵn layout báo cáo, mô hình dữ liệu và các truy vấn. Mẫu này có thể được bạn hoặc người khác trong cùng tổ chức dùng lại như một điểm bắt đầu, thay vì phải làm mọi thứ từ đầu.</li>\n</ul>\n\n<ul class=\"wp-block-list\">\n<li>Tối ưu dung lượng: File Power BI report template có dung lượng nhỏ hơn nhiều so với file Power BI Desktop report vì template không chứa dữ liệu thực tế, giúp hệ thống vận hành mượt mà, dễ dàng chia sẻ.</li>\n\n<li>Chuẩn hóa quy mô lớn: Tái sử dụng báo cáo cho nhiều bộ dữ liệu, giúp đồng nhất dashboard trong toàn doanh nghiệp.</li>\n\n<li>Bảo mật tối đa: Loại bỏ rủi ro lộ dữ liệu nhạy cảm khi cần chia sẻ cấu trúc báo cáo ra bên ngoài.</li>\n</ul>\n\n<h2 class=\"wp-block-heading\" id=\"h-sử-dụng-power-bi-template-như-thế-nao\"><span class=\"ez-toc-section\" id=\"Su_dung_Power_BI_template_nhu_the_nao\"></span><strong>Sử dụng Power BI template như thế nào?</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<h3 class=\"wp-block-heading\" id=\"h-tạo-power-bi-template\"><strong>Tạo Power BI Template</strong></h3>\n\n<ul class=\"wp-block-list\">\n<li>Để tạo một report template với Power BI Desktop, bạn chọn File → Export → Power BI template trên bảng menu.&nbsp;</li>\n\n<li>Power BI sẽ mở một cửa sổ yêu cầu bạn nhập mô tả cho template nhằm giúp người khác hiểu mục đích và cách sử dụng của file.</li>\n\n<li>Sau khi chọn OK, Power BI sẽ yêu cầu bạn chọn vị trí lưu file .pbit.</li>\n\n<li>Khi hoàn tất bước này, Power BI report template sẽ được tạo tại thư mục bạn đã chỉ định, với phần mở rộng .pbit.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-mở-va-sử-dụng-file-pbit-thế-nao\"><strong>Mở và sử dụng file .pbit thế nào?</strong></h3>\n\n<p>Có hai cách để mở file .pbit:</p>\n\n<ul class=\"wp-block-list\">\n<li>Duble-click trực tiếp vào file .pbit, Power BI Desktop sẽ tự động được mở và load template.</li>\n\n<li>Hoặc mở Power BI Desktop, sau đó chọn File → Import → Power BI template.</li>\n</ul>\n\n<p>Khi mở template, Power BI có thể hiển thị một hộp thoại yêu cầu bạn nhập giá trị cho các parameter đã được định nghĩa trong báo cáo gốc.&nbsp;</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</figure>\n\n<p>Sau khi nhập đầy đủ các parameter cần thiết, Power BI sẽ yêu cầu bạn chỉ định nguồn dữ liệu tương ứng với báo cáo. Tại bước này, người tạo báo cáo có thể kết nối dữ liệu dựa trên quyền truy cập và thông tin đăng nhập của mình.</p>\n\n<p>Khi parameter và nguồn dữ liệu đã được xác định, Power BI sẽ tạo ra một report mới <strong>ở định dạng .pbix</strong>. Report này chứa đầy đủ các trang báo cáo, biểu đồ, mô hình dữ liệu và Power Query giống với báo cáo gốc dùng để tạo template.</p>\n\n<p><strong>Chỉ khi file .pbit được mở và chuyển thành .pbix</strong>, bạn mới có thể chỉnh sửa report như một file Power BI thông thường, bao gồm chỉnh sửa dữ liệu, mô hình dữ liệu và giao diện.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-kinh-nghiệm-tạo-powerbi-template-hiệu-quả\"><span class=\"ez-toc-section\" id=\"Kinh_nghiem_tao_PowerBI_template_hieu_qua\"></span><strong>Kinh nghiệm tạo PowerBI template hiệu quả</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<ul class=\"wp-block-list\">\n<li><strong>Thiết kế data model ổn định trước khi tạo template</strong>: Template chỉ thực sự phát huy hiệu quả khi mô hình dữ liệu có tính ổn định cao. Trước khi xuất .pbit, cần đảm bảo schema dữ liệu đã được thống nhất, quan hệ bảng rõ ràng, không chồng chéo và tránh phụ thuộc vào cột hoặc bảng tạm thời. Một template được xây dựng trên mô hình dữ liệu thiếu ổn định sẽ rất khó tái sử dụng và thường phát sinh lỗi khi áp dụng cho nguồn dữ liệu mới.</li>\n\n<li><strong>Ưu tiên star schema trong mọi template</strong>: Star schema là mô hình được khuyến nghị mạnh mẽ trong Power BI vì nó giúp đơn giản hóa quan hệ dữ liệu, giảm độ phức tạp của DAX, giúp cải thiện hiệu năng truy vấn và dễ mở rộng, bảo trì. Khi xây dựng template, các bảng fact và dimension nên được phân tách rõ ràng, tránh thiết kế snowflake hoặc many-to-many nếu không thực sự cần thiết.</li>\n\n<li><strong>Tách biệt rõ các tầng dữ liệu &#8211; mô hình &#8211; báo cáo</strong>: Một Power BI Template tốt nên phản ánh rõ kiến trúc ba tầng:\n\n<ul class=\"wp-block-list\">\n<li>Data layer: Power Query, làm sạch và chuẩn hóa dữ liệu</li>\n\n<li>Semantic layer: Data model và DAX</li>\n\n<li>Report layer<strong>:</strong> Visual và layout</li>\n</ul>\n\n</li>\n</ul>\n\n<ul class=\"wp-block-list\">\n<li><strong>Sử dụng parameter thay cho giá trị hard-code</strong>: Các giá trị như đường dẫn file, server name, database name, thời gian báo cáo và mã chi nhánh không nên được ghi cứng trong Power Query. Thay vào đó, nên sử dụng Power BI Parameters để tăng tính linh hoạt cho template và giảm phụ thuộc môi trường.</li>\n\n<li><strong>Chuẩn hóa cách đặt tên bảng, cột và measure:</strong> Một template tốt cần có naming convention rõ ràng như:\n\n<ul class=\"wp-block-list\">\n<li>Bảng dimension bắt đầu bằng Dim_</li>\n\n<li>Bảng fact bắt đầu bằng Fact_</li>\n\n<li>Measure đặt trong bảng riêng như Measures</li>\n\n<li>Tên measure phản ánh ý nghĩa nghiệp vụ, không mô tả kỹ thuật</li>\n</ul>\n\n</li>\n</ul>\n\n<p>Việc chuẩn hóa này giúp người dùng mới dễ tiếp cận và hạn chế hiểu nhầm logic phân tích.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-cau-hỏi-thường-gặp-về-power-bi-template\"><span class=\"ez-toc-section\" id=\"Cau_hoi_thuong_gap_ve_Power_BI_Template\"></span><strong>Câu hỏi thường gặp về Power BI Template</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<h3 class=\"wp-block-heading\" id=\"h-power-bi-report-template-pbit-dung-dể-lam-gi\"><strong>Power BI report template (.pbit) dùng để làm gì?</strong></h3>\n\n<p>Power BI report template được dùng để chia sẻ và tái sử dụng cấu trúc báo cáo, bao gồm layout, mô hình dữ liệu và Power Query, mà không kèm dữ liệu thực tế.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-file-pbit-co-chứa-dữ-liệu-khong\"><strong>File .pbit có chứa dữ liệu không?</strong></h3>\n\n<p>Không. File .pbit không chứa dữ liệu thật hay cache dữ liệu. File này chỉ lưu lại cấu trúc và logic của báo cáo.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-power-bi-template-co-lưu-thong-tin-dang-nhập-dữ-liệu-khong\"><strong>Power BI template có lưu thông tin đăng nhập dữ liệu không?</strong></h3>\n\n<p>Không. File .pbit không lưu thông tin đăng nhập như username, password hay token. Người dùng phải nhập lại thông tin kết nối khi mở template.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-template-co-giữ-lại-power-query-va-dax-khong\"><strong>Template có giữ lại Power Query và DAX không?</strong></h3>\n\n<p>Có. File .pbit giữ lại toàn bộ Power Query, các bước transform dữ liệu, measure, calculated column và công thức DAX.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-khi-nao-nen-dung-pbit-thay-vi-pbix\"><strong>Khi nào nên dùng .pbit thay vì .pbix?</strong></h3>\n\n<p>Nên dùng .pbit khi bạn muốn chia sẻ cấu trúc cho nhiều người hoặc nhiều bộ dữ liệu khác nhau, và tránh chia sẻ dữ liệu nhạy cảm.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-toi-co-thể-tạo-file-pbit-từ-file-pbix-khong\"><strong>Tôi có thể tạo file .pbit từ file .pbix không?</strong></h3>\n\n<p>Có. Bạn có thể tạo file .pbit bằng cách chọn File → Export → Power BI template trong Power BI Desktop.</p>\n\n<p id=\"h-toi-co-thể-tải-power-bi-template-ở-dau-bạn-co-thể-tham-khảo-va-tải-cac-mẫu-bao-cao-power-bi-từ-cộng-dồng-chinh-thức-của-microsoft-tại-trang-data-stories-gallery-trang-nay-tập-hợp-rất-nhiều-bao-cao-thực-tế-do-cộng-dồng-chia-sẻ-phu-hợp-dể-học-layout-cach-kể-chuyện-bằng-dữ-liệu-va-thiết-kế-dashboard\"><strong>Tôi có thể tải Power BI template ở đâu?<br></strong>Bạn có thể tham khảo và tải các mẫu báo cáo Power BI từ cộng đồng chính thức của Microsoft tại trang <a href=\"https://community.fabric.microsoft.com/t5/Data-Stories-Gallery/bd-p/DataStoriesGallery\" target=\"_blank\" rel=\"noreferrer noopener\">Data Stories Gallery</a>. Trang này tập hợp rất nhiều báo cáo thực tế do cộng đồng chia sẻ, phù hợp để học layout, cách kể chuyện bằng dữ liệu và thiết kế dashboard.</p>\n\n<p>Điểm cần lưu ý là các báo cáo trên trang này được chia sẻ dưới dạng file .pbix, không phải .pbit. Điều này có nghĩa là khi tải về, bạn sẽ nhận được một file Power BI report hoàn chỉnh, có thể mở, chỉnh sửa và phân tích trực tiếp trong Power BI Desktop.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-tổng-kết\"><span class=\"ez-toc-section\" id=\"Tong_ket\"></span><strong>Tổng kết</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Power BI Template (.pbit) không phải là file báo cáo hoàn chỉnh, nó đơn thuần là file định nghĩa logic, cấu trúc báo cáo. Khi được xây dựng dựa trên mô hình dữ liệu ổn định và tuân thủ các best practices, Power BI Template giúp doanh nghiệp và chuyên gia dữ liệu chuẩn hóa logic phân tích, giảm chi phí phát triển báo cáo và hạn chế rủi ro sai lệch số liệu giữa các phòng ban.</p>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "backend-architecture",
+      metaTitle: "Power BI Template: Best practices làm báo cáo Power BI hiệu quả",
+      metaDescription: "Tìm hiểu Power BI Template (.pbit) là gì, cách hoạt động, cấu trúc, các loại template phổ biến và best practices xây dựng báo cáo Power BI.",
+      viewCount: 6198,
+      tags: ["Backend & Architecture","AI & Data","Cloud & AWS"],
+    },
+    {
+      id: postSeedId(207),
+      title: "BUILD YOU THEN BUILD IMPACT: Định hướng cam kết của UpNext trong việc xây dựng Chất riêng sự nghiệp và tạo Dấu ấn công nghệ lớn hơn tại Việt Nam",
+      slug: "itviec-build-you-then-build-impact-ban-tieng-viet",
+      imageUrl: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 24,
+      content: "<h1 class=\"page-title\">BUILD YOU THEN BUILD IMPACT: Định hướng cam kết của UpNext trong việc xây dựng Chất riêng sự nghiệp và tạo Dấu ấn công nghệ lớn hơn tại Việt Nam</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/danh-cho-nha-tuyen-dung-it/\"><span>Dành cho Nhà tuyển dụng IT</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</div></figure>\n\n<div class=\"entry-content is-layout-flow\">\n\t\t\t\n<nav>\n\n<ul class='ez-toc-list ez-toc-list-level-1 ' ><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-1\" href=\"#Vuot_ra_ngoai_Ky_nang_hay_Quy_mo_doi_nhom_huong_toi_Chat_rieng_su_nghiep_va_Dau_an_cong_nghe\" >Vượt ra ngoài Kỹ năng hay Quy mô đội nhóm, hướng tới Chất riêng sự nghiệp và Dấu ấn công nghệ</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-2\" href=\"#Cam_ket_cua_UpNext_trong_viec_tao_dau_an_lon_hon_voi_nen_tang_su_nghiep_cong_nghe\" >Cam kết của UpNext trong việc tạo dấu ấn lớn hơn với nền tảng sự nghiệp công nghệ</a></li></ul>\n\n</nav></div>\n\n<p class=\"has-text-align-right\"><em><a href=\"https://UpNext.com/blog/UpNext-build-you-then-build-impact\" target=\"_blank\" rel=\"noreferrer noopener\">Read the English version here</a></em></p>\n\n<p>Trong nhiều năm, thành công trong sự nghiệp công nghệ thường được đo bằng những cột mốc quen thuộc: mức lương cao hơn, chức danh cao cấp hơn, hay quy mô đội nhóm lớn hơn.</p>\n\n<p>Những thước đo đó vẫn quan trọng. Tuy nhiên, trong một thế giới nơi AI đang nhanh chóng tái định hình cách chúng ta làm việc và công nghệ phát triển với tốc độ chưa từng thấy, chỉ vậy thôi là chưa đủ.</p>\n\n<p>Ngày nay, thành công bền vững trong ngành công nghệ không chỉ nằm ở việc <strong><em><mark  class=\"has-inline-color has-palette-color-9-color\">bạn làm gì</mark></em></strong>, mà còn ở việc <strong><em><mark  class=\"has-inline-color has-palette-color-9-color\">bạn là ai &#8211; và dấu ấn bạn tạo ra thông qua công nghệ</mark></em></strong>.</p>\n\n<p>Đây chính là sự chuyển dịch đang diễn ra: vượt ra ngoài kỹ năng và quy mô đội nhóm, hướng tới những danh tính công nghệ mở rộng và dấu ấn lớn hơn.</p>\n\n<h2><span class=\"ez-toc-section\" id=\"Vuot_ra_ngoai_Ky_nang_hay_Quy_mo_doi_nhom_huong_toi_Chat_rieng_su_nghiep_va_Dau_an_cong_nghe\"></span><strong><strong>Vượt ra ngoài Kỹ năng hay Quy mô đội nhóm, hướng tới Chất riêng sự nghiệp và Dấu ấn công nghệ</strong></strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Developer, Engineer, Tester, Data Analyst, Product Owner, Designer &#8211; những chức danh này phản ánh kỹ năng thật, nỗ lực thật và những hành trình nghề nghiệp rất thật.<br>Tuy nhiên, chỉ riêng chúng vẫn chưa thể phản ánh đầy đủ cách con người tạo ra giá trị trong thế giới công nghệ ngày nay.</p>\n\n<p><em><em>UpNext tin rằng, đằng sau mỗi vai trò còn là chất riêng sự nghiệp. Đó là:</em></em></p>\n\n<ul class=\"wp-block-list\">\n<li><em><strong><em>Builder</em></strong><em> – những người biến ý tưởng thành hiện thực</em></em></li>\n\n<li><em><strong><em>Architect</em></strong><em> – những người kiến trúc sư thiết kế hệ thống ổn định và mở rộng</em></em></li>\n\n<li><em><strong><em>Connector</em></strong><em> – những người kết nối con người và công nghệ</em></em></li>\n\n<li><em><strong><em>Enabler</em></strong><em> – những người giúp đội ngũ và tổ chức tiến về phía trước</em></em></li>\n</ul>\n\n<ul class=\"wp-block-list\"></ul>\n\n<p>Trong một thế giới công nghệ vận hành mạnh mẽ với AI, những chất riêng này không chỉ là chức danh công việc mà trở thành nền tảng để cá nhân phát triển, đội ngũ đồng bộ và doanh nghiệp tạo ra dấu ấn ảnh hưởng bền vững, có ý nghĩa trong dài hạn.</p>\n\n<p><em><em>Với doanh nghiệp:</em></em></p>\n\n<ul class=\"wp-block-list\">\n<li><em>Tăng trưởng không còn là cuộc đua tuyển thật nhiều người.</em></li>\n\n<li><em>Tăng trưởng là xây dựng những đội ngũ linh hoạt, mở rộng mạng lưới, nuôi dưỡng khả năng kết nối giữa “kỹ năng chuyên môn” và “kỹ năng mềm” &#8211; giữa con người và công nghệ.</em></li>\n</ul>\n\n<p>Đây cũng chính là bức tranh ngành công nghệ của hiện tại: rộng lớn, phức tạp và kết nối với nhau một cách sâu sắc.&nbsp;</p>\n\n<p>Nhân tài công nghệ ngày càng chịu nhiều áp lực hơn trong việc thích nghi, phát triển năng lực và duy trì tính cạnh tranh. Doanh nghiệp đối mặt với kỳ vọng ngày càng cao trong việc xây dựng đội ngũ vững vàng, đồng thời vẫn đảm bảo tốc độ và chất lượng.</p>\n\n<p>Trước mức độ phức tạp ngày càng tăng, việc điều hướng hiệu quả đòi hỏi sự kết nối và đồng hành chặt chẽ hơn giữa các bên trong hệ sinh thái.</p>\n\n<h2><span class=\"ez-toc-section\" id=\"Cam_ket_cua_UpNext_trong_viec_tao_dau_an_lon_hon_voi_nen_tang_su_nghiep_cong_nghe\"></span><strong><strong>Cam kết của UpNext trong việc tạo dấu ấn lớn hơn với nền tảng sự nghiệp công nghệ</strong></strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Từ những ngày đầu thành lập, UpNext đã là một nền tảng tuyển dụng chuyên biệt cho ngành công nghệ tại Việt Nam, tập trung vào chất lượng kết nối, insight đáng tin cậy và sự thấu hiểu sâu sắc thị trường IT.</p>\n\n<p>Với định hướng thương hiệu mới “Build You Then Build Impact”, UpNext tái khẳng định cam kết dài hạn trong việc phát triển hệ sinh thái sự nghiệp và tuyển dụng bền vững, song hành cùng sự thay đổi của thị trường, thông qua việc:</p>\n\n<ul class=\"wp-block-list\">\n<li>Hỗ trợ nhân tài công nghệ xây dựng và thể hiện bản thân rõ nét hơn theo thời gian</li>\n\n<li>Kết nối nhân tài công nghệ chất lượng cao với doanh nghiệp thông qua hệ sinh thái sự nghiệp thông minh, lấy con người làm trung tâm</li>\n\n<li>Đồng hành cùng doanh nghiệp trong việc định hình thương hiệu tuyển dụng chân thực, giúp tạo ảnh hưởng dài hạn bằng cách thu hút đúng người, đúng thời điểm</li>\n</ul>\n\n<blockquote class=\"wp-block-quote is-layout-flow wp-block-quote-is-layout-flow\">\n\n<p><em><em>“Build You Then Build Impact không chỉ là một thông điệp, mà là định hướng chúng tôi cam kết theo đuổi,” </em><strong><em>ông Naoto Iijima, Tổng Giám Đốc của UpNext, chia sẻ</em></strong><em>. “UpNext cam kết đồng hành cùng nhân tài công nghệ trong việc xây dựng chất riêng sự nghiệp vượt ra ngoài chức danh hay kỹ năng, đồng thời giúp doanh nghiệp tạo ra dấu ấn ảnh hưởng mà họ mong muốn với nhân tài phù hợp nhất. Khi danh tính sự nghiệp được củng cố và mở rộng, dấu ấn công nghệ có ý nghĩa sẽ được tích lũy và lan tỏa ở quy mô lớn hơn.”</em></em></p>\n\n</blockquote>\n\n<p>Niềm tin này được thể hiện trọn vẹn trong video thương hiệu mới nhất của UpNext với định hướng mới: <strong><mark  class=\"has-inline-color has-palette-color-9-color\">Build You Then Build Impact</mark></strong><em>.</em></p>\n\n<p>UpNext trân trọng mời cộng đồng nhân tài công nghệ và các doanh nghiệp cùng xem video và bắt đầu hành trình xây dựng Chất riêng sự nghiệp &#8211; Dấu ấn công nghệ đầy ý nghĩa cùng nhau.</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n<h3 class=\"wp-block-heading\" id=\"h-kham-pha-hệ-sinh-thai-sự-nghiệp-cong-nghệ-của-UpNext\">👉 <strong>Khám phá hệ sinh thái sự nghiệp công nghệ của UpNext:</strong></h3>\n\n<p>🔗 UpNext.com: <a href=\"https://UpNext.com\" target=\"_blank\" rel=\"noreferrer noopener\">https://UpNext.com</a><br>🔗 UpNext Story Hub: <a href=\"https://UpNext.com/story-hub\" target=\"_blank\" rel=\"noreferrer noopener\">https://UpNext.com/story-hub</a><br>🔗 UpNext Blog: <a href=\"https://UpNext.com/blog\" target=\"_blank\" rel=\"noreferrer noopener\">https://UpNext.com/blog</a><br>🔗 UpNext CV Template: <a href=\"https://UpNext.com/cv-templates-introduction\" target=\"_blank\" rel=\"noreferrer noopener\">https://UpNext.com/cv-templates-introduction</a><br>🔗 AI, Data Segment: <a href=\"https://UpNext.com/segments/viec-lam-ai-data\" target=\"_blank\" rel=\"noreferrer noopener\">https://UpNext.com/segments/viec-lam-ai-data</a></p>\n\n<h3 class=\"wp-block-heading\" id=\"h-theo-doi-UpNext-tren-cac-nền-tảng\">👉 <strong>Theo dõi UpNext trên các nền tảng:</strong></h3>\n\n<p>🔗 YouTube: <a href=\"https://www.youtube.com/UpNext\" target=\"_blank\" rel=\"noreferrer noopener\">https://www.youtube.com/UpNext</a><br>🔗 Facebook: <a href=\"https://www.facebook.com/UpNext\" target=\"_blank\" rel=\"noreferrer noopener\">https://www.facebook.com/UpNext</a><br>🔗 LinkedIn: <a href=\"https://www.linkedin.com/company/UpNext\" target=\"_blank\" rel=\"noreferrer noopener\">https://www.linkedin.com/company/UpNext</a><br>🔗 TikTok: <a href=\"https://www.tiktok.com/@UpNext.official\" target=\"_blank\" rel=\"noreferrer noopener\">https://www.tiktok.com/@UpNext.official</a><br>🔗 Threads: <a href=\"https://www.threads.com/@UpNext.official\" target=\"_blank\" rel=\"noreferrer noopener\">https://www.threads.com/@UpNext.official</a></p>\n\n<p class=\"has-text-align-right\"><strong>UpNext | Build You Then Build Impact</strong></p>\n\n<p></p>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "su-nghiep-developer",
+      metaTitle: "BUILD YOU THEN BUILD IMPACT: Định hướng cam kết của ITviec trong việc xây dựng Chất riêng sự nghiệp và tạo Dấu ấn công nghệ lớn hơn tại Việt Nam",
+      metaDescription: "Với định hướng thương hiệu mới “Build You Then Build Impact”, UpNext tái khẳng định cam kết dài hạn trong việc phát triển hệ sinh thái sự nghiệp bền vững, song hành cùng sự thay đổi của thị trường",
+      viewCount: 31540,
+      tags: ["Career Path","Developer","Phỏng vấn IT"],
+    },
+    {
+      id: postSeedId(208),
+      title: "Học Power BI hiệu quả: Lộ trình và tài liệu phù hợp cho người mới",
+      slug: "lo-trinh-hoc-power-bi",
+      imageUrl: 'https://images.unsplash.com/photo-1523966211575-eb4a01e7dd51?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 174,
+      content: "<h1 class=\"page-title\">Học Power BI hiệu quả: Lộ trình và tài liệu phù hợp cho người mới</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/chuyen-mon-it/\"><span>Chuyên môn IT</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1531482615713-2afd69097998?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</div></figure>\n\n<div class=\"entry-content is-layout-flow\">\n\t\t\t\n<nav>\n\n<ul class='ez-toc-list ez-toc-list-level-1 ' ><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-1\" href=\"#Vi_sao_nen_hoc_Power_BI\" >Vì sao nên học Power BI?</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-2\" href=\"#Can_chuan_bi_gi_truoc_khi_hoc_Power_BI\" >Cần chuẩn bị gì trước khi học Power BI?</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-3\" href=\"#Lo_trinh_hoc_Power_BI_tu_co_ban_den_nang_cao\" >Lộ trình học Power BI từ cơ bản đến nâng cao</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-4\" href=\"#Loi_khuyen_de_hoc_Power_BI_hieu_qua\" >Lời khuyên để học Power BI hiệu quả</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-5\" href=\"#Cac_cau_hoi_thuong_gap_ve_hoc_Power_BI\" >Các câu hỏi thường gặp về học Power BI</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-6\" href=\"#Ket_luan\" >Kết luận</a></li></ul>\n\n</nav></div>\n\n</blockquote>\n\n<h2 class=\"wp-block-heading\" id=\"h-cần-chuẩn-bị-gi-trước-khi-học-power-bi\"><span class=\"ez-toc-section\" id=\"Can_chuan_bi_gi_truoc_khi_hoc_Power_BI\"></span><strong>Cần chuẩn bị gì trước khi học Power BI?</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n</blockquote>\n\n<h3 class=\"wp-block-heading\" id=\"h-giai-doạn-2-cac-chủ-dề-power-bi-trung-cấp\"><strong>Giai đoạn 2: Các chủ đề Power BI trung cấp</strong></h3>\n\n</blockquote>\n\n<h3 class=\"wp-block-heading\" id=\"h-học-power-bi-co-kho-dối-với-người-mới-khong\"><strong>Học Power BI có khó đối với người mới không?</strong></h3>\n\n<p>Học Power BI không quá khó đối với người mới nếu bạn có nền tảng Excel cơ bản và tư duy làm việc với dữ liệu. Công cụ này có giao diện trực quan, nhiều tính năng kéo-thả nên người bắt đầu có thể tạo báo cáo đơn giản chỉ sau thời gian ngắn làm quen. Tuy nhiên, để học Power BI nâng cao như viết DAX hay xây dựng mô hình dữ liệu tối ưu, bạn cần luyện tập thường xuyên và đi theo lộ trình rõ ràng.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-mất-bao-lau-dể-học-power-bi\"><strong>Mất bao lâu để học Power BI?</strong></h3>\n\n<p>Học Power BI mất bao lâu phụ thuộc vào mức độ kỹ năng bạn muốn đạt được và thời gian bạn dành ra để học, nhưng nhìn chung nhiều chuyên gia ước tính bạn có thể làm chủ các tính năng cơ bản trong khoảng 1–2 tháng với việc học đều đặn. Trong vài tuần đầu, bạn có thể tự tin tạo báo cáo, trực quan hóa dữ liệu và hiểu các công cụ chính, nhưng để thành thạo các kỹ thuật nâng cao như DAX và mô hình dữ liệu có thể cần thêm thời gian và luyện tập.</p>\n\n<p>Vì vậy, nếu bạn học đều đặn mỗi tuần, khoảng 1–2 tháng là một mốc hợp lý để cảm thấy vững vàng với Power BI trong công việc.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-học-power-bi-co-thể-lam-những-vị-tri-nao\"><strong>Học Power BI có thể làm những vị trí nào?</strong></h3>\n\n<p>Khi lựa chọn học Power BI, bạn đang hướng đến nhóm công việc liên quan trực tiếp đến phân tích dữ liệu và Business Intelligence – những lĩnh vực đang có nhu cầu tuyển dụng cao trên thị trường. Theo tổng hợp từ DataCamp và Dataquest, Power BI không chỉ dành cho Data Analyst mà còn xuất hiện trong nhiều vai trò như:</p>\n\n<ul class=\"wp-block-list\">\n<li>Power BI Analyst: Xây dựng dashboard, báo cáo tương tác, phân tích dữ liệu từ nhiều nguồn và hỗ trợ phòng ban ra quyết định.</li>\n\n<li>Business Intelligence (BI) Analyst: Khai thác dữ liệu để tìm insight, đề xuất chiến lược kinh doanh dựa trên hệ thống báo cáo trực quan.</li>\n\n<li>Data Analyst: Làm sạch dữ liệu, phân tích xu hướng và sử dụng Power BI để trình bày kết quả một cách trực quan, dễ hiểu.</li>\n\n<li>Power BI Developer: Xây dựng kiến trúc dữ liệu, phát triển mô hình dữ liệu, viết DAX nâng cao, quản trị Fabric/Workspace, tối ưu hiệu suất và triển khai hệ thống BI cho doanh nghiệp.</li>\n\n<li>Data Visualization Specialist: Tập trung thiết kế báo cáo và dashboard có tính thẩm mỹ, tối ưu trải nghiệm người dùng.</li>\n\n<li>Power BI Consultant: Tư vấn triển khai, tích hợp và tối ưu giải pháp Power BI cho tổ chức.</li>\n</ul>\n\n<p>Những vị trí này cho thấy việc học Power BI không chỉ phù hợp với dân kỹ thuật mà còn hữu ích cho các ngành như tài chính, marketing, vận hành và quản trị doanh nghiệp.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-kết-luận\"><span class=\"ez-toc-section\" id=\"Ket_luan\"></span><strong>Kết luận</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Trong môi trường làm việc ngày càng dựa trên số liệu, học Power BI là một cách thiết thực để nâng cấp kỹ năng và mở rộng cơ hội nghề nghiệp. Khi biết cách khai thác và trình bày dữ liệu hiệu quả, bạn không chỉ làm việc nhanh hơn mà còn tạo được giá trị rõ ràng trong tổ chức. Nếu đầu tư nghiêm túc và học đúng hướng, Power BI hoàn toàn có thể trở thành một lợi thế dài hạn trong hành trình phát triển của bạn.</p>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "backend-architecture",
+      metaTitle: "Học Power BI hiệu quả: Lộ trình và tài liệu phù hợp cho người mới",
+      metaDescription: "Khám phá chi tiết lộ trình học Power BI, cách học hiệu quả, tài liệu tổng quan và những sai lầm khi học Power BI cần tránh cho người mới.",
+      viewCount: 5614,
+      tags: ["Backend & Architecture","AI & Data","Cloud & AWS"],
+    },
+    {
+      id: postSeedId(209),
+      title: "BUILD YOU THEN BUILD IMPACT: UpNext’s committed direction to help build broader Tech Identities and Tech Impact in Vietnam",
+      slug: "itviec-build-you-then-build-impact",
+      imageUrl: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 61,
+      content: "<h1 class=\"page-title\">BUILD YOU THEN BUILD IMPACT: UpNext’s committed direction to help build broader Tech Identities and Tech Impact in Vietnam</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/danh-cho-nha-tuyen-dung-it/\"><span>Dành cho Nhà tuyển dụng IT</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</div></figure>\n\n<div class=\"entry-content is-layout-flow\">\n\t\t\t\n<nav>\n\n<ul class='ez-toc-list ez-toc-list-level-1 ' ><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-1\" href=\"#Beyond_Skills_and_Team_Size_toward_Tech_Identities_and_Tech_Impact\" >Beyond Skills and Team Size, toward Tech Identities and Tech Impact</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-2\" href=\"#UpNexts_commitment_to_build_bigger_impact_in_tech_career_ecosystem\" >UpNext’s commitment to build bigger impact in tech career ecosystem</a></li></ul>\n\n</nav></div>\n\n<p class=\"has-text-align-right\"><em><a href=\"https://UpNext.com/blog/UpNext-build-you-then-build-impact-ban-tieng-viet\" target=\"_blank\" rel=\"noreferrer noopener\">Đọc bản tiếng Việt tại đây</a></em></p>\n\n<p>For many years, success in tech careers was often measured by familiar milestones: higher salary, more senior title, or bigger team size.</p>\n\n<p>Those markers still matter. But in a world where AI is rapidly reshaping how we work and technology evolves at unprecedented speed, they are no longer enough.</p>\n\n<p>Today, sustainable success in tech is not only about <strong><em><mark class=\"has-inline-color has-palette-color-9-color\" >what you do</mark></em></strong>, but also <strong><em><mark class=\"has-inline-color has-palette-color-9-color\" >who you are &#8211; and the impact you create with technology</mark></em></strong>.</p>\n\n<h2><span class=\"ez-toc-section\" id=\"Beyond_Skills_and_Team_Size_toward_Tech_Identities_and_Tech_Impact\"></span><strong>Beyond Skills and Team Size, toward Tech Identities and Tech Impact</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Developers, Engineers, Testers, Data Analysts, Product Owners, Designers &#8211; these titles reflect real skills, real effort, and real journeys. But they do not fully capture how people create value in today’s tech world.</p>\n\n<p><em>UpNext believes that behind every role, there is a unique tech identity, they are:</em></p>\n\n<ul class=\"wp-block-list\">\n<li><strong><em>Builders</em></strong><em> &#8211; who turn ideas into reality.</em></li>\n\n<li><strong><em>Architects</em></strong><em> &#8211; who design systems that scale.</em></li>\n\n<li><strong><em>Connectors</em></strong><em> &#8211; who bridge people and technology.</em></li>\n\n<li><strong><em>Enablers</em></strong><em> &#8211; who help teams and organizations move forward.</em></li>\n</ul>\n\n<p>In an AI-powered tech world, these identities are not just job titles. They become the foundation upon which individuals can grow, teams can align, and businesses can create meaningful, long-term tech impact.</p>\n\n<p><em>For companies:</em></p>\n\n<ul class=\"wp-block-list\">\n<li><em>Growth is not a race to hire more.&nbsp;</em></li>\n\n<li><em>Growth is about building flexible teams, expanding networks, and cultivating skills that connect the hard with the soft, the human with tech.</em></li>\n</ul>\n\n<p>This is also today’s tech landscape: vast, complex, and deeply connected.&nbsp;</p>\n\n<p>Tech talent faces increasing pressure to adapt, develop specialty, and stay competitive. Companies face rising expectations to build resilient teams while maintaining speed and quality.</p>\n\n<p>As the level of complexity continues to increase, navigating today’s IT landscape effectively requires closer connection and stronger collaboration across multiple sides of the ecosystem.</p>\n\n<h2><span class=\"ez-toc-section\" id=\"UpNexts_commitment_to_build_bigger_impact_in_tech_career_ecosystem\"></span><strong>UpNext’s commitment to build bigger impact in tech career ecosystem</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Since its founding, UpNext has been built as a tech-focused job platform, centered on quality matching, trusted insights, and deep understanding of the IT market.</p>\n\n<p>With the new brand tagline “Build You Then Build Impact”, UpNext reaffirms its long-term commitment to the sustainable growth of tech career and hiring ecosystem, alongside the evolving tech market needs by:</p>\n\n<ul class=\"wp-block-list\">\n<li>Helping tech professionals build and express broader Tech Identities over time</li>\n\n<li>Connecting high-quality tech talent and companies through a smart, human-centered career ecosystem</li>\n\n<li>Supporting companies in articulating authentic tech employer brands that sustain long-term impact by attracting the right talent</li>\n</ul>\n\n<blockquote class=\"wp-block-quote is-layout-flow wp-block-quote-is-layout-flow\">\n\n<p><em>“Build You Then Build Impact is not just a message — it is the direction we are committing to,” </em><strong><em>said Mr. Naoto Iijima, General Director of UpNext. </em></strong><em>“UpNext is committed to helping tech professionals build who they are beyond titles or skills, and helping companies build the kind of impact they want to create in their businesses, together with the right talent. When tech identities are strong and broadened, meaningful tech impact will be accumulated at scale.”</em></p>\n\n</blockquote>\n\n<p>This belief lies at the heart of UpNext’s latest brand film launched with the new tagline: <strong><mark class=\"has-inline-color has-palette-color-9-color\" >Build You Then Build Impact</mark>.</strong></p>\n\n<p>UpNext warmly invites tech professionals and companies to watch the brand film and begin building meaningful Tech Identity &#8211; Tech Impact together.</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n<h3 class=\"wp-block-heading\" id=\"h-explore-tech-career-and-hiring-platforms-from-UpNext\">👉 Explore tech career and hiring platforms from UpNext<strong>:</strong></h3>\n\n<p>🔗 UpNext.com: <a href=\"https://UpNext.com\" target=\"_blank\" rel=\"noreferrer noopener\">https://UpNext.com</a><br>🔗 UpNext Story Hub: <a href=\"https://UpNext.com/story-hub\" target=\"_blank\" rel=\"noreferrer noopener\">https://UpNext.com/story-hub</a><br>🔗 UpNext Blog: <a href=\"https://UpNext.com/blog\" target=\"_blank\" rel=\"noreferrer noopener\">https://UpNext.com/blog</a><br>🔗 UpNext CV Template: <a href=\"https://UpNext.com/cv-templates-introduction\" target=\"_blank\" rel=\"noreferrer noopener\">https://UpNext.com/cv-templates-introduction</a><br>🔗 AI, Data Segment: <a href=\"https://UpNext.com/segments/viec-lam-ai-data\" target=\"_blank\" rel=\"noreferrer noopener\">https://UpNext.com/segments/viec-lam-ai-data</a></p>\n\n<h3 class=\"wp-block-heading\" id=\"h-connect-with-us-on-social\">👉 <strong>Connect with us on social:</strong></h3>\n\n<p>🔗 YouTube: <a href=\"https://www.youtube.com/UpNext\" target=\"_blank\" rel=\"noreferrer noopener\">https://www.youtube.com/UpNext</a><br>🔗 Facebook: <a href=\"https://www.facebook.com/UpNext\" target=\"_blank\" rel=\"noreferrer noopener\">https://www.facebook.com/UpNext</a><br>🔗 LinkedIn: <a href=\"https://www.linkedin.com/company/UpNext\" target=\"_blank\" rel=\"noreferrer noopener\">https://www.linkedin.com/company/UpNext</a><br>🔗 TikTok: <a href=\"https://www.tiktok.com/@UpNext.official\" target=\"_blank\" rel=\"noreferrer noopener\">https://www.tiktok.com/@UpNext.official</a><br>🔗 Threads: <a href=\"https://www.threads.com/@UpNext.official\" target=\"_blank\" rel=\"noreferrer noopener\">https://www.threads.com/@UpNext.official</a></p>\n\n<p class=\"has-text-align-right\"><strong>UpNext | Build You Then Build Impact</strong></p>\n\n<p>&nbsp;</p>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "su-nghiep-developer",
+      metaTitle: "BUILD YOU THEN BUILD IMPACT: ITviec’s committed direction to help build broader Tech Identities and Tech Impact in Vietnam",
+      metaDescription: "With the new brand tagline “Build You Then Build Impact”, UpNext reaffirms its long-term commitment to the sustainable growth of tech career ecosystem, alongside the evolving tech market needs",
+      viewCount: 12489,
+      tags: ["Career Path","Developer","Phỏng vấn IT"],
+    },
+    {
+      id: postSeedId(210),
+      title: "Tổng hợp 20+ tài liệu Power BI từ cơ bản đến nâng cao",
+      slug: "tai-lieu-power-bi",
+      imageUrl: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 346,
+      content: "<h1 class=\"page-title\">Tổng hợp 20+ tài liệu Power BI từ cơ bản đến nâng cao</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/chuyen-mon-it/\"><span>Chuyên môn IT</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1677442136019-21780efad99a?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</div></figure>\n\n<div class=\"entry-content is-layout-flow\">\n\t\t\t\n<nav>\n\n<ul class='ez-toc-list ez-toc-list-level-1 ' ><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-1\" href=\"#Power_BI_la_gi_Lam_the_nao_de_tim_tai_lieu_Power_BI_hieu_qua\" >Power BI là gì? Làm thế nào để tìm tài liệu Power BI hiệu quả?</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-2\" href=\"#Cac_tai_lieu_Power_BI_chinh_thuc_tu_Microsoft\" >Các tài liệu Power BI chính thức từ Microsoft</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-3\" href=\"#Cac_tai_lieu_khoa_hoc_Power_BI_co_tra_phi\" >Các tài liệu &amp; khóa học Power BI có trả phí</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-4\" href=\"#Cac_tai_lieu_Power_BI_dang_sach_e-book\" >Các tài liệu Power BI dạng sách &amp; e-book</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-5\" href=\"#Tai_lieu_Power_BI_dang_video_Youtube\" >Tài liệu Power BI dạng video Youtube</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-6\" href=\"#Tai_lieu_Power_BI_dang_BlogWebsite\" >Tài liệu Power BI dạng Blog/Website</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-7\" href=\"#Tai_lieu_Power_BI_tu_CommunityForum\" >Tài liệu Power BI từ Community/Forum</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-8\" href=\"#Cac_cau_hoi_thuong_gap_ve_tai_lieu_Power_BI\" >Các câu hỏi thường gặp về tài liệu Power BI</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-9\" href=\"#Ket_luan\" >Kết luận</a></li></ul>\n\n</nav></div>\n\n</blockquote>\n\n<h3 class=\"wp-block-heading\" id=\"h-cach-tim-tai-liệu-power-bi-hiệu-quả\"><strong>Cách tìm tài liệu Power BI hiệu quả</strong></h3>\n\n<p>Nhiều người khi bắt đầu học thường tải rất nhiều tài liệu nhưng không biết nên học từ đâu. Cách tốt nhất là bạn dựa trên những thành phần chính của Power BI và các năng lực cốt lõi mà Power BI yêu cầu trong thực tế công việc để tìm tài liệu phù hợp.</p>\n\n<p>Trước hết, bạn cần hiểu các thành phần chính trong hệ sinh thái Power BI, vì đây là nền tảng để xác định mình đang học phần nào của quy trình. Trong hệ sinh thái Power BI, có một số thành phần chính thường được sử dụng trong quá trình xây dựng và chia sẻ báo cáo:</p>\n\n<ul class=\"wp-block-list\">\n<li>Power BI Desktop: Ứng dụng cài trên máy tính giúp kết nối dữ liệu, xử lý và mô hình hóa dữ liệu cũng như tạo các báo cáo và biểu đồ tương tác.</li>\n\n<li>Power BI Service: Dịch vụ trực tuyến trên nền tảng web nơi người dùng có thể lưu trữ, chia sẻ và cộng tác trên các báo cáo và dashboard.</li>\n\n<li>Power BI Mobile: Ứng dụng dành cho thiết bị di động giúp truy cập và xem báo cáo bất cứ khi nào.</li>\n\n<li>Ngoài ra, bộ Power BI còn tích hợp các công cụ như Power Query để làm sạch và chuyển đổi dữ liệu, Power Pivot và Power View để mô hình hóa và trực quan hóa dữ liệu.</li>\n</ul>\n\n<p>Dựa trên cấu trúc đó, khi tìm tài liệu bạn nên ưu tiên các nhóm nội dung sau</p>\n\n<ul class=\"wp-block-list\">\n<li>Kết nối và nhập dữ liệu</li>\n\n<li>Power Query và xử lý dữ liệu</li>\n\n<li>Data modeling</li>\n\n<li>DAX</li>\n\n<li>Visualization và dashboard design</li>\n\n<li>Publish và chia sẻ</li>\n</ul>\n\n<p>Cách tiếp cận hợp lý là học theo trình tự xử lý dữ liệu → mô hình hóa → tính toán → trực quan hóa → chia sẻ. Khi học theo trình tự này, bạn sẽ hiểu cách các thành phần liên kết với nhau thay vì chỉ biết thao tác từng tính năng riêng lẻ. Từ đó hiểu bản chất công cụ và áp dụng được vào các dự án thực tế.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-cac-tai-liệu-power-bi-chinh-thức-từ-microsoft\"><span class=\"ez-toc-section\" id=\"Cac_tai_lieu_Power_BI_chinh_thuc_tu_Microsoft\"></span><strong>Các tài liệu Power BI chính thức từ Microsoft</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Khi tìm tài liệu Power BI, nguồn từ Microsoft luôn là điểm xuất phát đáng tin cậy nhất bởi độ chính xác, độ cập nhật và tính hệ thống cao. Dưới đây là các tài nguyên chính thức bạn nên tham khảo:</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-microsoft-learn-lộ-trinh-tự-học-power-bi\"><a href=\"https://learn.microsoft.com/vi-vn/training/powerplatform/power-bi\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Microsoft Learn</strong></a><strong> – Lộ trình tự học Power BI</strong></h3>\n\n<p>Microsoft Learn cung cấp lộ trình học Power BI theo từng bước cho người học ở mọi trình độ, từ cơ bản đến nâng cao. Nội dung được chia theo module, từng bước hướng dẫn bạn từ cách kết nối dữ liệu đến xử lý, mô hình hóa và trực quan hóa dữ liệu.</p>\n\n<p>Thông tin chi tiết:</p>\n\n<ul class=\"wp-block-list\">\n<li>Cấp độ: Sơ cấp &#8211; Trung cấp &#8211; Cao cấp</li>\n\n<li>Độ khó: Dễ tiếp cận ở bước đầu, tăng dần khi đi sâu vào Data Modeling và DAX</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-power-bi-community-diễn-dan-chinh-thức-của-microsoft\"><a href=\"https://community.fabric.microsoft.com/t5/Power-BI-forums/ct-p/powerbi?wt.mc_id=DXLEX_EDX_DAT207X\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Power BI Community</strong></a><strong> – Diễn đàn chính thức của Microsoft</strong></h3>\n\n<p>Diễn đàn này là nơi chuyên gia, người dùng và kỹ sư Microsoft trao đổi tài liệu, giải pháp và mẹo học Power BI. Bạn có thể tìm được bài hướng dẫn chi tiết, câu trả lời cho các vấn đề cụ thể và nhiều nguồn tham khảo khác.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-power-bi-blog-cập-nhật-tinh-nang-amp-hướng-dẫn-sử-dụng\"><a href=\"https://powerbi.microsoft.com/en-us/blog/category/features/\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Power BI Blog</strong></a><strong> – Cập nhật tính năng &amp; hướng dẫn sử dụng</strong></h3>\n\n<p>Blog chính thức của Power BI cung cấp các bài viết cập nhật tính năng mới, hướng dẫn cách sử dụng theo từng bản cập nhật và những tips hữu ích. Đây là nguồn tài liệu phù hợp để theo dõi xu hướng Power BI mới nhất và đọc những hướng dẫn từ đội ngũ phát triển.</p>\n\n<ul class=\"wp-block-list\">\n<li>Cấp độ: Trung cấp &#8211; Cao cấp</li>\n</ul>\n\n<h2 class=\"wp-block-heading\" id=\"h-cac-tai-liệu-amp-khoa-học-power-bi-co-trả-phi\"><span class=\"ez-toc-section\" id=\"Cac_tai_lieu_khoa_hoc_Power_BI_co_tra_phi\"></span><strong>Các tài liệu &amp; khóa học Power BI có trả phí</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Nếu bạn gặp khó khăn trong việc tự học, bạn có thể tham khảo và đầu tư vào các khóa học Power BI có trả phí dưới đây:&nbsp;</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-học-power-bi-cung-microsoft-certified-trainer-udemy\"><strong>Học Power BI cùng </strong><a href=\"https://www.udemy.com/course/microsoft-power-bi-vietnam/\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Microsoft Certified Trainer</strong></a><strong> (Udemy)</strong></h3>\n\n<p>Đây là khóa học Power BI bằng tiếng Việt được nhiều người dùng chọn để học nhanh và tổng quan các kỹ năng chính trong Power BI bao gồm Power Query, mô hình dữ liệu, DAX và trực quan hóa. Khóa học phù hợp cho người mới bắt đầu và những ai muốn có nền tảng bài bản.</p>\n\n<ul class=\"wp-block-list\">\n<li>Chi phí: 399.000đ</li>\n\n<li>Cấp độ: Sơ cấp &#8211; Trung cấp</li>\n\n<li>Thời lượng học: Khóa thường gồm 8 phần với khoảng 55 bài giảng, tổng thời gian học khoảng 5–10 giờ (tuy không ghi chi tiết trên Udemy nhưng số bài giảng khá ngắn và dễ hoàn tất trong vài buổi).</li>\n\n<li>Ưu điểm: Có bài tập thực hành, dễ tiếp cận và phù hợp để học nhanh.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-cac-khoa-học-power-bi-khac-tren-udemy-da-dạng-theo-nhu-cầu\"><strong>Các khóa học Power BI khác trên </strong><a href=\"https://www.udemy.com/vi/topic/microsoft-power-bi/\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Udemy</strong></a><strong> (đa dạng theo nhu cầu)</strong></h3>\n\n<p>Udemy cung cấp hàng trăm khóa học Power BI từ cơ bản đến nâng cao như <a href=\"https://www.udemy.com/course/mspowerbi/\" target=\"_blank\" rel=\"noreferrer noopener\">Power BI A-Z</a>, <a href=\"https://www.udemy.com/course/microsoft-power-bi-up-running-with-power-bi-desktop/\" target=\"_blank\" rel=\"noreferrer noopener\">Power BI Desktop for Business Intelligence</a> hay <a href=\"https://www.udemy.com/course/70-778-analyzing-and-visualizing-data-with-power-bi/\" target=\"_blank\" rel=\"noreferrer noopener\">Power BI Data Analyst Associate (PL-300)</a>. Bạn có thể lựa chọn theo nhu cầu cụ thể như học DAX chuyên sâu, xây dashboard cho doanh nghiệp hoặc chuẩn bị chứng chỉ.</p>\n\n<ul class=\"wp-block-list\">\n<li>Chi phí: Dao động khoảng 10–200 USD mỗi khóa, tùy nội dung và chương trình giảm giá. </li>\n\n<li>Cấp độ: Từ sơ cấp đến cao cấp.</li>\n\n<li>Ưu điểm: Có thể học theo từng module và được truy cập trọn đời sau khi mua.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-microsoft-power-bi-data-analyst-professional-certificate-coursera\"><a href=\"https://www.coursera.org/professional-certificates/microsoft-power-bi-data-analyst\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Microsoft Power BI Data Analyst Professional Certificate</strong></a><strong> (Coursera)</strong></h3>\n\n<p>Đây là chương trình chứng chỉ chuyên nghiệp do Microsoft cung cấp trên Coursera, xây dựng lộ trình toàn diện từ nhập môn đến kỹ năng phân tích dữ liệu nâng cao. Khóa học hướng đến việc chuẩn bị cho kỳ thi PL-300, phù hợp nếu bạn muốn có chứng chỉ chính thức khi ứng tuyển vị trí Data Analyst hoặc BI Analyst.</p>\n\n<ul class=\"wp-block-list\">\n<li>Chi phí:\n\n<ul class=\"wp-block-list\">\n<li>Có thể học miễn phí ở chế độ audit nhưng không nhận chứng chỉ.</li>\n\n<li>Gói đầy đủ kèm chứng chỉ thường từ $49–$79/tháng, hoặc nếu bạn mua Coursera Plus (~$199–$399/năm) thì có thể học nhiều khóa trên Coursera.</li>\n</ul>\n\n</li>\n<li>Cấp độ: Sơ cấp &#8211; Trung cấp</li>\n<li>Thời lượng học: Tổng nội dung khoảng 200 giờ bao gồm video và bài tập.</li>\n<li>Ưu điểm: Lộ trình rõ ràng, định hướng nghề nghiệp cụ thể và chứng chỉ được công nhận rộng rãi.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-linkedin-learning-goi-khoa-học-power-bi-theo-chuyen-dề\"><a href=\"https://www.linkedin.com/learning/topics/power-bi\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>LinkedIn Learning</strong></a><strong> – Gói khóa học Power BI theo chuyên đề</strong></h3>\n\n<p>LinkedIn Learning cung cấp nhiều khoá học theo chủ đề như <a href=\"https://www.linkedin.com/learning/power-bi-essential-training-25882735\" target=\"_blank\" rel=\"noreferrer noopener\">Power BI Essential Training</a>, <a href=\"https://www.linkedin.com/learning/learning-power-bi-desktop-25612913\" target=\"_blank\" rel=\"noreferrer noopener\">Power BI Desktop</a> hay các bài học mô hình dữ liệu và dashboard. Đây là lựa chọn phù hợp nếu bạn muốn học theo mảng chuyên biệt thay vì một khoá đơn lẻ.</p>\n\n<ul class=\"wp-block-list\">\n<li>Chi phí: ~$39.99/tháng hoặc ~$239.88/năm (truy cập không giới hạn toàn bộ khoá học trên nền tảng)</li>\n\n<li>Cấp độ: Sơ cấp &#8211; Trung cấp</li>\n\n<li>Ưu điểm: Mua một gói là có thể truy cập nhiều nội dung khác nhau và đa chủ đề, phù hợp cho người mới hoặc người cần củng cố kiến thức</li>\n</ul>\n\n<h2 class=\"wp-block-heading\" id=\"h-cac-tai-liệu-power-bi-dạng-sach-amp-e-book\"><span class=\"ez-toc-section\" id=\"Cac_tai_lieu_Power_BI_dang_sach_e-book\"></span><strong>Các tài liệu Power BI dạng sách &amp; e-book</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Bên cạnh các khóa học, sách và e-book là nguồn tham khảo quý giá giúp bạn học sâu về Power BI, từ nền tảng tới các kỹ thuật nâng cao.&nbsp;</p>\n\n<p>Dưới đây là 6 đầu sách &amp; e-book Power BI nên có trong thư viện học của bạn:</p>\n\n<p><em>* Giá dưới đây mang tính tham khảo toàn cầu (USD) vì giá cụ thể thay đổi theo nơi bán và thời điểm.</em></p>\n\n<h3 class=\"wp-block-heading\" id=\"h-microsoft-power-bi-for-dummies\"><a href=\"https://www.amazon.com/s?k=Microsoft+Power+BI+For+Dummies&amp;crid=376XDLQAQYG&amp;sprefix=microsoft+power+bi+for+dummies%2Caps%2C374&amp;ref=nb_sb_noss_1\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Microsoft Power BI For Dummies</strong></a></h3>\n\n<ul class=\"wp-block-list\">\n<li>Phù hợp với: Người mới bắt đầu muốn tài liệu Power BI dễ tiếp cận.</li>\n\n<li>Giá mua (tham khảo): khoảng $20 – $30 (bản paperback / Kindle trên Amazon)</li>\n\n<li>Nội dung: Cuốn sách cơ bản dành cho người mới hoàn toàn, trình bày dễ hiểu về cách Power BI hoạt động và cách tạo báo cáo/dashboard từ dữ liệu.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-m-is-for-data-monkey\"><a href=\"https://www.amazon.com/Data-Monkey-Guide-Language-Excel/dp/1615470344\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>M Is for (Data) Monkey</strong></a></h3>\n\n<ul class=\"wp-block-list\">\n<li>Phù hợp với: Người đã quen với Power BI cơ bản muốn nâng cao kỹ năng xử lý dữ liệu.</li>\n\n<li>Giá mua (tham khảo): khoảng $25 – $40 trên Amazon</li>\n\n<li>Nội dung: Tập trung vào Power Query và ngôn ngữ M, rất quan trọng để xử lý dữ liệu trước khi phân tích trong Power BI.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-power-pivot-and-power-bi-the-excel-user-s-guide\"><a href=\"https://books.google.com.gt/books?id=KvctCwAAQBAJ&amp;printsec=frontcover\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Power Pivot and Power BI: The Excel User’s Guide</strong></a></h3>\n\n<ul class=\"wp-block-list\">\n<li>Phù hợp với: Người dùng Excel muốn sang Power BI.</li>\n\n<li>Giá mua (tham khảo): khoảng $30 – $40 bản paperback</li>\n\n<li>Nội dung: Sách dành cho người chuyển từ Excel sang Power BI, giải thích Power Pivot, DAX và Power Query theo cách dễ hiểu với người Excel.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-the-definitive-guide-to-dax\"><a href=\"https://www.amazon.com/Definitive-Guide-Dax-Business-Skills/dp/0138244723\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>The Definitive Guide to DAX</strong></a></h3>\n\n<ul class=\"wp-block-list\">\n<li>Phù hợp với: Người muốn đi sâu vào tính toán nâng cao với DAX.</li>\n\n<li>Giá mua (tham khảo): khoảng $40 – $50</li>\n\n<li>Nội dung: Đây là tài liệu chuyên sâu về ngôn ngữ DAX và mô hình dữ liệu trong Power BI, thường được các chuyên gia BI sử dụng như reference.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-microsoft-power-bi-quick-start-guide-packt\"><a href=\"https://www.amazon.com/Microsoft-Power-Quick-Start-Guide/dp/1800561571\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Microsoft Power BI Quick Start Guide (Packt)</strong></a></h3>\n\n<ul class=\"wp-block-list\">\n<li>Phù hợp: Phù hợp với người mới bắt đầu và người ở mức trung cấp</li>\n\n<li>Giá mua (Tham khảo):\n\n<ul class=\"wp-block-list\">\n<li>Bản e-book ~ $31.99 trên Apple Books</li>\n\n<li>Bản paperback ~ $70 – $99 trên Packt Publishing</li>\n</ul>\n\n</li>\n<li>Nội dung: E-book này cung cấp hướng dẫn từ cơ bản đến trung cấp về cách xây dựng báo cáo, trực quan hóa và tạo mô hình dữ liệu trong Power BI.</li>\n</ul>\n\n<h2 class=\"wp-block-heading\" id=\"h-tai-liệu-power-bi-dạng-video-youtube\"><span class=\"ez-toc-section\" id=\"Tai_lieu_Power_BI_dang_video_Youtube\"></span><strong>Tài liệu Power BI dạng video Youtube</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>YouTube là một trong những nguồn học Power BI miễn phí được nhiều người lựa chọn vì dễ tiếp cận và có demo trực quan. Dưới đây là những kênh YouTube nổi bật mà bạn nên theo dõi, kèm mô tả ngắn giúp bạn chọn đúng nội dung theo trình độ của mình.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-guy-in-a-cube\"><a href=\"https://www.youtube.com/guyinacube\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Guy in a Cube</strong></a><strong> </strong></h3>\n\n<p>Đây là một trong những kênh nổi tiếng nhất về Power BI, được dẫn dắt bởi hai chuyên gia BI là Adam Saxton và Patrick LeBlanc. Nội dung phù hợp từ trình độ trung cấp đến nâng cao.</p>\n\n<p>Kênh Youtube này có ưu điểm:</p>\n\n<ul class=\"wp-block-list\">\n<li>Nội dung cập nhật thường xuyên và bám sát các tính năng mới của Microsoft.</li>\n\n<li>Chia sẻ nhiều mẹo hay giúp tối ưu báo cáo, xử lý lỗi, cải thiện hiệu suất</li>\n\n<li>Có nhiều nội dung chuyên sâu về DAX, Power BI Service và triển khai thực tế.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-power-bi-tutorial-for-beginners-kevin-stratvert\"><a href=\"https://youtu.be/NNSHu0rkew8?si=AKWJRyTni7Xkj6T3\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Power BI Tutorial for Beginners – Kevin Stratvert</strong></a></h3>\n\n<p>Kevin Stratvert là YouTuber chuyên chia sẻ các hướng dẫn về Microsoft Office, Excel và Power BI theo phong cách ngắn gọn, dễ hiểu. Các video trên kênh này có ưu điểm là giúp người mới làm quen nhanh với công cụ trong thời gian ngắn.</p>\n\n<p>Nội dung video “Power BI Tutorial for Beginners” tập trung vào các bước cơ bản như import dữ liệu, tạo biểu đồ và xuất báo cáo.&nbsp;</p>\n\n<p>Phù hợp với người mới bắt đầu hoặc những ai muốn ôn lại kiến thức nền tảng trong thời gian ngắn.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-enterprise-dna\"><a href=\"https://www.youtube.com/@EnterpriseDNA\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Enterprise DNA</strong></a></h3>\n\n<p>Enterprise DNA là kênh chuyên sâu về phân tích dữ liệu và Business Intelligence, tập trung mạnh vào Power BI trong bối cảnh ứng dụng thực tế tại doanh nghiệp. Nội dung nhấn mạnh tư duy phân tích và cách xây dựng giải pháp dữ liệu hoàn chỉnh.</p>\n\n<p>Các video về Power BI thường đi sâu vào:</p>\n\n<ul class=\"wp-block-list\">\n<li>DAX nâng cao, data modeling, tối ưu hiệu suất báo cáo và thiết kế dashboard theo chuẩn chuyên nghiệp. </li>\n\n<li>Ngoài ra, còn khai thác nhiều tình huống thực tế, giúp người học hiểu cách áp dụng Power BI vào bài toán kinh doanh cụ thể thay vì chỉ học công thức.</li>\n</ul>\n\n<p>Phù hợp với người đã có nền tảng Power BI và muốn nâng cao kỹ năng phân tích, hoặc những ai đang làm Data Analyst, BI Developer và cần đào sâu tư duy giải quyết vấn đề bằng dữ liệu.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-curbal\"><a href=\"https://www.youtube.com/@CurbalEN\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Curbal</strong></a></h3>\n\n<p>Curbal do chuyên gia Power BI người Thụy Điển điều hành, nổi bật với các video ngắn hướng dẫn giải quyết từng vấn đề kỹ thuật cụ thể như Power Query, DAX và visualization,&#8230; rất dễ tra cứu khi cần.</p>\n\n<p>Phù hợp với người đã có nền tảng và muốn tìm giải pháp nhanh cho một tính năng cụ thể.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-tai-liệu-power-bi-dạng-blog-website\"><span class=\"ez-toc-section\" id=\"Tai_lieu_Power_BI_dang_BlogWebsite\"></span><strong>Tài liệu Power BI dạng Blog/Website</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Bên cạnh tài liệu chính thức, các blog và website chuyên về Data &amp; Business Intelligence là nguồn tài liệu Power BI cực kỳ hữu ích để cập nhật kiến thức thực tế, kinh nghiệm triển khai và xu hướng ngành.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-mastering-data-analytics\"><a href=\"https://www.mastering-da.com/tong-hop-cac-nguon-tu-hoc-power-bi-mien-phi-uy-tin\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Mastering Data Analytics</strong></a><strong> </strong></h3>\n\n<p>Website này chuyên chia sẻ kiến thức về Data Analytics, trong đó có nhiều bài viết tổng hợp tài liệu Power BI miễn phí và uy tín.</p>\n\n<p>Nội dung nổi bật:</p>\n\n<ul class=\"wp-block-list\">\n<li>Tổng hợp nguồn học Power BI từ cơ bản đến nâng cao</li>\n\n<li>Gợi ý roadmap học Power BI cho người mới</li>\n\n<li>Danh sách website, khóa học, kênh YouTube chất lượng</li>\n</ul>\n\n<p>Ưu điểm:</p>\n\n<ul class=\"wp-block-list\">\n<li>Nội dung hệ thống, dễ theo dõi</li>\n\n<li>Phù hợp với người mới bắt đầu</li>\n\n<li>Tập trung vào thực hành và định hướng nghề nghiệp</li>\n</ul>\n\n<p>Phù hợp với: Sinh viên, người chuyển ngành hoặc Data Analyst mới vào nghề.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-simplilearn\"><a href=\"https://www.simplilearn.com/power-bi-resources-article\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Simplilearn</strong></a><strong> </strong></h3>\n\n<p>Simplilearn là nền tảng đào tạo công nghệ quốc tế, cung cấp nhiều bài viết chuyên sâu và tài liệu Power BI cập nhật theo xu hướng thị trường.</p>\n\n<p>Nội dung nổi bật:</p>\n\n<ul class=\"wp-block-list\">\n<li>Bài hướng dẫn chi tiết về Power BI Desktop</li>\n\n<li>Giải thích DAX, Data Modeling, Visualization</li>\n\n<li>Tổng hợp tài nguyên học Power BI từ nhiều nguồn</li>\n</ul>\n\n<p>Ưu điểm:</p>\n\n<ul class=\"wp-block-list\">\n<li>Nội dung bài bản, chuyên nghiệp</li>\n\n<li>Phù hợp cho người muốn nâng cao kỹ năng</li>\n\n<li>Cập nhật xu hướng và kỹ năng theo nhu cầu tuyển dụng</li>\n</ul>\n\n<p>Phù hợp với: Người đã có nền tảng cơ bản và muốn học chuyên sâu.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-UpNext-blog\"><a href=\"https://UpNext.com/blog/\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>UpNext Blog</strong></a><strong> </strong></h3>\n\n<p>UpNext Blog là nền tảng chia sẻ kiến thức chuyên môn và định hướng sự nghiệp trong lĩnh vực IT, trong đó có nhiều bài viết liên quan đến Power BI.</p>\n\n<p>Nội dung nổi bật:</p>\n\n<ul class=\"wp-block-list\">\n<li><a href=\"https://UpNext.com/blog/power-bi-la-gi/\" target=\"_blank\" rel=\"noreferrer noopener\">Tổng quan về Power BI</a></li>\n\n<li><a href=\"https://UpNext.com/blog/huong-dan-tai-power-bi/\" target=\"_blank\" rel=\"noreferrer noopener\">Hướng dẫn tải và cài đặt</a></li>\n\n<li><a href=\"https://UpNext.com/blog/so-sanh-tableau-vs-power-bi/\" target=\"_blank\" rel=\"noreferrer noopener\">So sánh Tableau và Power BI</a></li>\n\n<li><a href=\"https://UpNext.com/blog/power-bi-certification/\" target=\"_blank\" rel=\"noreferrer noopener\">Thông tin về chứng chỉ Power BI</a></li>\n\n<li>Tổng hợp tài liệu Power BI</li>\n\n<li><a href=\"https://UpNext.com/blog/cach-su-dung-power-bi/\" target=\"_blank\" rel=\"noreferrer noopener\">Cách sử dụng Power BI hiệu quả</a></li>\n</ul>\n\n<p>Ưu điểm: Nội dung tiếng Việt, dễ đọc, dễ hiểu và chọn lọc những thông tin thiết thực cho người học.</p>\n\n<p>Phù hợp với: Người mới bắt đầu tìm hiểu Power BI, người đang xây dựng lộ trình học bài bản hoặc ứng viên muốn hiểu rõ hơn về yêu cầu kỹ năng Power BI trên thị trường tuyển dụng IT.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-tai-liệu-power-bi-từ-community-forum\"><span class=\"ez-toc-section\" id=\"Tai_lieu_Power_BI_tu_CommunityForum\"></span><strong>Tài liệu Power BI từ Community/Forum</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Diễn đàn &amp; cộng đồng trực tuyến là nơi bạn có thể đặt câu hỏi, chia sẻ vấn đề gặp phải và học từ những người khác trong quá trình làm việc với Power BI. Dưới đây là các diễn đàn/nhóm nổi bật:</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-microsoft-power-platform-community\"><a href=\"https://community.powerplatform.com/\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Microsoft Power Platform Community</strong></a></h3>\n\n<p>Đây là diễn đàn chính thức do Microsoft vận hành dành cho các sản phẩm thuộc Power Platform, bao gồm Power BI. Người dùng có thể đặt câu hỏi, thảo luận tình huống thực tế và trao đổi tài nguyên với cộng đồng chuyên gia trên toàn cầu.</p>\n\n<p>Nội dung nổi bật:</p>\n\n<ul class=\"wp-block-list\">\n<li>Boards thảo luận từ Power BI Service đến Power Query, DAX</li>\n\n<li>Bài viết hỗ trợ kỹ thuật và thủ thuật thực tế</li>\n</ul>\n\n<p>Ưu điểm lớn nhất là độ tin cậy cao vì được quản lý bởi Microsoft, đồng thời có sự tham gia của nhiều MVP và chuyên gia BI giàu kinh nghiệm.</p>\n\n<p>Phù hợp với người cần nguồn hỗ trợ chính thống, muốn cập nhật tính năng mới hoặc tìm lời giải cho các vấn đề kỹ thuật phức tạp trong quá trình làm việc với Power BI.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-microsoft-power-bi-subreddit-r-powerbi\"><a href=\"https://www.reddit.com/r/PowerBI/\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Microsoft Power BI Subreddit (r/PowerBI)</strong></a></h3>\n\n<p>Subreddit này là một trong những cộng đồng lớn nhất dành cho người dùng Power BI trên Reddit, gồm cả người mới lẫn chuyên gia, chia sẻ dự án, hỏi đáp và mẹo học.</p>\n\n<p>Nội dung nổi bật:</p>\n\n<ul class=\"wp-block-list\">\n<li>Câu hỏi &amp; giải pháp realtime cho các vấn đề cụ thể</li>\n\n<li>Chia sẻ nguồn học, tài nguyên, dashboard mẫu</li>\n</ul>\n\n<p>Ưu điểm: Cộng đồng tương tác rất năng động, Ppản hồi nhanh, đa dạng góc nhìn từ người dùng toàn cầu.</p>\n\n<p>Phù hợp: Người muốn học qua thảo luận thực tế và ví dụ ứng dụng.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-enterprise-dna-forum\"><a href=\"https://forum.enterprisedna.co/\" target=\"_blank\" rel=\"noreferrer noopener\"><strong>Enterprise DNA Forum</strong></a></h3>\n\n<p>Diễn đàn Enterprise DNA tập trung vào Power BI từ góc độ chuyên sâu, phù hợp với người làm BI hoặc các consultant/UAT developer.</p>\n\n<p>Nội dung nổi bật:</p>\n\n<ul class=\"wp-block-list\">\n<li>Thảo luận chuyên sâu về DAX, data modeling</li>\n\n<li>Case study dự án thực tế, phản hồi cao từ các chuyên gia</li>\n</ul>\n\n<p>Ưu điểm: Cộng đồng chất lượng và nội dung thảo luận kỹ thuật chuyên sâu hơn các forum khác.</p>\n\n<p>Phù hợp: Người đã có nền tảng và muốn nâng trình theo mô hình ứng dụng thực tế.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-cac-cau-hỏi-thường-gặp-về-tai-liệu-power-bi\"><span class=\"ez-toc-section\" id=\"Cac_cau_hoi_thuong_gap_ve_tai_lieu_Power_BI\"></span><strong>Các câu hỏi thường gặp về tài liệu Power BI</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<h3 class=\"wp-block-heading\" id=\"h-người-mới-nen-bắt-dầu-với-tai-liệu-power-bi-nao\"><strong>Người mới nên bắt đầu với tài liệu Power BI nào?</strong></h3>\n\n<p>Người mới nên ưu tiên tài liệu Power BI chính thức từ Microsoft Learn để nắm vững kiến thức nền tảng như giao diện Power BI Desktop, cách kết nối dữ liệu và tạo báo cáo cơ bản.&nbsp;</p>\n\n<p>Sau đó, có thể kết hợp thêm video hướng dẫn trên YouTube hoặc các blog chuyên về Data để hiểu rõ hơn về trực quan hóa dữ liệu và tư duy phân tích. Khi đã có nền tảng, bạn có thể tiếp cận các tài liệu Power BI chuyên sâu hơn về DAX và Data Modeling để nâng cao kỹ năng thực hành thực tế.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-học-power-bi-mất-bao-lau\"><strong>Học Power BI mất bao lâu?</strong></h3>\n\n<p>Thời gian học Power BI phụ thuộc vào nền tảng sẵn có và cách bạn lựa chọn tài liệu Power BI để học. Thông thường, người mới có thể nắm được kiến thức cơ bản trong khoảng 4–6 tuần nếu học đều đặn.&nbsp;</p>\n\n<p>Nếu muốn sử dụng thành thạo DAX, Data Modeling và xây dựng dashboard chuyên nghiệp, bạn có thể cần từ 2–3 tháng thực hành liên tục với tài liệu Power BI nâng cao.&nbsp;</p>\n\n<p>Điều quan trọng là ban đầu, bạn xác định được lộ trình học rõ ràng và thực hành thường xuyên trên dữ liệu thực tế.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-co-thể-tự-học-power-bi-khong\"><strong>Có thể tự học Power BI không?</strong></h3>\n\n<p>Bạn hoàn toàn có thể tự học vì hiện nay có rất nhiều tài liệu Power BI miễn phí từ Microsoft, blog chuyên ngành và YouTube giúp người mới tiếp cận từ cơ bản đến nâng cao. Điều quan trọng là kết hợp giữa đọc tài liệu, xem hướng dẫn và thực hành trên dữ liệu thực tế để nâng cao kỹ năng nhanh hơn.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-kết-luận\"><span class=\"ez-toc-section\" id=\"Ket_luan\"></span><strong>Kết luận</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Việc lựa chọn đúng tài liệu Power BI sẽ giúp bạn rút ngắn thời gian học và xây dựng nền tảng phân tích dữ liệu vững chắc ngay từ đầu. Khi có định hướng rõ ràng và nguồn tài liệu Power BI phù hợp với trình độ, bạn sẽ dễ dàng nâng cao kỹ năng và ứng dụng vào công việc thực tế. Hãy bắt đầu với những tài liệu chất lượng, kiên trì thực hành và từng bước phát triển năng lực Business Intelligence của mình.</p>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "backend-architecture",
+      metaTitle: "Tổng hợp 20+ tài liệu Power BI từ cơ bản đến nâng cao",
+      metaDescription: "Lưu danh sách tài liệu Power BI từ cơ bản đến nâng cao, nguồn từ Microsoft, khóa học, sách, YouTube đến cộng đồng giúp bạn học hiệu quả hơn.",
+      viewCount: 18964,
+      tags: ["Backend & Architecture","AI & Data","Cloud & AWS"],
+    },
+    {
+      id: postSeedId(211),
+      title: "Hàm CALCULATE trong Power BI: Hướng dẫn sử dụng kèm ví dụ",
+      slug: "ham-calculate-trong-power-bi",
+      imageUrl: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 229,
+      content: "<h1 class=\"page-title\">Hàm CALCULATE trong Power BI: Hướng dẫn sử dụng kèm ví dụ</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/chuyen-mon-it/\"><span>Chuyên môn IT</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<p>Nếu cần tính Doanh thu = Quantity × Unit Price, ta không thể dùng SUM đơn thuần mà cần SUMX để tính từng dòng rồi cộng lại:</p>\n\n<pre class=\"wp-block-code\"><code>Total Revenue = \nSUMX(\n    Sales,\n    Sales&#91;Quantity] * Sales&#91;UnitPrice]\n)</code></pre>\n\n<p>Nếu chỉ dùng <code>SUM(Quantity) * SUM(UnitPrice)</code> thì sẽ sai logic vì phép nhân phải thực hiện theo từng dòng. Còn nếu ta muốn tính Doanh thu chỉ cho năm 2026, ta sẽ dùng CALCULATE để thêm điều kiện lọc năm:</p>\n\n<pre class=\"wp-block-code\"><code>Revenue 2026 = \nCALCULATE(\n    &#91;Total Revenue],\n    Sales&#91;Year] = 2026\n)</code></pre>\n\n<h3 class=\"wp-block-heading\" id=\"h-calculate-co-thay-dổi-dữ-liệu-gốc-trong-power-bi-khong\">CALCULATE <strong>có thay đổi dữ liệu gốc trong Power BI không?</strong></h3>\n\n<p>CALCULATE không thay đổi, chỉnh sửa hay ghi đè dữ liệu gốc trong bảng. Hàm này chỉ thay đổi filter context tại thời điểm tính toán measure. Nói cách khác, CALCULATE chỉ ảnh hưởng đến cách dữ liệu được đánh giá, chứ không làm thay đổi dữ liệu vật lý trong mô hình.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-việc-sử-dụng-calculate-co-ảnh-hưởng-dến-hiệu-nang-bao-cao-khong\"><strong>Việc sử dụng CALCULATE có ảnh hưởng đến hiệu năng báo cáo không?</strong></h3>\n\n<p>Có thể, tùy cách sử dụng.<strong> </strong>Bản thân CALCULATE không phải là hàm “chậm”, nhưng nếu kết hợp với các hàm như FILTER trên bảng lớn hoặc loại bỏ filter quá rộng (ALL toàn bảng), nó có thể làm tăng khối lượng tính toán và khiến report chậm hơn. Hiệu năng phụ thuộc nhiều hơn vào:</p>\n\n<ul class=\"wp-block-list\">\n<li>Mô hình dữ liệu</li>\n\n<li>Số lượng dòng dữ liệu</li>\n\n<li>Cách viết điều kiện filter</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-co-bắt-buộc-phải-dung-calculate-trong-mọi-measure-khong\"><strong>Có bắt buộc phải dùng </strong>CALCULATE <strong>trong mọi measure không?</strong></h3>\n\n<p>Không bắt buộc. Nếu bạn chỉ cần phép tính đơn giản như dưới đây thì không cần dùng CALCULATE:</p>\n\n<pre class=\"wp-block-code\"><code>Total Sales = SUM(Sales&#91;Amount])</code></pre>\n\n<p>CALCULATE chỉ thực sự cần thiết khi bạn muốn:</p>\n\n<ul class=\"wp-block-list\">\n<li>Thêm hoặc thay đổi điều kiện lọc</li>\n\n<li>Loại bỏ filter</li>\n\n<li>Thực hiện Time Intelligence</li>\n\n<li>Tạo các phép tính động phức tạp</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-vi-sao-kết-quả-khi-dung-calculate-doi-khi-khong-giống-slicer\"><strong>Vì sao kết quả khi dùng </strong>CALCULATE<strong> đôi khi “không giống slicer”?</strong></h3>\n\n<p>Nguyên nhân thường là vì CALCULATE đã:</p>\n\n<ul class=\"wp-block-list\">\n<li>Ghi đè filter trên cùng một cột</li>\n\n<li>Hoặc loại bỏ filter bằng ALL/REMOVEFILTERS</li>\n</ul>\n\n<p>Điều này không phải lỗi của Power BI, mà là do filter context đã bị thay đổi theo logic của measure.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-tổng-kết\"><span class=\"ez-toc-section\" id=\"Tong_ket\"></span><strong>Tổng kết</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>CALCULATE không chỉ là một hàm bổ sung điều kiện lọc, mà là công cụ giúp bạn kiểm soát bối cảnh tính toán trong DAX. Từ việc thêm filter, ghi đè filter, xóa filter cho đến kết hợp với Time Intelligence, gần như mọi công thức DAX nâng cao đều xoay quanh CALCULATE.&nbsp;</p>\n\n<p>Khi bạn hiểu rõ cách CALCULATE hoạt động và mối liên hệ của nó với filter context, DAX sẽ không còn là tập hợp các công thức khó nhớ mà trở thành một hệ thống logic có thể kiểm soát được. Đây cũng là bước chuyển quan trọng giúp bạn đi từ mức “biết viết measure” sang mức “thực sự làm chủ Power BI” thông qua việc kiểm soát filter context một cách chủ động.</p>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "backend-architecture",
+      metaTitle: "Hàm CALCULATE trong Power BI: Hướng dẫn sử dụng kèm ví dụ",
+      metaDescription: "Tìm hiểu chi tiết hàm CALCULATE trong Power BI: cách hoạt động, thay đổi filter context, ví dụ, Time Intelligence và những lỗi thường gặp.",
+      viewCount: 12176,
+      tags: ["Backend & Architecture","AI & Data","Cloud & AWS"],
+    },
+    {
+      id: postSeedId(212),
+      title: "Substring Java: Cách dùng từ A-Z và lỗi thường gặp",
+      slug: "huong-dan-substring-trong-java",
+      imageUrl: 'https://images.unsplash.com/photo-1516116216624-53e697fedbea?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 474,
+      content: "</blockquote>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "backend-architecture",
+      metaTitle: "Substring Java: Cách dùng từ A-Z và lỗi thường gặp",
+      metaDescription: "Trong phát triển ứng dụng Java, xử lý chuỗi là tác vụ phổ biến, từ việc trích xuất dữ liệu như tên miền email, mã định danh đến rút gọn nội dung hiển thị.",
+      viewCount: 29315,
+      tags: ["Backend & Architecture","AI & Data","Cloud & AWS"],
+    },
+    {
+      id: postSeedId(213),
+      title: "Cách sử dụng Power BI hiệu quả và các best practices cần biết",
+      slug: "cach-su-dung-power-bi",
+      imageUrl: 'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 151,
+      content: "<h1 class=\"page-title\">Cách sử dụng Power BI hiệu quả và các best practices cần biết</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/chuyen-mon-it/\"><span>Chuyên môn IT</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<h2 class=\"wp-block-heading\" id=\"h-biến-dổi-dữ-liệu-với-power-query\"><span class=\"ez-toc-section\" id=\"Bien_doi_du_lieu_voi_Power_Query\"></span><strong>Biến đổi dữ liệu với Power Query</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n</blockquote>\n\n<h2 class=\"wp-block-heading\" id=\"h-publish-bao-cao-vao-power-bi-service\"><span class=\"ez-toc-section\" id=\"Publish_bao_cao_vao_Power_BI_Service\"></span><strong>Publish báo cáo vào Power BI Service</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Sau khi hoàn thiện báo cáo trong Power BI Desktop, bước tiếp theo để đưa báo cáo vào môi trường sử dụng thực tế là publish lên Power BI Service.&nbsp;</p>\n\n<p>Power BI Service là nền tảng đám mây của Microsoft cho phép người dùng chia sẻ báo cáo, thiết lập lịch refresh dữ liệu và phân quyền truy cập cho nhiều người dùng trong tổ chức. Có thể hiểu là Power BI Desktop dùng để xây dựng báo cáo, còn Power BI Service dùng để triển khai, vận hành và phân phối báo cáo.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-quy-trinh-publish-report-từ-power-bi-desktop\"><strong>Quy trình publish report từ Power BI Desktop</strong></h3>\n\n<ol class=\"wp-block-list\">\n<li>Người dùng đăng nhập Power BI Desktop bằng tài khoản Microsoft hoặc tài khoản doanh nghiệp (Microsoft 365).</li>\n\n<li>Nhấn nút <em>Publish</em> trên thanh công cụ.</li>\n\n<li>Chọn workspace trên Power BI Service để lưu báo cáo.</li>\n\n<li>Power BI tải file .pbix lên cloud và tự động tạo dataset đi kèm.</li>\n</ol>\n\n<p>Sau khi publish thành công, báo cáo sẽ xuất hiện trên Power BI Service dưới hai thành phần là Report &#8211; giao diện dashboard người dùng xem và Dataset (Semantic model) &#8211; nơi lưu dữ liệu, mô hình và DAX.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-thiết-lập-refresh-dữ-liệu\"><strong>Thiết lập refresh dữ liệu</strong></h3>\n\n<p>Một trong những bước quan trọng sau khi publish là cấu hình Scheduled Refresh. Việc refresh tự động giúp báo cáo luôn hiển thị dữ liệu mới mà không cần mở Power BI Desktop. Người dùng có thể thiết lập tần suất refresh hàng ngày hoặc nhiều lần trong ngày…, cấu hình thông tin đăng nhập nguồn dữ liệu và kết nối gateway nếu dữ liệu nằm trong hệ thống nội bộ.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-phan-quyền-va-chia-sẻ-bao-cao\"><strong>Phân quyền và chia sẻ báo cáo</strong></h3>\n\n<p>Power BI Service cho phép quản lý quyền truy cập rất linh hoạt với các lựa chọn:</p>\n\n<ul class=\"wp-block-list\">\n<li><strong>Viewer</strong>: chỉ xem báo cáo</li>\n\n<li><strong>Contributor</strong>: chỉnh sửa report trong Service</li>\n\n<li><strong>Member / Admin</strong>: quản lý workspace</li>\n</ul>\n\n<p>Ngoài ra, báo cáo có thể được chia sẻ thông qua link trực tiếp, Power BI app, Embed vào SharePoint hoặc website nội bộ.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-kinh-nghiệm-cach-sử-dụng-power-bi-hiệu-quả\"><span class=\"ez-toc-section\" id=\"Kinh_nghiem_cach_su_dung_Power_BI_hieu_qua\"></span><strong>Kinh nghiệm cách sử dụng Power BI hiệu quả</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<ul class=\"wp-block-list\">\n<li><strong>Luôn làm sạch dữ liệu bằng Power Query trước khi phân tích: </strong>Power Query được sinh ra để xử lý dữ liệu đầu vào như xóa dòng rác, chuẩn hóa cột và định dạng dữ liệu. Nếu dữ liệu chưa sạch mà viết DAX ngay, công thức sẽ phức tạp và khó kiểm soát kết quả.</li>\n\n<li><strong>Thiết kế mô hình dữ liệu trước khi vẽ biểu đồ: </strong>Trước khi kéo bất kỳ visual nào, hãy xác định rõ bảng nào là dữ liệu chính (fact) và bảng nào là dữ liệu mô tả (dimension). Mô hình tốt giúp báo cáo chạy nhanh và DAX dễ viết hơn.</li>\n\n<li><strong>Ưu tiên dùng measure thay vì calculated column: </strong>Measure chỉ được tính khi người dùng xem báo cáo nên linh hoạt và nhẹ hơn. Calculated column chỉ nên dùng khi thực sự cần dữ liệu cố định theo từng dòng.</li>\n\n<li><strong>Đặt tên bảng và measure rõ ràng ngay từ đầu: </strong>Tên dễ hiểu và có ý nghĩa sẽ giúp bạn sau này khi đọc lại báo cáo sẽ không bị rối và cũng giúp người khác dễ tiếp nhận khi dùng chung file Power BI.</li>\n\n<li><strong>Không đưa quá nhiều visual vào một trang: </strong>Một trang dashboard nên trả lời một câu hỏi chính và quá nhiều biểu đồ sẽ làm người xem khó nắm được insight quan trọng.</li>\n\n<li><strong>Sử dụng màu sắc nhất quán trong toàn bộ báo cáo: </strong>Nên dùng một theme màu cố định để báo cáo trông chuyên nghiệp và tránh gây nhiễu thị giác cho người xem.</li>\n\n<li><strong>Luôn kiểm tra kiểu dữ liệu (data type): </strong>Việc sai data type là nguyên nhân phổ biến khiến DAX tính sai hoặc không chạy được, đặc biệt với cột ngày tháng và số.</li>\n\n<li><strong>Kiểm tra báo cáo với nhiều bộ lọc khác nhau: </strong>Trước khi publish, hãy thử lọc theo từng tháng, từng sản phẩm hoặc từng khu vực để đảm bảo số liệu luôn đúng trong mọi tình huống.</li>\n\n<li><strong>Lưu phiên bản báo cáo thường xuyên: </strong>Power BI chưa có version control tích hợp nên hãy lưu nhiều bản để dễ quay lại khi chỉnh sửa nhầm.</li>\n</ul>\n\n<h2 class=\"wp-block-heading\" id=\"h-cau-hỏi-thường-gặp-về-cach-sử-dụng-power-bi\"><span class=\"ez-toc-section\" id=\"Cau_hoi_thuong_gap_ve_cach_su_dung_Power_BI\"></span><strong>Câu hỏi thường gặp về cách sử dụng Power BI</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<h3 class=\"wp-block-heading\" id=\"h-power-bi-co-phu-hợp-cho-big-data-khong\"><strong>Power BI có phù hợp cho Big Data không?</strong></h3>\n\n<p>Power BI có thể làm việc với Big Data, tuy nhiên không được thiết kế để lưu trữ hay xử lý Big Data trực tiếp. Trong thực tế, Power BI đóng vai trò là lớp phân tích và trực quan hóa nằm phía trên các hệ thống Big Data như Data Warehouse, Data Lake, Azure Synapse, BigQuery hay Snowflake. Khi kết hợp với các nền tảng này thông qua Import mode hoặc DirectQuery, Power BI có thể phân tích tập dữ liệu rất lớn mà vẫn đảm bảo hiệu năng. Vì vậy, Power BI phù hợp để khai thác và phân tích Big Data, chứ không thay thế các hệ thống xử lý Big Data ở tầng dữ liệu.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-power-bi-co-thể-thay-thế-excel-khong\"><strong>Power BI có thể thay thế Excel không?</strong></h3>\n\n<p>Power BI không hoàn toàn thay thế Excel mà hai công cụ này bổ trợ cho nhau. Excel mạnh ở việc xử lý dữ liệu nhỏ, thao tác linh hoạt và làm việc cá nhân. Trong khi đó, Power BI phù hợp hơn với dữ liệu lớn, báo cáo động, tự động refresh và chia sẻ trong doanh nghiệp. Trên thực tế, nhiều tổ chức vẫn sử dụng Excel để nhập liệu hoặc xử lý ban đầu, sau đó dùng Power BI để xây dựng dashboard và báo cáo tổng hợp. Vì vậy, Power BI nên được xem là bước nâng cấp của Excel trong phân tích dữ liệu, chứ không phải công cụ thay thế tuyệt đối.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-power-bi-co-dễ-sử-dụng-khong\"><strong>Power BI có dễ sử dụng không?</strong></h3>\n\n<p>Power BI được đánh giá là khá dễ tiếp cận đối với người mới học. Giao diện kéo-thả trực quan, nhiều thao tác tương tự Excel và hệ thống biểu đồ phong phú giúp người dùng nhanh chóng tạo được báo cáo cơ bản chỉ sau thời gian ngắn làm quen. Tuy nhiên, để xây dựng các dashboard chuyên nghiệp, tối ưu hiệu năng và viết DAX đúng chuẩn, người dùng vẫn cần thời gian học tập và thực hành. Nói cách khác, Power BI dễ bắt đầu nhưng cần rèn luyện để sử dụng thành thạo.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-dể-sử-dụng-power-bi-co-cần-biết-code-khong\"><strong>Để sử dụng Power BI có cần biết code không?</strong></h3>\n\n<p>Để sử dụng Power BI, người dùng không bắt buộc phải biết lập trình. Các thao tác cơ bản như kết nối dữ liệu, làm sạch dữ liệu và vẽ biểu đồ đều có thể thực hiện thông qua giao diện. Tuy nhiên, khi làm việc ở mức nâng cao, người dùng sẽ tiếp xúc với ngôn ngữ DAX và Power Query M. Đây không phải là lập trình truyền thống mà là ngôn ngữ công thức, tương đối dễ tiếp cận đối với người học phân tích dữ liệu. Vì vậy, Power BI có thể sử dụng mà không cần biết code, nhưng hiểu công thức và logic sẽ giúp bạn khai thác công cụ hiệu quả hơn rất nhiều.</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-tổng-kết\"><span class=\"ez-toc-section\" id=\"Tong_ket\"></span><strong>Tổng kết</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Power BI không chỉ là công cụ vẽ biểu đồ mà còn là một nền tảng phân tích dữ liệu hoàn chỉnh, kết hợp giữa xử lý dữ liệu, mô hình hóa và phân tích động. Khi hiểu rõ vai trò của Power Query, DAX và Power BI Service, người dùng có thể xây dựng các báo cáo chính xác, dễ mở rộng và phù hợp với nhu cầu doanh nghiệp. UpNext hy vọng bài viết trên đã cung cấp cho bạn cái nhìn tổng quan về những khả năng và “tiềm năng” của Power BI.</p>\n\n</div>\n<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "backend-architecture",
+      metaTitle: "Cách sử dụng Power BI hiệu quả và các best practices cần biết",
+      metaDescription: "Cách sử dụng Power BI từ cơ bản đến nâng cao: hướng dẫn tạo báo cáo, trực quan hóa dữ liệu, kết nối nguồn dữ liệu và phân tích hiệu quả.",
+      viewCount: 8947,
+      tags: ["Backend & Architecture","AI & Data","Cloud & AWS"],
+    },
+    {
+      id: postSeedId(214),
+      title: "Recap Swinburne Career Festival 2026: Khai phá “Thị trường việc làm ẩn” cùng UpNext và các chuyên gia",
+      slug: "recap-swinburne-career-festival-2026",
+      imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 132,
+      content: "<h1 class=\"page-title\">Recap Swinburne Career Festival 2026: Khai phá &#8220;Thị trường việc làm ẩn&#8221; cùng UpNext và các chuyên gia</h1>\n\n<nav class=\"ct-breadcrumbs\" data-source=\"default\" ><span class=\"first-item\"><a href=\"https://UpNext.com/blog/\"><span>UpNext Blog</span></a><span class=\"ct-separator\">/</span></span><span class=\"item-0\"itemscope=\"\"><a href=\"https://UpNext.com/blog/chuyen-mon-it/\"><span>Chuyên môn IT</span></a><span class=\"ct-separator\">/</span></span><span class=\"last-item\" aria-current=\"page\"><a href=\"https://UpNext.com/blog/chuyen-mon-it/su-kien-it/\"><span>Sự kiện IT</span></a></span>\t\t\t</nav>\n</header>\n\t</div>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1607799279861-4dd421887fb3?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</div></figure>\n\n<div class=\"entry-content is-layout-flow\">\n\t\t\t\n<nav>\n\n<ul class='ez-toc-list ez-toc-list-level-1 ' ><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-1\" href=\"#Networking_%E2%80%9CInvisible_Job_Market%E2%80%9D_Khi_co_hoi_khong_nam_tren_job_board\" >Networking &amp; “Invisible Job Market”: Khi cơ hội không nằm trên job board</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-2\" href=\"#Hoat_dong_thuc_chien_CV_Check_Mock_Interview_va_Workshop_AI\" >Hoạt động thực chiến: CV Check, Mock Interview và Workshop AI</a></li><li class='ez-toc-page-1 ez-toc-heading-level-2'><a class=\"ez-toc-link ez-toc-heading-3\" href=\"#Tong_ket_Thu_hep_khoang_cach_giua_Giang_duong_va_Doanh_nghiep\" >Tổng kết: Thu hẹp khoảng cách giữa Giảng đường và Doanh nghiệp</a></li></ul>\n\n</nav></div>\n\n<p>Sự kiện <strong>Swinburne Career Festival 2026</strong> đã diễn ra đầy sôi động, thu hút hơn 200 sinh viên năm cuối thuộc các ngành Computer Science, Business và Media &amp; Communications vào ngày 27 tháng 3 vừa qua.&nbsp;</p>\n\n<p>Với sự góp mặt của 20 giảng viên cùng đại diện từ 19 doanh nghiệp hàng đầu, sự kiện không đơn thuần giúp sinh viên “tìm việc”, mà còn giúp họ hiểu cách thị trường vận hành và mình cần trở thành ai để bước vào đó.</p>\n\n<p>Cùng UpNext điểm lại những dấu ấn và bài học đắt giá từ sự kiện này:</p>\n\n<h2 class=\"wp-block-heading\" id=\"h-networking-amp-invisible-job-market-khi-cơ-hội-khong-nằm-tren-job-board\"><span class=\"ez-toc-section\" id=\"Networking_%E2%80%9CInvisible_Job_Market%E2%80%9D_Khi_co_hoi_khong_nam_tren_job_board\"></span><strong>Networking &amp; “Invisible Job Market”: Khi cơ hội không nằm trên job board</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Tâm điểm của buổi sáng là phiên thảo luận với chủ đề <strong>&#8220;Networking in the Invisible Job Market&#8221;</strong>. Các diễn giả đã thay đổi hoàn toàn định nghĩa về Networking: “không còn là những &#8220;giao dịch&#8221; ngắn hạn, mà là hành trình xây dựng một hệ sinh thái giá trị bền vững.”</p>\n\n<p>Thực tế cho thấy có đến <strong>80% cơ hội nghề nghiệp</strong> nằm ở &#8220;thị trường ẩn&#8221; &#8211; nơi các vị trí được lấp đầy thông qua sự tin tưởng và kết nối cá nhân trước khi được đăng tuyển công khai. Để bứt phá, sinh viên cần chuyển mình từ tâm thế thụ động sang tư duy của một <strong>&#8220;Người kiến tạo&#8221; (Builder)</strong>, lấy trải nghiệm thực tế làm nền tảng cho mọi mối quan hệ chuyên môn.</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-những-lời-khuyen-vang-từ-dan-diễn-giả\"><strong>Những lời khuyên &#8220;vàng&#8221; từ dàn diễn giả:</strong></h3>\n\n<p>Ba góc nhìn &#8211; ba cách tiếp cận, nhưng cùng dẫn về một điểm chung:</p>\n\n<blockquote class=\"wp-block-quote is-layout-flow wp-block-quote-is-layout-flow\">\n\n<p><strong>Networking là kỹ năng, không phải tính cách.</strong></p>\n\n</blockquote>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</figure>\n\n<ul class=\"wp-block-list\">\n<li><strong>Anh Lê Tuấn Anh (Career Development Expert &#8211; Vietnam &amp; Asia-Pacific):</strong> <em>&#8220;Networking không phải là đặc quyền của những người hướng ngoại; đó là một kỹ năng mềm thiết yếu mà bất kỳ ai cũng cần làm chủ để mở ra những cánh cửa cơ hội mới, bất kể tính cách của bạn là gì.&#8221;</em></li>\n\n<li><strong>Chị Nguyễn Trần Diệu Hiếu (Career Service Provider):</strong> <em>&#8220;Đừng chỉ kết nối rộng, hãy học cách networking &#8216;thông minh.&#8217; Chìa khóa nằm ở việc dành thời gian nghiên cứu kỹ lưỡng và thấu hiểu đối phương để xây dựng một lộ trình tiếp cận cá nhân hóa.&#8221;</em></li>\n\n<li><strong>Anh Thắng Trần (Marketing Manager &#8211; UpNext):</strong> <em>&#8220;Mỗi lần gặp gỡ một chuyên gia là một cơ hội &#8216;vàng&#8217; trong 30 giây để thể hiện bản chất riêng. Đừng tìm kiếm kịch bản có sẵn; chính sự chân thành và tư duy sáng tạo mới giúp bạn gây ấn tượng mạnh mẽ với nhà tuyển dụng.&#8221;</em></li>\n</ul>\n\n<h2 class=\"wp-block-heading\" id=\"h-hoạt-dộng-thực-chiến-cv-check-mock-interview-va-workshop-ai\"><span class=\"ez-toc-section\" id=\"Hoat_dong_thuc_chien_CV_Check_Mock_Interview_va_Workshop_AI\"></span><strong>Hoạt động thực chiến: CV Check, Mock Interview và Workshop AI</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Bên cạnh những chia sẻ lý thuyết, sự kiện còn mang đến các khu vực trải nghiệm chuyên sâu, giúp sinh viên &#8220;chạm&#8221; gần hơn với yêu cầu thực tế của doanh nghiệp:</p>\n\n<h3 class=\"wp-block-heading\" id=\"h-1-goc-tư-vấn-từ-UpNext-x-diaflow\"><strong>1. Góc tư vấn từ UpNext x Diaflow</strong></h3>\n\n<p>Đội ngũ chuyên gia từ UpNext phối hợp cùng chị Mai Hương (AI Consultant, Account Manager tại Diaflow) đã tổ chức chuỗi hoạt động:</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1531482615713-2afd69097998?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</figure>\n\n<ul class=\"wp-block-list\">\n<li><strong>CV Check &amp; Mock Interview:</strong> Chỉnh sửa hồ sơ năng lực và phỏng vấn thử, giúp các bạn sinh viên ngành Computer Science và Business tự tin hơn khi đối mặt với nhà tuyển dụng.</li>\n\n<li><strong>Workshop AI Automated Workflow:</strong> Giới thiệu cách ứng dụng AI vào quy trình làm việc tự động — một kỹ năng &#8220;sống còn&#8221; trong kỷ nguyên công nghệ số.</li>\n</ul>\n\n<h3 class=\"wp-block-heading\" id=\"h-2-goc-tư-vấn-từ-topcv-x-doanh-nghiệp-mwg-amp-jollibee\"><strong>2. Góc tư vấn từ TopCV x Doanh nghiệp (MWG &amp; Jollibee)</strong></h3>\n\n<p>Anh Nguyễn Minh Khôi (HR Specialist &#8211; MWG) và anh Nguyễn Minh Khoa (HRBP &#8211; Jollibee Vietnam) đã trực tiếp hướng dẫn sinh viên cách tối ưu hóa CV và chia sẻ những &#8220;insight&#8221; đắt giá về quy trình tuyển dụng tại các tập đoàn lớn.</p>\n\n<figure class=\"my-8 overflow-hidden rounded-xl shadow-md\"><img src=\"https://images.unsplash.com/photo-1677442136019-21780efad99a?w=1200&q=80\" alt=\"UpNext Blog Illustration\" class=\"w-full object-cover rounded-xl\" /></figure>\n\n</figure>\n\n<h2 class=\"wp-block-heading\" id=\"h-tổng-kết-thu-hẹp-khoảng-cach-giữa-giảng-dường-va-doanh-nghiệp\"><span class=\"ez-toc-section\" id=\"Tong_ket_Thu_hep_khoang_cach_giua_Giang_duong_va_Doanh_nghiep\"></span><strong>Tổng kết: Thu hẹp khoảng cách giữa Giảng đường và Doanh nghiệp</strong><span class=\"ez-toc-section-end\"></span></h2>\n\n<p>Swinburne Career Festival 2026 đã khép lại nhưng dư âm về tinh thần chủ động vẫn còn lan tỏa. Những câu chuyện &#8220;người thật việc thật&#8221; đã thắt chặt sợi dây liên kết giữa sinh viên Swinburne Vietnam và cộng đồng doanh nghiệp.</p>\n\n<p>Đối với các bạn sinh viên năm cuối, đây chính là &#8220;tấm vé thông hành&#8221; để tỏa sáng trong mắt các nhà tuyển dụng công nghệ. UpNext tự hào là cầu nối giúp các bạn không chỉ tìm thấy công việc mơ ước mà còn phát triển tư duy nghề nghiệp vững chắc trong thị trường đầy biến động.</p>\n\n<hr class=\"wp-block-separator has-alpha-channel-opacity\"/>\n\n<p><strong>Về UpNext</strong>: UpNext là nền tảng tuyển dụng chuyên biệt cho ngành CNTT hàng đầu Việt Nam. Với sứ mệnh <em>&#8220;Excite the IT in Vietnam by Great Hiring&#8221;</em> và tầm nhìn <em>&#8220;Build you, then Build Impact&#8221;</em>, UpNext không chỉ kết nối nhân tài với những cơ hội nghề nghiệp tốt nhất mà còn đồng hành cùng cộng đồng IT thông qua các sự kiện, báo cáo thị trường và mạng lưới chuyên gia chuyên sâu.</p>\n\n<p>👉 <strong>Ghé thăm UpNext ngay để cập nhật các vị trí Tech mới nhất:</strong><a href=\"https://UpNext.com/\"> https://UpNext.com/</a></p>\n\n</div>\n<div class=\"entry-tags is-width-constrained \"><span class=\"ct-module-title\">TAGS</span><div class=\"entry-tags-items\"><a href=\"https://UpNext.com/blog/tag/career-path/\" rel=\"tag\"><span>#</span> Career Path</a><a href=\"https://UpNext.com/blog/tag/event/\" rel=\"tag\"><span>#</span> Event</a></div></div>\t\t\n\t\t\t\t\t\n\t\t<div class=\"ct-share-box is-width-constrained ct-hidden-sm\" data-location=\"bottom\" data-type=\"type-2\" >\n\t\t\t<span class=\"ct-module-title\">",
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: "su-nghiep-developer",
+      metaTitle: "Recap Swinburne Career Festival 2026: Khai phá “Thị trường việc làm ẩn” cùng ITviec và các chuyên gia",
+      metaDescription: "Sự kiện Swinburne Career Festival 2026 đã diễn ra đầy sôi động, thu hút hơn 200 sinh viên năm cuối thuộc các ngành Computer Science, Business và Media",
+      viewCount: 15826,
+      tags: ["Career Path","Developer","Phỏng vấn IT"],
+    },
+    {
+      id: postSeedId(215),
+      title: 'Lộ trình 90 ngày để bước vào vai trò Data Analyst',
+      slug: 'lo-trinh-90-ngay-data-analyst',
+      content: buildArticle(
+        'Lộ trình 90 ngày để bước vào vai trò Data Analyst',
+        'Một lộ trình thực hành cho người mới muốn xây nền tảng dữ liệu, tạo portfolio và sẵn sàng ứng tuyển.',
+        [
+          {
+            heading: '30 ngày đầu: xây nền SQL và dữ liệu sạch',
+            body: 'Bắt đầu với SELECT, JOIN, window function và cách kiểm tra chất lượng dữ liệu. Mỗi tuần hãy hoàn thành một bài tập có dữ liệu thật để biến kiến thức thành phản xạ.',
+          },
+          {
+            heading: 'Ngày 31–60: kể chuyện bằng dashboard',
+            body: 'Chọn một câu hỏi kinh doanh rõ ràng, xác định chỉ số cần theo dõi và thiết kế dashboard ưu tiên khả năng ra quyết định thay vì chỉ nhiều biểu đồ.',
+          },
+          {
+            heading: 'Ngày 61–90: hoàn thiện portfolio có ngữ cảnh',
+            body: 'Mỗi case study nên nêu nguồn dữ liệu, giả định, cách xử lý, insight và hành động đề xuất. Đây là bằng chứng thuyết phục hơn một danh sách công cụ đã học.',
+          },
+        ],
+      ),
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: 'ai-data-specialty',
+      metaTitle: 'Lộ trình 90 ngày trở thành Data Analyst | UpNext',
+      metaDescription:
+        'Lộ trình thực hành 90 ngày gồm SQL, làm sạch dữ liệu, dashboard, portfolio và checklist ứng tuyển vị trí Data Analyst.',
+      metaKeywords: 'data analyst, SQL, dashboard, portfolio dữ liệu, lộ trình data analyst',
+      imageUrl:
+        'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 45,
+      viewCount: 15320,
+      tags: ['AI & Data', 'Python', 'Big Data'],
+    },
+    {
+      id: postSeedId(216),
+      title: 'Checklist phỏng vấn System Design: từ làm rõ yêu cầu đến đánh đổi trade-off',
+      slug: 'checklist-phong-van-system-design-2026',
+      content: buildArticle(
+        'Checklist phỏng vấn System Design',
+        'Một khung trình bày trong 45 phút giúp bạn dẫn dắt cuộc trao đổi có cấu trúc thay vì vội vàng vẽ kiến trúc.',
+        [
+          {
+            heading: 'Làm rõ bài toán trước khi thiết kế',
+            body: 'Hỏi về người dùng, luồng chính, quy mô, độ trễ và những ràng buộc quan trọng. Một giả định đúng giúp phần còn lại của thiết kế nhất quán.',
+          },
+          {
+            heading: 'Đi từ ước lượng đến kiến trúc',
+            body: 'Ước lượng traffic, dữ liệu và tăng trưởng trước khi chọn cache, database hay hàng đợi. Hãy giải thích vì sao thành phần đó phù hợp với nhu cầu đã nêu.',
+          },
+          {
+            heading: 'Nêu rõ trade-off và vận hành',
+            body: 'Chủ động nói về consistency, điểm nghẽn, quan sát hệ thống, giới hạn chi phí và phương án mở rộng. Nhà tuyển dụng cần thấy cách bạn ra quyết định, không chỉ sơ đồ đẹp.',
+          },
+        ],
+      ),
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: 'phong-van-luong-thuong',
+      metaTitle: 'Checklist phỏng vấn System Design cho Developer | UpNext',
+      metaDescription:
+        'Khung System Design từ làm rõ yêu cầu, ước lượng, kiến trúc đến trade-off và observability để tự tin hơn khi phỏng vấn.',
+      metaKeywords: 'system design, phỏng vấn IT, kiến trúc hệ thống, trade-off',
+      imageUrl:
+        'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 16,
+      viewCount: 27480,
+      tags: ['Phỏng vấn IT', 'System Architecture', 'Developer'],
+    },
+    {
+      id: postSeedId(217),
+      title: 'Đàm phán lương IT khi nhận offer: 7 bước để tự tin và tôn trọng',
+      slug: 'dam-phan-luong-it-khi-nhan-offer',
+      content: buildArticle(
+        'Đàm phán lương IT khi nhận offer',
+        'Đàm phán hiệu quả không bắt đầu ở con số cuối cùng, mà ở dữ liệu, giá trị bạn tạo ra và một cuộc trao đổi minh bạch.',
+        [
+          {
+            heading: 'Chuẩn bị một khoảng lương có cơ sở',
+            body: 'Đối chiếu mặt bằng của vai trò, địa điểm, cấp độ và bộ kỹ năng. Hãy xác định mức kỳ vọng, mức chấp nhận được và các điều kiện khiến bạn linh hoạt.',
+          },
+          {
+            heading: 'Định lượng impact thay vì chỉ liệt kê trách nhiệm',
+            body: 'Nêu rõ sản phẩm, doanh thu, độ ổn định hay thời gian vận hành mà bạn đã cải thiện. Ví dụ cụ thể giúp đề xuất của bạn đáng tin cậy hơn.',
+          },
+          {
+            heading: 'Trao đổi tổng đãi ngộ với tinh thần hợp tác',
+            body: 'Lương cơ bản chỉ là một phần. Hãy cân nhắc thưởng, bảo hiểm, thời gian học, cổ phần và cơ hội phát triển trước khi phản hồi offer bằng email ngắn gọn, tích cực.',
+          },
+        ],
+      ),
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: 'phong-van-luong-thuong',
+      metaTitle: 'Đàm phán lương IT khi nhận offer: 7 bước thực tế | UpNext',
+      metaDescription:
+        'Cách chuẩn bị range lương, trình bày giá trị, trao đổi total compensation và phản hồi offer chuyên nghiệp cho nhân sự IT.',
+      metaKeywords: 'đàm phán lương IT, offer, lương developer, total compensation',
+      imageUrl:
+        'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 130,
+      viewCount: 20175,
+      tags: ['Lương IT', 'Career Path', 'Phỏng vấn IT'],
+    },
+    {
+      id: postSeedId(218),
+      title: 'Báo cáo thị trường IT: Kỹ năng được doanh nghiệp ưu tiên trong quý III/2026',
+      slug: 'bao-cao-thi-truong-it-ky-nang-quy-3-2026',
+      content: buildArticle(
+        'Báo cáo thị trường IT quý III/2026',
+        'Bức tranh nhu cầu tuyển dụng cho thấy AI/Data, Cloud và Backend tiếp tục là ba nhóm kỹ năng được quan tâm, nhưng doanh nghiệp đặt trọng tâm ngày càng lớn vào khả năng tạo tác động.',
+        [
+          {
+            heading: 'AI/Data: từ công cụ đến năng lực giải quyết vấn đề',
+            body: 'Các mô tả công việc không chỉ yêu cầu biết mô hình hay dashboard. Ứng viên cần cho thấy cách biến dữ liệu thành quyết định, có kiểm soát chất lượng và tuân thủ bảo mật.',
+          },
+          {
+            heading: 'Cloud và Backend: ưu tiên độ tin cậy',
+            body: 'Kinh nghiệm về observability, tối ưu chi phí, API đáng tin cậy và tự động hóa vận hành thường tạo khác biệt khi các đội ngũ cần mở rộng sản phẩm bền vững.',
+          },
+          {
+            heading: 'Chọn kế hoạch upskill thực tế',
+            body: 'Đọc JD để tìm phần giao nhau giữa nhu cầu thị trường và nền tảng hiện có của bạn. Chọn một năng lực có thể chứng minh bằng dự án thay vì học dàn trải quá nhiều công cụ.',
+          },
+        ],
+      ),
+      status: PostStatus.PUBLISHED,
+      type: PostType.NEWS,
+      categorySlug: 'bao-cao-thi-truong-it',
+      metaTitle: 'Báo cáo thị trường IT quý III/2026 | UpNext',
+      metaDescription:
+        'Phân tích nhóm kỹ năng AI/Data, Cloud và Backend được doanh nghiệp ưu tiên, kèm gợi ý xây kế hoạch upskill có trọng tâm.',
+      metaKeywords: 'thị trường IT 2026, tuyển dụng IT, kỹ năng AI, cloud, backend',
+      imageUrl:
+        'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 3,
+      viewCount: 18965,
+      tags: ['Báo cáo thị trường IT', 'Tuyển dụng IT', 'Xu hướng công nghệ'],
+    },
+    {
+      id: postSeedId(219),
+      title: 'Kubernetes production checklist: 12 điểm cần kiểm tra trước khi release',
+      slug: 'kubernetes-production-checklist',
+      content: buildArticle(
+        'Kubernetes production checklist',
+        'Release an toàn là kết quả của chuẩn bị kỹ trước khi triển khai, theo dõi sát trong lúc rollout và khả năng quay lui khi tín hiệu xấu xuất hiện.',
+        [
+          {
+            heading: 'Thiết lập giới hạn và health check đúng',
+            body: 'Khai báo request, limit, liveness và readiness dựa trên hành vi thực tế của dịch vụ. Những cấu hình này giúp scheduler hoạt động hợp lý và giảm rủi ro phát hành.',
+          },
+          {
+            heading: 'Bảo vệ dữ liệu và bí mật',
+            body: 'Kiểm tra backup, migration, secret rotation, phân quyền và đường lui của thay đổi schema trước khi đưa bản mới vào production.',
+          },
+          {
+            heading: 'Quan sát rollout và chuẩn bị rollback',
+            body: 'Theo dõi error rate, độ trễ, saturation và log nghiệp vụ. Rollback cần được diễn tập để đội ngũ có thể hành động nhanh thay vì tranh luận khi sự cố xảy ra.',
+          },
+        ],
+      ),
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: 'devops-cloud',
+      metaTitle: 'Kubernetes production checklist trước khi release | UpNext',
+      metaDescription:
+        '12 điểm kiểm tra Kubernetes trước release: resource, health check, secret, backup, alerting, rollout và rollback.',
+      metaKeywords: 'kubernetes, devops, production checklist, release, rollback',
+      imageUrl:
+        'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 64,
+      viewCount: 8471,
+      tags: ['DevOps', 'Cloud & AWS', 'System Architecture'],
+    },
+    {
+      id: postSeedId(220),
+      title: 'Tối ưu hiệu năng React: cách đọc và cải thiện Core Web Vitals',
+      slug: 'toi-uu-hieu-nang-react-core-web-vitals',
+      content: buildArticle(
+        'Tối ưu hiệu năng React với Core Web Vitals',
+        'Hiệu năng tốt cần được đo bằng trải nghiệm người dùng thật, sau đó cải thiện từng nút thắt có ảnh hưởng lớn nhất.',
+        [
+          {
+            heading: 'Đọc LCP, INP và CLS theo hành trình người dùng',
+            body: 'Không dừng ở một con số tổng. Hãy xác định trang, thiết bị và thao tác nào gây chậm để ưu tiên đúng vấn đề thay vì tối ưu mù quáng.',
+          },
+          {
+            heading: 'Giảm JavaScript phải tải và thực thi',
+            body: 'Tách bundle theo route, lazy load thành phần nặng, trì hoãn script không thiết yếu và kiểm tra dependency thường xuyên để giảm công việc của main thread.',
+          },
+          {
+            heading: 'Đặt performance budget cho đội ngũ',
+            body: 'Thiết lập ngưỡng cho bundle, ảnh và các chỉ số trải nghiệm trong CI. Khi hiệu năng trở thành tiêu chí chung, cải tiến sẽ bền hơn các đợt chữa cháy đơn lẻ.',
+          },
+        ],
+      ),
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: 'mobile-frontend',
+      metaTitle: 'Tối ưu hiệu năng React và Core Web Vitals | UpNext',
+      metaDescription:
+        'Hướng dẫn đo và cải thiện LCP, INP, CLS với React: code splitting, lazy loading, tối ưu ảnh và performance budget.',
+      metaKeywords: 'react performance, core web vitals, LCP, INP, CLS, frontend',
+      imageUrl:
+        'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 92,
+      viewCount: 11604,
+      tags: ['ReactJS', 'Developer', 'Agile & Scrum'],
+    },
+    {
+      id: postSeedId(221),
+      title: 'Hướng dẫn tối ưu hồ sơ UpNext để nhà tuyển dụng dễ tìm thấy bạn',
+      slug: 'huong-dan-toi-uu-ho-so-upnext',
+      content: buildArticle(
+        'Hướng dẫn tối ưu hồ sơ UpNext',
+        'Một hồ sơ rõ ràng giúp nhà tuyển dụng hiểu nhanh bạn đang làm gì, có thể tạo giá trị ở đâu và cách liên hệ phù hợp.',
+        [
+          {
+            heading: 'Headline và kỹ năng phải phản ánh mục tiêu',
+            body: 'Viết headline theo vai trò và thế mạnh cụ thể; chọn kỹ năng bạn đã sử dụng trong dự án thay vì liệt kê mọi công nghệ từng biết.',
+          },
+          {
+            heading: 'Biến dự án thành bằng chứng năng lực',
+            body: 'Mỗi dự án nên mô tả bài toán, phần việc của bạn, stack, kết quả và liên kết portfolio nếu có. Điều này giúp hồ sơ đáng tin cậy ngay cả khi kinh nghiệm còn ngắn.',
+          },
+          {
+            heading: 'Cập nhật CV và quyền riêng tư định kỳ',
+            body: 'Dùng phiên bản CV phù hợp vai trò đang tìm, kiểm tra trạng thái tìm việc và chỉ chia sẻ thông tin liên hệ theo mức riêng tư bạn mong muốn.',
+          },
+        ],
+      ),
+      status: PostStatus.PUBLISHED,
+      type: PostType.FAQ,
+      categorySlug: 'faq-huong-dan',
+      metaTitle: 'Cách tối ưu hồ sơ UpNext để nhà tuyển dụng tìm thấy bạn',
+      metaDescription:
+        'FAQ tối ưu hồ sơ UpNext: headline, kỹ năng, dự án, CV, quyền riêng tư và trạng thái tìm việc.',
+      metaKeywords: 'hồ sơ UpNext, CV IT, portfolio developer, tìm việc IT',
+      imageUrl:
+        'https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 9,
+      viewCount: 1879,
+      tags: ['FAQ & Hướng dẫn', 'Tuyển dụng IT', 'Developer'],
+    },
+    {
+      id: postSeedId(222),
+      title: 'Recap UpNext Tech Career Day 2026: kết nối từ portfolio đến cơ hội việc làm',
+      slug: 'recap-upnext-tech-career-day-2026',
+      content: buildArticle(
+        'Recap UpNext Tech Career Day 2026',
+        'Một ngày hội nghề nghiệp nơi sinh viên và junior developer thực hành cách kể câu chuyện năng lực của mình thay vì chỉ gửi CV.',
+        [
+          {
+            heading: 'Portfolio cần kể được quá trình giải quyết vấn đề',
+            body: 'Các phiên workshop tập trung vào cách chọn dự án, mô tả quyết định kỹ thuật và trình bày kết quả có thể đo lường để người xem hiểu nhanh đóng góp cá nhân.',
+          },
+          {
+            heading: 'Mock interview biến phản hồi thành kế hoạch luyện tập',
+            body: 'Người tham gia nhận phản hồi về cách làm rõ yêu cầu, giao tiếp khi chưa biết câu trả lời và cách liên hệ kinh nghiệm thực tế với vị trí ứng tuyển.',
+          },
+          {
+            heading: 'Networking bắt đầu bằng sự chuẩn bị',
+            body: 'Năm bài học được nhắc lại là nghiên cứu trước, đặt câu hỏi cụ thể, ghi chú sau cuộc gặp, chia sẻ giá trị nhỏ và duy trì kết nối một cách tôn trọng.',
+          },
+        ],
+      ),
+      status: PostStatus.PUBLISHED,
+      type: PostType.NEWS,
+      categorySlug: 'su-kien-it-upnext',
+      metaTitle: 'Recap UpNext Tech Career Day 2026 | UpNext',
+      metaDescription:
+        'Tổng kết UpNext Tech Career Day 2026 với workshop portfolio, mock interview và bài học networking cho nhân sự IT mới.',
+      metaKeywords: 'UpNext Tech Career Day, sự kiện IT, portfolio, mock interview, networking',
+      imageUrl:
+        'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 27,
+      viewCount: 6942,
+      tags: ['Sự kiện IT', 'Tin tức UpNext', 'Career Path'],
+    },
+    {
+      id: postSeedId(223),
+      title: 'Từ Junior đến Tech Lead: kế hoạch phát triển năng lực trong 12 tháng',
+      slug: 'tu-junior-den-tech-lead-trong-12-thang',
+      content: buildArticle(
+        'Từ Junior đến Tech Lead trong 12 tháng',
+        'Thăng tiến bền vững đến từ năng lực kỹ thuật, ownership và khả năng giúp cả đội ra quyết định tốt hơn.',
+        [
+          {
+            heading: 'Quý đầu: xây nền tảng và độ tin cậy',
+            body: 'Hoàn thành công việc đúng hẹn, chủ động làm rõ yêu cầu, viết tài liệu ngắn và học cách theo dõi chất lượng sau khi tính năng được phát hành.',
+          },
+          {
+            heading: 'Quý hai và ba: mở rộng ownership',
+            body: 'Nhận trách nhiệm với một phần sản phẩm, đề xuất cải tiến có dữ liệu và hỗ trợ đồng đội thông qua review, pairing hay chia sẻ nội bộ.',
+          },
+          {
+            heading: 'Quý cuối: chứng minh năng lực dẫn dắt',
+            body: 'Kết nối ưu tiên kỹ thuật với mục tiêu kinh doanh, giao tiếp minh bạch với stakeholder và lưu lại minh chứng về tác động để trao đổi phát triển nghề nghiệp.',
+          },
+        ],
+      ),
+      status: PostStatus.PUBLISHED,
+      type: PostType.BLOG,
+      categorySlug: 'ung-tuyen-thang-tien',
+      metaTitle: 'Lộ trình từ Junior đến Tech Lead trong 12 tháng | UpNext',
+      metaDescription:
+        'Kế hoạch phát triển kỹ thuật, ownership, mentoring và giao tiếp stakeholder cho mục tiêu trở thành Tech Lead.',
+      metaKeywords: 'tech lead, career path, thăng tiến IT, mentoring, ownership',
+      imageUrl:
+        'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 184,
+      viewCount: 14361,
+      tags: ['Technical Lead', 'Career Path', 'Agile & Scrum'],
+    },
+    {
+      id: postSeedId(224),
+      title: 'Playbook onboarding developer trong 30 ngày đầu tiên',
+      slug: 'playbook-onboarding-developer-30-ngay-dau',
+      content: buildArticle(
+        'Playbook onboarding developer trong 30 ngày đầu',
+        'Bản nháp playbook giúp developer mới giảm thời gian bỡ ngỡ, có điểm kiểm tra rõ ràng và sớm tạo được giá trị cho đội ngũ.',
+        [
+          {
+            heading: 'Tuần một: hiểu sản phẩm và thiết lập môi trường',
+            body: 'Tạo bản đồ luồng người dùng, cài đặt môi trường phát triển, đọc tài liệu nền tảng và xác nhận kênh hỗ trợ khi gặp trở ngại.',
+          },
+          {
+            heading: 'Tuần hai và ba: hoàn thành task đầu tiên',
+            body: 'Chọn một task có phạm vi rõ, pair với đồng đội khi cần và ghi lại điều đã học từ review để rút ngắn vòng phản hồi tiếp theo.',
+          },
+          {
+            heading: 'Tuần bốn: retrospective và kế hoạch 60 ngày',
+            body: 'Cùng quản lý nhìn lại điều đã rõ, điều còn thiếu và mục tiêu tiếp theo. Onboarding tốt là cuộc đối thoại hai chiều, không phải danh sách việc phải đọc.',
+          },
+        ],
+      ),
+      status: PostStatus.DRAFT,
+      type: PostType.BLOG,
+      categorySlug: 'ky-nang-mem-dinh-huong',
+      metaTitle: 'Playbook onboarding developer 30 ngày đầu | UpNext',
+      metaDescription:
+        'Bản nháp playbook onboarding 30/60/90 ngày cho developer: hiểu sản phẩm, thiết lập môi trường, task đầu tiên và feedback loop.',
+      metaKeywords: 'onboarding developer, developer mới, 30 60 90 ngày, tech lead',
+      imageUrl:
+        'https://images.unsplash.com/photo-1515187029135-18ee286d815b?auto=format&fit=crop&w=1600&q=85',
+      daysAgo: 12,
+      viewCount: 0,
+      tags: ['Developer', 'Technical Lead', 'Agile & Scrum'],
+    },
+  ];
+
+  const postImageUrls = [
+    ...postsData.map((post) => post.imageUrl),
+    ...Object.values(HOME_POST_PRESENTATION_BY_SLUG).map((post) => post.imageUrl),
+  ];
+  if (new Set(postImageUrls).size !== postImageUrls.length) {
+    throw new Error('Each seeded post must have a unique cover and thumbnail image.');
+  }
+
+  const upsertPostImage = async (slug: string, imageUrl: string) => {
+    // A versioned filename refreshes old cached seed images without touching user uploads.
+    const filename = `${slug}-${POST_IMAGE_SEED_VERSION}.jpg`;
+    const filePath = path.join(uploadDir, filename);
+    const canReuseLocalImage = fs.existsSync(filePath) && fs.statSync(filePath).size > 0;
+    const imageBuffer = canReuseLocalImage
+      ? fs.readFileSync(filePath)
+      : await fetchImageBuffer(imageUrl);
+
+    console.log(`${canReuseLocalImage ? 'Reusing' : 'Downloading'} JPEG for: ${slug}`);
+    if (!canReuseLocalImage) {
+      fs.writeFileSync(filePath, imageBuffer);
+    }
+
+    return prisma.fileAsset.upsert({
+      where: { id: uuidFromSeed(`post-thumbnail:${slug}`) },
+      update: {
+        ownerType: 'post_seed',
+        ownerId: null,
+        purpose: FilePurpose.POST_THUMBNAIL,
+        visibility: FileVisibility.PUBLIC,
+        storageKey: `uploads/posts/${filename}`,
+        originalName: filename,
+        mimeType: 'image/jpeg',
+        sizeBytes: BigInt(imageBuffer.length),
+        publicUrl: `${appBackendUrl}/uploads/posts/${filename}`,
+      },
+      create: {
+        id: uuidFromSeed(`post-thumbnail:${slug}`),
+        ownerType: 'post_seed',
+        purpose: FilePurpose.POST_THUMBNAIL,
+        visibility: FileVisibility.PUBLIC,
+        storageKey: `uploads/posts/${filename}`,
+        originalName: filename,
+        mimeType: 'image/jpeg',
+        sizeBytes: BigInt(imageBuffer.length),
+        publicUrl: `${appBackendUrl}/uploads/posts/${filename}`,
+      },
+    });
+  };
+
+  let countCreated = 0;
+  for (let idx = 0; idx < postsData.length; idx++) {
+    const postItem = postsData[idx];
+    const catInfo = categoriesMap[postItem.categorySlug];
+    if (!catInfo) {
+      throw new Error(`Missing post category for slug: ${postItem.categorySlug}`);
+    }
+
+    const tagIds = postItem.tags.map((tn) => tagsMap[tn]).filter(Boolean);
+    if (tagIds.length !== postItem.tags.length) {
+      const missingTags = postItem.tags.filter((tagName) => !tagsMap[tagName]);
+      throw new Error(`Missing post tags: ${missingTags.join(', ')}`);
+    }
+
+    const daysAgo = postItem.daysAgo;
+    const createdAt = addDays(seedReferenceDate, -daysAgo);
+    const updatedAt = addDays(createdAt, Math.min(7, Math.floor(daysAgo / 30)));
+
+    const imageUrl = postItem.imageUrl;
+    console.log(`[${idx + 1}/${postsData.length}]`);
+    const thumbnailFileAsset = await upsertPostImage(postItem.slug, imageUrl);
+
+    await prisma.post.upsert({
+      where: { slug: postItem.slug },
+      update: {
+        title: postItem.title,
+        content: postItem.content,
+        status: postItem.status,
+        type: postItem.type,
+        categoryId: catInfo.id,
+        adminId: admin.id,
+        thumbnailFileId: thumbnailFileAsset.id,
+        coverImageFileId: thumbnailFileAsset.id,
+        metaTitle: postItem.metaTitle,
+        metaDescription: postItem.metaDescription,
+        metaKeywords: postItem.metaKeywords ?? null,
+        viewCount: postItem.viewCount ?? 0,
+        createdAt,
+        updatedAt,
+        postTags: {
+          deleteMany: {},
+          create: tagIds.map((tid) => ({ tagId: tid })),
+        },
+      },
+      create: {
+        id: postItem.id,
+        title: postItem.title,
+        slug: postItem.slug,
+        content: postItem.content,
+        status: postItem.status,
+        type: postItem.type,
+        categoryId: catInfo.id,
+        adminId: admin.id,
+        thumbnailFileId: thumbnailFileAsset.id,
+        coverImageFileId: thumbnailFileAsset.id,
+        metaTitle: postItem.metaTitle,
+        metaDescription: postItem.metaDescription,
+        metaKeywords: postItem.metaKeywords ?? null,
+        viewCount: postItem.viewCount ?? 0,
+        createdAt,
+        updatedAt,
+        postTags: {
+          create: tagIds.map((tid) => ({ tagId: tid })),
+        },
+      },
+    });
+    countCreated++;
+  }
+
+  const homePostImageSeeds = Object.entries(HOME_POST_PRESENTATION_BY_SLUG).map(
+    ([slug, presentation]) => ({ slug, imageUrl: presentation.imageUrl }),
+  );
+
+  let demoPostsWithImages = 0;
+  for (const homePostImageSeed of homePostImageSeeds) {
+    const homePost = await prisma.post.findUnique({
+      where: { slug: homePostImageSeed.slug },
+      select: { id: true },
+    });
+
+    if (!homePost) continue;
+
+    const imageFile = await upsertPostImage(homePostImageSeed.slug, homePostImageSeed.imageUrl);
+    await prisma.post.update({
+      where: { id: homePost.id },
+      data: {
+        thumbnailFileId: imageFile.id,
+        coverImageFileId: imageFile.id,
+      },
+    });
+    demoPostsWithImages++;
+  }
+
+  console.log(`\n✅ Đã khởi tạo thành công ${countCreated} bài viết cùng FileAsset thumbnail JPEG thực tế (${appBackendUrl}/uploads/posts/\${slug}-${POST_IMAGE_SEED_VERSION}.jpg) cho cả 3 danh mục cha!`);
+  console.log(`✅ Đã bổ sung thumbnail và cover cho ${demoPostsWithImages} bài viết demo.`);
+  console.log('\n🎉 🎉 HOÀN THÀNH SEED BÀI VIẾT (POST SEED COMPLETED) 🎉 🎉');
 }
 
 main()
