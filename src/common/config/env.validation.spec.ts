@@ -10,6 +10,8 @@ function createConfig(overrides: Record<string, string> = {}) {
     DATABASE_URL: 'postgresql://upnext:password@localhost:5432/upnext?schema=public',
     JWT_ACCESS_SECRET: jwtAccessSecret,
     CORS_ORIGIN: 'http://localhost:5173,http://127.0.0.1:3000',
+    APP_FRONTEND_URL: 'https://upnext.works',
+    APP_BACKEND_URL: 'https://api.upnext.works',
     ...overrides,
   };
 }
@@ -47,6 +49,33 @@ describe('validateEnv CORS origins', () => {
         createConfig({
           NODE_ENV: 'production',
           APP_ENV: 'production',
+          CORS_ORIGIN: 'http://localhost:3000',
+        }),
+      ),
+    ).toThrow(ZodError);
+  });
+
+  it('rejects localhost APP_FRONTEND_URL in production environment', () => {
+    expect(() =>
+      validateEnv(
+        createConfig({
+          NODE_ENV: 'production',
+          APP_ENV: 'production',
+          CORS_ORIGIN: 'https://upnext.works',
+          APP_FRONTEND_URL: 'http://localhost:3000',
+        }),
+      ),
+    ).toThrow(ZodError);
+  });
+
+  it('rejects localhost APP_BACKEND_URL in production environment', () => {
+    expect(() =>
+      validateEnv(
+        createConfig({
+          NODE_ENV: 'production',
+          APP_ENV: 'production',
+          CORS_ORIGIN: 'https://upnext.works',
+          APP_BACKEND_URL: 'http://localhost:3001',
         }),
       ),
     ).toThrow(ZodError);
@@ -58,10 +87,14 @@ describe('validateEnv CORS origins', () => {
         NODE_ENV: 'production',
         APP_ENV: 'production',
         CORS_ORIGIN: 'https://localhost.example.com',
+        APP_FRONTEND_URL: 'https://localhost.example.com',
+        APP_BACKEND_URL: 'https://api.localhost.example.com',
       }),
     );
 
     expect(config.corsOrigins).toEqual(['https://localhost.example.com']);
+    expect(config.appFrontendUrl).toBe('https://localhost.example.com');
+    expect(config.appBackendUrl).toBe('https://api.localhost.example.com');
   });
 
   it('normalizes Google OAuth credentials copied with wrapping quotes', () => {

@@ -31,6 +31,11 @@ services:
       DATABASE_URL: postgresql://upnext:upnext@postgres:5432/upnext?schema=public
       JWT_ACCESS_SECRET: change-me-in-production
       JWT_ACCESS_EXPIRES_IN: 15m
+      # ⚠️ REQUIRED for Google OAuth – set to your production domains
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:3000}
+      APP_BACKEND_URL: ${APP_BACKEND_URL:-http://localhost:3001}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       CORS_ORIGIN: http://localhost:5173,http://localhost:3000
       UPLOAD_ROOT: /app/uploads
     ports:

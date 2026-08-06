@@ -6706,8 +6706,39 @@ async function seedCompanyCovers(prisma: PrismaClient) {
   });
 
   const now = new Date();
+  const coversDir = path.join(uploadRoot, 'company-covers');
+
   for (const company of companies) {
-    const coverUrl = domainCovers[company.slug] || defaultFallbackCover;
+    const pngPath = path.join(coversDir, `${company.slug}.png`);
+    const jpgPath = path.join(coversDir, `${company.slug}.jpg`);
+    const jpegPath = path.join(coversDir, `${company.slug}.jpeg`);
+
+    let coverUrl = domainCovers[company.slug] || defaultFallbackCover;
+    let mimeType = 'image/jpeg';
+    let originalName = `${company.slug}-cover.jpg`;
+    let storageKey = `upnext/seed/company-covers/${company.slug}`;
+    let sizeBytes = BigInt(0);
+
+    if (fs.existsSync(pngPath)) {
+      coverUrl = `${appBackendUrl}/uploads/company-covers/${company.slug}.png`;
+      mimeType = 'image/png';
+      originalName = `${company.slug}.png`;
+      storageKey = `company-covers/${company.slug}.png`;
+      sizeBytes = BigInt(fs.statSync(pngPath).size);
+    } else if (fs.existsSync(jpgPath)) {
+      coverUrl = `${appBackendUrl}/uploads/company-covers/${company.slug}.jpg`;
+      mimeType = 'image/jpeg';
+      originalName = `${company.slug}.jpg`;
+      storageKey = `company-covers/${company.slug}.jpg`;
+      sizeBytes = BigInt(fs.statSync(jpgPath).size);
+    } else if (fs.existsSync(jpegPath)) {
+      coverUrl = `${appBackendUrl}/uploads/company-covers/${company.slug}.jpeg`;
+      mimeType = 'image/jpeg';
+      originalName = `${company.slug}.jpeg`;
+      storageKey = `company-covers/${company.slug}.jpeg`;
+      sizeBytes = BigInt(fs.statSync(jpegPath).size);
+    }
+
     const fileId = createHash('md5').update(`company-cover:${company.slug}`).digest('hex');
     const formattedId = `${fileId.slice(0, 8)}-${fileId.slice(8, 12)}-${fileId.slice(12, 16)}-${fileId.slice(16, 20)}-${fileId.slice(20, 32)}`;
 
@@ -6718,10 +6749,10 @@ async function seedCompanyCovers(prisma: PrismaClient) {
         ownerId: company.id,
         purpose: FilePurpose.OTHER,
         visibility: FileVisibility.PUBLIC,
-        storageKey: `upnext/seed/company-covers/${company.slug}`,
-        originalName: `${company.slug}-cover.jpg`,
-        mimeType: 'image/jpeg',
-        sizeBytes: BigInt(0),
+        storageKey,
+        originalName,
+        mimeType,
+        sizeBytes,
         publicUrl: coverUrl,
         updatedAt: now,
       },
@@ -6731,10 +6762,10 @@ async function seedCompanyCovers(prisma: PrismaClient) {
         ownerId: company.id,
         purpose: FilePurpose.OTHER,
         visibility: FileVisibility.PUBLIC,
-        storageKey: `upnext/seed/company-covers/${company.slug}`,
-        originalName: `${company.slug}-cover.jpg`,
-        mimeType: 'image/jpeg',
-        sizeBytes: BigInt(0),
+        storageKey,
+        originalName,
+        mimeType,
+        sizeBytes,
         publicUrl: coverUrl,
         createdAt: now,
         updatedAt: now,
