@@ -96,6 +96,28 @@ const envSchema = z
         message: 'CORS_ORIGIN must not include localhost origins in production',
       });
     }
+
+    // In production, APP_FRONTEND_URL must not point to localhost (Google OAuth
+    // redirects the user back to this URL after authentication).
+    if (env.APP_ENV === 'production' && isLocalhostOrigin(env.APP_FRONTEND_URL)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['APP_FRONTEND_URL'],
+        message:
+          'APP_FRONTEND_URL must not be a localhost URL in production – Google OAuth will redirect users to this URL after login',
+      });
+    }
+
+    // In production, APP_BACKEND_URL must not point to localhost (used as the
+    // Google OAuth callbackURL that Google redirects to after consent).
+    if (env.APP_ENV === 'production' && isLocalhostOrigin(env.APP_BACKEND_URL)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['APP_BACKEND_URL'],
+        message:
+          'APP_BACKEND_URL must not be a localhost URL in production – Google OAuth uses this as the callback URL',
+      });
+    }
   });
 
 export type AppConfig = {
