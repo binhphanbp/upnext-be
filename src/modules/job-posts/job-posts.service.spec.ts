@@ -19,6 +19,13 @@ describe('JobPostsService', () => {
       findMany: jest.fn(),
       update: jest.fn(),
     },
+    candidateProfile: {
+      findUnique: jest.fn(),
+    },
+    jobView: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+    },
     companyMember: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
@@ -90,6 +97,46 @@ describe('JobPostsService', () => {
         'Company business license is required before creating job posts',
       );
       expect(prismaMock.jobPost.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('recordView', () => {
+    beforeEach(() => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({ id: 'job-id' });
+    });
+
+    it('records one anonymous view with the browser visitor key', async () => {
+      prismaMock.jobView.findFirst.mockResolvedValue(null);
+      prismaMock.jobView.create.mockResolvedValue({ id: 'view-id' });
+
+      await expect(
+        service.recordView('job-id', '203.0.113.1', 'test-agent', undefined, 'visitor-123'),
+      ).resolves.toEqual({ id: 'view-id' });
+
+      expect(prismaMock.jobView.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            jobPostId: 'job-id',
+            OR: [{ visitorKey: 'visitor-123' }],
+          }),
+        }),
+      );
+      expect(prismaMock.jobView.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          jobPostId: 'job-id',
+          visitorKey: 'visitor-123',
+        }),
+      });
+    });
+
+    it('does not count a repeated view from the same visitor within 24 hours', async () => {
+      prismaMock.jobView.findFirst.mockResolvedValue({ id: 'existing-view' });
+
+      await expect(
+        service.recordView('job-id', '203.0.113.1', 'test-agent', undefined, 'visitor-123'),
+      ).resolves.toEqual({ id: 'existing-view' });
+
+      expect(prismaMock.jobView.create).not.toHaveBeenCalled();
     });
   });
 

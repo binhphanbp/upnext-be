@@ -42,13 +42,36 @@ describe('HomeService', () => {
     expect(where.OR).toBeUndefined();
   });
 
+  it('requires a real recent view for popular jobs and keeps expiring jobs in their own section', () => {
+    const where = (service as any).buildPublicJobWhere('popular');
+
+    expect(where.views.some.viewedAt.gte).toBeInstanceOf(Date);
+    expect(where.OR).toHaveLength(2);
+    expect(where.OR[1].expiredAt.gt).toBeInstanceOf(Date);
+  });
+
+  it('ranks popular jobs by real engagement before recency', () => {
+    expect((service as any).getFeaturedJobOrderBy('popular')).toEqual([
+      { views: { _count: 'desc' } },
+      { savedJobs: { _count: 'desc' } },
+      { publishedAt: 'desc' },
+    ]);
+  });
+
   it('returns empty pagination without inventing job cards', async () => {
     prismaMock.jobPost.findMany.mockResolvedValue([]);
     prismaMock.jobPost.count.mockResolvedValue(0);
 
     await expect(service.getFeaturedJobs('latest', 1, 8)).resolves.toMatchObject({
       items: [],
-      pagination: { page: 1, limit: 8, total: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false },
+      pagination: {
+        page: 1,
+        limit: 8,
+        total: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
     });
   });
 });
