@@ -27,6 +27,7 @@
     "prisma:studio": "prisma studio --browser none",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:seed-posts": "tsx prisma/seed-posts.ts",
+    "prisma:seed-home-popularity": "tsx prisma/seed-home-popularity.ts",
     "prisma:seed-job-status-samples": "tsx scripts/seed-job-post-status-samples.ts",
     "prisma:seed-company-photos": "tsx scripts/backfill-company-photos.ts",
     "generate:company-workplace-images": "tsx scripts/generate-company-workplace-images.ts",
