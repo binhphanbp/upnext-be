@@ -333,6 +333,12 @@ export class ApplicationsService {
         cvVersion: {
           include: {
             sourceFile: true,
+            cv: {
+              select: {
+                source: true,
+                title: true,
+              },
+            },
           },
         },
       },
@@ -388,6 +394,12 @@ export class ApplicationsService {
         cvVersion: {
           include: {
             sourceFile: true,
+            cv: {
+              select: {
+                source: true,
+                title: true,
+              },
+            },
           },
         },
       },
@@ -434,6 +446,12 @@ export class ApplicationsService {
         cvVersion: {
           include: {
             sourceFile: true,
+            cv: {
+              select: {
+                source: true,
+                title: true,
+              },
+            },
           },
         },
       },
