@@ -6,7 +6,6 @@ import {
   RecruiterJobPostsController,
 } from './job-posts.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
   imports: [NotificationsModule],
