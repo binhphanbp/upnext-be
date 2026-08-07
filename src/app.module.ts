@@ -34,6 +34,7 @@ import { SkillsModule } from './modules/skills/skills.module';
 import { HomeModule } from './modules/home/home.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
+import { RecruiterAnalyticsModule } from './modules/recruiter-analytics/recruiter-analytics.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { AdminRolesModule } from './modules/admin-roles/admin-roles.module';
 import { CvsModule } from './modules/cvs/cvs.module';
@@ -112,6 +113,7 @@ import { JobPostAiModule } from './modules/job-post-ai/job-post-ai.module';
     SkillsModule,
     HomeModule,
     ApplicationsModule,
+    RecruiterAnalyticsModule,
     CvsModule,
     SubscriptionPlansModule,
     CompanySubscriptionsModule,
