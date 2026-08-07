@@ -1388,6 +1388,26 @@ async function cleanHomeSeedData() {
 
   const jobIds = jobPosts.map((job) => job.id);
 
+  if (realCompanyIds.length > 0) {
+    await prisma.companyReviewReport.deleteMany({
+      where: {
+        companyReview: {
+          companyId: {
+            in: realCompanyIds,
+          },
+        },
+      },
+    });
+
+    await prisma.companyReview.deleteMany({
+      where: {
+        companyId: {
+          in: realCompanyIds,
+        },
+      },
+    });
+  }
+
   // Clear chat, messages, participants, support cases and outreach to prevent FK violations
   await prisma.conversation.updateMany({
     data: { latestMessageId: null },
@@ -1436,14 +1456,6 @@ async function cleanHomeSeedData() {
     ).map((application) => application.id);
 
     if (applicationIds.length > 0) {
-      await prisma.companyReview.deleteMany({
-        where: {
-          applicationId: {
-            in: applicationIds,
-          },
-        },
-      });
-
       await prisma.interviewLog.deleteMany({
         where: {
           interview: {
@@ -1605,14 +1617,6 @@ async function cleanHomeSeedData() {
     ).map((application) => application.id);
 
     if (candidateAppIds.length > 0) {
-      await prisma.companyReview.deleteMany({
-        where: {
-          applicationId: {
-            in: candidateAppIds,
-          },
-        },
-      });
-
       await prisma.interviewLog.deleteMany({
         where: {
           interview: {
@@ -4865,7 +4869,7 @@ async function main() {
     await prisma.companyReview.create({
       data: {
         id: randomUUID(),
-        applicationId: hiredAlphaApp.id,
+        candidateProfileId: hiredAlphaApp.candidateProfileId,
         companyId: alphaCompany.id,
         overallRating: 5,
         summary:
@@ -4894,7 +4898,7 @@ async function main() {
     await prisma.companyReview.create({
       data: {
         id: randomUUID(),
-        applicationId: pendingBetaApp.id,
+        candidateProfileId: pendingBetaApp.candidateProfileId,
         companyId: betaCompany.id,
         overallRating: 4,
         summary: 'Quy trình tuyển dụng chuyên nghiệp, bài test lập trình thực tế.',
@@ -4922,7 +4926,7 @@ async function main() {
     await prisma.companyReview.create({
       data: {
         id: randomUUID(),
-        applicationId: approvedGammaApp.id,
+        candidateProfileId: approvedGammaApp.candidateProfileId,
         companyId: gammaCompany.id,
         overallRating: 3,
         summary: 'Môi trường làm việc bình thường, văn phòng đẹp nhưng quy trình rườm rà.',
@@ -4949,7 +4953,7 @@ async function main() {
     await prisma.companyReview.create({
       data: {
         id: randomUUID(),
-        applicationId: hiredDeltaApp.id,
+        candidateProfileId: hiredDeltaApp.candidateProfileId,
         companyId: deltaCompany.id,
         overallRating: 2,
         summary: 'Văn phòng nhỏ, OT nhiều nhưng không có chế độ đãi ngộ xứng đáng.',
@@ -4977,7 +4981,7 @@ async function main() {
     await prisma.companyReview.create({
       data: {
         id: randomUUID(),
-        applicationId: submittedDeltaApp.id,
+        candidateProfileId: submittedDeltaApp.candidateProfileId,
         companyId: deltaCompany.id,
         overallRating: 1,
         summary: 'CÔNG TY TỆ HẠI!!! TRÁNH XA NGAY LẬP TỨC!!!',
@@ -5004,7 +5008,7 @@ async function main() {
     await prisma.companyReview.create({
       data: {
         id: randomUUID(),
-        applicationId: rejectedAlphaApp.id,
+        candidateProfileId: rejectedAlphaApp.candidateProfileId,
         companyId: alphaCompany.id,
         overallRating: 3,
         summary: 'Quy trình nhanh gọn nhưng kết quả phản hồi không chi tiết.',

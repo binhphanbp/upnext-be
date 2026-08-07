@@ -460,6 +460,7 @@ model CandidateProfile {
   companyFollows        CompanyFollow[]
   shortlists            RecruiterCandidateShortlist[]
   reports               Report[]
+  companyReviews        CompanyReview[]
   mockInterviews        MockInterview[]
   cvEmbeddings          CvEmbedding[]
   applicationAiScores   ApplicationAiScore[]
@@ -943,6 +944,7 @@ model RecruiterAccount {
   talentContactAttempts    TalentContactAttempt[]
   createdSupportCases      SupportCase[]                 @relation("SupportCaseCreatedByRecruiter")
   hiringResultReports      HiringResultReport[]
+  companyReviewReports     CompanyReviewReport[]
 
   @@unique([authProvider, providerUserId])
   @@index([companyId])
@@ -1273,7 +1275,6 @@ model Application {
   cvVersion        CVVersion               @relation(fields: [cvVersionId], references: [id], onDelete: Restrict)
   statusLogs       ApplicationStatusLog[]
   interviews       Interview[]
-  companyReview    CompanyReview?
   aiScore          ApplicationAiScore?
   conversation     Conversation?
   assignments      ApplicationAssignment[]
@@ -1475,7 +1476,7 @@ model Notification {
 
 model CompanyReview {
   id                     String              @id @default(uuid()) @db.Uuid
-  applicationId          String              @unique @map("application_id") @db.Uuid
+  candidateProfileId     String              @map("candidate_profile_id") @db.Uuid
   companyId              String              @map("company_id") @db.Uuid
   overallRating          Int                 @map("overall_rating")
   summary                String?             @db.Text
@@ -1488,15 +1489,36 @@ model CompanyReview {
   managementCareRating   Int?                @map("management_care_rating")
   cultureFunRating       Int?                @map("culture_fun_rating")
   officeWorkspaceRating  Int?                @map("office_workspace_rating")
-  status                 CompanyReviewStatus @default(PENDING)
+  status                 CompanyReviewStatus @default(APPROVED)
   createdAt              DateTime            @default(now()) @map("created_at")
   updatedAt              DateTime            @updatedAt @map("updated_at")
 
-  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidateProfile CandidateProfile      @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  company          Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reports          CompanyReviewReport[]
 
+  @@unique([candidateProfileId, companyId])
   @@index([companyId, status])
   @@map("company_reviews")
+}
+
+model CompanyReviewReport {
+  id                         String       @id @default(uuid()) @db.Uuid
+  companyReviewId            String       @map("company_review_id") @db.Uuid
+  reporterRecruiterAccountId String       @map("reporter_recruiter_account_id") @db.Uuid
+  reason                     String       @db.Text
+  status                     ReportStatus @default(PENDING)
+  handledByAdminId           String?      @map("handled_by_admin_id") @db.Uuid
+  createdAt                  DateTime     @default(now()) @map("created_at")
+  updatedAt                  DateTime     @updatedAt @map("updated_at")
+
+  companyReview            CompanyReview    @relation(fields: [companyReviewId], references: [id], onDelete: Cascade)
+  reporterRecruiterAccount RecruiterAccount @relation(fields: [reporterRecruiterAccountId], references: [id], onDelete: Cascade)
+  handledByAdmin           AdminUser?       @relation("CompanyReviewReportHandledByAdmin", fields: [handledByAdminId], references: [id], onDelete: SetNull)
+
+  @@unique([companyReviewId, reporterRecruiterAccountId])
+  @@index([status])
+  @@map("company_review_reports")
 }
 
 // =========================
@@ -1592,22 +1614,23 @@ model AdminUser {
   createdAt        DateTime    @default(now()) @map("created_at")
   updatedAt        DateTime    @updatedAt @map("updated_at")
 
-  role                     AdminRole?                     @relation("AdminRoleUsers", fields: [roleId], references: [id], onDelete: SetNull)
-  createdByAdmin           AdminUser?                     @relation("AdminCreatedAdmins", fields: [createdByAdminId], references: [id], onDelete: SetNull)
-  createdAdmins            AdminUser[]                    @relation("AdminCreatedAdmins")
-  createdRoles             AdminRole[]                    @relation("AdminCreatedRoles")
-  auditLogs                AdminAuditLog[]
-  posts                    Post[]
-  handledReports           Report[]                       @relation("ReportHandledByAdmin")
-  handledAppeals           Appeal[]                       @relation("AppealHandledByAdmin")
-  subscriptionPlans        SubscriptionPlan[]             @relation("SubscriptionPlanCreatedByAdmin")
-  reputationActivities     CompanyReputationActivity[]
-  notificationTokens       NotificationToken[]
-  conversationParticipants ConversationParticipant[]
-  assignedSupportCases     SupportCase[]                  @relation("SupportCaseAssignedAdmin")
-  supportAssignmentsFrom   SupportCaseAssignmentHistory[] @relation("SupportAssignmentFromAdmin")
-  supportAssignmentsTo     SupportCaseAssignmentHistory[] @relation("SupportAssignmentToAdmin")
-  taxCodeBlacklists        TaxCodeBlacklist[]
+  role                        AdminRole?                     @relation("AdminRoleUsers", fields: [roleId], references: [id], onDelete: SetNull)
+  createdByAdmin              AdminUser?                     @relation("AdminCreatedAdmins", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  createdAdmins               AdminUser[]                    @relation("AdminCreatedAdmins")
+  createdRoles                AdminRole[]                    @relation("AdminCreatedRoles")
+  auditLogs                   AdminAuditLog[]
+  posts                       Post[]
+  handledReports              Report[]                       @relation("ReportHandledByAdmin")
+  handledAppeals              Appeal[]                       @relation("AppealHandledByAdmin")
+  subscriptionPlans           SubscriptionPlan[]             @relation("SubscriptionPlanCreatedByAdmin")
+  reputationActivities        CompanyReputationActivity[]
+  notificationTokens          NotificationToken[]
+  conversationParticipants    ConversationParticipant[]
+  assignedSupportCases        SupportCase[]                  @relation("SupportCaseAssignedAdmin")
+  supportAssignmentsFrom      SupportCaseAssignmentHistory[] @relation("SupportAssignmentFromAdmin")
+  supportAssignmentsTo        SupportCaseAssignmentHistory[] @relation("SupportAssignmentToAdmin")
+  taxCodeBlacklists           TaxCodeBlacklist[]
+  handledCompanyReviewReports CompanyReviewReport[]          @relation("CompanyReviewReportHandledByAdmin")
 
   @@index([roleId])
   @@map("admin")
