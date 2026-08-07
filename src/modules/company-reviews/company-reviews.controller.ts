@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
@@ -19,6 +20,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { CompanyReviewsService } from './company-reviews.service';
 import { CreateCompanyReviewDto } from './dto/create-company-review.dto';
 import { CreateCompanyReviewReportDto } from './dto/create-company-review-report.dto';
+import { ListMyCompanyReviewsQueryDto } from './dto/list-my-company-reviews-query.dto';
 import { UpdateCompanyReviewDto } from './dto/update-company-review.dto';
 
 // ─── POST & GET reviews scoped under /companies/:id ──────────────────────────
@@ -69,6 +71,17 @@ export class CompanyReviewsController {
 @Controller('company-reviews')
 export class CompanyReviewsMutationController {
   constructor(private readonly companyReviewsService: CompanyReviewsService) {}
+
+  // Declared before the ':id' routes so the literal path is not shadowed by them.
+  @ApiOperation({ summary: 'Danh sách đánh giá về công ty của tôi (dành cho Recruiter)' })
+  @Roles(ActorType.RECRUITER)
+  @Get('my-company')
+  listMyCompanyReviews(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListMyCompanyReviewsQueryDto,
+  ) {
+    return this.companyReviewsService.listMyCompanyReviews(user, query);
+  }
 
   @ApiOperation({ summary: 'Cập nhật đánh giá công ty' })
   @ApiParam({ name: 'id', description: 'Company review UUID' })

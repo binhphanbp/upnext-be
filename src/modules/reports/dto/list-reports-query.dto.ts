@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ReportStatus } from '@prisma/client';
+import { ActorType, ReportStatus } from '@prisma/client';
 import { IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
@@ -14,12 +14,22 @@ export class ListReportsQueryDto extends PaginationQueryDto {
   status?: ReportStatus;
 
   @ApiPropertyOptional({
-    description: 'Lọc theo loại đối tượng bị báo cáo (ví dụ: JOB_POST, COMPANY, CANDIDATE)',
+    description:
+      'Lọc theo loại đối tượng bị báo cáo (ví dụ: JOB_POST, COMPANY, CANDIDATE, POST, COMPANY_REVIEW)',
     example: 'JOB_POST',
   })
   @IsOptional()
   @IsString()
   targetType?: string;
+
+  @ApiPropertyOptional({
+    description: 'Lọc theo loại người gửi báo cáo (ứng viên hoặc nhà tuyển dụng)',
+    enum: [ActorType.CANDIDATE, ActorType.RECRUITER],
+    example: ActorType.RECRUITER,
+  })
+  @IsOptional()
+  @IsIn([ActorType.CANDIDATE, ActorType.RECRUITER])
+  reporterRole?: ActorType;
 
   @ApiPropertyOptional({
     description: 'Trường sắp xếp (mặc định: createdAt)',

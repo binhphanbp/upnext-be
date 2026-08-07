@@ -1389,15 +1389,20 @@ async function cleanHomeSeedData() {
   const jobIds = jobPosts.map((job) => job.id);
 
   if (realCompanyIds.length > 0) {
-    await prisma.companyReviewReport.deleteMany({
-      where: {
-        companyReview: {
-          companyId: {
-            in: realCompanyIds,
-          },
-        },
-      },
-    });
+    // Reports on these reviews live on the polymorphic `Report` table, so they are
+    // matched by target rather than through a relation.
+    const seededCompanyReviewIds = (
+      await prisma.companyReview.findMany({
+        where: { companyId: { in: realCompanyIds } },
+        select: { id: true },
+      })
+    ).map((review) => review.id);
+
+    if (seededCompanyReviewIds.length > 0) {
+      await prisma.report.deleteMany({
+        where: { targetType: 'COMPANY_REVIEW', targetId: { in: seededCompanyReviewIds } },
+      });
+    }
 
     await prisma.companyReview.deleteMany({
       where: {
@@ -5482,6 +5487,7 @@ async function main() {
     // Report 1: Pending Job Post Report
     await prisma.report.create({
       data: {
+        reporterType: ActorType.CANDIDATE,
         reporterCandidateId: dbCandidateProfiles[0].id,
         targetType: 'JOB_POST',
         targetId: dbJobPosts[0]?.id || '00000000-0000-0000-0000-000000000000',
@@ -5493,6 +5499,7 @@ async function main() {
     // Report 2: Resolved Company Report
     await prisma.report.create({
       data: {
+        reporterType: ActorType.CANDIDATE,
         reporterCandidateId: dbCandidateProfiles[1 % dbCandidateProfiles.length].id,
         targetType: 'COMPANY',
         targetId: dbCompanies[0]?.id || '00000000-0000-0000-0000-000000000000',
@@ -5505,6 +5512,7 @@ async function main() {
     // Report 3: Reviewing Candidate Profile Report
     await prisma.report.create({
       data: {
+        reporterType: ActorType.CANDIDATE,
         reporterCandidateId: dbCandidateProfiles[2 % dbCandidateProfiles.length].id,
         targetType: 'CANDIDATE',
         targetId:
@@ -5518,6 +5526,7 @@ async function main() {
     // Report 4: Pending Post/Blog Report
     await prisma.report.create({
       data: {
+        reporterType: ActorType.CANDIDATE,
         reporterCandidateId: dbCandidateProfiles[0].id,
         targetType: 'POST',
         targetId: post1.id,
@@ -5634,6 +5643,7 @@ async function main() {
     data: [
       {
         id: randomUUID(),
+        reporterType: ActorType.CANDIDATE,
         reporterCandidateId: candidates[0].profileId,
         targetType: 'COMPANY',
         targetId: companies[3].id, // Delta Company
@@ -5646,6 +5656,7 @@ async function main() {
       },
       {
         id: randomUUID(),
+        reporterType: ActorType.CANDIDATE,
         reporterCandidateId: candidates[1].profileId,
         targetType: 'JOB_POST',
         targetId: jobs[4].id, // Frontend React Engineer at Bluewave
