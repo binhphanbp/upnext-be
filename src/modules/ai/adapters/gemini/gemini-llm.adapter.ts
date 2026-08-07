@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { fetch as undiciFetch, ProxyAgent } from 'undici';
 import {
   LlmProviderPort,
   LlmStreamChunk,
@@ -55,6 +56,25 @@ export class GeminiLlmAdapter implements LlmProviderPort {
   }
 
   /**
+   * Google chặn `generativelanguage.googleapis.com` theo vị trí địa lý của IP
+   * gọi tới — production đã gặp đúng lỗi này: VPS bị từ chối thẳng bằng
+   * `400 FAILED_PRECONDITION: "User location is not supported for the API
+   * use."` trước khi chạm tới bất kỳ logic nào của Copilot. `GEMINI_PROXY_URL`
+   * route lời gọi qua một proxy ở khu vực được hỗ trợ; để trống thì gọi thẳng.
+   *
+   * Dựng một lần, tái dùng cho mọi request — không dựng lại `ProxyAgent` mỗi
+   * lần gọi vì nó tự quản lý pool kết nối riêng.
+   */
+  private proxyDispatcher?: ProxyAgent | null;
+  private dispatcher(): ProxyAgent | undefined {
+    if (this.proxyDispatcher === undefined) {
+      const proxyUrl = this.configService.get<string>('geminiProxyUrl');
+      this.proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : null;
+    }
+    return this.proxyDispatcher ?? undefined;
+  }
+
+  /**
    * Ghép AbortSignal của caller với timeout riêng. Nếu chỉ dùng signal của
    * caller thì một request treo sẽ giữ kết nối mãi; nếu chỉ dùng timeout thì
    * người dùng bấm "Dừng" không có tác dụng.
@@ -80,12 +100,13 @@ export class GeminiLlmAdapter implements LlmProviderPort {
 
     const { signal, release } = this.linkedSignal(STRUCTURED_TIMEOUT_MS, request.signal);
     try {
-      const response = await fetch(
+      const response = await undiciFetch(
         `${GEMINI_API_BASE}/models/${ROUTING_MODEL}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal,
+          dispatcher: this.dispatcher(),
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: request.systemInstruction }] },
             contents: request.messages.map((message) => ({
@@ -126,12 +147,13 @@ export class GeminiLlmAdapter implements LlmProviderPort {
 
     const { signal, release } = this.linkedSignal(STREAM_TIMEOUT_MS, request.signal);
     try {
-      const response = await fetch(
+      const response = await undiciFetch(
         `${GEMINI_API_BASE}/models/${ANSWER_MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal,
+          dispatcher: this.dispatcher(),
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: request.systemInstruction }] },
             contents: request.messages.map((message) => ({
@@ -168,7 +190,12 @@ export class GeminiLlmAdapter implements LlmProviderPort {
       let inputTokens = 0;
       let outputTokens = 0;
 
-      for await (const payload of this.readSseLines(response.body)) {
+      // `undici`'s `ReadableStream` type is structurally the Fetch-spec stream
+      // at runtime; it just doesn't share TS's DOM lib type due to duplicate
+      // ambient declarations between `undici` and the global `lib.dom`.
+      for await (const payload of this.readSseLines(
+        response.body as unknown as ReadableStream<Uint8Array>,
+      )) {
         let frame: GeminiResponse;
         try {
           frame = JSON.parse(payload) as GeminiResponse;

@@ -63,6 +63,15 @@ const envSchema = z
         'https://upnext.works,https://staging.upnext.works,http://localhost:5173,http://localhost:3000',
       ),
     GEMINI_API_KEY: z.string().optional(),
+    /**
+     * Google chặn `generativelanguage.googleapis.com` theo vị trí địa lý của
+     * IP gọi tới — VPS đặt ở một số khu vực bị từ chối thẳng với
+     * "User location is not supported for the API use." trước khi chạm tới
+     * logic của Copilot. Đặt biến này (URL của một proxy HTTP/HTTPS ở khu vực
+     * được hỗ trợ) để route riêng lời gọi Gemini qua đó; để trống thì gọi
+     * thẳng như cũ.
+     */
+    GEMINI_PROXY_URL: z.string().url().optional(),
     AI_MAX_RUNS_PER_DAY: z.coerce.number().int().positive().default(50),
     AI_MAX_TOKENS_PER_DAY: z.coerce.number().int().positive().default(200_000),
     GOOGLE_CLIENT_ID: optionalCredentialSchema,
@@ -143,6 +152,7 @@ export type AppConfig = {
   cloudinaryFolder: string;
   corsOrigins: string[];
   geminiApiKey?: string;
+  geminiProxyUrl?: string;
   aiMaxRunsPerDay: number;
   aiMaxTokensPerDay: number;
   googleClientId?: string;
@@ -181,6 +191,7 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     cloudinaryFolder: parsed.CLOUDINARY_FOLDER,
     corsOrigins,
     geminiApiKey: parsed.GEMINI_API_KEY,
+    geminiProxyUrl: parsed.GEMINI_PROXY_URL,
     aiMaxRunsPerDay: parsed.AI_MAX_RUNS_PER_DAY,
     aiMaxTokensPerDay: parsed.AI_MAX_TOKENS_PER_DAY,
     googleClientId: parsed.GOOGLE_CLIENT_ID,

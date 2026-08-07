@@ -74,6 +74,7 @@
     "rxjs": "latest",
     "socket.io": "4.8.1",
     "tsx": "latest",
+    "undici": "^8.10.0",
     "zod": "latest"
   },
   "devDependencies": {
