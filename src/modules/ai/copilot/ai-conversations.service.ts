@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   ActorType,
   AiConversationContext,
@@ -19,6 +24,21 @@ import { AiCard, AiCitation, AiToolCall } from '../contracts/copilot.contracts';
  */
 
 const TITLE_MAX = 60;
+
+/**
+ * Cả hai trần dưới đây chặn *tạo dữ liệu rác*, không liên quan tới gọi model —
+ * `POST /conversations` không tốn một lời gọi Gemini nào, nên không throttle
+ * nào ở tầng route bảo vệ được nó khỏi bị spam hàng triệu bản ghi rỗng.
+ */
+const MAX_CONVERSATIONS_PER_CANDIDATE = 50;
+const MAX_MESSAGES_PER_CONVERSATION = 100;
+
+/**
+ * Một tin nhắn trợ lý còn ở trạng thái STREAMING quá ngần này bị coi là mồ côi
+ * (tiến trình xử lý nó đã chết, ví dụ server restart giữa chừng) chứ không phải
+ * đang chạy thật — nếu không, một lần sập server sẽ khoá hội thoại đó vĩnh viễn.
+ */
+const STALE_STREAM_MS = 2 * 60 * 1000;
 
 export type ConversationSummary = {
   id: string;
@@ -61,6 +81,16 @@ export class AiConversationsService {
     contextId: string | null,
     locale: string,
   ) {
+    const conversationCount = await this.prisma.aIConversation.count({
+      where: { candidateProfileId, isArchived: false },
+    });
+    if (conversationCount >= MAX_CONVERSATIONS_PER_CANDIDATE) {
+      throw new ConflictException({
+        code: 'AI_CONVERSATION_LIMIT_REACHED',
+        message: 'Bạn đã đạt số hội thoại tối đa. Hãy ẩn bớt hội thoại cũ trước khi tạo mới.',
+      });
+    }
+
     return this.prisma.aIConversation.create({
       data: {
         actorType: ActorType.CANDIDATE,
@@ -139,7 +169,47 @@ export class AiConversationsService {
     return messages.reverse();
   }
 
+  /**
+   * Có run nào đang thật sự chạy trong hội thoại này không.
+   *
+   * Nhân tiện dọn rác: bản ghi STREAMING quá hạn bị đánh dấu FAILED ngay trong
+   * lần kiểm tra này, nên không cần một cron riêng chỉ để việc đó.
+   */
+  async hasActiveRun(conversationId: string): Promise<boolean> {
+    const staleBefore = new Date(Date.now() - STALE_STREAM_MS);
+
+    const active = await this.prisma.aIMessage.findFirst({
+      where: {
+        conversationId,
+        role: AiMessageRole.ASSISTANT,
+        status: AiRunStatus.STREAMING,
+        createdAt: { gte: staleBefore },
+      },
+      select: { id: true },
+    });
+    if (active) return true;
+
+    await this.prisma.aIMessage.updateMany({
+      where: {
+        conversationId,
+        role: AiMessageRole.ASSISTANT,
+        status: AiRunStatus.STREAMING,
+        createdAt: { lt: staleBefore },
+      },
+      data: { status: AiRunStatus.FAILED, errorCode: 'AI_SERVICE_UNAVAILABLE' },
+    });
+    return false;
+  }
+
   async appendUserMessage(conversationId: string, content: string) {
+    const messageCount = await this.prisma.aIMessage.count({ where: { conversationId } });
+    if (messageCount >= MAX_MESSAGES_PER_CONVERSATION) {
+      throw new ConflictException({
+        code: 'AI_MESSAGE_LIMIT_REACHED',
+        message: 'Hội thoại này đã đạt số tin nhắn tối đa. Hãy tạo hội thoại mới để tiếp tục.',
+      });
+    }
+
     return this.prisma.aIMessage.create({
       data: {
         conversationId,

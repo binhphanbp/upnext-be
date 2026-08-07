@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -20,10 +21,12 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ActorType, AiConversationContext } from '@prisma/client';
 import { Request, Response } from 'express';
 import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
+import { UserThrottlerGuard } from '../../../common/guards/user-throttler.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { AiStreamEvent } from '../contracts/copilot.contracts';
@@ -35,8 +38,24 @@ import {
   SendMessageDto,
 } from '../dto/copilot.dto';
 import { AiActionsService } from './ai-actions.service';
+import { AiBudgetService } from './ai-budget.service';
 import { AiConversationsService } from './ai-conversations.service';
 import { AiCopilotService } from './ai-copilot.service';
+import { AiRunTrackerService } from './ai-run-tracker.service';
+
+/** Một người dùng được mở tối đa bấy nhiêu lượt chat song song. */
+const MAX_CONCURRENT_RUNS_PER_USER = 2;
+
+/**
+ * Trần cho toàn bộ một lượt chạy, không phải cho từng lời gọi model.
+ *
+ * `gemini-llm.adapter.ts` giới hạn 15s cho router và 20s cho câu trả lời —
+ * nhưng đó là hai lời gọi tách biệt, cộng thêm tối đa 3 truy vấn tool ở giữa
+ * (mỗi cái tự giới hạn 5s ở `tool-registry.service.ts`). Cộng dồn, một lượt hợp
+ * lệ có thể chạy quá 35s mà không lời timeout riêng lẻ nào bắt được. Đây là
+ * trần chốt chặn cuối.
+ */
+const TOTAL_RUN_TIMEOUT_MS = 45_000;
 
 /**
  * API công khai của Candidate Copilot (§14.1).
@@ -47,8 +66,11 @@ import { AiCopilotService } from './ai-copilot.service';
  */
 @ApiTags('Candidate - AI Copilot')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, UserThrottlerGuard)
 @Roles(ActorType.CANDIDATE)
+// Trần mặc định cho các route đọc (list/detail) — route ghi/gọi model tự khai
+// mức riêng ở dưới vì giá của chúng khác nhau rất nhiều.
+@Throttle({ default: { limit: 60, ttl: 60_000 } })
 @Controller('ai')
 export class AiCopilotController {
   private readonly logger = new Logger(AiCopilotController.name);
@@ -58,6 +80,8 @@ export class AiCopilotController {
     private readonly conversations: AiConversationsService,
     private readonly actions: AiActionsService,
     private readonly context: CandidateContextAssembler,
+    private readonly budget: AiBudgetService,
+    private readonly runTracker: AiRunTrackerService,
   ) {}
 
   @Get('conversations')
@@ -69,6 +93,7 @@ export class AiCopilotController {
   }
 
   @Post('conversations')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Tạo hội thoại mới' })
   async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateConversationDto) {
     const candidateProfileId = await this.context.resolveProfileId(user.id);
@@ -100,6 +125,7 @@ export class AiCopilotController {
   }
 
   @Post('messages/:id/feedback')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Đánh giá tốt/xấu một câu trả lời. Bấm lại cùng giá trị là bỏ đánh giá',
   })
@@ -120,6 +146,7 @@ export class AiCopilotController {
   }
 
   @Post('actions/:id')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Xác nhận hoặc từ chối một hành động AI đề xuất. Backend thực hiện, không phải AI',
   })
@@ -149,6 +176,10 @@ export class AiCopilotController {
    *   khi người dùng đã đóng tab.
    */
   @Post('conversations/:id/messages')
+  // Route đắt nhất của cả API: mỗi request gọi 2 lần Gemini (router + tổng
+  // hợp). Trần bằng đúng mức `job-post-ai` đã dùng cho tính năng AI còn lại —
+  // 2-4 câu hỏi/phút là hành vi người dùng thật, 10/phút chỉ cắt vòng lặp.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Gửi tin nhắn, nhận câu trả lời streaming (SSE)' })
   @ApiParam({ name: 'id' })
   @ApiBody({ type: SendMessageDto })
@@ -162,6 +193,57 @@ export class AiCopilotController {
     const candidateProfileId = await this.context.resolveProfileId(user.id);
     const conversation = await this.conversations.getOwnedOrThrow(id, candidateProfileId);
 
+    /**
+     * Bốn lớp chặn dưới đây đều chạy **trước** `writeHead` một cách cố ý: chỉ
+     * lúc này lỗi còn trả được bằng mã HTTP bình thường (409) qua exception
+     * filter của Nest. Sau khi header SSE đã gửi, mọi từ chối chỉ còn cách phát
+     * event `error` trong một stream 200 — đúng nhưng dễ bị client hiểu nhầm là
+     * "đã bắt đầu trả lời rồi mới hỏng".
+     */
+    if (await this.conversations.hasActiveRun(id)) {
+      throw new ConflictException({
+        code: 'AI_RUN_IN_PROGRESS',
+        message: 'Hội thoại này đang có một lượt trả lời chưa xong.',
+      });
+    }
+
+    await this.budget.assertWithinDailyBudget(candidateProfileId);
+    await this.budget.assertBelowBlockedToolThreshold(candidateProfileId);
+
+    if (!this.runTracker.tryAcquire(user.id, MAX_CONCURRENT_RUNS_PER_USER)) {
+      throw new ConflictException({
+        code: 'AI_TOO_MANY_CONCURRENT_RUNS',
+        message: 'Bạn đang có quá nhiều lượt chat mở cùng lúc. Đóng bớt rồi thử lại.',
+      });
+    }
+
+    try {
+      await this.sendMessageStream(
+        user,
+        id,
+        dto,
+        candidateProfileId,
+        conversation,
+        request,
+        response,
+      );
+    } finally {
+      this.runTracker.release(user.id);
+    }
+  }
+
+  private async sendMessageStream(
+    user: AuthenticatedUser,
+    id: string,
+    dto: SendMessageDto,
+    candidateProfileId: string,
+    conversation: { contextType: AiConversationContext; contextId: string | null },
+    request: Request,
+    response: Response,
+  ): Promise<void> {
+    // Kiểm tra hạn mức và đồng thời đã qua ở trên; chỉ ghi tin nhắn của người
+    // dùng sau khi chắc chắn lượt này sẽ thực sự chạy, để một request bị từ
+    // chối không để lại một dòng prompt rác trong lịch sử hội thoại.
     await this.conversations.appendUserMessage(id, dto.prompt);
 
     response.writeHead(200, {
@@ -175,6 +257,10 @@ export class AiCopilotController {
     const abort = new AbortController();
     const onClose = () => abort.abort(new Error('client_disconnected'));
     request.on('close', onClose);
+    const totalTimeout = setTimeout(
+      () => abort.abort(new Error('total_run_timeout')),
+      TOTAL_RUN_TIMEOUT_MS,
+    );
 
     const heartbeat = setInterval(() => {
       if (!response.writableEnded) response.write(': ping\n\n');
@@ -214,6 +300,7 @@ export class AiCopilotController {
       });
     } finally {
       clearInterval(heartbeat);
+      clearTimeout(totalTimeout);
       request.off('close', onClose);
       if (!response.writableEnded) response.end();
     }
