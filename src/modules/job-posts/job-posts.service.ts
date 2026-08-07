@@ -361,6 +361,14 @@ export class JobPostsService {
       ...(query.status ? { status: query.status } : {}),
       ...(query.moderationStatus ? { moderationStatus: query.moderationStatus } : {}),
       ...(query.companyId ? { companyId: query.companyId } : {}),
+      ...(query.employmentTypeId ? { employmentTypeId: query.employmentTypeId } : {}),
+      ...(query.city
+        ? {
+            jobPostLocations: {
+              some: { jobLocation: { is: { city: { equals: query.city, mode: 'insensitive' } } } },
+            },
+          }
+        : {}),
       ...(query.q
         ? {
             OR: [
@@ -949,6 +957,11 @@ export class JobPostsService {
       jobCategory: true,
       employmentType: true,
       experienceLevel: true,
+      jobPostLocations: {
+        include: {
+          jobLocation: true,
+        },
+      },
       _count: {
         select: {
           applications: true,

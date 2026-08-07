@@ -17,6 +17,7 @@ import {
   JobStatus,
   ModerationStatus,
   Prisma,
+  SubscriptionStatus,
 } from '@prisma/client';
 import { CloudinaryService, UploadedFile } from '../../common/cloudinary/cloudinary.service';
 import { toPagination } from '../../common/dto/pagination-query.dto';
@@ -32,6 +33,14 @@ import { CreateJobLocationDto } from '../job-locations/dto/create-job-location.d
 import { UpdateJobLocationDto } from '../job-locations/dto/update-job-location.dto';
 import { ReputationLedgerService } from '../reputation/reputation-ledger.service';
 import { REPUTATION_CONFIG } from '../reputation/reputation.config';
+
+/**
+ * A company's current plan is its ACTIVE subscription that has not lapsed yet — a row
+ * can still be ACTIVE past `expiredAt` until the expiry job runs, so both are checked.
+ */
+function activeSubscriptionWhere(now: Date): Prisma.CompanySubscriptionWhereInput {
+  return { status: SubscriptionStatus.ACTIVE, expiredAt: { gt: now } };
+}
 
 const COMPANY_INFO_COMPLETION_ACTION_TYPE = 'COMPANY_INFO_COMPLETED';
 const COMPANY_INFO_REQUIRED_FIELDS = [
@@ -234,6 +243,12 @@ export class CompaniesService {
       ...(query.status ? { status: query.status } : {}),
       ...(query.verificationStatus ? { verificationStatus: query.verificationStatus } : {}),
       ...(query.type ? { type: query.type } : {}),
+      ...(query.planId
+        ? { subscriptions: { some: { ...activeSubscriptionWhere(now), planId: query.planId } } }
+        : {}),
+      ...(query.plan === 'none'
+        ? { subscriptions: { none: activeSubscriptionWhere(now) } }
+        : {}),
     };
 
     const [items, total] = await Promise.all([
@@ -242,6 +257,16 @@ export class CompaniesService {
         orderBy: { createdAt: 'desc' },
         include: {
           logoFile: true,
+          // Only the current plan is needed for the admin list; expired rows are noise.
+          subscriptions: {
+            where: activeSubscriptionWhere(now),
+            orderBy: { expiredAt: 'desc' },
+            take: 1,
+            select: {
+              expiredAt: true,
+              plan: { select: { id: true, subscriptionName: true } },
+            },
+          },
           _count: {
             select: {
               jobPosts: {
@@ -277,11 +302,22 @@ export class CompaniesService {
     }
 
     return {
-      items: items.map(({ _count, ...company }) => ({
-        ...company,
-        activeJobsCount: _count.jobPosts,
-        coverFile: coverMap.get(company.id) ?? null,
-      })),
+      items: items.map(({ _count, subscriptions, ...company }) => {
+        const activeSubscription = subscriptions[0];
+
+        return {
+          ...company,
+          activeJobsCount: _count.jobPosts,
+          coverFile: coverMap.get(company.id) ?? null,
+          activePlan: activeSubscription
+            ? {
+                id: activeSubscription.plan.id,
+                name: activeSubscription.plan.subscriptionName,
+                expiredAt: activeSubscription.expiredAt,
+              }
+            : null,
+        };
+      }),
       meta: {
         page: query.page,
         limit: query.limit,
