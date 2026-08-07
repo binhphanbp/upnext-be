@@ -141,40 +141,55 @@ export class ApplicationsService {
         },
       },
     });
-    if (existing) {
+    if (existing && existing.status !== ApplicationStatus.WITHDRAWN) {
       throw new ConflictException('You have already applied to this job');
     }
 
     const app = await this.prisma.$transaction(async (tx) => {
-      const createdApp = await tx.application.create({
-        data: {
-          jobPostId: dto.jobPostId,
-          candidateProfileId: profile.id,
-          cvVersionId: dto.cvVersionId,
-          coverLetter: dto.coverLetter ?? null,
-          status: ApplicationStatus.SUBMITTED,
-        },
-      });
+      const createdApp = existing
+        ? await tx.application.update({
+            where: { id: existing.id },
+            data: {
+              cvVersionId: dto.cvVersionId,
+              coverLetter: dto.coverLetter ?? null,
+              status: ApplicationStatus.SUBMITTED,
+              submittedAt: new Date(),
+              version: { increment: 1 },
+            },
+          })
+        : await tx.application.create({
+            data: {
+              jobPostId: dto.jobPostId,
+              candidateProfileId: profile.id,
+              cvVersionId: dto.cvVersionId,
+              coverLetter: dto.coverLetter ?? null,
+              status: ApplicationStatus.SUBMITTED,
+            },
+          });
 
       await tx.applicationStatusLog.create({
         data: {
           applicationId: createdApp.id,
           actorType: ActorType.CANDIDATE,
           actorId: candidateAccountId,
-          oldStatus: null,
+          oldStatus: existing ? existing.status : null,
           newStatus: ApplicationStatus.SUBMITTED,
-          note: 'Candidate submitted application',
+          note: existing
+            ? 'Candidate re-applied application after withdrawal'
+            : 'Candidate submitted application',
         },
       });
 
-      await tx.applicationAssignment.create({
-        data: {
-          applicationId: createdApp.id,
-          recruiterAccountId: jobPost.createdByRecruiterId,
-          assignedByActorType: ActorType.SYSTEM,
-          reason: 'Assigned to the recruiter who created the job post',
-        },
-      });
+      if (!existing) {
+        await tx.applicationAssignment.create({
+          data: {
+            applicationId: createdApp.id,
+            recruiterAccountId: jobPost.createdByRecruiterId,
+            assignedByActorType: ActorType.SYSTEM,
+            reason: 'Assigned to the recruiter who created the job post',
+          },
+        });
+      }
 
       await this.conversationLifecycle.applyApplicationStatus(
         tx,
@@ -191,7 +206,9 @@ export class ApplicationsService {
           aggregateType: 'application',
           aggregateId: createdApp.id,
           eventType: 'notification.create',
-          dedupeKey: `application:${createdApp.id}:created:recruiter:${jobPost.createdByRecruiterId}`,
+          dedupeKey: existing
+            ? `application:${createdApp.id}:reapplied:${Date.now()}`
+            : `application:${createdApp.id}:created:recruiter:${jobPost.createdByRecruiterId}`,
           payload: {
             recipientId: jobPost.createdByRecruiterId,
             recipientType: ActorType.RECRUITER,
@@ -341,6 +358,9 @@ export class ApplicationsService {
             },
           },
         },
+        statusLogs: {
+          orderBy: { changedAt: 'asc' },
+        },
       },
     });
 
@@ -480,7 +500,7 @@ export class ApplicationsService {
 
     if (application) {
       return {
-        applied: true,
+        applied: application.status !== ApplicationStatus.WITHDRAWN,
         applicationId: application.id,
         status: application.status,
       };
