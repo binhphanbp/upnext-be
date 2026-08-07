@@ -29,6 +29,14 @@ export class HomeQueryDto {
   @Max(50)
   jobLimit = 8;
 
+  @ApiPropertyOptional({ default: 36, minimum: 1, maximum: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  expiringJobsLimit = 36;
+
   @ApiPropertyOptional({ default: 30, minimum: 1, maximum: 50 })
   @IsOptional()
   @Type(() => Number)

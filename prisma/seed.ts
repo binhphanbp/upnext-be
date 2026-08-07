@@ -328,6 +328,93 @@ function loadJobPostSeedData() {
   return jobPosts;
 }
 
+// The raw jobposts_100_companies.json bakes in two data-quality problems that make
+// the seeded catalog look repetitive: (1) 40 jobs have their `employmentType` set to
+// a working-model value ("Hybrid"/"Remote") instead of an actual employment type, and
+// (2) every location is ONSITE/HYBRID — there is no REMOTE job at all. It also stores
+// frozen absolute publishedAt/expiredAt timestamps, so most jobs pile up on the same
+// handful of calendar days ("Còn 8 ngày" everywhere) instead of spreading naturally.
+// This normalizes both issues and re-derives dates relative to the actual seed run,
+// so re-seeding always produces a fresh, varied spread.
+function diversifyJobPostSeedData(jobDefinitions: any[], now: Date) {
+  const shuffledIndexes = <T,>(pool: T[]): T[] => {
+    const arr = [...pool];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+  const randomBetween = (min: number, max: number) =>
+    Math.floor(Math.random() * (max - min + 1)) + min;
+
+  // --- Fix mislabeled employmentType values, spreading them across the types that
+  // this dataset is currently missing (Internship has zero jobs) or under-using.
+  const bogusEmploymentTypeIndexes = jobDefinitions
+    .map((job, index) => ({ index, name: job.employmentType?.name }))
+    .filter(({ name }) => name === 'Hybrid' || name === 'Remote')
+    .map(({ index }) => index);
+
+  const replacementEmploymentTypes = [
+    ...Array(Math.round(bogusEmploymentTypeIndexes.length * 0.3)).fill({
+      name: 'Internship',
+      code: 'internship',
+    }),
+    ...Array(Math.round(bogusEmploymentTypeIndexes.length * 0.35)).fill({
+      name: 'Contract / Freelance',
+      code: 'contract',
+    }),
+    ...Array(bogusEmploymentTypeIndexes.length).fill({ name: 'Part-time', code: 'part-time' }),
+  ].slice(0, bogusEmploymentTypeIndexes.length);
+  const shuffledReplacements = shuffledIndexes(replacementEmploymentTypes);
+
+  bogusEmploymentTypeIndexes.forEach((jobIndex, i) => {
+    jobDefinitions[jobIndex].employmentType = { ...shuffledReplacements[i] };
+  });
+  // Normalize the legacy "Contract" label onto the canonical "Contract / Freelance"
+  // name used everywhere else so we don't end up with two separate DB rows for it.
+  for (const job of jobDefinitions) {
+    if (job.employmentType?.name === 'Contract') {
+      job.employmentType = { name: 'Contract / Freelance', code: 'contract' };
+    }
+  }
+
+  // --- Rebuild the workingModel mix so REMOTE is meaningfully represented instead
+  // of being completely absent (previously: ~65% Hybrid, ~35% Onsite, 0% Remote).
+  const total = jobDefinitions.length;
+  const workingModelPool = [
+    ...Array(Math.round(total * 0.4)).fill('ONSITE'),
+    ...Array(Math.round(total * 0.35)).fill('HYBRID'),
+    ...Array(total).fill('REMOTE'),
+  ].slice(0, total);
+  const shuffledWorkingModels = shuffledIndexes(workingModelPool);
+
+  jobDefinitions.forEach((job, index) => {
+    const workingModel = shuffledWorkingModels[index];
+    for (const location of job.locations || []) {
+      location.workingModel = workingModel;
+    }
+  });
+
+  // --- Re-derive publishedAt/expiredAt relative to "now" so they stay fresh every
+  // time the seed runs, and spread with per-job hour/minute jitter across a wide
+  // window so calendar-day clusters (and matching "Còn X ngày" badges) don't happen.
+  for (const job of jobDefinitions) {
+    const publishedDaysAgo = randomBetween(0, 60);
+    const publishedAt = addDays(now, -publishedDaysAgo);
+    publishedAt.setHours(randomBetween(7, 21), randomBetween(0, 59), randomBetween(0, 59), 0);
+
+    const expiredInDays = randomBetween(2, 60);
+    const expiredAt = addDays(now, expiredInDays);
+    expiredAt.setHours(23, 59, 0, 0);
+
+    job.publishedAt = publishedAt.toISOString();
+    job.expiredAt = expiredAt.toISOString();
+  }
+
+  return jobDefinitions;
+}
+
 const jobDetailsMap: Record<
   string,
   { description: string; requirements: string; benefits: string }
@@ -2874,7 +2961,11 @@ async function main() {
     'Hoàng Kim Oanh',
   ];
 
-  const candidates = Array.from({ length: 5 }, (_, index) => {
+  // Only 5 candidates here previously meant every job's application count was
+  // hard-capped at 5 (a candidate can only apply once per job — see the unique
+  // constraint on Application), no matter how many "views" it got. 90 gives the
+  // views→applications conversion below real headroom to vary per job.
+  const candidates = Array.from({ length: 90 }, (_, index) => {
     const accountId = randomUUID();
     const profileId = randomUUID();
     const cvId = randomUUID();
@@ -2910,7 +3001,9 @@ async function main() {
       email:
         index < 10
           ? `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName).replace(/[^a-z0-9]/g, '-')}.candidate@gmail.com`
-          : `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName)}@gmail.com`,
+          // Append the index: past 60 candidates, vietnameseNames wraps around and
+          // would otherwise generate the same email for two different candidates.
+          : `${SEED_EMAIL_PREFIX}${toAsciiUrl(fullName)}-${index}@gmail.com`,
       createdAt: addDays(now, -(index % 30)),
       realCandidate: null,
     };
@@ -4204,7 +4297,7 @@ async function main() {
     return acc;
   }, {});
 
-  const jobDefinitions = loadJobPostSeedData();
+  const jobDefinitions = diversifyJobPostSeedData(loadJobPostSeedData(), now);
 
   const jobs = [];
 
@@ -4393,8 +4486,11 @@ async function main() {
   for (const job of allDbJobs) {
     const jobCreatedAt = job.createdAt;
 
-    // Seed views
-    const viewsCount = randomBetween(80, 250);
+    // Seed views. Use a long-tail spread (most jobs modest, a "hot" minority much
+    // higher) instead of a narrow 80-250 band — that band was so tight relative to
+    // ~250 jobs that top-viewed lists kept showing duplicate/near-duplicate counts.
+    const isHotJob = Math.random() < 0.12;
+    const viewsCount = isHotJob ? randomBetween(600, 4200) : randomBetween(15, 420);
     const jobViewsForCurrentJob: Prisma.JobViewCreateManyInput[] = [];
 
     for (let i = 0; i < viewsCount; i++) {
@@ -5815,7 +5911,20 @@ async function importItviecData(
 
   console.log('Importing jobs...');
   let importedJobsCount = 0;
-  const futureDeadline = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000);
+  const IMPORT_JOB_CAP = 50;
+  const randomBetween = (min: number, max: number) =>
+    Math.floor(Math.random() * (max - min + 1)) + min;
+  // The crawled ITviec feed tags almost every job "Full-time", which reads as
+  // repetitive once it's the only employment type in the imported batch. Nudge a
+  // shuffled subset of slots toward the other real employment types instead.
+  const employmentTypeOverridePool: Array<keyof typeof employmentTypes | null> = [
+    ...Array(Math.round(IMPORT_JOB_CAP * 0.15)).fill('partTime'),
+    ...Array(Math.round(IMPORT_JOB_CAP * 0.15)).fill('contract'),
+    ...Array(Math.round(IMPORT_JOB_CAP * 0.1)).fill('internship'),
+    ...Array(IMPORT_JOB_CAP).fill(null),
+  ]
+    .slice(0, IMPORT_JOB_CAP)
+    .sort(() => 0.5 - Math.random());
 
   for (const job of jobsData.jobs) {
     if (importedJobsCount >= 50) break;
@@ -5858,12 +5967,19 @@ async function importItviecData(
         employmentTypeId = employmentTypes.internship.id;
       }
     }
+    const employmentTypeOverride = employmentTypeOverridePool[importedJobsCount];
+    if (employmentTypeOverride) {
+      employmentTypeId = employmentTypes[employmentTypeOverride].id;
+    }
 
     const urlParts = job.source.url.split('/');
     const jobSlug = urlParts[urlParts.length - 1];
 
-    const jobDayOffset = (jobSlug.charCodeAt(0) || 0) % 30;
+    const jobDayOffset = (jobSlug.charCodeAt(0) || 0) % 60;
     const jobRecordDate = addDays(now, -jobDayOffset);
+    jobRecordDate.setHours(randomBetween(7, 21), randomBetween(0, 59), 0, 0);
+    const jobExpiredDate = addDays(now, randomBetween(3, 55));
+    jobExpiredDate.setHours(23, 59, 0, 0);
 
     const jobPostId = randomUUID();
     await prisma.jobPost.create({
@@ -5885,13 +6001,13 @@ async function importItviecData(
         salaryPeriod: SalaryPeriod.MONTH,
         salaryIsNegotiable: job.jobPost.salaryIsNegotiable || false,
         salaryIsVisible: job.jobPost.salaryIsVisible || true,
-        vacanciesCount: job.jobPost.vacanciesCount || 1,
+        vacanciesCount: job.jobPost.vacanciesCount || randomBetween(1, 6),
         status: JobStatus.PUBLISHED,
         moderationStatus: 'APPROVED',
         publishedAt: jobRecordDate,
         createdAt: jobRecordDate,
         updatedAt: jobRecordDate,
-        expiredAt: futureDeadline,
+        expiredAt: jobExpiredDate,
       },
     });
 
@@ -5900,6 +6016,14 @@ async function importItviecData(
         let workingModel: WorkingModel = WorkingModel.ONSITE;
         if (location.workingModel === 'REMOTE') workingModel = WorkingModel.REMOTE;
         else if (location.workingModel === 'HYBRID') workingModel = WorkingModel.HYBRID;
+        else {
+          // The crawled feed skews heavily ONSITE (43/50). Nudge a portion toward
+          // HYBRID/REMOTE so this batch doesn't read as monolithic on top of the
+          // main dataset, while keeping ONSITE the realistic majority.
+          const roll = Math.random();
+          if (roll < 0.18) workingModel = WorkingModel.REMOTE;
+          else if (roll < 0.45) workingModel = WorkingModel.HYBRID;
+        }
 
         const locDetails = getRandomLocationDetails(location.city, job.jobPost.title);
         const locationId = randomUUID();
@@ -6379,11 +6503,11 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
           salaryPeriod: 'MONTH',
           salaryIsNegotiable: true,
           salaryIsVisible: true,
-          vacanciesCount: 2,
+          vacanciesCount: [1, 2, 3, 4, 5][Math.floor(Math.random() * 5)],
           status: 'PUBLISHED',
           moderationStatus: 'APPROVED',
-          publishedAt: new Date(),
-          expiredAt: addDays(new Date(), 45),
+          publishedAt: addDays(new Date(), -Math.floor(Math.random() * 30)),
+          expiredAt: addDays(new Date(), 10 + Math.floor(Math.random() * 50)),
         },
       });
 
@@ -6396,7 +6520,9 @@ async function seedCandidatesAndApplications(prisma: PrismaClient) {
           city: 'Hà Nội',
           district: 'Cầu Giấy',
           address: 'FPT Cầu Giấy Building, Duy Tân, Cầu Giấy, Hà Nội',
-          workingModel: WorkingModel.HYBRID,
+          workingModel: [WorkingModel.HYBRID, WorkingModel.ONSITE, WorkingModel.REMOTE][
+            Math.floor(Math.random() * 3)
+          ],
         },
       });
 
