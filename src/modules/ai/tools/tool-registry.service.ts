@@ -39,6 +39,34 @@ type ToolDefinition = {
 };
 
 /**
+ * Timeout Gemini (15s/20s ở `gemini-llm.adapter.ts`) chỉ bọc lời gọi model —
+ * truy vấn DB của tool không có trần nào. Tối đa 3 tool/lượt (`MAX_TOOL_CALLS`
+ * ở `ai-copilot.service.ts`) nghĩa là một truy vấn treo có thể cộng dồn rất lâu
+ * trước khi client nhận ra. 5 giây đủ rộng cho một truy vấn Prisma bình thường,
+ * đủ hẹp để không giữ kết nối SSE vô thời hạn.
+ */
+const TOOL_TIMEOUT_MS = 5_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Tool "${label}" vượt quá thời gian cho phép`)),
+      timeoutMs,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
+    );
+  });
+}
+
+/**
  * Tool của recruiter/admin — **chưa hiện thực**, nhưng có tên ở đây.
  *
  * Có chủ đích: khi vai trò ứng viên cố gọi một trong những tên này, hệ thống
@@ -91,7 +119,11 @@ export class ToolRegistryService {
     }
 
     try {
-      const { detail, data } = await definition.run(input);
+      const { detail, data } = await withTimeout(
+        definition.run(input),
+        TOOL_TIMEOUT_MS,
+        definition.name,
+      );
       return { status: 'succeeded', label: definition.label, detail, data };
     } catch (error) {
       // Tool lỗi không được làm sập cả lượt trả lời — model vẫn trả lời được

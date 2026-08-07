@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { GeminiLlmAdapter } from './adapters/gemini/gemini-llm.adapter';
 import { CandidateContextAssembler } from './context/candidate-context.assembler';
 import { AiActionsService } from './copilot/ai-actions.service';
+import { AiBudgetService } from './copilot/ai-budget.service';
 import { AiConversationsService } from './copilot/ai-conversations.service';
 import { AiCopilotController } from './copilot/ai-copilot.controller';
 import { AiCopilotService } from './copilot/ai-copilot.service';
+import { AiRunTrackerService } from './copilot/ai-run-tracker.service';
 import { LLM_PROVIDER } from './ports/llm-provider.port';
 import { ToolRegistryService } from './tools/tool-registry.service';
 
@@ -27,6 +29,8 @@ import { ToolRegistryService } from './tools/tool-registry.service';
     AiCopilotService,
     AiConversationsService,
     AiActionsService,
+    AiBudgetService,
+    AiRunTrackerService,
     CandidateContextAssembler,
     ToolRegistryService,
   ],

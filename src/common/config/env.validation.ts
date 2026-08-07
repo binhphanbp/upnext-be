@@ -63,6 +63,8 @@ const envSchema = z
         'https://upnext.works,https://staging.upnext.works,http://localhost:5173,http://localhost:3000',
       ),
     GEMINI_API_KEY: z.string().optional(),
+    AI_MAX_RUNS_PER_DAY: z.coerce.number().int().positive().default(50),
+    AI_MAX_TOKENS_PER_DAY: z.coerce.number().int().positive().default(200_000),
     GOOGLE_CLIENT_ID: optionalCredentialSchema,
     GOOGLE_CLIENT_SECRET: optionalCredentialSchema,
     APP_BACKEND_URL: z.string().url().default('http://localhost:3001'),
@@ -141,6 +143,8 @@ export type AppConfig = {
   cloudinaryFolder: string;
   corsOrigins: string[];
   geminiApiKey?: string;
+  aiMaxRunsPerDay: number;
+  aiMaxTokensPerDay: number;
   googleClientId?: string;
   googleClientSecret?: string;
   appBackendUrl?: string;
@@ -177,6 +181,8 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     cloudinaryFolder: parsed.CLOUDINARY_FOLDER,
     corsOrigins,
     geminiApiKey: parsed.GEMINI_API_KEY,
+    aiMaxRunsPerDay: parsed.AI_MAX_RUNS_PER_DAY,
+    aiMaxTokensPerDay: parsed.AI_MAX_TOKENS_PER_DAY,
     googleClientId: parsed.GOOGLE_CLIENT_ID,
     googleClientSecret: parsed.GOOGLE_CLIENT_SECRET,
     appBackendUrl: parsed.APP_BACKEND_URL,
