@@ -55,7 +55,12 @@ export class HomeService {
     const [stats, jobsSection, topCompanies, marketInsight, companyLogos, latestPosts] =
       await Promise.all([
         this.getStatsOverview(),
-        this.getJobsSection(query.jobPage, query.jobLimit, candidateProfileId),
+        this.getJobsSection(
+          query.jobPage,
+          query.jobLimit,
+          query.expiringJobsLimit,
+          candidateProfileId,
+        ),
         this.getTopCompanies(query.topCompaniesLimit),
         this.getMarketInsight(query.latestJobsLimit),
         this.getCompanyLogos(5),
@@ -247,14 +252,19 @@ export class HomeService {
     };
   }
 
-  private async getJobsSection(page: number, limit: number, candidateProfileId?: string) {
+  private async getJobsSection(
+    page: number,
+    limit: number,
+    expiringLimit: number,
+    candidateProfileId?: string,
+  ) {
     const [all, remote, partTime, latest, popular, expiring] = await Promise.all([
       this.getFeaturedJobs('all', page, limit, candidateProfileId),
       this.getFeaturedJobs('remote', page, limit, candidateProfileId),
       this.getFeaturedJobs('parttime', page, limit, candidateProfileId),
       this.getFeaturedJobs('latest', page, limit, candidateProfileId),
       this.getFeaturedJobs('popular', page, limit, candidateProfileId),
-      this.getFeaturedJobs('expiring', page, Math.min(limit, 8), candidateProfileId),
+      this.getFeaturedJobs('expiring', page, expiringLimit, candidateProfileId),
     ]);
 
     const expiringIds = new Set(expiring.items.map((item) => item.id));
