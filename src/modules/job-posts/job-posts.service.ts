@@ -28,7 +28,6 @@ import { UpdateJobPostDto } from './dto/update-job-post.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { REPUTATION_CONFIG } from '../reputation/reputation.config';
 import { PublicJobPostQueryDto } from './dto/public-job-post-query.dto';
-import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 
 @Injectable()
 export class JobPostsService {

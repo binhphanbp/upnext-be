@@ -20,7 +20,6 @@ import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { AuthService } from '../auth/auth.service';
 import { AcceptInvitationAndSetPasswordDto } from './dto/accept-invitation-and-set-password.dto';
-import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 
 @Injectable()
 export class CompanyMembersService {
