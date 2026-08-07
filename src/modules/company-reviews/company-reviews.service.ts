@@ -1,12 +1,46 @@
 import {
-  Injectable,
+  BadRequestException,
   ConflictException,
-  NotFoundException,
   ForbiddenException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
+import { CompanyReviewStatus, Prisma, ReportStatus } from '@prisma/client';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { toPagination } from '../../common/dto/pagination-query.dto';
 import { CreateCompanyReviewDto } from './dto/create-company-review.dto';
 import { UpdateCompanyReviewDto } from './dto/update-company-review.dto';
+import { CreateCompanyReviewReportDto } from './dto/create-company-review-report.dto';
+import { ListCompanyReviewReportsQueryDto } from './dto/list-company-review-reports-query.dto';
+
+const RATING_FIELDS = [
+  'overallRating',
+  'salaryBenefitsRating',
+  'trainingLearningRating',
+  'managementCareRating',
+  'cultureFunRating',
+  'officeWorkspaceRating',
+  'overtimeSatisfaction',
+] as const;
+
+const PUBLIC_REVIEW_SELECT = {
+  id: true,
+  overallRating: true,
+  summary: true,
+  overtimeSatisfaction: true,
+  overtimeReason: true,
+  whatILove: true,
+  improvementSuggestion: true,
+  salaryBenefitsRating: true,
+  trainingLearningRating: true,
+  managementCareRating: true,
+  cultureFunRating: true,
+  officeWorkspaceRating: true,
+  createdAt: true,
+} satisfies Prisma.CompanyReviewSelect;
+
+type PublicCompanyReview = Prisma.CompanyReviewGetPayload<{ select: typeof PUBLIC_REVIEW_SELECT }>;
 
 @Injectable()
 export class CompanyReviewsService {
@@ -16,73 +50,95 @@ export class CompanyReviewsService {
     const profile = await this.prisma.candidateProfile.findUnique({
       where: { candidateAccountId },
     });
-    if (!profile) throw new NotFoundException('Candidate profile not found');
+    if (!profile) throw new NotFoundException('Không tìm thấy hồ sơ ứng viên.');
     return profile;
   }
 
   async createReview(candidateAccountId: string, companyId: string, dto: CreateCompanyReviewDto) {
     const profile = await this.getProfile(candidateAccountId);
 
-    // Verify application belongs to candidate
-    const application = await this.prisma.application.findUnique({
-      where: { id: dto.applicationId },
-    });
-
-    if (!application || application.candidateProfileId !== profile.id) {
-      throw new ForbiddenException('Application does not belong to candidate');
-    }
-
-    if (application.jobPostId) {
-      const job = await this.prisma.jobPost.findUnique({ where: { id: application.jobPostId } });
-      if (job?.companyId !== companyId) {
-        throw new ForbiddenException('Application is not for this company');
-      }
-    }
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Không tìm thấy công ty.');
 
     const existing = await this.prisma.companyReview.findUnique({
-      where: { applicationId: dto.applicationId },
+      where: { candidateProfileId_companyId: { candidateProfileId: profile.id, companyId } },
     });
-
     if (existing) {
-      throw new ConflictException('Review already exists for this application');
+      throw new ConflictException('Bạn đã đánh giá công ty này rồi.');
     }
 
     return this.prisma.companyReview.create({
       data: {
         ...dto,
+        candidateProfileId: profile.id,
         companyId,
+        status: CompanyReviewStatus.APPROVED,
       },
+    });
+  }
+
+  async getMyReview(candidateAccountId: string, companyId: string) {
+    const profile = await this.getProfile(candidateAccountId);
+    return this.prisma.companyReview.findUnique({
+      where: { candidateProfileId_companyId: { candidateProfileId: profile.id, companyId } },
     });
   }
 
   async listReviews(companyId: string) {
-    return this.prisma.companyReview.findMany({
-      where: { companyId },
-      include: {
-        application: {
-          include: {
-            jobPost: true,
-            candidateProfile: true, // Only if permitted or limit fields
-          },
-        },
-      },
+    const reviews = await this.prisma.companyReview.findMany({
+      where: { companyId, status: CompanyReviewStatus.APPROVED },
+      select: PUBLIC_REVIEW_SELECT,
       orderBy: { createdAt: 'desc' },
     });
+
+    return {
+      items: reviews,
+      summary: this.buildSummary(reviews),
+    };
+  }
+
+  private buildSummary(reviews: PublicCompanyReview[]) {
+    const totalReviews = reviews.length;
+    const averages: Record<string, number | null> = {};
+
+    for (const field of RATING_FIELDS) {
+      const values = reviews
+        .map((review) => review[field])
+        .filter((value): value is number => typeof value === 'number');
+      averages[field] = values.length
+        ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10
+        : null;
+    }
+
+    return {
+      totalReviews,
+      averageOverallRating: averages.overallRating,
+      averageBySection: {
+        salaryBenefits: averages.salaryBenefitsRating,
+        trainingLearning: averages.trainingLearningRating,
+        managementCare: averages.managementCareRating,
+        cultureFun: averages.cultureFunRating,
+        officeWorkspace: averages.officeWorkspaceRating,
+        overtimeSatisfaction: averages.overtimeSatisfaction,
+      },
+    };
+  }
+
+  private async getOwnedReview(reviewId: string, candidateAccountId: string) {
+    const profile = await this.getProfile(candidateAccountId);
+
+    const review = await this.prisma.companyReview.findUnique({ where: { id: reviewId } });
+    if (!review) throw new NotFoundException('Không tìm thấy đánh giá.');
+
+    if (review.candidateProfileId !== profile.id) {
+      throw new ForbiddenException('Bạn không có quyền thao tác trên đánh giá này.');
+    }
+
+    return review;
   }
 
   async updateReview(reviewId: string, candidateAccountId: string, dto: UpdateCompanyReviewDto) {
-    const profile = await this.getProfile(candidateAccountId);
-
-    const review = await this.prisma.companyReview.findUnique({
-      where: { id: reviewId },
-      include: { application: true },
-    });
-
-    if (!review) throw new NotFoundException('Review not found');
-
-    if (review.application.candidateProfileId !== profile.id) {
-      throw new ForbiddenException('Not authorized to update this review');
-    }
+    await this.getOwnedReview(reviewId, candidateAccountId);
 
     return this.prisma.companyReview.update({
       where: { id: reviewId },
@@ -91,21 +147,101 @@ export class CompanyReviewsService {
   }
 
   async deleteReview(reviewId: string, candidateAccountId: string) {
-    const profile = await this.getProfile(candidateAccountId);
-
-    const review = await this.prisma.companyReview.findUnique({
-      where: { id: reviewId },
-      include: { application: true },
-    });
-
-    if (!review) throw new NotFoundException('Review not found');
-
-    if (review.application.candidateProfileId !== profile.id) {
-      throw new ForbiddenException('Not authorized to delete this review');
-    }
+    await this.getOwnedReview(reviewId, candidateAccountId);
 
     await this.prisma.companyReview.delete({
       where: { id: reviewId },
+    });
+  }
+
+  async reportReview(
+    reviewId: string,
+    recruiterUser: AuthenticatedUser,
+    dto: CreateCompanyReviewReportDto,
+  ) {
+    const review = await this.prisma.companyReview.findUnique({ where: { id: reviewId } });
+    if (!review) throw new NotFoundException('Không tìm thấy đánh giá.');
+
+    if (!recruiterUser.companyId || recruiterUser.companyId !== review.companyId) {
+      throw new ForbiddenException('Bạn chỉ có thể báo cáo đánh giá của công ty mình.');
+    }
+
+    const existing = await this.prisma.companyReviewReport.findUnique({
+      where: {
+        companyReviewId_reporterRecruiterAccountId: {
+          companyReviewId: reviewId,
+          reporterRecruiterAccountId: recruiterUser.id,
+        },
+      },
+    });
+    if (existing) {
+      throw new ConflictException('Bạn đã báo cáo đánh giá này rồi.');
+    }
+
+    return this.prisma.companyReviewReport.create({
+      data: {
+        companyReviewId: reviewId,
+        reporterRecruiterAccountId: recruiterUser.id,
+        reason: dto.reason,
+      },
+    });
+  }
+
+  async listReviewReports(query: ListCompanyReviewReportsQueryDto) {
+    const where: Prisma.CompanyReviewReportWhereInput = query.status ? { status: query.status } : {};
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.companyReviewReport.findMany({
+        where,
+        include: {
+          companyReview: { include: { company: { select: { id: true, name: true } } } },
+          reporterRecruiterAccount: { select: { id: true, email: true, companyId: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        ...toPagination(query),
+      }),
+      this.prisma.companyReviewReport.count({ where }),
+    ]);
+
+    return { items, total, page: query.page, limit: query.limit };
+  }
+
+  private async getPendingReport(reportId: string) {
+    const report = await this.prisma.companyReviewReport.findUnique({ where: { id: reportId } });
+    if (!report) throw new NotFoundException('Không tìm thấy báo cáo.');
+
+    if (report.status !== ReportStatus.PENDING && report.status !== ReportStatus.REVIEWING) {
+      throw new BadRequestException('Báo cáo này đã được xử lý trước đó.');
+    }
+
+    return report;
+  }
+
+  async hideReportedReview(reportId: string, adminId: string) {
+    const report = await this.getPendingReport(reportId);
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.companyReview.update({
+        where: { id: report.companyReviewId },
+        data: { status: CompanyReviewStatus.HIDDEN },
+      });
+
+      return tx.companyReviewReport.update({
+        where: { id: reportId },
+        data: { status: ReportStatus.RESOLVED, handledByAdminId: adminId },
+      });
+    });
+  }
+
+  async dismissReviewReport(reportId: string, adminId: string) {
+    await this.getPendingReport(reportId);
+
+    return this.prisma.companyReviewReport.update({
+      where: { id: reportId },
+      data: {
+        status: ReportStatus.REJECTED,
+        handledByAdminId: adminId,
+      },
     });
   }
 }

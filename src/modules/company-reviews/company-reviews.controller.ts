@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CompanyReviewsService } from './company-reviews.service';
 import { CreateCompanyReviewDto } from './dto/create-company-review.dto';
+import { CreateCompanyReviewReportDto } from './dto/create-company-review-report.dto';
 import { UpdateCompanyReviewDto } from './dto/update-company-review.dto';
 
 // ─── POST & GET reviews scoped under /companies/:id ──────────────────────────
@@ -40,6 +41,19 @@ export class CompanyReviewsController {
     return this.companyReviewsService.createReview(user.id, companyId, dto);
   }
 
+  @ApiOperation({ summary: 'Đánh giá của tôi cho công ty này (nếu có)' })
+  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.CANDIDATE)
+  @Get(':id/reviews/me')
+  getMyReview(
+    @Param('id', new ParseUUIDPipe()) companyId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companyReviewsService.getMyReview(user.id, companyId);
+  }
+
   @ApiOperation({ summary: 'Danh sách đánh giá công ty' })
   @ApiParam({ name: 'id', description: 'Company UUID' })
   @Get(':id/reviews')
@@ -48,17 +62,17 @@ export class CompanyReviewsController {
   }
 }
 
-// ─── PATCH & DELETE scoped under /company-reviews ────────────────────────────
+// ─── PATCH, DELETE & report scoped under /company-reviews ────────────────────
 @ApiTags('Company - Reviews')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(ActorType.CANDIDATE)
 @Controller('company-reviews')
 export class CompanyReviewsMutationController {
   constructor(private readonly companyReviewsService: CompanyReviewsService) {}
 
   @ApiOperation({ summary: 'Cập nhật đánh giá công ty' })
   @ApiParam({ name: 'id', description: 'Company review UUID' })
+  @Roles(ActorType.CANDIDATE)
   @Patch(':id')
   updateReview(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -70,6 +84,7 @@ export class CompanyReviewsMutationController {
 
   @ApiOperation({ summary: 'Xóa đánh giá công ty' })
   @ApiParam({ name: 'id', description: 'Company review UUID' })
+  @Roles(ActorType.CANDIDATE)
   @Delete(':id')
   @HttpCode(204)
   async deleteReview(
@@ -77,5 +92,17 @@ export class CompanyReviewsMutationController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     await this.companyReviewsService.deleteReview(id, user.id);
+  }
+
+  @ApiOperation({ summary: 'Báo cáo đánh giá công ty (chỉ công ty được đánh giá)' })
+  @ApiParam({ name: 'id', description: 'Company review UUID' })
+  @Roles(ActorType.RECRUITER)
+  @Post(':id/report')
+  reportReview(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateCompanyReviewReportDto,
+  ) {
+    return this.companyReviewsService.reportReview(id, user, dto);
   }
 }

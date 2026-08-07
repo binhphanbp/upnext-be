@@ -35,6 +35,7 @@ describe('ApplicationsService', () => {
     },
     applicationAssignment: {
       create: jest.fn(),
+      findFirst: jest.fn(),
     },
     recruiterAccount: {
       findUnique: jest.fn(),
@@ -152,5 +153,127 @@ describe('ApplicationsService', () => {
         cvVersionId: 'cv-version-id',
       }),
     ).rejects.toThrow('Vui lòng cập nhật số điện thoại Việt Nam hợp lệ trước khi nộp hồ sơ');
+  });
+
+  describe('re-applying after a withdrawal', () => {
+    function arrangeApplicant() {
+      prismaMock.candidateAccount.findUnique.mockResolvedValue({
+        emailVerifiedAt: new Date(),
+        fullName: 'Candidate',
+        profile: { id: 'candidate-profile-id', phoneNumber: '0901234567' },
+      });
+      prismaMock.jobPost.findUnique.mockResolvedValue({
+        id: 'job-post-id',
+        title: 'Backend Developer',
+        status: JobStatus.PUBLISHED,
+        createdByRecruiterId: 'recruiter-id',
+      });
+      prismaMock.cVVersion.findUnique.mockResolvedValue({
+        id: 'cv-version-id',
+        cv: { candidateProfileId: 'candidate-profile-id' },
+      });
+    }
+
+    it('revives the withdrawn application instead of inserting a second row', async () => {
+      arrangeApplicant();
+      prismaMock.application.findUnique.mockResolvedValue({
+        id: 'application-id',
+        status: ApplicationStatus.WITHDRAWN,
+      });
+      prismaMock.applicationAssignment.findFirst.mockResolvedValue({ id: 'assignment-id' });
+      prismaMock.application.update.mockResolvedValue({
+        id: 'application-id',
+        status: ApplicationStatus.SUBMITTED,
+        version: 2,
+      });
+
+      await service.applyJob('candidate-id', {
+        jobPostId: 'job-post-id',
+        cvVersionId: 'cv-version-id',
+      });
+
+      // (candidateProfileId, jobPostId) is unique, so a create here would always fail.
+      expect(prismaMock.application.create).not.toHaveBeenCalled();
+      expect(prismaMock.application.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'application-id' },
+          data: expect.objectContaining({ status: ApplicationStatus.SUBMITTED }),
+        }),
+      );
+      // The withdrawn row still holds its assignment; a duplicate must not be added.
+      expect(prismaMock.applicationAssignment.create).not.toHaveBeenCalled();
+    });
+
+    it('still notifies the recruiter about the re-application', async () => {
+      arrangeApplicant();
+      prismaMock.application.findUnique.mockResolvedValue({
+        id: 'application-id',
+        status: ApplicationStatus.WITHDRAWN,
+      });
+      prismaMock.applicationAssignment.findFirst.mockResolvedValue(null);
+      prismaMock.application.update.mockResolvedValue({
+        id: 'application-id',
+        status: ApplicationStatus.SUBMITTED,
+        version: 2,
+      });
+
+      await service.applyJob('candidate-id', {
+        jobPostId: 'job-post-id',
+        cvVersionId: 'cv-version-id',
+      });
+
+      // Reusing the first submission's dedupe key would swallow this notification.
+      expect(enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dedupeKey: 'application:application-id:resubmitted:v2:recruiter:recruiter-id',
+        }),
+        prismaMock,
+      );
+    });
+
+    it('still rejects a duplicate when the existing application is active', async () => {
+      arrangeApplicant();
+      prismaMock.application.findUnique.mockResolvedValue({
+        id: 'application-id',
+        status: ApplicationStatus.SUBMITTED,
+      });
+
+      await expect(
+        service.applyJob('candidate-id', {
+          jobPostId: 'job-post-id',
+          cvVersionId: 'cv-version-id',
+        }),
+      ).rejects.toThrow('You have already applied to this job');
+    });
+  });
+
+  describe('checkAppliedJob', () => {
+    beforeEach(() => {
+      prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'candidate-profile-id' });
+    });
+
+    it('does not report a withdrawn application as applied', async () => {
+      prismaMock.application.findUnique.mockResolvedValue({
+        id: 'application-id',
+        status: ApplicationStatus.WITHDRAWN,
+      });
+
+      await expect(service.checkAppliedJob('job-post-id', 'candidate-id')).resolves.toEqual({
+        applied: false,
+      });
+    });
+
+    it('reports an active application as applied', async () => {
+      prismaMock.application.findUnique.mockResolvedValue({
+        id: 'application-id',
+        status: ApplicationStatus.SUBMITTED,
+      });
+
+      await expect(service.checkAppliedJob('job-post-id', 'candidate-id')).resolves.toEqual({
+        applied: true,
+        applicationId: 'application-id',
+        status: ApplicationStatus.SUBMITTED,
+      });
+    });
   });
 });

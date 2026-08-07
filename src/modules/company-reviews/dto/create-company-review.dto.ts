@@ -1,21 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  Max,
-  MaxLength,
-  Min,
-  IsUUID,
-} from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateCompanyReviewDto {
-  @ApiProperty()
-  @IsUUID()
-  @IsNotEmpty()
-  applicationId: string;
-
   @ApiProperty({ description: '1-5 scale' })
   @IsInt()
   @Min(1)

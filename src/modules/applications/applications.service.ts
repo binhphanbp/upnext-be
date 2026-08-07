@@ -141,19 +141,29 @@ export class ApplicationsService {
         },
       },
     });
-    if (existing && existing.status !== ApplicationStatus.WITHDRAWN) {
+
+    // Withdrawing only flips the status, and (candidateProfileId, jobPostId) is unique —
+    // so re-applying has to revive that row; a second insert could never succeed.
+    const withdrawnApplication =
+      existing?.status === ApplicationStatus.WITHDRAWN ? existing : null;
+
+    if (existing && !withdrawnApplication) {
       throw new ConflictException('You have already applied to this job');
     }
 
     const app = await this.prisma.$transaction(async (tx) => {
-      const createdApp = existing
+      const createdApp = withdrawnApplication
         ? await tx.application.update({
-            where: { id: existing.id },
+            where: { id: withdrawnApplication.id },
             data: {
               cvVersionId: dto.cvVersionId,
               coverLetter: dto.coverLetter ?? null,
               status: ApplicationStatus.SUBMITTED,
+              // Treated as a fresh submission, so the previous round's timestamps go.
               submittedAt: new Date(),
+              viewedAt: null,
+              rejectedAt: null,
+              hiredAt: null,
               version: { increment: 1 },
             },
           })
@@ -172,15 +182,27 @@ export class ApplicationsService {
           applicationId: createdApp.id,
           actorType: ActorType.CANDIDATE,
           actorId: candidateAccountId,
-          oldStatus: existing ? existing.status : null,
+          oldStatus: withdrawnApplication ? ApplicationStatus.WITHDRAWN : null,
           newStatus: ApplicationStatus.SUBMITTED,
-          note: existing
-            ? 'Candidate re-applied application after withdrawal'
+          note: withdrawnApplication
+            ? 'Candidate re-submitted application after withdrawing'
             : 'Candidate submitted application',
         },
       });
 
-      if (!existing) {
+      // The withdrawn row keeps its assignment, so only assign when one is not active.
+      const activeAssignment = withdrawnApplication
+        ? await tx.applicationAssignment.findFirst({
+            where: {
+              applicationId: createdApp.id,
+              recruiterAccountId: jobPost.createdByRecruiterId,
+              unassignedAt: null,
+            },
+            select: { id: true },
+          })
+        : null;
+
+      if (!activeAssignment) {
         await tx.applicationAssignment.create({
           data: {
             applicationId: createdApp.id,
@@ -206,8 +228,10 @@ export class ApplicationsService {
           aggregateType: 'application',
           aggregateId: createdApp.id,
           eventType: 'notification.create',
-          dedupeKey: existing
-            ? `application:${createdApp.id}:reapplied:${Date.now()}`
+          // A revived row reuses its id, so the original key would dedupe the
+          // re-application away and the recruiter would never hear about it.
+          dedupeKey: withdrawnApplication
+            ? `application:${createdApp.id}:resubmitted:v${createdApp.version}:recruiter:${jobPost.createdByRecruiterId}`
             : `application:${createdApp.id}:created:recruiter:${jobPost.createdByRecruiterId}`,
           payload: {
             recipientId: jobPost.createdByRecruiterId,
@@ -498,7 +522,9 @@ export class ApplicationsService {
       },
     });
 
-    if (application) {
+    // A withdrawn application leaves its row behind, but the candidate is free to apply
+    // again — so it must not report as applied, or the job stays locked to them forever.
+    if (application && application.status !== ApplicationStatus.WITHDRAWN) {
       return {
         applied: application.status !== ApplicationStatus.WITHDRAWN,
         applicationId: application.id,
