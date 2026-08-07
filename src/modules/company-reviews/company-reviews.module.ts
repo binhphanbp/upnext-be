@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { AdminCompanyReviewReportsController } from './admin-company-review-reports.controller';
+import { ReportsModule } from '../reports/reports.module';
 import { CompanyReviewsService } from './company-reviews.service';
 import {
   CompanyReviewsController,
@@ -7,11 +7,10 @@ import {
 } from './company-reviews.controller';
 
 @Module({
-  controllers: [
-    CompanyReviewsController,
-    CompanyReviewsMutationController,
-    AdminCompanyReviewReportsController,
-  ],
+  // Recruiter reports are written to the shared reports table; admins moderate them
+  // from the single /admin/reports queue rather than a screen of their own.
+  imports: [ReportsModule],
+  controllers: [CompanyReviewsController, CompanyReviewsMutationController],
   providers: [CompanyReviewsService],
 })
 export class CompanyReviewsModule {}
