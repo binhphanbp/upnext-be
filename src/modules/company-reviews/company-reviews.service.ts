@@ -13,6 +13,7 @@ import { CreateCompanyReviewDto } from './dto/create-company-review.dto';
 import { UpdateCompanyReviewDto } from './dto/update-company-review.dto';
 import { CreateCompanyReviewReportDto } from './dto/create-company-review-report.dto';
 import { ListCompanyReviewReportsQueryDto } from './dto/list-company-review-reports-query.dto';
+import { ListMyCompanyReviewsQueryDto } from './dto/list-my-company-reviews-query.dto';
 
 const RATING_FIELDS = [
   'overallRating',
@@ -41,6 +42,10 @@ const PUBLIC_REVIEW_SELECT = {
 } satisfies Prisma.CompanyReviewSelect;
 
 type PublicCompanyReview = Prisma.CompanyReviewGetPayload<{ select: typeof PUBLIC_REVIEW_SELECT }>;
+
+function roundToOneDecimal(value: number | null) {
+  return value === null ? null : Math.round(value * 10) / 10;
+}
 
 @Injectable()
 export class CompanyReviewsService {
@@ -94,6 +99,99 @@ export class CompanyReviewsService {
     return {
       items: reviews,
       summary: this.buildSummary(reviews),
+    };
+  }
+
+  /**
+   * Recruiter-facing list of the reviews left on their own company.
+   *
+   * Hidden reviews are excluded, exactly as on the public page, so a recruiter never
+   * sees content visitors cannot. Candidate identity is never joined in — reviews are
+   * anonymous by design. Each row carries the caller's own report, if any, because the
+   * report endpoint rejects duplicates and the UI has to know before offering the action.
+   */
+  async listMyCompanyReviews(
+    recruiterUser: AuthenticatedUser,
+    query: ListMyCompanyReviewsQueryDto,
+  ) {
+    if (!recruiterUser.companyId) {
+      throw new ForbiddenException('Tài khoản của bạn chưa thuộc công ty nào.');
+    }
+
+    const companyWhere: Prisma.CompanyReviewWhereInput = {
+      companyId: recruiterUser.companyId,
+      status: CompanyReviewStatus.APPROVED,
+    };
+    const listWhere: Prisma.CompanyReviewWhereInput = query.overallRating
+      ? { ...companyWhere, overallRating: query.overallRating }
+      : companyWhere;
+
+    const [items, total, aggregate, byRating] = await Promise.all([
+      this.prisma.companyReview.findMany({
+        where: listWhere,
+        select: {
+          ...PUBLIC_REVIEW_SELECT,
+          reports: {
+            where: { reporterRecruiterAccountId: recruiterUser.id },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { id: true, status: true, reason: true, createdAt: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        ...toPagination(query),
+      }),
+      this.prisma.companyReview.count({ where: listWhere }),
+      // The summary describes the whole company, so it deliberately ignores the filter.
+      this.prisma.companyReview.aggregate({
+        where: companyWhere,
+        _count: { _all: true },
+        _avg: {
+          overallRating: true,
+          salaryBenefitsRating: true,
+          trainingLearningRating: true,
+          managementCareRating: true,
+          cultureFunRating: true,
+          officeWorkspaceRating: true,
+          overtimeSatisfaction: true,
+        },
+      }),
+      this.prisma.companyReview.groupBy({
+        by: ['overallRating'],
+        where: companyWhere,
+        _count: { _all: true },
+      }),
+    ]);
+
+    const ratingDistribution: Record<string, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (const group of byRating) {
+      ratingDistribution[String(group.overallRating)] = group._count._all;
+    }
+
+    return {
+      items: items.map(({ reports, ...review }) => ({
+        ...review,
+        myReport: reports[0] ?? null,
+      })),
+      summary: {
+        totalReviews: aggregate._count._all,
+        averageOverallRating: roundToOneDecimal(aggregate._avg.overallRating),
+        averageBySection: {
+          salaryBenefits: roundToOneDecimal(aggregate._avg.salaryBenefitsRating),
+          trainingLearning: roundToOneDecimal(aggregate._avg.trainingLearningRating),
+          managementCare: roundToOneDecimal(aggregate._avg.managementCareRating),
+          cultureFun: roundToOneDecimal(aggregate._avg.cultureFunRating),
+          officeWorkspace: roundToOneDecimal(aggregate._avg.officeWorkspaceRating),
+          overtimeSatisfaction: roundToOneDecimal(aggregate._avg.overtimeSatisfaction),
+        },
+        ratingDistribution,
+      },
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
     };
   }
 
