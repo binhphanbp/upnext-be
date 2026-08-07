@@ -944,7 +944,7 @@ model RecruiterAccount {
   talentContactAttempts    TalentContactAttempt[]
   createdSupportCases      SupportCase[]                 @relation("SupportCaseCreatedByRecruiter")
   hiringResultReports      HiringResultReport[]
-  companyReviewReports     CompanyReviewReport[]
+  reportsFiled             Report[]
 
   @@unique([authProvider, providerUserId])
   @@index([companyId])
@@ -1493,32 +1493,14 @@ model CompanyReview {
   createdAt              DateTime            @default(now()) @map("created_at")
   updatedAt              DateTime            @updatedAt @map("updated_at")
 
-  candidateProfile CandidateProfile      @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
-  company          Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  reports          CompanyReviewReport[]
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // Reports live on the generic `Report` model, reached by
+  // (targetType = 'COMPANY_REVIEW', targetId = this id) — polymorphic, so no relation.
 
   @@unique([candidateProfileId, companyId])
   @@index([companyId, status])
   @@map("company_reviews")
-}
-
-model CompanyReviewReport {
-  id                         String       @id @default(uuid()) @db.Uuid
-  companyReviewId            String       @map("company_review_id") @db.Uuid
-  reporterRecruiterAccountId String       @map("reporter_recruiter_account_id") @db.Uuid
-  reason                     String       @db.Text
-  status                     ReportStatus @default(PENDING)
-  handledByAdminId           String?      @map("handled_by_admin_id") @db.Uuid
-  createdAt                  DateTime     @default(now()) @map("created_at")
-  updatedAt                  DateTime     @updatedAt @map("updated_at")
-
-  companyReview            CompanyReview    @relation(fields: [companyReviewId], references: [id], onDelete: Cascade)
-  reporterRecruiterAccount RecruiterAccount @relation(fields: [reporterRecruiterAccountId], references: [id], onDelete: Cascade)
-  handledByAdmin           AdminUser?       @relation("CompanyReviewReportHandledByAdmin", fields: [handledByAdminId], references: [id], onDelete: SetNull)
-
-  @@unique([companyReviewId, reporterRecruiterAccountId])
-  @@index([status])
-  @@map("company_review_reports")
 }
 
 // =========================
@@ -1614,23 +1596,22 @@ model AdminUser {
   createdAt        DateTime    @default(now()) @map("created_at")
   updatedAt        DateTime    @updatedAt @map("updated_at")
 
-  role                        AdminRole?                     @relation("AdminRoleUsers", fields: [roleId], references: [id], onDelete: SetNull)
-  createdByAdmin              AdminUser?                     @relation("AdminCreatedAdmins", fields: [createdByAdminId], references: [id], onDelete: SetNull)
-  createdAdmins               AdminUser[]                    @relation("AdminCreatedAdmins")
-  createdRoles                AdminRole[]                    @relation("AdminCreatedRoles")
-  auditLogs                   AdminAuditLog[]
-  posts                       Post[]
-  handledReports              Report[]                       @relation("ReportHandledByAdmin")
-  handledAppeals              Appeal[]                       @relation("AppealHandledByAdmin")
-  subscriptionPlans           SubscriptionPlan[]             @relation("SubscriptionPlanCreatedByAdmin")
-  reputationActivities        CompanyReputationActivity[]
-  notificationTokens          NotificationToken[]
-  conversationParticipants    ConversationParticipant[]
-  assignedSupportCases        SupportCase[]                  @relation("SupportCaseAssignedAdmin")
-  supportAssignmentsFrom      SupportCaseAssignmentHistory[] @relation("SupportAssignmentFromAdmin")
-  supportAssignmentsTo        SupportCaseAssignmentHistory[] @relation("SupportAssignmentToAdmin")
-  taxCodeBlacklists           TaxCodeBlacklist[]
-  handledCompanyReviewReports CompanyReviewReport[]          @relation("CompanyReviewReportHandledByAdmin")
+  role                     AdminRole?                     @relation("AdminRoleUsers", fields: [roleId], references: [id], onDelete: SetNull)
+  createdByAdmin           AdminUser?                     @relation("AdminCreatedAdmins", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  createdAdmins            AdminUser[]                    @relation("AdminCreatedAdmins")
+  createdRoles             AdminRole[]                    @relation("AdminCreatedRoles")
+  auditLogs                AdminAuditLog[]
+  posts                    Post[]
+  handledReports           Report[]                       @relation("ReportHandledByAdmin")
+  handledAppeals           Appeal[]                       @relation("AppealHandledByAdmin")
+  subscriptionPlans        SubscriptionPlan[]             @relation("SubscriptionPlanCreatedByAdmin")
+  reputationActivities     CompanyReputationActivity[]
+  notificationTokens       NotificationToken[]
+  conversationParticipants ConversationParticipant[]
+  assignedSupportCases     SupportCase[]                  @relation("SupportCaseAssignedAdmin")
+  supportAssignmentsFrom   SupportCaseAssignmentHistory[] @relation("SupportAssignmentFromAdmin")
+  supportAssignmentsTo     SupportCaseAssignmentHistory[] @relation("SupportAssignmentToAdmin")
+  taxCodeBlacklists        TaxCodeBlacklist[]
 
   @@index([roleId])
   @@map("admin")
@@ -1698,23 +1679,33 @@ model AdminAuditLog {
 }
 
 model Report {
-  id                  String       @id @default(uuid()) @db.Uuid
-  evidenceFileId      String?      @map("evidence_file_id") @db.Uuid
-  reporterCandidateId String?      @map("reporter_candidate_id") @db.Uuid
-  handledByAdminId    String?      @map("handled_by_admin_id") @db.Uuid
-  targetType          String       @map("target_type") @db.VarChar(80)
-  targetId            String       @map("target_id") @db.Uuid
-  reason              String       @db.Text
-  status              ReportStatus @default(PENDING)
-  createdAt           DateTime     @default(now()) @map("created_at")
-  updatedAt           DateTime     @updatedAt @map("updated_at")
+  id                         String       @id @default(uuid()) @db.Uuid
+  /// Which kind of actor filed this. Stored rather than derived from whichever
+  /// reporter FK is set, because those use SetNull — deleting a recruiter account
+  /// would otherwise silently reclassify their reports as candidate-filed.
+  reporterType               ActorType    @map("reporter_type")
+  evidenceFileId             String?      @map("evidence_file_id") @db.Uuid
+  reporterCandidateId        String?      @map("reporter_candidate_id") @db.Uuid
+  reporterRecruiterAccountId String?      @map("reporter_recruiter_account_id") @db.Uuid
+  handledByAdminId           String?      @map("handled_by_admin_id") @db.Uuid
+  targetType                 String       @map("target_type") @db.VarChar(80)
+  targetId                   String       @map("target_id") @db.Uuid
+  reason                     String       @db.Text
+  status                     ReportStatus @default(PENDING)
+  createdAt                  DateTime     @default(now()) @map("created_at")
+  updatedAt                  DateTime     @updatedAt @map("updated_at")
 
-  evidenceFile      FileAsset?        @relation("ReportEvidenceFile", fields: [evidenceFileId], references: [id], onDelete: SetNull)
-  reporterCandidate CandidateProfile? @relation(fields: [reporterCandidateId], references: [id], onDelete: SetNull)
-  handledByAdmin    AdminUser?        @relation("ReportHandledByAdmin", fields: [handledByAdminId], references: [id], onDelete: SetNull)
+  evidenceFile             FileAsset?        @relation("ReportEvidenceFile", fields: [evidenceFileId], references: [id], onDelete: SetNull)
+  reporterCandidate        CandidateProfile? @relation(fields: [reporterCandidateId], references: [id], onDelete: SetNull)
+  reporterRecruiterAccount RecruiterAccount? @relation(fields: [reporterRecruiterAccountId], references: [id], onDelete: SetNull)
+  handledByAdmin           AdminUser?        @relation("ReportHandledByAdmin", fields: [handledByAdminId], references: [id], onDelete: SetNull)
 
+  /// Postgres treats NULLs as distinct, so this only constrains recruiter-filed
+  /// reports — one per recruiter per target — and leaves candidate reports alone.
+  @@unique([targetType, targetId, reporterRecruiterAccountId])
   @@index([targetType, targetId])
   @@index([status])
+  @@index([reporterType])
   @@map("reports")
 }
 

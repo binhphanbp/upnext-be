@@ -1,18 +1,20 @@
 import {
-  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CompanyReviewStatus, Prisma, ReportStatus } from '@prisma/client';
+import { CompanyReviewStatus, Prisma } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toPagination } from '../../common/dto/pagination-query.dto';
+import {
+  COMPANY_REVIEW_TARGET_TYPE,
+  ReportsService,
+} from '../reports/reports.service';
 import { CreateCompanyReviewDto } from './dto/create-company-review.dto';
 import { UpdateCompanyReviewDto } from './dto/update-company-review.dto';
 import { CreateCompanyReviewReportDto } from './dto/create-company-review-report.dto';
-import { ListCompanyReviewReportsQueryDto } from './dto/list-company-review-reports-query.dto';
 import { ListMyCompanyReviewsQueryDto } from './dto/list-my-company-reviews-query.dto';
 
 const RATING_FIELDS = [
@@ -49,7 +51,10 @@ function roundToOneDecimal(value: number | null) {
 
 @Injectable()
 export class CompanyReviewsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reportsService: ReportsService,
+  ) {}
 
   private async getProfile(candidateAccountId: string) {
     const profile = await this.prisma.candidateProfile.findUnique({
@@ -129,15 +134,7 @@ export class CompanyReviewsService {
     const [items, total, aggregate, byRating] = await Promise.all([
       this.prisma.companyReview.findMany({
         where: listWhere,
-        select: {
-          ...PUBLIC_REVIEW_SELECT,
-          reports: {
-            where: { reporterRecruiterAccountId: recruiterUser.id },
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-            select: { id: true, status: true, reason: true, createdAt: true },
-          },
-        },
+        select: PUBLIC_REVIEW_SELECT,
         orderBy: { createdAt: 'desc' },
         ...toPagination(query),
       }),
@@ -168,11 +165,30 @@ export class CompanyReviewsService {
       ratingDistribution[String(group.overallRating)] = group._count._all;
     }
 
+    // Reports live on the polymorphic `Report` table, so there is no relation to include
+    // — they are fetched for this page's reviews and stitched on afterwards.
+    const myReports = await this.reportsService.findRecruiterReportsByTargets({
+      reporterRecruiterAccountId: recruiterUser.id,
+      targetType: COMPANY_REVIEW_TARGET_TYPE,
+      targetIds: items.map((review) => review.id),
+    });
+    const myReportByReviewId = new Map(myReports.map((report) => [report.targetId, report]));
+
     return {
-      items: items.map(({ reports, ...review }) => ({
-        ...review,
-        myReport: reports[0] ?? null,
-      })),
+      items: items.map((review) => {
+        const report = myReportByReviewId.get(review.id);
+        return {
+          ...review,
+          myReport: report
+            ? {
+                id: report.id,
+                status: report.status,
+                reason: report.reason,
+                createdAt: report.createdAt,
+              }
+            : null,
+        };
+      }),
       summary: {
         totalReviews: aggregate._count._all,
         averageOverallRating: roundToOneDecimal(aggregate._avg.overallRating),
@@ -264,82 +280,24 @@ export class CompanyReviewsService {
       throw new ForbiddenException('Bạn chỉ có thể báo cáo đánh giá của công ty mình.');
     }
 
-    const existing = await this.prisma.companyReviewReport.findUnique({
-      where: {
-        companyReviewId_reporterRecruiterAccountId: {
-          companyReviewId: reviewId,
-          reporterRecruiterAccountId: recruiterUser.id,
-        },
-      },
+    const existing = await this.reportsService.findRecruiterReport({
+      reporterRecruiterAccountId: recruiterUser.id,
+      targetType: COMPANY_REVIEW_TARGET_TYPE,
+      targetId: reviewId,
     });
     if (existing) {
       throw new ConflictException('Bạn đã báo cáo đánh giá này rồi.');
     }
 
-    return this.prisma.companyReviewReport.create({
-      data: {
-        companyReviewId: reviewId,
-        reporterRecruiterAccountId: recruiterUser.id,
-        reason: dto.reason,
-      },
+    // Authorization stays here; the write goes through the shared reports table so the
+    // admin has one moderation queue. `targetType` is supplied by this server code, not
+    // by the request — see createRecruiterReport for why that matters.
+    return this.reportsService.createRecruiterReport({
+      reporterRecruiterAccountId: recruiterUser.id,
+      targetType: COMPANY_REVIEW_TARGET_TYPE,
+      targetId: reviewId,
+      reason: dto.reason,
     });
   }
 
-  async listReviewReports(query: ListCompanyReviewReportsQueryDto) {
-    const where: Prisma.CompanyReviewReportWhereInput = query.status ? { status: query.status } : {};
-
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.companyReviewReport.findMany({
-        where,
-        include: {
-          companyReview: { include: { company: { select: { id: true, name: true } } } },
-          reporterRecruiterAccount: { select: { id: true, email: true, companyId: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        ...toPagination(query),
-      }),
-      this.prisma.companyReviewReport.count({ where }),
-    ]);
-
-    return { items, total, page: query.page, limit: query.limit };
-  }
-
-  private async getPendingReport(reportId: string) {
-    const report = await this.prisma.companyReviewReport.findUnique({ where: { id: reportId } });
-    if (!report) throw new NotFoundException('Không tìm thấy báo cáo.');
-
-    if (report.status !== ReportStatus.PENDING && report.status !== ReportStatus.REVIEWING) {
-      throw new BadRequestException('Báo cáo này đã được xử lý trước đó.');
-    }
-
-    return report;
-  }
-
-  async hideReportedReview(reportId: string, adminId: string) {
-    const report = await this.getPendingReport(reportId);
-
-    return this.prisma.$transaction(async (tx) => {
-      await tx.companyReview.update({
-        where: { id: report.companyReviewId },
-        data: { status: CompanyReviewStatus.HIDDEN },
-      });
-
-      return tx.companyReviewReport.update({
-        where: { id: reportId },
-        data: { status: ReportStatus.RESOLVED, handledByAdminId: adminId },
-      });
-    });
-  }
-
-  async dismissReviewReport(reportId: string, adminId: string) {
-    await this.getPendingReport(reportId);
-
-    return this.prisma.companyReviewReport.update({
-      where: { id: reportId },
-      data: {
-        status: ReportStatus.REJECTED,
-        handledByAdminId: adminId,
-      },
-    });
-  }
 }

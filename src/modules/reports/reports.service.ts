@@ -1,5 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ActorType, CompanyStatus, Prisma, ReportStatus } from '@prisma/client';
+import {
+  ActorType,
+  CompanyReviewStatus,
+  CompanyStatus,
+  Prisma,
+  ReportStatus,
+} from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReputationLedgerService } from '../reputation/reputation-ledger.service';
@@ -7,6 +13,24 @@ import { CreateReportDto } from './dto/create-report.dto';
 import { ListReportsQueryDto } from './dto/list-reports-query.dto';
 
 const RESTRICTED_TARGET_TYPE = 'COMPANY';
+export const COMPANY_REVIEW_TARGET_TYPE = 'COMPANY_REVIEW';
+
+/**
+ * Both reporter relations are loaded because a report is filed by either a candidate or
+ * a recruiter; `reporterType` says which one to read.
+ */
+const REPORT_INCLUDE = {
+  evidenceFile: true,
+  reporterCandidate: {
+    select: { id: true, account: { select: { fullName: true, email: true } } },
+  },
+  reporterRecruiterAccount: {
+    select: { id: true, email: true, company: { select: { id: true, name: true } } },
+  },
+  handledByAdmin: {
+    select: { id: true, fullName: true, email: true },
+  },
+} satisfies Prisma.ReportInclude;
 
 @Injectable()
 export class ReportsService {
@@ -45,22 +69,11 @@ export class ReportsService {
           targetId: dto.targetId,
           reason: dto.reason,
           evidenceFileId: dto.evidenceFileId ?? null,
+          reporterType: ActorType.CANDIDATE,
           reporterCandidateId,
           status: ReportStatus.PENDING,
         },
-        include: {
-          evidenceFile: true,
-          reporterCandidate: {
-            select: {
-              id: true,
-              account: {
-                select: {
-                  fullName: true,
-                },
-              },
-            },
-          },
-        },
+        include: REPORT_INCLUDE,
       });
 
       if (dto.targetType.toUpperCase() === RESTRICTED_TARGET_TYPE) {
@@ -72,9 +85,74 @@ export class ReportsService {
   }
 
   /**
+   * Files a report on behalf of a recruiter.
+   *
+   * Deliberately not reachable from `POST /reports`: that endpoint takes `targetType`
+   * from the client, and a `COMPANY` report puts the company straight into Restricted
+   * Mode with its reputation zeroed — so exposing it to recruiters would let one
+   * restrict a competitor. Here the caller passes `targetType` from server code only,
+   * and Restricted Mode is never triggered.
+   */
+  async createRecruiterReport(input: {
+    reporterRecruiterAccountId: string;
+    targetType: string;
+    targetId: string;
+    reason: string;
+  }) {
+    return this.prisma.report.create({
+      data: {
+        targetType: input.targetType,
+        targetId: input.targetId,
+        reason: input.reason,
+        reporterType: ActorType.RECRUITER,
+        reporterRecruiterAccountId: input.reporterRecruiterAccountId,
+        status: ReportStatus.PENDING,
+      },
+    });
+  }
+
+  /** A recruiter may only file one report per target. */
+  async findRecruiterReport(input: {
+    reporterRecruiterAccountId: string;
+    targetType: string;
+    targetId: string;
+  }) {
+    return this.prisma.report.findUnique({
+      where: {
+        targetType_targetId_reporterRecruiterAccountId: {
+          targetType: input.targetType,
+          targetId: input.targetId,
+          reporterRecruiterAccountId: input.reporterRecruiterAccountId,
+        },
+      },
+    });
+  }
+
+  /** Reports filed by one recruiter across a set of targets, for list screens. */
+  async findRecruiterReportsByTargets(input: {
+    reporterRecruiterAccountId: string;
+    targetType: string;
+    targetIds: string[];
+  }) {
+    if (input.targetIds.length === 0) return [];
+
+    return this.prisma.report.findMany({
+      where: {
+        targetType: input.targetType,
+        targetId: { in: input.targetIds },
+        reporterRecruiterAccountId: input.reporterRecruiterAccountId,
+      },
+      select: { id: true, targetId: true, status: true, reason: true, createdAt: true },
+    });
+  }
+
+  /**
    * Restricted Mode kích hoạt ngay khi có report mới nhắm vào 1 company (targetType=COMPANY),
    * kể cả khi report còn ở status PENDING chưa được admin xác nhận — theo đúng mô tả nghiệp vụ.
    * Điểm hiện tại được lưu snapshot để phục hồi nếu Appeal sau này được duyệt.
+   *
+   * Only ever called from the candidate `create` path. `createRecruiterReport` must never
+   * reach this — a recruiter able to restrict a company could target a competitor.
    */
   private async activateRestrictedModeIfNeeded(
     tx: Prisma.TransactionClient,
@@ -117,6 +195,7 @@ export class ReportsService {
 
     const where: Prisma.ReportWhereInput = {
       ...(query.status ? { status: query.status } : {}),
+      ...(query.reporterRole ? { reporterType: query.reporterRole } : {}),
       ...(query.targetType
         ? { targetType: { equals: query.targetType, mode: 'insensitive' } }
         : {}),
@@ -144,27 +223,7 @@ export class ReportsService {
         skip,
         take: query.limit,
         orderBy,
-        include: {
-          evidenceFile: true,
-          reporterCandidate: {
-            select: {
-              id: true,
-              account: {
-                select: {
-                  fullName: true,
-                },
-              },
-            },
-          },
-
-          handledByAdmin: {
-            select: {
-              id: true,
-              fullName: true,
-              email: true,
-            },
-          },
-        },
+        include: REPORT_INCLUDE,
       }),
       this.prisma.report.count({ where }),
     ]);
@@ -198,27 +257,7 @@ export class ReportsService {
   async findOne(id: string) {
     const report = await this.prisma.report.findUnique({
       where: { id },
-      include: {
-        evidenceFile: true,
-        reporterCandidate: {
-          select: {
-            id: true,
-            account: {
-              select: {
-                fullName: true,
-              },
-            },
-          },
-        },
-
-        handledByAdmin: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-          },
-        },
-      },
+      include: REPORT_INCLUDE,
     });
 
     if (!report) {
@@ -234,8 +273,32 @@ export class ReportsService {
   }
 
   async updateStatus(id: string, adminId: string, status: ReportStatus) {
-    // Check if report exists
-    await this.findOne(id);
+    const report = await this.findOne(id);
+
+    // Resolving a report about a review is what actually hides that review, so this
+    // transition mutates content and is guarded — unlike the other target types, where
+    // the status is just a bookkeeping label an admin may revise freely.
+    if (
+      report.targetType.toUpperCase() === COMPANY_REVIEW_TARGET_TYPE &&
+      status === ReportStatus.RESOLVED
+    ) {
+      if (report.status !== ReportStatus.PENDING && report.status !== ReportStatus.REVIEWING) {
+        throw new BadRequestException('Báo cáo này đã được xử lý trước đó.');
+      }
+
+      return this.prisma.$transaction(async (tx) => {
+        await tx.companyReview.update({
+          where: { id: report.targetId },
+          data: { status: CompanyReviewStatus.HIDDEN },
+        });
+
+        return tx.report.update({
+          where: { id },
+          data: { status, handledByAdminId: adminId },
+          include: REPORT_INCLUDE,
+        });
+      });
+    }
 
     return this.prisma.report.update({
       where: { id },
@@ -243,27 +306,7 @@ export class ReportsService {
         status,
         handledByAdminId: adminId,
       },
-      include: {
-        evidenceFile: true,
-        reporterCandidate: {
-          select: {
-            id: true,
-            account: {
-              select: {
-                fullName: true,
-              },
-            },
-          },
-        },
-
-        handledByAdmin: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-          },
-        },
-      },
+      include: REPORT_INCLUDE,
     });
   }
 
@@ -313,6 +356,17 @@ export class ReportsService {
               id: true,
               title: true,
               status: true,
+            },
+          });
+        case COMPANY_REVIEW_TARGET_TYPE:
+          return this.prisma.companyReview.findUnique({
+            where: { id: targetId },
+            select: {
+              id: true,
+              overallRating: true,
+              summary: true,
+              status: true,
+              company: { select: { id: true, name: true } },
             },
           });
         default:

@@ -1,8 +1,9 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ActorType, CompanyReviewStatus, ReportStatus } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { ReportsService } from '../reports/reports.service';
 import { CompanyReviewsService } from './company-reviews.service';
 
 describe('CompanyReviewsService', () => {
@@ -10,11 +11,18 @@ describe('CompanyReviewsService', () => {
 
   const prismaMock: any = {
     companyReview: {
+      findUnique: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
       aggregate: jest.fn(),
       groupBy: jest.fn(),
     },
+  };
+
+  const reportsServiceMock = {
+    findRecruiterReport: jest.fn(),
+    findRecruiterReportsByTargets: jest.fn(),
+    createRecruiterReport: jest.fn(),
   };
 
   const recruiter: AuthenticatedUser = {
@@ -40,11 +48,16 @@ describe('CompanyReviewsService', () => {
       },
     });
     prismaMock.companyReview.groupBy.mockResolvedValue([]);
+    reportsServiceMock.findRecruiterReportsByTargets.mockResolvedValue([]);
   }
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CompanyReviewsService, { provide: PrismaService, useValue: prismaMock }],
+      providers: [
+        CompanyReviewsService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: ReportsService, useValue: reportsServiceMock },
+      ],
     }).compile();
 
     service = module.get(CompanyReviewsService);
@@ -74,28 +87,44 @@ describe('CompanyReviewsService', () => {
       );
     });
 
-    it('flattens the caller-owned report onto each review', async () => {
-      const report = {
+    it('stitches the caller-owned report onto each review', async () => {
+      prismaMock.companyReview.findMany.mockResolvedValue([
+        { id: 'review-1', overallRating: 2 },
+        { id: 'review-2', overallRating: 5 },
+      ]);
+      arrangeEmptyStats();
+      // Reports live on the polymorphic Report table, so they arrive from a second query
+      // keyed by targetId rather than through a Prisma relation.
+      reportsServiceMock.findRecruiterReportsByTargets.mockResolvedValue([
+        {
+          id: 'report-id',
+          targetId: 'review-1',
+          status: ReportStatus.PENDING,
+          reason: 'Nội dung sai sự thật',
+          createdAt: new Date('2026-08-01'),
+        },
+      ]);
+
+      const result = await service.listMyCompanyReviews(recruiter, { page: 1, limit: 20 });
+
+      expect(reportsServiceMock.findRecruiterReportsByTargets).toHaveBeenCalledWith({
+        reporterRecruiterAccountId: 'recruiter-account-id',
+        targetType: 'COMPANY_REVIEW',
+        targetIds: ['review-1', 'review-2'],
+      });
+      // Reporting twice is a 409, so the UI needs this to decide whether to offer it.
+      expect(result.items[0]?.myReport).toEqual({
         id: 'report-id',
         status: ReportStatus.PENDING,
         reason: 'Nội dung sai sự thật',
         createdAt: new Date('2026-08-01'),
-      };
-      prismaMock.companyReview.findMany.mockResolvedValue([
-        { id: 'review-1', overallRating: 2, reports: [report] },
-        { id: 'review-2', overallRating: 5, reports: [] },
-      ]);
-      arrangeEmptyStats();
-
-      const result = await service.listMyCompanyReviews(recruiter, { page: 1, limit: 20 });
-
-      // Reporting twice is a 409, so the UI needs this to decide whether to offer it.
-      expect(result.items[0]).toEqual({ id: 'review-1', overallRating: 2, myReport: report });
-      expect(result.items[1]).toEqual({ id: 'review-2', overallRating: 5, myReport: null });
+      });
+      expect(result.items[1]?.myReport).toBeNull();
     });
 
     it('keeps the summary describing the whole company when a rating filter is applied', async () => {
       prismaMock.companyReview.findMany.mockResolvedValue([]);
+      reportsServiceMock.findRecruiterReportsByTargets.mockResolvedValue([]);
       prismaMock.companyReview.count.mockResolvedValue(1);
       prismaMock.companyReview.aggregate.mockResolvedValue({
         _count: { _all: 4 },
@@ -131,6 +160,55 @@ describe('CompanyReviewsService', () => {
       expect(result.summary.averageOverallRating).toBe(3.7);
       expect(result.summary.ratingDistribution).toEqual({ 1: 1, 2: 0, 3: 0, 4: 0, 5: 3 });
       expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
+    });
+  });
+
+  describe('reportReview', () => {
+    const dto = { reason: 'Đánh giá sai sự thật' };
+
+    it('only lets a recruiter report a review of their own company', async () => {
+      prismaMock.companyReview.findUnique.mockResolvedValue({
+        id: 'review-1',
+        companyId: 'another-company',
+      });
+
+      await expect(service.reportReview('review-1', recruiter, dto)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(reportsServiceMock.createRecruiterReport).not.toHaveBeenCalled();
+    });
+
+    it('writes to the shared reports table with a server-set target type', async () => {
+      prismaMock.companyReview.findUnique.mockResolvedValue({
+        id: 'review-1',
+        companyId: 'company-id',
+      });
+      reportsServiceMock.findRecruiterReport.mockResolvedValue(null);
+      reportsServiceMock.createRecruiterReport.mockResolvedValue({ id: 'report-id' });
+
+      await service.reportReview('review-1', recruiter, dto);
+
+      // targetType must come from server code — a client-supplied 'COMPANY' would put a
+      // company into Restricted Mode, which a recruiter must never be able to trigger.
+      expect(reportsServiceMock.createRecruiterReport).toHaveBeenCalledWith({
+        reporterRecruiterAccountId: 'recruiter-account-id',
+        targetType: 'COMPANY_REVIEW',
+        targetId: 'review-1',
+        reason: dto.reason,
+      });
+    });
+
+    it('rejects a second report from the same recruiter', async () => {
+      prismaMock.companyReview.findUnique.mockResolvedValue({
+        id: 'review-1',
+        companyId: 'company-id',
+      });
+      reportsServiceMock.findRecruiterReport.mockResolvedValue({ id: 'existing-report' });
+
+      await expect(service.reportReview('review-1', recruiter, dto)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(reportsServiceMock.createRecruiterReport).not.toHaveBeenCalled();
     });
   });
 });
