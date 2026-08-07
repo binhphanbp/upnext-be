@@ -526,7 +526,7 @@ export class ApplicationsService {
     // again — so it must not report as applied, or the job stays locked to them forever.
     if (application && application.status !== ApplicationStatus.WITHDRAWN) {
       return {
-        applied: application.status !== ApplicationStatus.WITHDRAWN,
+        applied: true,
         applicationId: application.id,
         status: application.status,
       };
