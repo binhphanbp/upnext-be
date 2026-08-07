@@ -46,6 +46,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { PostsModule } from './modules/posts/posts.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SearchKeywordModule } from './modules/search-keyword/search-keyword.module';
+import { AiModule } from './modules/ai/ai.module';
 import { CvScreeningModule } from './modules/cv-screening/cv-screening.module';
 import { ZaloBotModule } from './modules/zalo-bot/zalo-bot.module';
 import { InterviewRemindersModule } from './modules/interview-reminders/interview-reminders.module';
@@ -124,6 +125,7 @@ import { JobPostAiModule } from './modules/job-post-ai/job-post-ai.module';
     TalentOutreachModule,
     SupportCasesModule,
     CvScreeningModule,
+    AiModule,
     ZaloBotModule,
     InterviewRemindersModule,
     ReputationModule,

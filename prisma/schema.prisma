@@ -467,6 +467,7 @@ model CandidateProfile {
   companyBlocks         CompanyCandidateBlock[]
   talentRecommendations TalentRecommendation[]
   talentContactRequests TalentContactRequest[]
+  aiConversations       AIConversation[]
 
   @@index([jobSearchStatus])
   @@index([profileVisibility])
@@ -2442,4 +2443,182 @@ model OutboxEvent {
   @@index([status, nextAttemptAt, createdAt])
   @@index([aggregateType, aggregateId])
   @@map("outbox_events")
+}
+
+// =========================
+// AI Copilot
+// =========================
+// Nhóm chung một khối vì đây là một domain độc lập (xem ADR-001). Enum đặt cạnh
+// model thay vì trong khối Enums ở đầu file để cả domain đọc được trong một chỗ.
+
+enum AiConversationContext {
+  GENERAL        @map("general")
+  CV             @map("cv")
+  JOB            @map("job")
+  APPLICATION    @map("application")
+  MOCK_INTERVIEW @map("mock_interview")
+}
+
+enum AiMessageRole {
+  USER      @map("user")
+  ASSISTANT @map("assistant")
+}
+
+/// Trạng thái một lượt trả lời. PARTIAL = có nội dung nhưng bị cắt giữa
+/// (người dùng bấm Dừng, hoặc hết thời gian) — vẫn hiển thị cho người dùng.
+enum AiRunStatus {
+  PENDING   @map("pending")
+  STREAMING @map("streaming")
+  COMPLETED @map("completed")
+  PARTIAL   @map("partial")
+  FAILED    @map("failed")
+}
+
+enum AiFeedbackRating {
+  UP   @map("up")
+  DOWN @map("down")
+}
+
+enum AiActionType {
+  APPLY_CV_SUGGESTION   @map("apply_cv_suggestion")
+  SAVE_JOB              @map("save_job")
+  UPDATE_JOB_PREFERENCE @map("update_job_preference")
+}
+
+enum AiActionStatus {
+  PENDING   @map("pending")
+  CONFIRMED @map("confirmed")
+  REJECTED  @map("rejected")
+  EXPIRED   @map("expired")
+  EXECUTED  @map("executed")
+  FAILED    @map("failed")
+}
+
+model AIConversation {
+  id                 String                @id @default(uuid()) @db.Uuid
+  actorType          ActorType             @map("actor_type")
+  /// Chỉ candidate được hỗ trợ ở bản này. Recruiter/admin thêm cột FK riêng
+  /// của mình khi tới lượt — không dùng một cột actorId không có khoá ngoại.
+  candidateProfileId String?               @map("candidate_profile_id") @db.Uuid
+  contextType        AiConversationContext @default(GENERAL) @map("context_type")
+  /// Định danh thực thể của ngữ cảnh. Không đặt FK vì trỏ tới nhiều bảng khác
+  /// nhau tuỳ contextType.
+  ///
+  /// VarChar chứ không phải Uuid: route công khai của tin tuyển dụng là
+  /// `/jobs/[slug]`, nên ngữ cảnh JOB mang slug chứ không mang UUID. Khai Uuid
+  /// làm mọi hội thoại mở từ trang tin trả 500 — cột từ chối giá trị ở tầng DB,
+  /// sau khi DTO đã cho qua.
+  contextId          String?               @map("context_id") @db.VarChar(220)
+  locale             String                @default("vi") @db.VarChar(5)
+  title              String                @default("") @db.VarChar(180)
+  isArchived         Boolean               @default(false) @map("is_archived")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  candidateProfile CandidateProfile? @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  messages         AIMessage[]
+  actionRequests   AIActionRequest[]
+
+  @@index([candidateProfileId, isArchived, updatedAt])
+  @@map("ai_conversations")
+}
+
+model AIMessage {
+  id             String        @id @default(uuid()) @db.Uuid
+  conversationId String        @map("conversation_id") @db.Uuid
+  role           AiMessageRole
+  content        String        @default("") @db.Text
+  status         AiRunStatus   @default(PENDING)
+  intent         String?       @db.VarChar(40)
+
+  /// Ba khối này là dữ liệu hiển thị đã được validate bằng zod trước khi ghi.
+  /// Lưu Json vì hình dạng khác nhau theo loại card và sẽ còn thay đổi.
+  citationsJson   Json? @map("citations_json")
+  cardsJson       Json? @map("cards_json")
+  toolCallsJson   Json? @map("tool_calls_json")
+  suggestionsJson Json? @map("suggestions_json")
+
+  modelName     String? @map("model_name") @db.VarChar(80)
+  promptVersion String? @map("prompt_version") @db.VarChar(60)
+  inputTokens   Int?    @map("input_tokens")
+  outputTokens  Int?    @map("output_tokens")
+  latencyMs     Int?    @map("latency_ms")
+  errorCode     String? @map("error_code") @db.VarChar(60)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  conversation  AIConversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  feedback      AIMessageFeedback?
+  actionRequest AIActionRequest?
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+model AIMessageFeedback {
+  id         String           @id @default(uuid()) @db.Uuid
+  messageId  String           @unique @map("message_id") @db.Uuid
+  actorType  ActorType        @map("actor_type")
+  actorId    String           @map("actor_id") @db.Uuid
+  rating     AiFeedbackRating
+  reasonCode String?          @map("reason_code") @db.VarChar(60)
+  comment    String?          @db.Text
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  message AIMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("ai_message_feedbacks")
+}
+
+/// Human-in-the-loop: AI đề xuất, người dùng xác nhận, BACKEND thực hiện.
+/// AI không bao giờ tự ghi dữ liệu nghiệp vụ.
+model AIActionRequest {
+  id             String         @id @default(uuid()) @db.Uuid
+  conversationId String         @map("conversation_id") @db.Uuid
+  messageId      String?        @unique @map("message_id") @db.Uuid
+  actorType      ActorType      @map("actor_type")
+  actorId        String         @map("actor_id") @db.Uuid
+  actionType     AiActionType   @map("action_type")
+  /// Nội dung sẽ ghi nếu được xác nhận. Snapshot tại lúc đề xuất — nếu dữ liệu
+  /// nguồn đổi sau đó, hành động vẫn ghi đúng thứ người dùng đã thấy và đồng ý.
+  payloadJson    Json           @map("payload_json")
+  status         AiActionStatus @default(PENDING)
+  expiresAt      DateTime       @map("expires_at")
+  confirmedAt    DateTime?      @map("confirmed_at")
+  executedAt     DateTime?      @map("executed_at")
+  failureReason  String?        @map("failure_reason") @db.Text
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      AIMessage?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, status])
+  @@map("ai_action_requests")
+}
+
+/// Sổ ghi mọi lần gọi AI, tập trung một chỗ (ADR-001 §7 bước 5).
+/// Đây là nguồn dữ liệu cho dashboard chi phí và cho chương đánh giá của báo cáo.
+model AIRun {
+  id               String      @id @default(uuid()) @db.Uuid
+  traceId          String      @map("trace_id") @db.VarChar(60)
+  actorType        ActorType   @map("actor_type")
+  actorId          String?     @map("actor_id") @db.Uuid
+  feature          String      @db.VarChar(60)
+  intent           String?     @db.VarChar(40)
+  modelName        String      @map("model_name") @db.VarChar(80)
+  promptVersion    String      @map("prompt_version") @db.VarChar(60)
+  inputTokens      Int         @default(0) @map("input_tokens")
+  outputTokens     Int         @default(0) @map("output_tokens")
+  latencyMs        Int         @default(0) @map("latency_ms")
+  toolCallCount    Int         @default(0) @map("tool_call_count")
+  status           AiRunStatus @default(PENDING)
+  errorCode        String?     @map("error_code") @db.VarChar(60)
+  /// Số lần model bị chặn vì gọi tool không thuộc quyền của role. > 0 là tín
+  /// hiệu bảo mật, không phải lỗi vận hành.
+  blockedToolCount Int         @default(0) @map("blocked_tool_count")
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  @@index([feature, createdAt])
+  @@index([actorId, createdAt])
+  @@map("ai_runs")
 }
