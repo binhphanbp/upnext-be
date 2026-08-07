@@ -40,6 +40,7 @@ import { AdminRolesModule } from './modules/admin-roles/admin-roles.module';
 import { CvsModule } from './modules/cvs/cvs.module';
 import { SubscriptionPlansModule } from './modules/subscription-plans/subscription-plans.module';
 import { CompanySubscriptionsModule } from './modules/company-subscriptions/company-subscriptions.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { InterviewsModule } from './modules/interviews/interviews.module';
 import { HealthModule } from './modules/health/health.module';
@@ -117,6 +118,7 @@ import { JobPostAiModule } from './modules/job-post-ai/job-post-ai.module';
     CvsModule,
     SubscriptionPlansModule,
     CompanySubscriptionsModule,
+    SubscriptionsModule,
     InvoicesModule,
     InterviewsModule,
     HealthModule,

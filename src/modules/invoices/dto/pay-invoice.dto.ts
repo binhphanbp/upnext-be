@@ -6,7 +6,7 @@ export class PayInvoiceDto {
   @ApiProperty({
     enum: PaymentMethod,
     description: 'Phương thức thanh toán',
-    example: PaymentMethod.STRIPE,
+    example: PaymentMethod.SEPAY,
   })
   @IsEnum(PaymentMethod)
   @IsNotEmpty()

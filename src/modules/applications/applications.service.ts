@@ -14,6 +14,7 @@ import { OutboxService } from '../outbox/outbox.service';
 import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
 import { ApplicationTransitionPolicy } from './application-transition.policy';
 import { isValidVietnamesePhoneNumber } from '../../common/validation/vietnamese-phone';
+import { recruiterAccessibleJobPostFilter } from '../../common/authorization/job-post-access';
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
 import { UpdateApplicationCvDto } from './dto/update-application-cv.dto';
 import { CV_SCORING_RUBRIC } from '../cv-screening/scoring-rubric';
@@ -24,6 +25,31 @@ const PIPELINE_SCORE_FIELD_BY_RUBRIC_KEY: Record<string, string> = {
   projects: 'projectScore',
   education: 'educationScore',
 };
+
+/** Hồ sơ nộp quá số ngày này mà chưa được đẩy sang vòng nào thì tính là tồn đọng. */
+const STALE_APPLICATION_DAYS = 7;
+
+const RECENT_APPLICATIONS_LIMIT = 7;
+
+/** Cùng ngưỡng với bộ lọc aiLabel của getCompanyApplications để hai màn hình không lệch số. */
+const AI_SCORE_BUCKETS = [
+  { id: 'excellent', where: { aiScore: { finalScore: { gte: 85 } } } },
+  { id: 'good', where: { aiScore: { finalScore: { gte: 70, lt: 85 } } } },
+  { id: 'average', where: { aiScore: { finalScore: { gte: 50, lt: 70 } } } },
+  { id: 'low', where: { aiScore: { finalScore: { lt: 50 } } } },
+  { id: 'unscored', where: { aiScore: null } },
+] as const;
+
+/** Phễu hiển thị trên dashboard: chỉ các trạng thái còn trong quy trình, theo đúng thứ tự. */
+const CANDIDATE_FUNNEL_STATUSES = [
+  ApplicationStatus.SUBMITTED,
+  ApplicationStatus.VIEWED,
+  ApplicationStatus.CONSIDERING,
+  ApplicationStatus.SHORTLISTED,
+  ApplicationStatus.INTERVIEWING,
+  ApplicationStatus.OFFERED,
+  ApplicationStatus.HIRED,
+] as const;
 
 const PIPELINE_STAGES = [
   {
@@ -144,8 +170,7 @@ export class ApplicationsService {
 
     // Withdrawing only flips the status, and (candidateProfileId, jobPostId) is unique —
     // so re-applying has to revive that row; a second insert could never succeed.
-    const withdrawnApplication =
-      existing?.status === ApplicationStatus.WITHDRAWN ? existing : null;
+    const withdrawnApplication = existing?.status === ApplicationStatus.WITHDRAWN ? existing : null;
 
     if (existing && !withdrawnApplication) {
       throw new ConflictException('You have already applied to this job');
@@ -406,6 +431,7 @@ export class ApplicationsService {
       if (application.jobPost.companyId !== recruiter.companyId) {
         throw new ForbiddenException('You are not authorized to view this application');
       }
+      await this.assertRecruiterCanAccessJobPost(recruiterId, application.jobPostId);
     } else {
       throw new ForbiddenException('Authorization details missing');
     }
@@ -447,7 +473,7 @@ export class ApplicationsService {
           },
         },
       },
-      orderBy: { submittedAt: 'desc' },
+      orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
     });
 
     return apps.map((app) => this.mapApplicationCvVersion(app));
@@ -472,6 +498,7 @@ export class ApplicationsService {
         'You do not have permission to view applicants for this job post',
       );
     }
+    await this.assertRecruiterCanAccessJobPost(recruiterId, jobId);
 
     const apps = await this.prisma.application.findMany({
       where: { jobPostId: jobId },
@@ -499,7 +526,7 @@ export class ApplicationsService {
           },
         },
       },
-      orderBy: { submittedAt: 'desc' },
+      orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
     });
 
     return apps.map((app) => this.mapApplicationCvVersion(app));
@@ -543,6 +570,8 @@ export class ApplicationsService {
       jobPostId?: string;
       status?: ApplicationStatus;
       search?: string;
+      viewed?: 'unviewed';
+      aiLabel?: 'excellent' | 'good' | 'average' | 'low' | 'unscored';
     },
   ) {
     const recruiter = await this.prisma.recruiterAccount.findUnique({
@@ -558,6 +587,10 @@ export class ApplicationsService {
     const whereClause: any = {
       jobPost: {
         companyId: recruiter.companyId,
+        // Tin đã xoá mềm không còn trong danh sách tin, hồ sơ của nó cũng không nên còn ở đây —
+        // và phải khớp với bộ đếm của dashboard, nếu không bấm vào thẻ sẽ ra số khác.
+        deletedAt: null,
+        ...recruiterAccessibleJobPostFilter(recruiterId),
       },
     };
 
@@ -571,13 +604,34 @@ export class ApplicationsService {
 
     if (query?.search) {
       whereClause.candidateProfile = {
-        account: {
-          OR: [
-            { fullName: { contains: query.search, mode: 'insensitive' } },
-            { email: { contains: query.search, mode: 'insensitive' } },
-          ],
-        },
+        OR: [
+          { account: { fullName: { contains: query.search, mode: 'insensitive' } } },
+          { account: { email: { contains: query.search, mode: 'insensitive' } } },
+          { phoneNumber: { contains: query.search, mode: 'insensitive' } },
+        ],
       };
+    }
+
+    if (query?.viewed === 'unviewed') {
+      whereClause.viewedAt = null;
+      // Cùng định nghĩa với thẻ "Chưa xem" trên dashboard, để con số và danh sách khớp nhau.
+      // Không ghi đè khi người dùng đã chọn trạng thái cụ thể — đó là lựa chọn của họ.
+      whereClause.status ??= ApplicationStatus.SUBMITTED;
+    }
+
+    if (query?.aiLabel === 'unscored') {
+      whereClause.aiScore = null;
+    } else if (query?.aiLabel) {
+      const scoreRanges: Record<
+        'excellent' | 'good' | 'average' | 'low',
+        { gte?: number; lt?: number }
+      > = {
+        excellent: { gte: 85 },
+        good: { gte: 70, lt: 85 },
+        average: { gte: 50, lt: 70 },
+        low: { lt: 50 },
+      };
+      whereClause.aiScore = { finalScore: scoreRanges[query.aiLabel] };
     }
 
     const apps = await this.prisma.application.findMany({
@@ -605,8 +659,13 @@ export class ApplicationsService {
             sourceFile: true,
           },
         },
+        aiScore: {
+          select: {
+            finalScore: true,
+          },
+        },
       },
-      orderBy: { submittedAt: 'desc' },
+      orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
     });
 
     return apps.map((app) => this.mapApplicationCvVersion(app));
@@ -631,7 +690,11 @@ export class ApplicationsService {
     }
 
     const whereClause: any = {
-      jobPost: { companyId: recruiter.companyId },
+      jobPost: {
+        companyId: recruiter.companyId,
+        deletedAt: null,
+        ...recruiterAccessibleJobPostFilter(recruiterId),
+      },
       status: { in: PIPELINE_STAGES.map((stage) => stage.status) },
     };
 
@@ -710,6 +773,156 @@ export class ApplicationsService {
           .length,
         passRate: decidedCount > 0 ? Math.round((hiredCount / decidedCount) * 100) : 0,
       },
+    };
+  }
+
+  /**
+   * Chặn nhà tuyển dụng đã bị thu hồi quyền với tin tuyển dụng chạm vào hồ sơ của tin đó.
+   * Dùng ở các đường vào một hồ sơ cụ thể; truy vấn danh sách thì lọc thẳng trong where.
+   */
+  private async assertRecruiterCanAccessJobPost(recruiterId: string, jobPostId: string) {
+    const accessible = await this.prisma.jobPost.findFirst({
+      where: { id: jobPostId, ...recruiterAccessibleJobPostFilter(recruiterId) },
+      select: { id: true },
+    });
+
+    if (!accessible) {
+      throw new ForbiddenException('Bạn không có quyền truy cập tin tuyển dụng này.');
+    }
+  }
+
+  /**
+   * Số liệu ứng viên cho dashboard nhà tuyển dụng: trả về đúng các con số cần hiển thị thay vì
+   * để FE tải toàn bộ hồ sơ của công ty rồi tự đếm (endpoint company-applications không phân trang).
+   */
+  async getRecruiterCandidateSummary(recruiterId: string) {
+    const recruiter = await this.prisma.recruiterAccount.findUnique({
+      where: { id: recruiterId },
+    });
+    if (!recruiter) {
+      throw new NotFoundException('Recruiter account not found');
+    }
+    if (!recruiter.companyId) {
+      throw new BadRequestException('Recruiter does not belong to any company');
+    }
+
+    // Bỏ tin đã xoá mềm, giống danh sách tin của dashboard (getCompanyJobPosts lọc deletedAt).
+    // Không lọc thì ngay khi có tin bị xoá, thẻ "Tổng hồ sơ ứng tuyển" và phễu sẽ lệch nhau.
+    // Đồng thời tôn trọng quyền theo từng tin: số liệu phải khớp phạm vi mà người này được xem.
+    const companyScope = {
+      jobPost: {
+        companyId: recruiter.companyId,
+        deletedAt: null,
+        ...recruiterAccessibleJobPostFilter(recruiterId),
+      },
+    };
+    const now = new Date();
+    const staleBefore = new Date(now.getTime() - STALE_APPLICATION_DAYS * 24 * 60 * 60 * 1000);
+
+    const [statusGroups, counters, aiBucketCounts, recentApplications] = await Promise.all([
+      this.prisma.application.groupBy({
+        by: ['status'],
+        where: companyScope,
+        _count: { _all: true },
+      }),
+      Promise.all([
+        // "Chưa xem" = còn nằm im ở SUBMITTED. Hồ sơ đã được đẩy sang vòng khác thì hiển nhiên
+        // đã có người xử lý, đếm nó là chưa xem sẽ mâu thuẫn với chính cột trạng thái.
+        this.prisma.application.count({
+          where: { ...companyScope, viewedAt: null, status: ApplicationStatus.SUBMITTED },
+        }),
+        this.prisma.application.count({
+          where: { ...companyScope, submittedAt: { gte: staleBefore } },
+        }),
+        // Tồn đọng: đã nộp quá hạn mà vẫn chưa được đẩy sang bất kỳ vòng nào.
+        this.prisma.application.count({
+          where: {
+            ...companyScope,
+            status: { in: [ApplicationStatus.SUBMITTED, ApplicationStatus.VIEWED] },
+            submittedAt: { lt: staleBefore },
+          },
+        }),
+        this.prisma.interview.count({
+          where: {
+            application: companyScope,
+            status: { in: [InterviewStatus.SCHEDULED, InterviewStatus.RESCHEDULED] },
+            scheduledStartAt: { gte: now },
+          },
+        }),
+      ]),
+      Promise.all(
+        AI_SCORE_BUCKETS.map((bucket) =>
+          this.prisma.application.count({ where: { ...companyScope, ...bucket.where } }),
+        ),
+      ),
+      this.prisma.application.findMany({
+        where: companyScope,
+        orderBy: { submittedAt: 'desc' },
+        take: RECENT_APPLICATIONS_LIMIT,
+        select: {
+          id: true,
+          status: true,
+          submittedAt: true,
+          viewedAt: true,
+          candidateProfile: {
+            select: {
+              id: true,
+              account: { select: { id: true, fullName: true, email: true } },
+            },
+          },
+          jobPost: { select: { id: true, title: true } },
+          aiScore: { select: { finalScore: true } },
+        },
+      }),
+    ]);
+
+    const [unviewed, newLast7Days, staleOver7Days, upcomingInterviews] = counters;
+
+    const byStatus = Object.values(ApplicationStatus).reduce<Record<string, number>>(
+      (acc, status) => {
+        acc[status] = 0;
+        return acc;
+      },
+      {},
+    );
+    let total = 0;
+    for (const group of statusGroups) {
+      byStatus[group.status] = group._count._all;
+      total += group._count._all;
+    }
+
+    const aiScoreBuckets = AI_SCORE_BUCKETS.reduce<Record<string, number>>((acc, bucket, index) => {
+      acc[bucket.id] = aiBucketCounts[index] ?? 0;
+      return acc;
+    }, {});
+
+    return {
+      totals: {
+        total,
+        unviewed,
+        newLast7Days,
+        staleOver7Days,
+        upcomingInterviews,
+        staleThresholdDays: STALE_APPLICATION_DAYS,
+      },
+      funnel: CANDIDATE_FUNNEL_STATUSES.map((status) => ({
+        status,
+        count: byStatus[status] ?? 0,
+      })),
+      byStatus,
+      aiScoreBuckets,
+      recentApplications: recentApplications.map((app) => ({
+        id: app.id,
+        status: app.status,
+        submittedAt: app.submittedAt.toISOString(),
+        viewedAt: app.viewedAt ? app.viewedAt.toISOString() : null,
+        candidateId: app.candidateProfile.id,
+        candidateName: app.candidateProfile.account.fullName,
+        candidateEmail: app.candidateProfile.account.email,
+        jobPostId: app.jobPost.id,
+        jobPostTitle: app.jobPost.title,
+        aiScore: app.aiScore ? Number(app.aiScore.finalScore) : null,
+      })),
     };
   }
 
@@ -831,6 +1044,9 @@ export class ApplicationsService {
     if (!recruiterAllowed && !adminAllowed) {
       throw new ForbiddenException('You do not have permission to manage this application');
     }
+    if (user.role === ActorType.RECRUITER) {
+      await this.assertRecruiterCanAccessJobPost(user.id, application.jobPostId);
+    }
 
     this.transitionPolicy.assertAllowed(application.status, status);
     const expectedVersion = dto.expectedVersion ?? application.version;
@@ -838,7 +1054,11 @@ export class ApplicationsService {
     const updatedApp = await this.prisma.$transaction(async (tx) => {
       const changed = await tx.application.updateMany({
         where: { id, version: expectedVersion, status: application.status },
-        data: { status, version: { increment: 1 } },
+        data: {
+          status,
+          version: { increment: 1 },
+          viewedAt: application.viewedAt ?? new Date(),
+        },
       });
       if (changed.count !== 1) {
         throw new ConflictException({
@@ -887,5 +1107,42 @@ export class ApplicationsService {
     });
 
     return updatedApp;
+  }
+
+  async markViewed(user: AuthenticatedUser, id: string) {
+    const application = await this.prisma.application.findUnique({
+      where: { id },
+      include: {
+        jobPost: true,
+        assignments: { where: { unassignedAt: null }, select: { recruiterAccountId: true } },
+      },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+
+    const isAssigned = application.assignments.some(
+      (assignment) => assignment.recruiterAccountId === user.id,
+    );
+    const recruiterAllowed =
+      user.role === ActorType.RECRUITER &&
+      application.jobPost.companyId === user.companyId &&
+      (user.permissions.includes('applications:manage') ||
+        (isAssigned && user.permissions.includes('applications:review_assigned')));
+    const adminAllowed =
+      user.role === ActorType.ADMIN && user.permissions.includes('applications:manage');
+    if (!recruiterAllowed && !adminAllowed) {
+      throw new ForbiddenException('You do not have permission to manage this application');
+    }
+    if (user.role === ActorType.RECRUITER) {
+      await this.assertRecruiterCanAccessJobPost(user.id, application.jobPostId);
+    }
+
+    await this.prisma.application.updateMany({
+      where: { id, viewedAt: null },
+      data: { viewedAt: new Date() },
+    });
+
+    return this.prisma.application.findUniqueOrThrow({ where: { id } });
   }
 }

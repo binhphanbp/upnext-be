@@ -11,6 +11,7 @@ import { CreateInterviewDto } from './dto/create-interview.dto';
 import { RescheduleInterviewDto } from './dto/reschedule-interview.dto';
 import { CancelInterviewDto } from './dto/cancel-interview.dto';
 import { UpdateInterviewResultDto } from './dto/update-interview-result.dto';
+import { recruiterAccessibleJobPostFilter } from '../../common/authorization/job-post-access';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
 
@@ -57,6 +58,7 @@ export class InterviewsService {
           'You do not have permission to schedule interviews for this application',
         );
       }
+      await this.assertRecruiterCanAccessJobPost(user.id, application.jobPostId);
     } else if (user.role !== ActorType.ADMIN || !user.permissions.includes('interviews:manage')) {
       throw new ForbiddenException('Interview management permission required');
     }
@@ -180,7 +182,7 @@ export class InterviewsService {
       throw new NotFoundException(`Interview ${id} not found`);
     }
 
-    this.checkAccessPermission(interview, user);
+    await this.checkAccessPermission(interview, user);
 
     return interview;
   }
@@ -198,6 +200,7 @@ export class InterviewsService {
       where.application = {
         jobPost: {
           companyId: user.companyId || undefined,
+          ...recruiterAccessibleJobPostFilter(user.id),
         },
       };
     }
@@ -266,7 +269,7 @@ export class InterviewsService {
       throw new NotFoundException(`Interview ${id} not found`);
     }
 
-    this.checkAccessPermission(interview, user);
+    await this.checkAccessPermission(interview, user);
 
     if (
       interview.status === InterviewStatus.CANCELLED ||
@@ -358,7 +361,7 @@ export class InterviewsService {
       throw new NotFoundException(`Interview ${id} not found`);
     }
 
-    this.checkAccessPermission(interview, user);
+    await this.checkAccessPermission(interview, user);
 
     if (
       interview.status === InterviewStatus.CANCELLED ||
@@ -443,6 +446,9 @@ export class InterviewsService {
     ) {
       throw new ForbiddenException('You do not have permission to manage this interview');
     }
+    if (user.role === ActorType.RECRUITER) {
+      await this.assertRecruiterCanAccessJobPost(user.id, interview.application.jobPostId);
+    }
 
     if (interview.status === InterviewStatus.CANCELLED) {
       throw new BadRequestException('Cannot update result of a cancelled interview');
@@ -496,15 +502,37 @@ export class InterviewsService {
     return updated;
   }
 
-  private checkAccessPermission(interview: any, user: AuthenticatedUser) {
+  private async checkAccessPermission(interview: any, user: AuthenticatedUser) {
+    const application = interview.application as {
+      jobPostId: string;
+      jobPost: { companyId: string };
+      candidateProfile: { candidateAccountId: string };
+    };
+
     if (user.role === ActorType.CANDIDATE) {
-      if (interview.application.candidateProfile.candidateAccountId !== user.id) {
+      if (application.candidateProfile.candidateAccountId !== user.id) {
         throw new ForbiddenException('You do not have permission to access this interview');
       }
     } else if (user.role === ActorType.RECRUITER) {
-      if (interview.application.jobPost.companyId !== user.companyId) {
+      if (application.jobPost.companyId !== user.companyId) {
         throw new ForbiddenException('You do not have permission to access this interview');
       }
+      await this.assertRecruiterCanAccessJobPost(user.id, application.jobPostId);
+    }
+  }
+
+  /**
+   * Nhà tuyển dụng bị thu hồi quyền với tin thì cũng mất quyền với lịch phỏng vấn của tin đó —
+   * lịch có kèm tên, email và ghi chú về ứng viên.
+   */
+  private async assertRecruiterCanAccessJobPost(recruiterId: string, jobPostId: string) {
+    const accessible = await this.prisma.jobPost.findFirst({
+      where: { id: jobPostId, ...recruiterAccessibleJobPostFilter(recruiterId) },
+      select: { id: true },
+    });
+
+    if (!accessible) {
+      throw new ForbiddenException('Bạn không có quyền truy cập tin tuyển dụng này.');
     }
   }
 }

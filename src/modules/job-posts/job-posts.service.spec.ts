@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { JobPostsService } from './job-posts.service';
 import { ActorType, CompanyVerificationStatus, JobStatus, ModerationStatus } from '@prisma/client';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
@@ -41,6 +42,12 @@ describe('JobPostsService', () => {
     createNotification: jest.fn(),
   };
 
+  const quotaMock: any = {
+    consume: jest.fn().mockResolvedValue({ usage: { id: 'usage-1' }, replayed: false }),
+    reverse: jest.fn(),
+    getFeatureLimit: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
@@ -53,6 +60,10 @@ describe('JobPostsService', () => {
         {
           provide: NotificationsService,
           useValue: notificationsServiceMock,
+        },
+        {
+          provide: SubscriptionQuotaService,
+          useValue: quotaMock,
         },
       ],
     }).compile();

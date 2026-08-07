@@ -20,6 +20,7 @@ describe('ApplicationsService', () => {
     },
     jobPost: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
     cVVersion: {
       findUnique: jest.fn(),
@@ -29,6 +30,9 @@ describe('ApplicationsService', () => {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+    },
+    interview: {
+      count: jest.fn(),
     },
     applicationStatusLog: {
       create: jest.fn(),
@@ -273,6 +277,63 @@ describe('ApplicationsService', () => {
         applied: true,
         applicationId: 'application-id',
         status: ApplicationStatus.SUBMITTED,
+      });
+    });
+  });
+
+  describe('quyền truy cập theo từng tin tuyển dụng', () => {
+    const revocationFilter = {
+      OR: [
+        { createdByRecruiterId: 'recruiter-id' },
+        { accessRevocations: { none: { recruiterAccountId: 'recruiter-id' } } },
+      ],
+    };
+
+    beforeEach(() => {
+      prismaMock.recruiterAccount.findUnique.mockResolvedValue({
+        id: 'recruiter-id',
+        companyId: 'company-id',
+      });
+    });
+
+    it('lọc hồ sơ theo tin mà recruiter còn quyền xem', async () => {
+      prismaMock.application.findMany.mockResolvedValue([]);
+
+      await service.getCompanyApplications('recruiter-id');
+
+      const where = prismaMock.application.findMany.mock.calls.at(-1)[0].where;
+      expect(where.jobPost).toMatchObject({
+        companyId: 'company-id',
+        deletedAt: null,
+        ...revocationFilter,
+      });
+    });
+
+    it('chặn xem danh sách ứng viên của tin đã bị thu hồi quyền', async () => {
+      prismaMock.jobPost.findUnique.mockResolvedValue({
+        id: 'job-post-id',
+        companyId: 'company-id',
+      });
+      // Không tìm thấy tin nào khớp bộ lọc quyền => đã bị thu hồi.
+      prismaMock.jobPost.findFirst.mockResolvedValue(null);
+
+      await expect(service.getJobApplicants('job-post-id', 'recruiter-id')).rejects.toThrow(
+        'Bạn không có quyền truy cập tin tuyển dụng này.',
+      );
+    });
+
+    it('vẫn cho xem khi recruiter chưa bị thu hồi quyền', async () => {
+      prismaMock.jobPost.findUnique.mockResolvedValue({
+        id: 'job-post-id',
+        companyId: 'company-id',
+      });
+      prismaMock.jobPost.findFirst.mockResolvedValue({ id: 'job-post-id' });
+      prismaMock.application.findMany.mockResolvedValue([]);
+
+      await expect(service.getJobApplicants('job-post-id', 'recruiter-id')).resolves.toBeDefined();
+      expect(prismaMock.jobPost.findFirst).toHaveBeenCalledWith({
+        where: { id: 'job-post-id', ...revocationFilter },
+        select: { id: true },
       });
     });
   });

@@ -69,6 +69,15 @@ export class Company {
   })
   benefits?: string | null;
 
+  @ApiPropertyOptional({
+    example:
+      'ChÃºc má»«ng {candidateName}, chÃºng tÃ´i vui má»«ng gá»­i thÆ° má»i nháº­n viá»‡c...',
+  })
+  offerLetterTemplate?: string | null;
+
+  @ApiPropertyOptional({ example: 'Cáº£m Æ¡n {candidateName} Ä‘Ã£ quan tÃ¢m Ä‘áº¿n vá»‹ trÃ­...' })
+  rejectionLetterTemplate?: string | null;
+
   @ApiPropertyOptional({ example: '51-200 nhân sự' })
   companySize?: string | null;
 

@@ -62,6 +62,19 @@ export class CreateCompanyDto {
   @IsString()
   benefits?: string;
 
+  @ApiPropertyOptional({
+    example:
+      'ChÃºc má»«ng {candidateName}, chÃºng tÃ´i vui má»«ng gá»­i thÆ° má»i nháº­n viá»‡c...',
+  })
+  @IsOptional()
+  @IsString()
+  offerLetterTemplate?: string;
+
+  @ApiPropertyOptional({ example: 'Cáº£m Æ¡n {candidateName} Ä‘Ã£ quan tÃ¢m Ä‘áº¿n vá»‹ trÃ­...' })
+  @IsOptional()
+  @IsString()
+  rejectionLetterTemplate?: string;
+
   @ApiPropertyOptional({ maxLength: 80, example: '51-200 nhân sự' })
   @IsOptional()
   @IsString()

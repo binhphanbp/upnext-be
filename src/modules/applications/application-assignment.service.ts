@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AccountStatus, ActorType, ConversationParticipantRole, Prisma } from '@prisma/client';
+import { isJobPostAccessibleToRecruiter } from '../../common/authorization/job-post-access';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssignApplicationDto, UnassignApplicationDto } from './dto/assign-application.dto';
@@ -14,8 +15,8 @@ export class ApplicationAssignmentService {
   constructor(private readonly prisma: PrismaService) {}
 
   async assign(applicationId: string, dto: AssignApplicationDto, user: AuthenticatedUser) {
-    const context = await this.applicationContext(applicationId);
-    this.assertCanManage(context.jobPost.companyId, user);
+    const context = await this.applicationContext(applicationId, user.id);
+    this.assertCanManage(context.jobPost, user);
     const target = await this.prisma.recruiterAccount.findFirst({
       where: {
         id: dto.recruiterAccountId,
@@ -66,8 +67,8 @@ export class ApplicationAssignmentService {
     dto: UnassignApplicationDto,
     user: AuthenticatedUser,
   ) {
-    const context = await this.applicationContext(applicationId);
-    this.assertCanManage(context.jobPost.companyId, user);
+    const context = await this.applicationContext(applicationId, user.id);
+    this.assertCanManage(context.jobPost, user);
     return this.prisma.$transaction(
       async (tx) => {
         const assignment = await tx.applicationAssignment.findFirst({
@@ -118,21 +119,37 @@ export class ApplicationAssignmentService {
     );
   }
 
-  private applicationContext(applicationId: string) {
+  private applicationContext(applicationId: string, recruiterId: string) {
     return this.prisma.application.findUniqueOrThrow({
       where: { id: applicationId },
       select: {
-        jobPost: { select: { id: true, companyId: true, createdByRecruiterId: true } },
+        jobPost: {
+          select: {
+            id: true,
+            companyId: true,
+            createdByRecruiterId: true,
+            // Chỉ lấy bản ghi thu hồi của chính người đang gọi, đủ để biết họ còn quyền hay không.
+            accessRevocations: {
+              where: { recruiterAccountId: recruiterId },
+              select: { id: true },
+              take: 1,
+            },
+          },
+        },
         conversation: { select: { id: true } },
       },
     });
   }
 
-  private assertCanManage(companyId: string, user: AuthenticatedUser) {
+  private assertCanManage(
+    jobPost: { companyId: string; createdByRecruiterId: string; accessRevocations: unknown[] },
+    user: AuthenticatedUser,
+  ) {
     if (
       user.role !== ActorType.RECRUITER ||
-      user.companyId !== companyId ||
-      !user.permissions.includes('applications:manage')
+      user.companyId !== jobPost.companyId ||
+      !user.permissions.includes('applications:manage') ||
+      !isJobPostAccessibleToRecruiter(jobPost, user.id)
     ) {
       throw new ForbiddenException('You cannot manage application assignments');
     }

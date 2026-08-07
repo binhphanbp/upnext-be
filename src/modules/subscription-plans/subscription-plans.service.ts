@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
+import { SetPlanFeaturesDto } from './dto/set-plan-features.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
-import { Prisma } from '@prisma/client';
+import { PlanAudience, Prisma, SubscriptionFeature, SubscriptionStatus } from '@prisma/client';
 @Injectable()
 export class SubscriptionPlansService {
   constructor(private readonly prisma: PrismaService) {}
@@ -25,17 +26,81 @@ export class SubscriptionPlansService {
   }
   async findAll() {
     return this.prisma.subscriptionPlan.findMany({
+      include: { features: true },
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  /**
+   * Plans for the public pricing page. Filters on `isPublic` as well as
+   * `status`, so an admin can retire a plan from the pricing page while keeping
+   * existing subscribers on it.
+   */
+  async findPublic(audience: PlanAudience) {
+    return this.prisma.subscriptionPlan.findMany({
+      where: {
+        audience,
+        isPublic: true,
+        status: SubscriptionStatus.ACTIVE,
+      },
+      include: { features: true },
+      orderBy: [{ sortOrder: 'asc' }, { price: 'asc' }],
+    });
+  }
+
   async findOne(id: string) {
     const plan = await this.prisma.subscriptionPlan.findUnique({
       where: { id },
+      include: { features: true },
     });
     if (!plan) {
       throw new NotFoundException(`Subscription plan with ID ${id} not found`);
     }
     return plan;
+  }
+
+  /**
+   * Replaces a plan's quota definition wholesale. Features omitted from the
+   * payload are removed, which is what makes the admin form a simple full-state
+   * save rather than a diff.
+   */
+  async setFeatures(id: string, dto: SetPlanFeaturesDto) {
+    await this.findOne(id);
+
+    const seen = new Set<SubscriptionFeature>();
+    for (const feature of dto.features) {
+      if (seen.has(feature.feature)) {
+        throw new ConflictException(`Duplicate feature in payload: ${feature.feature}`);
+      }
+      seen.add(feature.feature);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.planFeature.deleteMany({
+        where: { planId: id, feature: { notIn: [...seen] } },
+      });
+
+      for (const feature of dto.features) {
+        await tx.planFeature.upsert({
+          where: { planId_feature: { planId: id, feature: feature.feature } },
+          update: {
+            enabled: feature.enabled ?? true,
+            limitValue: feature.limitValue ?? null,
+          },
+          create: {
+            planId: id,
+            feature: feature.feature,
+            enabled: feature.enabled ?? true,
+            limitValue: feature.limitValue ?? null,
+          },
+        });
+      }
+
+      return tx.subscriptionPlan.findUniqueOrThrow({
+        where: { id },
+        include: { features: true },
+      });
+    });
   }
   async update(id: string, dto: UpdateSubscriptionPlanDto) {
     await this.findOne(id); // Kiểm tra xem gói có tồn tại không

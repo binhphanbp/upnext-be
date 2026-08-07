@@ -42,3 +42,20 @@ describe('calculateEducationMatchScore', () => {
     });
   });
 });
+
+describe('extractHighestEducationLevel', () => {
+  it.each(['Kỹ sư phần mềm tại FPT Software', 'Kỹ sư cầu nối (BrSE)', 'Vị trí: Kỹ sư DevOps'])(
+    'does not treat the job title %s as a bachelor degree',
+    (text) => {
+      expect(extractHighestEducationLevel([{ text }])).toBeNull();
+    },
+  );
+
+  it.each([
+    'Bằng Kỹ sư Công nghệ thông tin',
+    'Tốt nghiệp Kỹ sư Khoa học máy tính',
+    'Kỹ sư ngành CNTT - Đại học Bách Khoa',
+  ])('still detects BACHELOR from the qualification wording %s', (text) => {
+    expect(extractHighestEducationLevel([{ text }])?.level).toBe(EducationLevel.BACHELOR);
+  });
+});

@@ -28,6 +28,7 @@ import { UpdateJobPostDto } from './dto/update-job-post.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { REPUTATION_CONFIG } from '../reputation/reputation.config';
 import { PublicJobPostQueryDto } from './dto/public-job-post-query.dto';
+import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 
 @Injectable()
 export class JobPostsService {
@@ -185,6 +186,9 @@ export class JobPostsService {
     }
 
     if (status === JobStatus.PUBLISHED) {
+      // Publishing is deliberately NOT metered: reputation is the only gate, so
+      // a company can always post. Paid plans differentiate on boosting a post,
+      // not on being allowed to publish one.
       await this.ensureCompanyCanPublish(job.companyId);
     }
 

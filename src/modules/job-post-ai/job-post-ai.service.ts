@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { SubscriptionFeature } from '@prisma/client';
 import * as mammoth from 'mammoth';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { GenerateJobPostDraftDto } from './dto/generate-job-post-draft.dto';
 import { GeminiJobPostService, RawJobPostDraft } from './gemini-job-post.service';
 import { htmlToPlainText, plainTextToRichText, sanitizeRichText } from './rich-text';
@@ -16,6 +19,7 @@ export type JobPostAiUploadFile = {
 
 type LoadedContext = {
   company: {
+    id: string;
     name: string;
     description: string | null;
     benefits: string | null;
@@ -33,7 +37,44 @@ export class JobPostAiService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly gemini: GeminiJobPostService,
+    private readonly quota: SubscriptionQuotaService,
   ) {}
+
+  /**
+   * Charges one AI JD credit around a Gemini call.
+   *
+   * Unlike a database action there is nothing to put in the same transaction as
+   * the model call, so the allowance is taken up front -- otherwise concurrent
+   * requests could all pass a pre-check and overshoot the plan. If the call then
+   * fails the credit is handed straight back, so a recruiter is never charged
+   * for output they did not get.
+   */
+  private async withJdCredit<T>(
+    recruiterId: string,
+    companyId: string,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const operationId = randomUUID();
+    const { usage } = await this.prisma.$transaction((tx) =>
+      this.quota.consume(tx, {
+        companyId,
+        feature: SubscriptionFeature.AI_JD_GENERATE,
+        referenceType: 'JOB_POST_AI',
+        referenceId: operationId,
+        idempotencyKey: `jd-ai:${operationId}`,
+        createdByRecruiterId: recruiterId,
+      }),
+    );
+
+    try {
+      return await run();
+    } catch (error) {
+      await this.prisma
+        .$transaction((tx) => this.quota.reverse(tx, usage.id, 'ai-call-failed'))
+        .catch(() => undefined);
+      throw error;
+    }
+  }
 
   async generate(recruiterId: string, dto: GenerateJobPostDraftDto) {
     const context = await this.loadContext(recruiterId);
@@ -59,32 +100,34 @@ export class JobPostAiService {
       'kỹ năng ưu tiên',
     );
 
-    const raw = await this.gemini.generateDraft(
-      {
-        title: dto.title.trim(),
-        jobCategoryName: category?.name,
-        experienceLevelName: experienceLevel?.name,
-        employmentTypeName: employmentType?.name,
-        requiredSkillNames: requiredSkills.map((skill) => skill.name),
-        preferredSkillNames: preferredSkills.map((skill) => skill.name),
-        keywords: this.cleanKeywords(dto.keywords),
-        yearsOfExperience: dto.yearsOfExperience?.trim(),
-        companyName: context.company.name,
-        companyDescription: this.toPromptText(
-          dto.companyDescription || context.company.description || '',
-        ),
-        companyBenefits: this.toPromptText(context.company.benefits || ''),
-        companyWorkingDays: context.company.workingDays || undefined,
-        productOrDomain: dto.productOrDomain?.trim(),
-        roleObjective: dto.roleObjective?.trim(),
-        teamContext: dto.teamContext?.trim(),
-        languageRequirement: dto.languageRequirement?.trim(),
-        workMode: dto.workMode,
-        outputLanguage: dto.outputLanguage,
-        presentationStyle: dto.presentationStyle,
-        hints: dto.hints?.trim(),
-      },
-      this.toCatalogNames(context),
+    const raw = await this.withJdCredit(recruiterId, context.company.id, () =>
+      this.gemini.generateDraft(
+        {
+          title: dto.title.trim(),
+          jobCategoryName: category?.name,
+          experienceLevelName: experienceLevel?.name,
+          employmentTypeName: employmentType?.name,
+          requiredSkillNames: requiredSkills.map((skill) => skill.name),
+          preferredSkillNames: preferredSkills.map((skill) => skill.name),
+          keywords: this.cleanKeywords(dto.keywords),
+          yearsOfExperience: dto.yearsOfExperience?.trim(),
+          companyName: context.company.name,
+          companyDescription: this.toPromptText(
+            dto.companyDescription || context.company.description || '',
+          ),
+          companyBenefits: this.toPromptText(context.company.benefits || ''),
+          companyWorkingDays: context.company.workingDays || undefined,
+          productOrDomain: dto.productOrDomain?.trim(),
+          roleObjective: dto.roleObjective?.trim(),
+          teamContext: dto.teamContext?.trim(),
+          languageRequirement: dto.languageRequirement?.trim(),
+          workMode: dto.workMode,
+          outputLanguage: dto.outputLanguage,
+          presentationStyle: dto.presentationStyle,
+          hints: dto.hints?.trim(),
+        },
+        this.toCatalogNames(context),
+      ),
     );
 
     return this.toResponse('generated', raw, context, {
@@ -98,13 +141,15 @@ export class JobPostAiService {
 
   async extractText(recruiterId: string, sourceText: string) {
     const context = await this.loadContext(recruiterId);
-    const raw = await this.gemini.extractDraft(
-      {
-        sourceText,
-        sourceLabel: 'nội dung được dán trực tiếp',
-        companyName: context.company.name,
-      },
-      this.toCatalogNames(context),
+    const raw = await this.withJdCredit(recruiterId, context.company.id, () =>
+      this.gemini.extractDraft(
+        {
+          sourceText,
+          sourceLabel: 'nội dung được dán trực tiếp',
+          companyName: context.company.name,
+        },
+        this.toCatalogNames(context),
+      ),
     );
 
     return this.toResponse('extracted', raw, context);
@@ -117,13 +162,15 @@ export class JobPostAiService {
 
     const context = await this.loadContext(recruiterId);
     const source = await this.prepareFile(file);
-    const raw = await this.gemini.extractDraft(
-      {
-        ...source,
-        sourceLabel: file.originalname,
-        companyName: context.company.name,
-      },
-      this.toCatalogNames(context),
+    const raw = await this.withJdCredit(recruiterId, context.company.id, () =>
+      this.gemini.extractDraft(
+        {
+          ...source,
+          sourceLabel: file.originalname,
+          companyName: context.company.name,
+        },
+        this.toCatalogNames(context),
+      ),
     );
 
     return this.toResponse('extracted', raw, context);
@@ -137,6 +184,7 @@ export class JobPostAiService {
           select: {
             company: {
               select: {
+                id: true,
                 name: true,
                 description: true,
                 benefits: true,

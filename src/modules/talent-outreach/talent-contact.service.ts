@@ -69,19 +69,12 @@ export class TalentContactService {
         orderBy: { startedAt: 'desc' },
       });
       if (!subscription) throw new ConflictException('An active subscription is required');
-      const consumed = await tx.companySubscription.updateMany({
-        where: {
-          id: subscription.id,
-          talentContactUsed: { lt: subscription.talentContactLimit },
-        },
+      // Outreach is no longer capped by the plan. The counter is still bumped so
+      // usage reporting stays accurate, but running out never blocks a contact.
+      await tx.companySubscription.updateMany({
+        where: { id: subscription.id },
         data: { talentContactUsed: { increment: 1 } },
       });
-      if (!consumed.count) {
-        throw new ConflictException({
-          code: 'QUOTA_EXHAUSTED',
-          message: 'Talent contact quota exhausted',
-        });
-      }
 
       let request = await tx.talentContactRequest.findUnique({
         where: {

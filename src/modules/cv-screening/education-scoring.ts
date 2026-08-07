@@ -41,8 +41,12 @@ const EDUCATION_PATTERNS: ReadonlyArray<{
       /\bdai hoc\b/i,
       /\bcu nhan\b/i,
       /\bbachelor(?:'s)?\b/i,
-      /\bky su\b/i,
       /\bengineer(?:ing)? degree\b/i,
+      // "Kỹ sư" alone is a job title far more often than a degree in
+      // Vietnamese CVs ("Kỹ sư phần mềm"), so it only counts as a degree when
+      // paired with an explicit qualification word.
+      /\b(?:bang|van bang|tot nghiep|hoc vi)\b[^.\n]{0,40}\bky su\b/i,
+      /\bky su\b[^.\n]{0,40}\b(?:dai hoc|bach khoa)\b/i,
     ],
   },
   {

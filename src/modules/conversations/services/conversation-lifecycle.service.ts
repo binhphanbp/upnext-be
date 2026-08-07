@@ -13,6 +13,7 @@ import { MessageService } from './message.service';
 const applicationChatStatuses = new Set<ApplicationStatus>([
   ApplicationStatus.SUBMITTED,
   ApplicationStatus.VIEWED,
+  ApplicationStatus.CONSIDERING,
   ApplicationStatus.SHORTLISTED,
   ApplicationStatus.INTERVIEWING,
   ApplicationStatus.OFFERED,

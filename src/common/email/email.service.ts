@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import nodemailer, { Transporter } from 'nodemailer';
 import Mail from 'nodemailer/lib/mailer';
@@ -372,7 +372,7 @@ export class EmailService {
   }
 
   private renderTemplate(templateName: string, variables: Record<string, string>) {
-    const templatePath = join(__dirname, 'templates', templateName);
+    const templatePath = this.resolveEmailResourcePath('templates', templateName);
     let html = readFileSync(templatePath, 'utf8');
 
     for (const [key, value] of Object.entries(variables)) {
@@ -383,7 +383,26 @@ export class EmailService {
   }
 
   private resolveEmailAssetPath(fileName: string) {
-    return join(__dirname, 'assets', fileName);
+    return this.resolveEmailResourcePath('assets', fileName);
+  }
+
+  /**
+   * Templates and images are build assets, so they sit next to the compiled
+   * service -- `nest-cli.json` copies them into every dist layout this repo
+   * produces (`dist/**` from tsconfig.build.json, `dist/src/**` from the watcher).
+   * The source tree is the last resort so a plain `tsx`/ts-node run still works.
+   *
+   * Every candidate is anchored on `__dirname`, never on `process.cwd()`: a
+   * process manager such as pm2 can start the server from any directory.
+   */
+  private resolveEmailResourcePath(resourceDirectory: 'assets' | 'templates', fileName: string) {
+    const paths = [
+      join(__dirname, resourceDirectory, fileName),
+      join(__dirname, '..', '..', '..', 'src', 'common', 'email', resourceDirectory, fileName),
+      join(__dirname, '..', '..', '..', '..', 'src', 'common', 'email', resourceDirectory, fileName),
+    ];
+
+    return paths.find(existsSync) ?? paths[0];
   }
 
   private resolveFrontendLink(path: string) {

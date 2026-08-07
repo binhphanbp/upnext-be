@@ -7,10 +7,26 @@ const SCORING_MODEL = 'gemini-2.5-flash';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MAX_JOB_TEXT_LENGTH = 8000;
 const MAX_CV_TEXT_LENGTH = 6000;
-const RECOMMENDATIONS = ['strong_fit', 'fit', 'borderline', 'not_fit'] as const;
 const GEMINI_SCORING_RUBRIC = CV_SCORING_RUBRIC.filter(
   (criterion) => criterion.key !== 'education',
 );
+
+/**
+ * Rough VND cost per 1M tokens for the scoring model. These are estimates for
+ * margin reporting, not billing -- revisit whenever Google changes pricing or
+ * the USD rate moves materially.
+ */
+export const GEMINI_SCORING_COST_PER_MILLION_VND = {
+  input: 7_600,
+  output: 63_500,
+} as const;
+
+export function estimateGeminiCostVnd(inputTokens: number | null, outputTokens: number | null) {
+  if (inputTokens === null && outputTokens === null) return null;
+  const input = ((inputTokens ?? 0) / 1_000_000) * GEMINI_SCORING_COST_PER_MILLION_VND.input;
+  const output = ((outputTokens ?? 0) / 1_000_000) * GEMINI_SCORING_COST_PER_MILLION_VND.output;
+  return Math.round((input + output) * 10_000) / 10_000;
+}
 const EXTRACTABLE_EDUCATION_LEVELS = [
   EducationLevel.HIGH_SCHOOL,
   EducationLevel.VOCATIONAL,
@@ -19,13 +35,9 @@ const EXTRACTABLE_EDUCATION_LEVELS = [
   EducationLevel.POSTGRADUATE,
 ] as const;
 
-type Recommendation = (typeof RECOMMENDATIONS)[number];
-
 export type ScoringCandidateInput = {
   applicationId: string;
-  candidateName: string;
   cvText: string;
-  semanticScore: number;
   candidateEducationLevel: EducationLevel | null;
 };
 
@@ -41,7 +53,6 @@ export type GeminiScoreResult = {
   weaknesses: string[];
   criteriaBreakdown: CvScoringCriterionBreakdown[];
   summary: string;
-  recommendation: Recommendation;
   raw: unknown;
 };
 
@@ -99,6 +110,10 @@ export class GeminiScoringService {
             parts?: Array<{ text?: string }>;
           };
         }>;
+        usageMetadata?: {
+          promptTokenCount?: number;
+          candidatesTokenCount?: number;
+        };
       };
       const text = data.candidates?.[0]?.content?.parts
         ?.map((part) => part.text ?? '')
@@ -118,9 +133,15 @@ export class GeminiScoringService {
         candidates.map((candidate) => candidate.applicationId),
       );
 
-      return parsed
-        .map((item) => this.normalizeScoreResult(item))
-        .filter((item) => requestedApplicationIds.has(item.applicationId));
+      return {
+        results: parsed
+          .map((item) => this.normalizeScoreResult(item))
+          .filter((item) => requestedApplicationIds.has(item.applicationId)),
+        usage: {
+          inputTokens: data.usageMetadata?.promptTokenCount ?? null,
+          outputTokens: data.usageMetadata?.candidatesTokenCount ?? null,
+        },
+      };
     });
   }
 
@@ -131,10 +152,11 @@ export class GeminiScoringService {
   private buildPrompt(jobDetailText: string, candidates: ScoringCandidateInput[]) {
     const payload = {
       jobDetail: this.truncateText(jobDetailText, MAX_JOB_TEXT_LENGTH),
+      // Deliberately omits candidate name/email: the model does not need
+      // identity to score fit, and withholding it removes an obvious channel
+      // for demographic bias to leak into the scores.
       candidates: candidates.map((candidate) => ({
         applicationId: candidate.applicationId,
-        candidateName: candidate.candidateName,
-        semanticScore: candidate.semanticScore,
         knownCandidateEducationLevel: candidate.candidateEducationLevel,
         needsEducationLevelExtraction: candidate.candidateEducationLevel === null,
         cvText: this.truncateText(candidate.cvText, MAX_CV_TEXT_LENGTH),
@@ -152,8 +174,7 @@ Quy tắc bắt buộc:
 - skillScore nằm trong khoảng 0 đến 40.
 - experienceScore nằm trong khoảng 0 đến 30.
 - projectScore nằm trong khoảng 0 đến 20.
-- recommendation chỉ được là một trong các mã: strong_fit, fit, borderline, not_fit.
-- Chỉ dùng semanticScore như yếu tố phụ khi phân vân. Bằng chứng trong CV và yêu cầu công việc quan trọng hơn.
+- Không suy đoán hay đề cập tên, tuổi, giới tính, quê quán của ứng viên. Chỉ chấm theo bằng chứng năng lực.
 - Tất cả nội dung tự nhiên trong summary, strengths, weaknesses, matchedSkills, missingSkills, criteriaBreakdown.summary, reason và evidence phải viết bằng tiếng Việt.
 - Không viết câu tiếng Anh trong kết quả. Chỉ giữ nguyên tên công nghệ, framework, công cụ, công ty, trường học, chứng chỉ hoặc chức danh nếu đó là tên riêng/thuật ngữ kỹ thuật.
 - criteriaBreakdown chỉ có đúng 3 nhóm skills, experience và projects, với đúng mọi hạng mục con trong rubric bên dưới.
@@ -182,10 +203,6 @@ Thang chấm:
 - candidateEducationLevel chỉ được là HIGH_SCHOOL, VOCATIONAL, COLLEGE, BACHELOR, POSTGRADUATE hoặc null.
 - Thạc sĩ và Tiến sĩ đều ánh xạ thành POSTGRADUATE. Không suy đoán trình độ từ chức danh, kinh nghiệm, tuổi, công ty hoặc kỹ năng.
 - Khi needsEducationLevelExtraction=false, giữ candidateEducationLevel đúng bằng knownCandidateEducationLevel.
-- strong_fit: 85-100 điểm, có bằng chứng rõ về kỹ năng bắt buộc và kinh nghiệm phù hợp.
-- fit: 70-84 điểm, đáp ứng hầu hết yêu cầu chính.
-- borderline: 50-69 điểm hoặc bằng chứng còn thiếu ở yêu cầu quan trọng.
-- not_fit: dưới 50 điểm hoặc thiếu yêu cầu cốt lõi.
 - matchedSkills và missingSkills phải tập trung vào kỹ năng trong jobDetail.
 - Mỗi mảng tối đa 8 mục, mỗi trường văn bản tối đa 280 ký tự.
 
@@ -193,7 +210,7 @@ Rubric bắt buộc:
 ${JSON.stringify(GEMINI_SCORING_RUBRIC)}
 
 Trả về một mảng JSON. Mỗi phần tử phải có:
-applicationId, skillScore, experienceScore, projectScore, candidateEducationLevel, matchedSkills, missingSkills, strengths, weaknesses, criteriaBreakdown, summary, recommendation.
+applicationId, skillScore, experienceScore, projectScore, candidateEducationLevel, matchedSkills, missingSkills, strengths, weaknesses, criteriaBreakdown, summary.
 
 Dữ liệu đầu vào:
 ${JSON.stringify(payload)}`;
@@ -246,7 +263,6 @@ ${JSON.stringify(payload)}`;
             },
           },
           summary: { type: 'STRING' },
-          recommendation: { type: 'STRING', enum: [...RECOMMENDATIONS] },
         },
         required: [
           'applicationId',
@@ -260,7 +276,6 @@ ${JSON.stringify(payload)}`;
           'weaknesses',
           'criteriaBreakdown',
           'summary',
-          'recommendation',
         ],
       },
     };
@@ -307,7 +322,6 @@ ${JSON.stringify(payload)}`;
     const projectScore = hasDetailedBreakdown
       ? this.getCriterionScore(criteriaBreakdown, 'projects', 20)
       : this.clampScore(value.projectScore, 20);
-    const computedSubtotal = skillScore + experienceScore + projectScore;
 
     return {
       applicationId: value.applicationId,
@@ -321,7 +335,6 @@ ${JSON.stringify(payload)}`;
       weaknesses: this.toStringArray(value.weaknesses),
       criteriaBreakdown,
       summary: typeof value.summary === 'string' ? value.summary : '',
-      recommendation: this.normalizeRecommendation(value.recommendation, computedSubtotal),
       raw: { ...value, criteriaBreakdown },
     };
   }
@@ -384,36 +397,12 @@ ${JSON.stringify(payload)}`;
     return value.filter((item): item is string => typeof item === 'string');
   }
 
-  private normalizeRecommendation(value: unknown, overallScore: number): Recommendation {
-    if (typeof value === 'string' && this.isRecommendation(value)) {
-      return value;
-    }
-
-    if (overallScore >= 85) {
-      return 'strong_fit';
-    }
-
-    if (overallScore >= 70) {
-      return 'fit';
-    }
-
-    if (overallScore >= 50) {
-      return 'borderline';
-    }
-
-    return 'not_fit';
-  }
-
   private normalizeEducationLevel(value: unknown): EducationLevel | null {
     return EXTRACTABLE_EDUCATION_LEVELS.includes(
       value as (typeof EXTRACTABLE_EDUCATION_LEVELS)[number],
     )
       ? (value as EducationLevel)
       : null;
-  }
-
-  private isRecommendation(value: string): value is Recommendation {
-    return RECOMMENDATIONS.includes(value as Recommendation);
   }
 
   private truncateText(value: string, maxLength: number) {

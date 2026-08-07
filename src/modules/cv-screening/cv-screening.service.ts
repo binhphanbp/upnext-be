@@ -5,11 +5,22 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { CvScreeningRunStatus, EducationLevel, Prisma } from '@prisma/client';
+import {
+  ActorType,
+  CvScreeningRunStatus,
+  EducationLevel,
+  Prisma,
+  SubscriptionFeature,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isJobPostAccessibleToRecruiter } from '../../common/authorization/job-post-access';
+import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { RunCvScreeningDto } from './dto/run-cv-screening.dto';
-import { EmbeddingResult, EmbeddingService } from './embedding.service';
-import { GeminiScoringService, GeminiScoreResult } from './gemini-scoring.service';
+import {
+  estimateGeminiCostVnd,
+  GeminiScoringService,
+  GeminiScoreResult,
+} from './gemini-scoring.service';
 import {
   calculateEducationMatchScore,
   EducationMatchScoreResult,
@@ -18,14 +29,16 @@ import {
   getEducationLevelLabel,
 } from './education-scoring';
 import { CV_SCORING_RUBRIC, CvScoringCriterionBreakdown } from './scoring-rubric';
+import { buildCvText, buildJobText, CV_TEXT_INCLUDE, JOB_TEXT_INCLUDE } from './screening-text';
 
-const DEFAULT_DETAILED_LIMIT = 100;
-const MAX_DETAILED_LIMIT = 200;
-const EMBEDDING_CONCURRENCY = 8;
+// Safety cap so a single run can never fan out to an unbounded number of
+// Gemini calls. Every application below this cap is scored -- there is no
+// semantic pre-filter, so nothing is silently dropped from a normal run.
+const MAX_APPLICATIONS_PER_RUN = 200;
 const GEMINI_BATCH_SIZE = 8;
 const GEMINI_BATCH_CONCURRENCY = 1;
 const GEMINI_FALLBACK_CONCURRENCY = 1;
-const SCORING_VERSION = 'cv-screening-v9-impact-evidence-vi';
+const SCORING_VERSION = 'cv-screening-v10-no-retrieval-vi';
 
 type ApplicationForScreening = Prisma.ApplicationGetPayload<{
   select: {
@@ -53,11 +66,9 @@ type ApplicationForScreening = Prisma.ApplicationGetPayload<{
   };
 }>;
 
-type RankedApplication = {
+type ScreeningCandidate = {
   application: ApplicationForScreening;
-  semanticScore: number;
   cvText: string;
-  cvEmbeddingUpdatedAt: Date;
   candidateEducationLevel: EducationLevel | null;
   candidateEducationEvidence: string | null;
 };
@@ -68,8 +79,8 @@ export class CvScreeningService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly embeddingService: EmbeddingService,
     private readonly geminiScoringService: GeminiScoringService,
+    private readonly quota: SubscriptionQuotaService,
   ) {}
 
   async startRun(recruiterId: string, dto: RunCvScreeningDto) {
@@ -79,6 +90,12 @@ export class CvScreeningService {
       select: {
         id: true,
         companyId: true,
+        createdByRecruiterId: true,
+        accessRevocations: {
+          where: { recruiterAccountId: recruiterId },
+          select: { id: true },
+          take: 1,
+        },
       },
     });
 
@@ -90,20 +107,59 @@ export class CvScreeningService {
       throw new ForbiddenException('Recruiter does not belong to the company that owns this job');
     }
 
-    const totalApplications = await this.prisma.application.count({
+    if (!isJobPostAccessibleToRecruiter(jobPost, recruiterId)) {
+      throw new ForbiddenException('Bạn không có quyền truy cập tin tuyển dụng này.');
+    }
+
+    const applicationCount = await this.prisma.application.count({
       where: { jobPostId: dto.jobPostId },
     });
+    const effectiveLimit = Math.min(
+      dto.limit ?? MAX_APPLICATIONS_PER_RUN,
+      MAX_APPLICATIONS_PER_RUN,
+    );
+    // totalApplications is the progress denominator, so it must be the number
+    // of applications this run will actually score -- not the job's total.
+    const totalApplications = Math.min(applicationCount, effectiveLimit);
 
-    const run = await this.prisma.cvScreeningRun.create({
-      data: {
-        jobPostId: dto.jobPostId,
+    if (applicationCount > totalApplications) {
+      this.logger.warn(
+        `Job post ${dto.jobPostId} has ${applicationCount} applications; capping this run at ${totalApplications}`,
+      );
+    }
+
+    if (totalApplications === 0) {
+      throw new BadRequestException('This job post has no applications to screen');
+    }
+
+    // The run row and the quota charge are created together: a run that exceeds
+    // the remaining allowance must not exist at all, otherwise the recruiter
+    // sees a run that can never produce results.
+    const run = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.cvScreeningRun.create({
+        data: {
+          jobPostId: dto.jobPostId,
+          companyId: recruiter.companyId,
+          recruiterAccountId: recruiter.id,
+          totalApplications,
+          limit: dto.limit ?? null,
+          status: CvScreeningRunStatus.PENDING,
+        },
+      });
+
+      // One credit per CV scored, matching how the pricing table counts it
+      // ("AI chấm điểm phù hợp CV-JD: N CV/tháng").
+      await this.quota.consume(tx, {
         companyId: recruiter.companyId,
-        recruiterAccountId: recruiter.id,
-        totalApplications,
-        limit: dto.limit ?? null,
-        minScore: dto.minScore ?? null,
-        status: CvScreeningRunStatus.PENDING,
-      },
+        feature: SubscriptionFeature.AI_CV_MATCHING,
+        quantity: totalApplications,
+        referenceType: 'CV_SCREENING_RUN',
+        referenceId: created.id,
+        idempotencyKey: `cv-screening:${created.id}`,
+        createdByRecruiterId: recruiter.id,
+      });
+
+      return created;
     });
 
     setImmediate(() => {
@@ -130,7 +186,6 @@ export class CvScreeningService {
       processedCount: run.processedCount,
       failedCount: run.failedCount,
       limit: run.limit,
-      minScore: run.minScore === null ? null : Number(run.minScore),
       status: run.status,
       errorMessage: run.errorMessage,
       startedAt: run.startedAt,
@@ -174,7 +229,6 @@ export class CvScreeningService {
       candidateName: score.candidateProfile.account.fullName,
       jobTitle: score.jobPost.title,
       finalScore: Number(score.finalScore),
-      semanticScore: Number(score.semanticScore),
       aiScore: Number(score.aiScore),
       skillScore: Number(score.skillScore),
       experienceScore: Number(score.experienceScore),
@@ -230,7 +284,6 @@ export class CvScreeningService {
       candidateName: score.candidateProfile.account.fullName,
       jobTitle: score.jobPost.title,
       finalScore: Number(score.finalScore),
-      semanticScore: Number(score.semanticScore),
       aiScore: Number(score.aiScore),
       skillScore: Number(score.skillScore),
       experienceScore: Number(score.experienceScore),
@@ -280,8 +333,15 @@ export class CvScreeningService {
     });
 
     try {
-      const [jobEmbedding, applications, jobPost] = await Promise.all([
-        this.embeddingService.getOrCreateJobEmbedding(run.jobPostId),
+      const effectiveLimit = Math.min(
+        run.limit ?? MAX_APPLICATIONS_PER_RUN,
+        MAX_APPLICATIONS_PER_RUN,
+      );
+      const [jobPost, applications] = await Promise.all([
+        this.prisma.jobPost.findUnique({
+          where: { id: run.jobPostId },
+          include: JOB_TEXT_INCLUDE,
+        }),
         this.prisma.application.findMany({
           where: { jobPostId: run.jobPostId },
           select: {
@@ -308,11 +368,8 @@ export class CvScreeningService {
               },
             },
           },
-          orderBy: { submittedAt: 'asc' },
-        }),
-        this.prisma.jobPost.findUnique({
-          where: { id: run.jobPostId },
-          select: { educationLevel: true },
+          orderBy: { submittedAt: 'desc' },
+          take: effectiveLimit,
         }),
       ]);
 
@@ -320,53 +377,44 @@ export class CvScreeningService {
         throw new NotFoundException('Job post not found');
       }
 
-      const cvEmbeddings = await this.embeddingService.getOrCreateCvEmbeddings(
+      const jobText = buildJobText(jobPost);
+      const cvTextByVersionId = await this.loadCvTexts(
         applications.map((application) => application.cvVersionId),
-        EMBEDDING_CONCURRENCY,
       );
-      const embeddingFailureCount = applications.length - cvEmbeddings.size;
 
-      if (embeddingFailureCount > 0) {
-        await this.incrementProgress(runId, 0, embeddingFailureCount);
+      const selected: ScreeningCandidate[] = [];
+      const missingCvTextItems: ApplicationForScreening[] = [];
+
+      for (const application of applications) {
+        const cvText = cvTextByVersionId.get(application.cvVersionId)?.trim();
+        if (!cvText) {
+          missingCvTextItems.push(application);
+          continue;
+        }
+
+        const candidateEducation = this.resolveCandidateEducation(application);
+        selected.push({
+          application,
+          cvText,
+          candidateEducationLevel: candidateEducation?.level ?? null,
+          candidateEducationEvidence: candidateEducation?.evidence ?? null,
+        });
       }
 
-      const minScore = run.minScore === null ? null : Number(run.minScore);
-      const requestedLimit = run.limit ?? DEFAULT_DETAILED_LIMIT;
-      const detailLimit = Math.min(requestedLimit, MAX_DETAILED_LIMIT, applications.length);
-      const rankedEmbeddings = await this.embeddingService.rankCvEmbeddings(
-        jobEmbedding.vector,
-        applications.map((application) => application.cvVersionId),
-        detailLimit,
-        minScore,
-      );
-      const applicationByCvVersionId = new Map(
-        applications.map((application) => [application.cvVersionId, application]),
-      );
-      const selected = rankedEmbeddings.flatMap((embedding): RankedApplication[] => {
-        const application = applicationByCvVersionId.get(embedding.cvVersionId);
-        if (!application) {
-          return [];
+      if (missingCvTextItems.length > 0) {
+        for (const application of missingCvTextItems) {
+          this.logger.error(
+            `Application ${application.id} has no readable CV text; skipping AI scoring`,
+          );
         }
-        const candidateEducation = this.resolveCandidateEducation(application);
+        await this.incrementProgress(runId, missingCvTextItems.length, missingCvTextItems.length);
+      }
 
-        return [
-          {
-            application,
-            semanticScore: this.roundScore(embedding.semanticScore),
-            cvText: embedding.text,
-            cvEmbeddingUpdatedAt: embedding.updatedAt,
-            candidateEducationLevel: candidateEducation?.level ?? null,
-            candidateEducationEvidence: candidateEducation?.evidence ?? null,
-          },
-        ];
-      });
-
-      const toScore = await this.reuseFreshScores(runId, jobEmbedding, selected);
+      const toScore = await this.reuseFreshScores(runId, jobPost.updatedAt, selected);
       await this.mapLimit(
         this.chunk(toScore, GEMINI_BATCH_SIZE),
         GEMINI_BATCH_CONCURRENCY,
-        (batch) =>
-          this.scoreAndPersistBatch(runId, jobEmbedding.text, jobPost.educationLevel, batch),
+        (batch) => this.scoreAndPersistBatch(runId, jobText, jobPost.educationLevel, batch),
       );
 
       const latestRun = await this.prisma.cvScreeningRun.findUnique({
@@ -406,69 +454,108 @@ export class CvScreeningService {
     }
   }
 
+  /**
+   * Records what a Gemini call actually cost. The pricing model assumes a margin
+   * between plan price and token spend, and this is the only place that number
+   * can be measured. Never lets a logging failure abort a scoring run.
+   */
+  private async recordAiUsage(
+    runId: string,
+    usage: { inputTokens: number | null; outputTokens: number | null },
+    succeeded: boolean,
+  ) {
+    try {
+      const run = await this.prisma.cvScreeningRun.findUnique({
+        where: { id: runId },
+        select: { companyId: true, recruiterAccountId: true },
+      });
+      if (!run) return;
+
+      await this.prisma.aiUsageLog.create({
+        data: {
+          feature: SubscriptionFeature.AI_CV_MATCHING,
+          companyId: run.companyId,
+          actorType: ActorType.RECRUITER,
+          actorId: run.recruiterAccountId,
+          modelName: this.geminiScoringService.modelName,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          costEstimate: estimateGeminiCostVnd(usage.inputTokens, usage.outputTokens),
+          referenceType: 'CV_SCREENING_RUN',
+          referenceId: runId,
+          succeeded,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to record AI usage for run ${runId}: ${this.getErrorMessage(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Loads the CV text used for AI scoring straight from the CV version.
+   * `parsedText` (extracted when the candidate applied) is preferred; otherwise
+   * the structured candidate profile is stitched together as a fallback.
+   */
+  private async loadCvTexts(cvVersionIds: string[]) {
+    const uniqueIds = [...new Set(cvVersionIds)];
+    const texts = new Map<string, string>();
+
+    if (uniqueIds.length === 0) {
+      return texts;
+    }
+
+    const cvVersions = await this.prisma.cVVersion.findMany({
+      where: { id: { in: uniqueIds } },
+      include: CV_TEXT_INCLUDE,
+    });
+
+    for (const cvVersion of cvVersions) {
+      texts.set(cvVersion.id, buildCvText(cvVersion));
+    }
+
+    return texts;
+  }
+
+  /**
+   * Skips Gemini for applications that already have a score produced by the
+   * current model + scoring version, as long as the job post has not been
+   * edited since. CV versions are append-only, so a changed CV means a new
+   * cvVersionId and therefore no cached score to reuse.
+   */
   private async reuseFreshScores(
     runId: string,
-    jobEmbedding: EmbeddingResult,
-    selected: RankedApplication[],
+    jobPostUpdatedAt: Date,
+    selected: ScreeningCandidate[],
   ) {
     if (selected.length === 0) {
       return selected;
     }
 
-    const selectedByApplicationId = new Map(selected.map((item) => [item.application.id, item]));
     const existingScores = await this.prisma.applicationAiScore.findMany({
       where: {
         applicationId: { in: selected.map((item) => item.application.id) },
         modelName: this.geminiScoringService.modelName,
         scoringVersion: SCORING_VERSION,
+        updatedAt: { gte: jobPostUpdatedAt },
       },
-      select: {
-        applicationId: true,
-        aiScore: true,
-        updatedAt: true,
-      },
+      select: { applicationId: true },
     });
-    const reusableScores: Array<{
-      item: RankedApplication;
-      score: (typeof existingScores)[number];
-    }> = [];
 
-    for (const score of existingScores) {
-      const item = selectedByApplicationId.get(score.applicationId);
-      if (!item) {
-        continue;
-      }
-
-      const scoreUpdatedAt = score.updatedAt.getTime();
-      if (
-        scoreUpdatedAt >= jobEmbedding.updatedAt.getTime() &&
-        scoreUpdatedAt >= item.cvEmbeddingUpdatedAt.getTime()
-      ) {
-        reusableScores.push({ item, score });
-      }
-    }
-
-    if (reusableScores.length === 0) {
+    if (existingScores.length === 0) {
       return selected;
     }
 
-    await Promise.all(
-      reusableScores.map(({ item, score }) =>
-        this.prisma.applicationAiScore.update({
-          where: { applicationId: item.application.id },
-          data: {
-            runId,
-            semanticScore: item.semanticScore,
-            finalScore: this.roundScore(Number(score.aiScore)),
-          },
-        }),
-      ),
-    );
-    await this.incrementProgress(runId, reusableScores.length, 0);
+    const reusableApplicationIds = new Set(existingScores.map((score) => score.applicationId));
+    await this.prisma.applicationAiScore.updateMany({
+      where: { applicationId: { in: [...reusableApplicationIds] } },
+      data: { runId },
+    });
+    await this.incrementProgress(runId, reusableApplicationIds.size, 0);
 
-    const reusableApplicationIds = new Set(reusableScores.map(({ item }) => item.application.id));
     this.logger.log(
-      `Reused ${reusableScores.length} fresh AI score(s) for CV screening run ${runId}`,
+      `Reused ${reusableApplicationIds.size} fresh AI score(s) for CV screening run ${runId}`,
     );
 
     return selected.filter((item) => !reusableApplicationIds.has(item.application.id));
@@ -478,7 +565,7 @@ export class CvScreeningService {
     runId: string,
     jobText: string,
     requiredEducationLevel: EducationLevel,
-    batch: RankedApplication[],
+    batch: ScreeningCandidate[],
     canFallback = true,
   ) {
     if (batch.length === 0) {
@@ -486,24 +573,23 @@ export class CvScreeningService {
     }
 
     try {
-      const results = await this.geminiScoringService.scoreBatch(
+      const { results, usage } = await this.geminiScoringService.scoreBatch(
         jobText,
         batch.map((item) => ({
           applicationId: item.application.id,
-          candidateName: item.application.candidateProfile.account.fullName,
           cvText: item.cvText,
-          semanticScore: item.semanticScore,
           candidateEducationLevel: item.candidateEducationLevel,
         })),
       );
+      await this.recordAiUsage(runId, usage, true);
       const resultByApplicationId = new Map(
         results.map((result) => [result.applicationId, result]),
       );
       const persistOperations: Array<{
-        item: RankedApplication;
+        item: ScreeningCandidate;
         operation: Promise<void>;
       }> = [];
-      const missingResultItems: RankedApplication[] = [];
+      const missingResultItems: ScreeningCandidate[] = [];
 
       for (const item of batch) {
         const result = resultByApplicationId.get(item.application.id);
@@ -572,7 +658,7 @@ export class CvScreeningService {
     runId: string,
     jobText: string,
     requiredEducationLevel: EducationLevel,
-    missingItems: RankedApplication[],
+    missingItems: ScreeningCandidate[],
     canFallback: boolean,
   ) {
     if (canFallback && missingItems.length > 0) {
@@ -593,7 +679,7 @@ export class CvScreeningService {
 
   private async persistScore(
     runId: string,
-    item: RankedApplication,
+    item: ScreeningCandidate,
     result: GeminiScoreResult,
     requiredEducationLevel: EducationLevel,
   ) {
@@ -627,7 +713,6 @@ export class CvScreeningService {
       runId,
       jobPostId: item.application.jobPostId,
       candidateProfileId: item.application.candidateProfileId,
-      semanticScore: item.semanticScore,
       aiScore,
       finalScore,
       skillScore,
@@ -807,6 +892,12 @@ export class CvScreeningService {
         jobPost: {
           select: {
             companyId: true,
+            createdByRecruiterId: true,
+            accessRevocations: {
+              where: { recruiterAccountId: recruiterId },
+              select: { id: true },
+              take: 1,
+            },
           },
         },
       },
@@ -817,6 +908,11 @@ export class CvScreeningService {
     }
 
     if (application.jobPost.companyId !== recruiter.companyId) {
+      throw new ForbiddenException('You are not authorized to access this application');
+    }
+
+    // Đây là cửa duy nhất tới CV và điểm AI của ứng viên, nên quyền theo từng tin phải chặn ở đây.
+    if (!isJobPostAccessibleToRecruiter(application.jobPost, recruiterId)) {
       throw new ForbiddenException('You are not authorized to access this application');
     }
 
