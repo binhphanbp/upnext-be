@@ -137,4 +137,35 @@ describe('ToolRegistryService', () => {
       expect(jobPost).not.toHaveBeenCalled();
     });
   });
+
+  describe('timeout tool — không có truy vấn DB nào được giữ vô thời hạn', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('tool treo quá 5s trả về failed thay vì giữ SSE mở vô thời hạn', async () => {
+      profile.mockImplementation(() => new Promise(() => {})); // không bao giờ resolve
+
+      const pending = registry.execute('get_own_profile', {
+        actorType: ActorType.CANDIDATE,
+        ownerId: 'profile-1',
+      });
+
+      await jest.advanceTimersByTimeAsync(5_000);
+      const result = await pending;
+
+      expect(result.status).toBe('failed');
+      expect(result.detail).toContain('vượt quá thời gian');
+    });
+
+    it('tool xong trước 5s không bị timeout ăn nhầm kết quả', async () => {
+      applications.mockResolvedValue([{ id: 'app-1' }]);
+
+      const result = await registry.execute('get_own_applications', {
+        actorType: ActorType.CANDIDATE,
+        ownerId: 'profile-1',
+      });
+
+      expect(result.status).toBe('succeeded');
+    });
+  });
 });

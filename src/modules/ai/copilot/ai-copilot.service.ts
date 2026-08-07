@@ -52,6 +52,13 @@ import { AiConversationsService } from './ai-conversations.service';
  */
 
 const MAX_TOOL_CALLS = 3;
+/**
+ * Truyền tường minh thay vì để `GeminiLlmAdapter` tự áp giá trị mặc định của nó
+ * (`?? 2048`). Trần chi phí của một câu trả lời là quyết định nghiệp vụ, không
+ * nên phụ thuộc vào một giá trị ẩn bên trong tầng adapter — nếu ai đó đổi mặc
+ * định của adapter cho một use case khác, Copilot vẫn phải giữ đúng con số này.
+ */
+const ANSWER_MAX_OUTPUT_TOKENS = 2048;
 const OUT_OF_SCOPE_SUGGESTIONS = [
   'Phân tích CV của tôi',
   'Tìm việc phù hợp',
@@ -256,6 +263,7 @@ export class AiCopilotService {
           })),
           { role: 'user' as const, text: `${input.prompt}\n\n${dataBlock}` },
         ],
+        maxOutputTokens: ANSWER_MAX_OUTPUT_TOKENS,
         ...(input.signal ? { signal: input.signal } : {}),
       })) {
         if (chunk.kind === 'usage') {

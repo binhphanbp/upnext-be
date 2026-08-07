@@ -382,6 +382,9 @@ export class ApplicationsService {
             },
           },
         },
+        statusLogs: {
+          orderBy: { changedAt: 'asc' },
+        },
       },
     });
 
@@ -523,7 +526,7 @@ export class ApplicationsService {
     // again — so it must not report as applied, or the job stays locked to them forever.
     if (application && application.status !== ApplicationStatus.WITHDRAWN) {
       return {
-        applied: true,
+        applied: application.status !== ApplicationStatus.WITHDRAWN,
         applicationId: application.id,
         status: application.status,
       };
