@@ -2,6 +2,13 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  buildCvText,
+  buildJobText,
+  CV_TEXT_INCLUDE,
+  CvVersionForText,
+  JOB_TEXT_INCLUDE,
+} from './screening-text';
 
 const EMBEDDING_MODEL = 'gemini-embedding-001';
 const EMBEDDING_DIMENSIONS = 768;
@@ -23,26 +30,7 @@ export type RankedCvEmbedding = {
   updatedAt: Date;
 };
 
-type CvVersionForEmbedding = Prisma.CVVersionGetPayload<{
-  include: {
-    sourceFile: true;
-    cv: {
-      include: {
-        candidateProfile: {
-          include: {
-            account: { select: { fullName: true; email: true } };
-            skills: { include: { skill: true } };
-            experiences: true;
-            projects: true;
-            educations: true;
-            certifications: true;
-            jobPreference: true;
-          };
-        };
-      };
-    };
-  };
-}>;
+type CvVersionForEmbedding = CvVersionForText;
 
 @Injectable()
 export class EmbeddingService {
@@ -100,21 +88,14 @@ export class EmbeddingService {
   async getOrCreateJobEmbedding(jobPostId: string): Promise<EmbeddingResult> {
     const jobPost = await this.prisma.jobPost.findUnique({
       where: { id: jobPostId },
-      include: {
-        jobCategory: true,
-        employmentType: true,
-        experienceLevel: true,
-        jobPostSkills: { include: { skill: true } },
-        jobPostSpecializations: { include: { specialization: true } },
-        jobPostLocations: { include: { jobLocation: true } },
-      },
+      include: JOB_TEXT_INCLUDE,
     });
 
     if (!jobPost) {
       throw new NotFoundException('Job post not found');
     }
 
-    const embeddingText = this.buildJobEmbeddingText(jobPost);
+    const embeddingText = buildJobText(jobPost);
     const existing = await this.prisma.jobEmbedding.findUnique({
       where: { jobPostId },
     });
@@ -177,24 +158,7 @@ export class EmbeddingService {
 
     const cvVersions = await this.prisma.cVVersion.findMany({
       where: { id: { in: uniqueCvVersionIds } },
-      include: {
-        sourceFile: true,
-        cv: {
-          include: {
-            candidateProfile: {
-              include: {
-                account: { select: { fullName: true, email: true } },
-                skills: { include: { skill: true }, orderBy: { sortOrder: 'asc' } },
-                experiences: { orderBy: { sortOrder: 'asc' } },
-                projects: { orderBy: { sortOrder: 'asc' } },
-                educations: { orderBy: { sortOrder: 'asc' } },
-                certifications: { orderBy: { sortOrder: 'asc' } },
-                jobPreference: true,
-              },
-            },
-          },
-        },
-      },
+      include: CV_TEXT_INCLUDE,
     });
 
     const existingEmbeddings = await this.prisma.cvEmbedding.findMany({
@@ -210,7 +174,7 @@ export class EmbeddingService {
     }> = [];
 
     for (const cvVersion of cvVersions) {
-      const embeddingText = this.buildCvEmbeddingText(cvVersion);
+      const embeddingText = buildCvText(cvVersion);
       const existing = existingByCvVersionId.get(cvVersion.id);
 
       if (existing?.modelName === EMBEDDING_CACHE_KEY && existing.embeddingText === embeddingText) {
@@ -387,137 +351,6 @@ export class EmbeddingService {
     return `[${vector.join(',')}]`;
   }
 
-  private buildJobEmbeddingText(
-    jobPost: Prisma.JobPostGetPayload<{
-      include: {
-        jobCategory: true;
-        employmentType: true;
-        experienceLevel: true;
-        jobPostSkills: { include: { skill: true } };
-        jobPostSpecializations: { include: { specialization: true } };
-        jobPostLocations: { include: { jobLocation: true } };
-      };
-    }>,
-  ) {
-    const skills = jobPost.jobPostSkills
-      .map((item) =>
-        [
-          item.skill.name,
-          item.priority ? `priority: ${item.priority}` : '',
-          item.minYearsExperience ? `min years: ${item.minYearsExperience.toString()}` : '',
-          item.proficiencyLevel ? `level: ${item.proficiencyLevel}` : '',
-        ]
-          .filter(Boolean)
-          .join(' '),
-      )
-      .join(', ');
-
-    const specializations = jobPost.jobPostSpecializations
-      .map((item) => item.specialization.name)
-      .join(', ');
-    const locations = jobPost.jobPostLocations
-      .map((item) =>
-        [
-          item.jobLocation.city,
-          item.jobLocation.district,
-          item.jobLocation.country,
-          item.jobLocation.workingModel,
-        ]
-          .filter(Boolean)
-          .join(', '),
-      )
-      .join('; ');
-
-    return this.compactLines([
-      `Job title: ${jobPost.title}`,
-      `Category: ${jobPost.jobCategory?.name ?? ''}`,
-      `Employment type: ${jobPost.employmentType?.name ?? ''}`,
-      `Experience level: ${jobPost.experienceLevel?.name ?? ''}`,
-      `Education level: ${jobPost.educationLevel}`,
-      `Working days: ${jobPost.workingDays ?? ''}`,
-      `Description: ${jobPost.description}`,
-      `Requirements: ${jobPost.requirements ?? ''}`,
-      `Benefits: ${jobPost.benefits ?? ''}`,
-      `Required skills: ${skills}`,
-      `Specializations: ${specializations}`,
-      `Locations: ${locations}`,
-    ]);
-  }
-
-  private buildCvEmbeddingText(
-    cvVersion: Prisma.CVVersionGetPayload<{
-      include: {
-        sourceFile: true;
-        cv: {
-          include: {
-            candidateProfile: {
-              include: {
-                account: { select: { fullName: true; email: true } };
-                skills: { include: { skill: true } };
-                experiences: true;
-                projects: true;
-                educations: true;
-                certifications: true;
-                jobPreference: true;
-              };
-            };
-          };
-        };
-      };
-    }>,
-  ) {
-    const parsedText = cvVersion.parsedText?.trim();
-    if (parsedText) {
-      return parsedText;
-    }
-
-    const profile = cvVersion.cv.candidateProfile;
-    const skills = profile.skills
-      .map((item) =>
-        [
-          item.skill.name,
-          item.proficiencyLevel,
-          item.yearsOfExperience ? `${item.yearsOfExperience.toString()} years` : '',
-        ]
-          .filter(Boolean)
-          .join(' '),
-      )
-      .join(', ');
-    const experiences = profile.experiences
-      .map((item) =>
-        [item.positionTitle, item.companyName, item.technologies, item.description]
-          .filter(Boolean)
-          .join(' - '),
-      )
-      .join('\n');
-    const projects = profile.projects
-      .map((item) =>
-        [item.name, item.role, item.technologies, item.description].filter(Boolean).join(' - '),
-      )
-      .join('\n');
-    const educations = profile.educations
-      .map((item) =>
-        [item.schoolName, item.degree, item.major, item.description].filter(Boolean).join(' - '),
-      )
-      .join('\n');
-    const certifications = profile.certifications
-      .map((item) => [item.name, item.organization].filter(Boolean).join(' - '))
-      .join(', ');
-
-    return this.compactLines([
-      `CV file: ${cvVersion.sourceFile?.originalName ?? cvVersion.cv.title}`,
-      `Candidate name: ${profile.account.fullName}`,
-      `Candidate email: ${profile.account.email}`,
-      `Headline: ${profile.jobPreference?.desiredPosition ?? ''}`,
-      `Profile summary: ${profile.description ?? ''}`,
-      `Skills: ${skills}`,
-      `Experience: ${experiences}`,
-      `Projects: ${projects}`,
-      `Education: ${educations}`,
-      `Certifications: ${certifications}`,
-    ]);
-  }
-
   private normalizeVector(value: number[]) {
     const vector = this.assertVector(value);
     const norm = Math.sqrt(vector.reduce((sum, item) => sum + item * item, 0));
@@ -541,13 +374,6 @@ export class EmbeddingService {
 
   private normalizeForEmbedding(text: string) {
     return text.replace(/\s+/g, ' ').trim().slice(0, MAX_EMBEDDING_TEXT_LENGTH);
-  }
-
-  private compactLines(lines: string[]) {
-    return lines
-      .map((line) => line.replace(/[ \t]+/g, ' ').trim())
-      .filter((line) => line && !line.endsWith(':'))
-      .join('\n');
   }
 
   private parseVector(value: Prisma.JsonValue): number[] {

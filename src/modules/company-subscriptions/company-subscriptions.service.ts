@@ -38,7 +38,10 @@ export class CompanySubscriptionsService {
     const company = await client.company.findUnique({ where: { id: targetCompanyId } });
     if (!company) throw new NotFoundException('Company not found');
 
-    const plan = await client.subscriptionPlan.findUnique({ where: { id: dto.planId } });
+    const plan = await client.subscriptionPlan.findUnique({
+      where: { id: dto.planId },
+      include: { features: true },
+    });
     if (!plan) throw new NotFoundException('Subscription plan not found');
     if (plan.status !== SubscriptionStatus.ACTIVE) {
       throw new BadRequestException('This subscription plan is not active');
@@ -58,7 +61,7 @@ export class CompanySubscriptionsService {
         },
       });
 
-      return tx.companySubscription.create({
+      const subscription = await tx.companySubscription.create({
         data: {
           planId: plan.id,
           companyId: targetCompanyId,
@@ -67,12 +70,33 @@ export class CompanySubscriptionsService {
           talentContactLimit: plan.talentContactLimit,
           startedAt: now,
           expiredAt: expiredAt,
+          currentPeriodStart: now,
+          currentPeriodEnd: expiredAt,
           status: SubscriptionStatus.ACTIVE,
         },
         include: {
           plan: true,
         },
       });
+
+      // Materialise the quota window up front so the first metered action does
+      // not have to race to create counters. SubscriptionQuotaService can still
+      // create them lazily for periods that roll over later.
+      if (plan.features.length > 0) {
+        await tx.subscriptionQuotaCounter.createMany({
+          data: plan.features.map((feature) => ({
+            companySubscriptionId: subscription.id,
+            feature: feature.feature,
+            limitValue: feature.limitValue,
+            usedValue: 0,
+            periodStart: now,
+            periodEnd: expiredAt,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return subscription;
     };
 
     return transaction ? activate(transaction) : this.prisma.$transaction(activate);

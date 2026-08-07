@@ -61,6 +61,7 @@ enum CvStatus {
 enum ApplicationStatus {
   SUBMITTED    @map("submitted")
   VIEWED       @map("viewed")
+  CONSIDERING  @map("considering")
   SHORTLISTED  @map("shortlisted")
   INTERVIEWING @map("interviewing")
   OFFERED      @map("offered")
@@ -235,6 +236,7 @@ enum PaymentMethod {
   STRIPE @map("stripe")
   MOMO   @map("momo")
   SEPAY  @map("sepay")
+  PAYPAL @map("paypal")
 }
 
 enum PaymentStatus {
@@ -389,7 +391,19 @@ enum SupportAssignmentAction {
 }
 
 enum SubscriptionFeature {
+  JOB_POST       @map("job_post")
+  FEATURED_JOB   @map("featured_job")
+  URGENT_LABEL   @map("urgent_label")
+  CV_POOL_VIEW   @map("cv_pool_view")
   TALENT_CONTACT @map("talent_contact")
+  AI_CV_MATCHING @map("ai_cv_matching")
+  AI_JD_GENERATE @map("ai_jd_generate")
+  HR_SEAT        @map("hr_seat")
+}
+
+enum PlanAudience {
+  RECRUITER @map("recruiter")
+  CANDIDATE @map("candidate")
 }
 
 enum SubscriptionUsageDirection {
@@ -814,30 +828,32 @@ model Specialization {
 // =========================
 
 model Company {
-  id                     String                    @id @default(uuid()) @db.Uuid
-  logoFileId             String?                   @map("logo_file_id") @db.Uuid
-  businessLicenseFileId  String?                   @map("business_license_file_id") @db.Uuid
-  type                   CompanyType               @default(OTHER)
-  name                   String                    @db.VarChar(200)
-  slug                   String                    @unique @db.VarChar(200)
-  taxCode                String?                   @unique @map("tax_code") @db.VarChar(50)
-  address                String?                   @db.VarChar(255)
-  email                  String?                   @db.VarChar(255)
-  phone                  String?                   @db.VarChar(30)
-  website                String?                   @db.VarChar(500)
-  description            String?                   @db.Text
-  benefits               String?                   @db.Text
-  companySize            String?                   @map("company_size") @db.VarChar(80)
-  workingDays            String?                   @map("working_days") @db.VarChar(150)
-  verificationStatus     CompanyVerificationStatus @default(UNVERIFIED) @map("verification_status")
-  reputationScore        Decimal                   @default(35) @map("reputation_score") @db.Decimal(6, 2)
-  scoreBeforeRestriction Decimal?                  @map("score_before_restriction") @db.Decimal(6, 2)
-  restrictedAt           DateTime?                 @map("restricted_at")
-  status                 CompanyStatus             @default(ACTIVE)
-  lockedReason           String?                   @map("locked_reason") @db.Text
-  lockedAt               DateTime?                 @map("locked_at")
-  createdAt              DateTime                  @default(now()) @map("created_at")
-  updatedAt              DateTime                  @updatedAt @map("updated_at")
+  id                      String                    @id @default(uuid()) @db.Uuid
+  logoFileId              String?                   @map("logo_file_id") @db.Uuid
+  businessLicenseFileId   String?                   @map("business_license_file_id") @db.Uuid
+  type                    CompanyType               @default(OTHER)
+  name                    String                    @db.VarChar(200)
+  slug                    String                    @unique @db.VarChar(200)
+  taxCode                 String?                   @unique @map("tax_code") @db.VarChar(50)
+  address                 String?                   @db.VarChar(255)
+  email                   String?                   @db.VarChar(255)
+  phone                   String?                   @db.VarChar(30)
+  website                 String?                   @db.VarChar(500)
+  description             String?                   @db.Text
+  benefits                String?                   @db.Text
+  offerLetterTemplate     String?                   @map("offer_letter_template") @db.Text
+  rejectionLetterTemplate String?                   @map("rejection_letter_template") @db.Text
+  companySize             String?                   @map("company_size") @db.VarChar(80)
+  workingDays             String?                   @map("working_days") @db.VarChar(150)
+  verificationStatus      CompanyVerificationStatus @default(UNVERIFIED) @map("verification_status")
+  reputationScore         Decimal                   @default(35) @map("reputation_score") @db.Decimal(6, 2)
+  scoreBeforeRestriction  Decimal?                  @map("score_before_restriction") @db.Decimal(6, 2)
+  restrictedAt            DateTime?                 @map("restricted_at")
+  status                  CompanyStatus             @default(ACTIVE)
+  lockedReason            String?                   @map("locked_reason") @db.Text
+  lockedAt                DateTime?                 @map("locked_at")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
 
   logoFile            FileAsset? @relation("CompanyLogoFile", fields: [logoFileId], references: [id], onDelete: SetNull)
   businessLicenseFile FileAsset? @relation("CompanyBusinessLicenseFile", fields: [businessLicenseFileId], references: [id], onDelete: SetNull)
@@ -860,6 +876,7 @@ model Company {
   talentContactRequests    TalentContactRequest[]
   supportCases             SupportCase[]
   subscriptionUsages       SubscriptionUsage[]
+  aiUsageLogs              AiUsageLog[]
 
   @@index([verificationStatus])
   @@index([status])
@@ -1295,7 +1312,6 @@ model CvScreeningRun {
   processedCount     Int                  @default(0) @map("processed_count")
   failedCount        Int                  @default(0) @map("failed_count")
   limit              Int?
-  minScore           Decimal?             @map("min_score") @db.Decimal(5, 2)
   status             CvScreeningRunStatus @default(PENDING)
   errorMessage       String?              @map("error_message") @db.Text
   startedAt          DateTime?            @map("started_at")
@@ -1353,7 +1369,6 @@ model ApplicationAiScore {
   applicationId      String   @unique @map("application_id") @db.Uuid
   jobPostId          String   @map("job_post_id") @db.Uuid
   candidateProfileId String   @map("candidate_profile_id") @db.Uuid
-  semanticScore      Decimal  @map("semantic_score") @db.Decimal(5, 2)
   aiScore            Decimal  @map("ai_score") @db.Decimal(5, 2)
   finalScore         Decimal  @map("final_score") @db.Decimal(5, 2)
   skillScore         Decimal  @map("skill_score") @db.Decimal(5, 2)
@@ -1744,12 +1759,22 @@ model Appeal {
 // =========================
 
 model SubscriptionPlan {
-  id                 String             @id @default(uuid()) @db.Uuid
-  createdByAdminId   String?            @map("created_by_admin_id") @db.Uuid
-  subscriptionName   String             @map("subscription_name") @db.VarChar(150)
-  price              Decimal            @db.Decimal(12, 2)
-  description        String?            @db.Text
-  durationDays       Int                @map("duration_days")
+  id               String       @id @default(uuid()) @db.Uuid
+  createdByAdminId String?      @map("created_by_admin_id") @db.Uuid
+  /// Stable, audience-namespaced identifier (RECRUITER_PRO, CANDIDATE_TALENT, ...).
+  /// Namespaced because "Pro" is a tier name on both sides of the pricing table.
+  code             String?      @unique @db.VarChar(60)
+  audience         PlanAudience @default(RECRUITER)
+  subscriptionName String       @map("subscription_name") @db.VarChar(150)
+  price            Decimal      @db.Decimal(12, 2)
+  description      String?      @db.Text
+  durationDays     Int          @map("duration_days")
+  /// Controls visibility on the public pricing page, independent of `status`.
+  isPublic         Boolean      @default(true) @map("is_public")
+  /// Optional badge such as "Phổ biến nhất" rendered on the pricing card.
+  highlightLabel   String?      @map("highlight_label") @db.VarChar(60)
+  sortOrder        Int          @default(0) @map("sort_order")
+
   boostCreditLimit   Int                @default(0) @map("boost_credit_limit")
   status             SubscriptionStatus @default(ACTIVE)
   jobPostLimit       Int                @default(0) @map("job_post_limit")
@@ -1760,8 +1785,28 @@ model SubscriptionPlan {
   createdByAdmin       AdminUser?            @relation("SubscriptionPlanCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: SetNull)
   companySubscriptions CompanySubscription[]
   invoices             Invoice[]
+  features             PlanFeature[]
 
+  @@index([audience, isPublic, status])
   @@map("subscription_plans")
+}
+
+/// Per-plan quota definition. Replaces the hard-coded *Limit columns so adding a
+/// metered feature is a data change, not a migration.
+model PlanFeature {
+  id         String              @id @default(uuid()) @db.Uuid
+  planId     String              @map("plan_id") @db.Uuid
+  feature    SubscriptionFeature
+  enabled    Boolean             @default(true)
+  /// null = unlimited. 0 = feature present but no allowance.
+  limitValue Int?                @map("limit_value")
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  plan SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, feature])
+  @@map("plan_features")
 }
 
 model CompanySubscription {
@@ -1776,19 +1821,72 @@ model CompanySubscription {
   talentContactUsed  Int                @default(0) @map("talent_contact_used")
   startedAt          DateTime           @default(now()) @map("started_at")
   expiredAt          DateTime           @map("expired_at")
+  /// Quota window. Separate from startedAt/expiredAt so a longer-than-monthly
+  /// plan can still reset allowances every cycle.
+  currentPeriodStart DateTime?          @map("current_period_start")
+  currentPeriodEnd   DateTime?          @map("current_period_end")
   status             SubscriptionStatus @default(ACTIVE)
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  plan         SubscriptionPlan    @relation(fields: [planId], references: [id], onDelete: Restrict)
-  company      Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  jobBoosts    JobBoost[]
-  usages       SubscriptionUsage[]
-  supportCases SupportCase[]
+  plan          SubscriptionPlan           @relation(fields: [planId], references: [id], onDelete: Restrict)
+  company       Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobBoosts     JobBoost[]
+  usages        SubscriptionUsage[]
+  supportCases  SupportCase[]
+  quotaCounters SubscriptionQuotaCounter[]
 
   @@index([companyId, status])
   @@index([expiredAt])
   @@map("company_subscriptions")
+}
+
+/// Materialised per-period counter. Quota is consumed with a conditional
+/// `updateMany` against `usedValue`, which is what makes concurrent consumption
+/// race-safe without a row lock. A new period is a new row, so resetting
+/// allowances needs no scheduled job.
+model SubscriptionQuotaCounter {
+  id                    String              @id @default(uuid()) @db.Uuid
+  companySubscriptionId String              @map("company_subscription_id") @db.Uuid
+  feature               SubscriptionFeature
+  /// Mirrored from PlanFeature at period start; null = unlimited.
+  limitValue            Int?                @map("limit_value")
+  usedValue             Int                 @default(0) @map("used_value")
+  periodStart           DateTime            @map("period_start")
+  periodEnd             DateTime            @map("period_end")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  companySubscription CompanySubscription @relation(fields: [companySubscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([companySubscriptionId, feature, periodStart])
+  @@index([companySubscriptionId, feature])
+  @@map("subscription_quota_counters")
+}
+
+/// Raw AI spend ledger. Needed to verify the margin argument the pricing
+/// proposal is built on (plan price minus real token cost).
+model AiUsageLog {
+  id            String              @id @default(uuid()) @db.Uuid
+  feature       SubscriptionFeature
+  companyId     String?             @map("company_id") @db.Uuid
+  actorType     ActorType?          @map("actor_type")
+  actorId       String?             @map("actor_id") @db.Uuid
+  modelName     String              @map("model_name") @db.VarChar(120)
+  inputTokens   Int?                @map("input_tokens")
+  outputTokens  Int?                @map("output_tokens")
+  /// Estimated cost in VND; nullable because token counts are not always returned.
+  costEstimate  Decimal?            @map("cost_estimate") @db.Decimal(12, 4)
+  referenceType String?             @map("reference_type") @db.VarChar(80)
+  referenceId   String?             @map("reference_id") @db.Uuid
+  succeeded     Boolean             @default(true)
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, feature, createdAt])
+  @@index([feature, createdAt])
+  @@map("ai_usage_logs")
 }
 
 model Invoice {

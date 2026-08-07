@@ -3,10 +3,16 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CompanyMemberStatus, ActorType, CompanyVerificationStatus, AccountStatus } from '@prisma/client';
+import {
+  CompanyMemberStatus,
+  ActorType,
+  CompanyVerificationStatus,
+  AccountStatus,
+} from '@prisma/client';
 import { EmailService } from '../../common/email/email.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { InviteMemberDto } from './dto/invite-member.dto';
@@ -14,14 +20,17 @@ import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { AuthService } from '../auth/auth.service';
 import { AcceptInvitationAndSetPasswordDto } from './dto/accept-invitation-and-set-password.dto';
+import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 
 @Injectable()
 export class CompanyMembersService {
+  private readonly logger = new Logger(CompanyMembersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
-    private readonly authService: AuthService,
+    private readonly authService: AuthService,
   ) {}
 
   // ─── Members ─────────────────────────────────────────────────────────────
@@ -152,33 +161,31 @@ export class CompanyMembersService {
       );
     }
 
-    if (dto.roleId) {
-      const role = await this.prisma.recruiterRole.findUnique({
-        where: { id: dto.roleId },
-        select: { id: true, code: true, companyId: true },
+    const role = await this.prisma.recruiterRole.findUnique({
+      where: { id: dto.roleId },
+      select: { id: true, code: true, companyId: true },
+    });
+
+    if (!role) {
+      throw new NotFoundException(`Recruiter role ${dto.roleId} not found`);
+    }
+
+    if (role.companyId && role.companyId !== companyId) {
+      throw new ForbiddenException('This role does not belong to the company.');
+    }
+
+    // Only 1 Owner is allowed per company
+    if (role.code === 'OWNER') {
+      const existingOwner = await this.prisma.companyMember.findFirst({
+        where: {
+          companyId,
+          role: { code: 'OWNER' },
+        },
       });
-
-      if (!role) {
-        throw new NotFoundException(`Recruiter role ${dto.roleId} not found`);
-      }
-
-      if (role.companyId && role.companyId !== companyId) {
-        throw new ForbiddenException('This role does not belong to the company.');
-      }
-
-      // Only 1 Owner is allowed per company
-      if (role.code === 'OWNER') {
-        const existingOwner = await this.prisma.companyMember.findFirst({
-          where: {
-            companyId,
-            role: { code: 'OWNER' },
-          },
-        });
-        if (existingOwner) {
-          throw new ConflictException(
-            'Company already has an Owner. You cannot invite another Owner.',
-          );
-        }
+      if (existingOwner) {
+        throw new ConflictException(
+          'Company already has an Owner. You cannot invite another Owner.',
+        );
       }
     }
 
@@ -201,7 +208,7 @@ export class CompanyMembersService {
         recruiterAccountId: targetAccount.id,
         invitedEmail,
         companyId,
-        roleId: dto.roleId ?? null,
+        roleId: dto.roleId,
         status: CompanyMemberStatus.INVITED,
       },
       include: {
@@ -212,12 +219,19 @@ export class CompanyMembersService {
       },
     });
 
-    await this.emailService.sendCompanyInvitation({
-      to: invitation.invitedEmail ?? invitation.recruiterAccount?.email ?? invitedEmail,
-      companyName: company.name,
-      roleName: invitation.role?.name,
-      invitationLink: this.buildInvitationLink(invitation.id),
-    });
+    try {
+      await this.emailService.sendCompanyInvitation({
+        to: invitation.invitedEmail ?? invitation.recruiterAccount?.email ?? invitedEmail,
+        companyName: company.name,
+        roleName: invitation.role?.name,
+        invitationLink: this.buildInvitationLink(invitation.id),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Invitation ${invitation.id} was created but the email could not be sent.`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
 
     return invitation;
   }

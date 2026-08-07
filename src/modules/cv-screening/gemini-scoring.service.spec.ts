@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { EducationLevel } from '@prisma/client';
-import { GeminiScoringService } from './gemini-scoring.service';
+import { estimateGeminiCostVnd, GeminiScoringService } from './gemini-scoring.service';
 import { CV_SCORING_RUBRIC } from './scoring-rubric';
 
 describe('GeminiScoringService', () => {
@@ -37,7 +37,6 @@ describe('GeminiScoringService', () => {
       weaknesses: ['Thiếu kinh nghiệm thực tế'],
       criteriaBreakdown,
       summary: 'Ứng viên đáp ứng một phần yêu cầu.',
-      recommendation: 'borderline',
     };
 
     global.fetch = jest.fn().mockResolvedValue(
@@ -52,15 +51,14 @@ describe('GeminiScoringService', () => {
     const service = new GeminiScoringService(
       new ConfigService({ geminiApiKey: 'test-gemini-key' }),
     );
-    const [result] = await service.scoreBatch('Yêu cầu công việc', [
+    const { results } = await service.scoreBatch('Yêu cầu công việc', [
       {
         applicationId,
-        candidateName: 'Nguyễn Văn A',
         cvText: 'CV ứng viên',
-        semanticScore: 80,
         candidateEducationLevel: null,
       },
     ]);
+    const [result] = results;
 
     expect(result.skillScore).toBe(20);
     expect(result.experienceScore).toBe(15);
@@ -90,6 +88,56 @@ describe('GeminiScoringService', () => {
     expect(body.contents[0].parts[0].text).toContain(
       'Có số liệu nhưng không rõ vai trò cá nhân thì impact-evidence không được 7 điểm',
     );
+    // Identity must not reach the model: it is not needed to score fit and is
+    // an obvious channel for demographic bias.
+    expect(body.contents[0].parts[0].text).not.toContain('candidateName');
+    expect(body.generationConfig.responseSchema.items.properties).not.toHaveProperty(
+      'recommendation',
+    );
+  });
+
+  it('surfaces token usage so AI spend can be measured', async () => {
+    const applicationId = '44444444-4444-4444-8444-444444444444';
+    global.fetch = jest.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: '[]' }] } }],
+          usageMetadata: { promptTokenCount: 12000, candidatesTokenCount: 800 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    const service = new GeminiScoringService(
+      new ConfigService({ geminiApiKey: 'test-gemini-key' }),
+    );
+    const { usage } = await service.scoreBatch('Yêu cầu công việc', [
+      { applicationId, cvText: 'CV', candidateEducationLevel: null },
+    ]);
+
+    expect(usage).toEqual({ inputTokens: 12000, outputTokens: 800 });
+    // 12000/1e6*7600 + 800/1e6*63500 = 91.2 + 50.8
+    expect(estimateGeminiCostVnd(usage.inputTokens, usage.outputTokens)).toBeCloseTo(142, 1);
+  });
+
+  it('reports null token usage when Gemini omits usageMetadata', async () => {
+    const applicationId = '55555555-5555-4555-8555-555555555555';
+    global.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '[]' }] } }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const service = new GeminiScoringService(
+      new ConfigService({ geminiApiKey: 'test-gemini-key' }),
+    );
+    const { usage } = await service.scoreBatch('Yêu cầu công việc', [
+      { applicationId, cvText: 'CV', candidateEducationLevel: null },
+    ]);
+
+    expect(usage).toEqual({ inputTokens: null, outputTokens: null });
+    expect(estimateGeminiCostVnd(usage.inputTokens, usage.outputTokens)).toBeNull();
   });
 
   it.each([
@@ -180,7 +228,6 @@ async function scoreWithImpactEvidence(impactScore: number | undefined, cvText =
                       weaknesses: [],
                       criteriaBreakdown,
                       summary: 'Đánh giá dự án.',
-                      recommendation: 'not_fit',
                     },
                   ]),
                 },
@@ -194,13 +241,12 @@ async function scoreWithImpactEvidence(impactScore: number | undefined, cvText =
   );
 
   const service = new GeminiScoringService(new ConfigService({ geminiApiKey: 'test-gemini-key' }));
-  return service.scoreBatch('Yêu cầu công việc', [
+  const { results } = await service.scoreBatch('Yêu cầu công việc', [
     {
       applicationId,
-      candidateName: 'Nguyễn Văn B',
       cvText,
-      semanticScore: 70,
       candidateEducationLevel: null,
     },
   ]);
+  return results;
 }

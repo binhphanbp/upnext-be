@@ -3,11 +3,13 @@ import { EducationLevel, SalaryPeriod } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JobPostOutputLanguage, JobPostPresentationStyle } from './dto/generate-job-post-draft.dto';
 import { GeminiJobPostService, RawJobPostDraft } from './gemini-job-post.service';
+import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { JobPostAiService } from './job-post-ai.service';
 
 describe('JobPostAiService', () => {
   const context = {
     company: {
+      id: 'company-1',
       name: 'UpNext',
       description: '<p>Nền tảng tuyển dụng IT</p>',
       benefits: null,
@@ -49,12 +51,14 @@ describe('JobPostAiService', () => {
     experienceLevel: { findMany: jest.Mock };
     skill: { findMany: jest.Mock };
     specialization: { findMany: jest.Mock };
+    $transaction?: jest.Mock;
   };
   let gemini: {
     modelName: string;
     generateDraft: jest.Mock;
     extractDraft: jest.Mock;
   };
+  let quota: { consume: jest.Mock; reverse: jest.Mock };
   let service: JobPostAiService;
 
   beforeEach(() => {
@@ -71,9 +75,18 @@ describe('JobPostAiService', () => {
       generateDraft: jest.fn().mockResolvedValue(rawDraft),
       extractDraft: jest.fn().mockResolvedValue(rawDraft),
     };
+    quota = {
+      consume: jest.fn().mockResolvedValue({ usage: { id: 'usage-1' }, replayed: false }),
+      reverse: jest.fn().mockResolvedValue({}),
+    };
+    // The AI credit is taken around the Gemini call, so the fake transaction just
+    // hands the mocked client straight to the callback.
+    prisma.$transaction = jest.fn((cb: (tx: unknown) => unknown) => cb(prisma));
+
     service = new JobPostAiService(
       prisma as unknown as PrismaService,
       gemini as unknown as GeminiJobPostService,
+      quota as unknown as SubscriptionQuotaService,
     );
   });
 

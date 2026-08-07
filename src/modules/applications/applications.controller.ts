@@ -196,7 +196,17 @@ export class ApplicationsController {
   @ApiQuery({
     name: 'search',
     required: false,
-    description: 'Tìm kiếm theo tên hoặc email ứng viên',
+    description: 'Tìm kiếm theo tên, email hoặc số điện thoại ứng viên',
+  })
+  @ApiQuery({
+    name: 'viewed',
+    required: false,
+    description: 'Lọc theo trạng thái đã xem CV ("unviewed" để lọc CV chưa xem)',
+  })
+  @ApiQuery({
+    name: 'aiLabel',
+    required: false,
+    description: 'Lọc theo nhãn điểm AI (excellent, good, average, low, unscored)',
   })
   @ApiOkResponse({
     type: [ApplicationEntity],
@@ -207,12 +217,16 @@ export class ApplicationsController {
     @Query('jobPostId') jobPostId?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
+    @Query('viewed') viewed?: string,
+    @Query('aiLabel') aiLabel?: string,
   ) {
     const statusEnum = status ? (status as any) : undefined;
     return this.applicationsService.getCompanyApplications(user.id, {
       jobPostId,
       status: statusEnum,
       search,
+      viewed: viewed === 'unviewed' ? 'unviewed' : undefined,
+      aiLabel: aiLabel as any,
     });
   }
 
@@ -237,6 +251,22 @@ export class ApplicationsController {
       jobPostId,
       stageId,
     });
+  }
+
+  @Get('recruiter/candidate-summary')
+  @ApiOperation({
+    summary: 'Số liệu ứng viên cho dashboard nhà tuyển dụng (Chỉ dành cho nhà tuyển dụng)',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @AllowWhenRestricted()
+  @ApiOkResponse({
+    description:
+      'Tổng quan hồ sơ ứng tuyển của công ty: số hồ sơ chưa xem, hồ sơ mới, hồ sơ tồn đọng, phễu theo trạng thái, phân bố điểm AI và 5 hồ sơ mới nhất.',
+  })
+  getRecruiterCandidateSummary(@CurrentUser() user: AuthenticatedUser) {
+    return this.applicationsService.getRecruiterCandidateSummary(user.id);
   }
 
   @Patch('applications/:id/status')
@@ -269,6 +299,22 @@ export class ApplicationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.applicationsService.updateStatus(user, id, dto);
+  }
+
+  @Patch('applications/:id/mark-viewed')
+  @ApiOperation({ summary: 'Đánh dấu hồ sơ ứng tuyển đã được xem' })
+  @ApiParam({ name: 'id', description: 'UUID của hồ sơ ứng tuyển' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @ApiOkResponse({
+    type: ApplicationEntity,
+    description: 'Hồ sơ ứng tuyển được đánh dấu đã xem.',
+  })
+  @ApiForbiddenResponse({ description: 'Không có quyền truy cập hồ sơ ứng tuyển này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy hồ sơ ứng tuyển.' })
+  markViewed(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.applicationsService.markViewed(user, id);
   }
 
   @Post('applications/:id/assignments')

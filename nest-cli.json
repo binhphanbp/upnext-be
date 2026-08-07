@@ -8,11 +8,23 @@
     "assets": [
       {
         "include": "common/email/templates/**/*",
-        "outDir": "dist"
+        "outDir": "dist",
+        "watchAssets": true
       },
       {
         "include": "common/email/assets/**/*",
-        "outDir": "dist"
+        "outDir": "dist",
+        "watchAssets": true
+      },
+      {
+        "include": "common/email/templates/**/*",
+        "outDir": "dist/src",
+        "watchAssets": true
+      },
+      {
+        "include": "common/email/assets/**/*",
+        "outDir": "dist/src",
+        "watchAssets": true
       }
     ]
   }
