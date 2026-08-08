@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ActorType, Prisma } from '@prisma/client';
+import { ActorType, CvSource, CvStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CvVersionsService } from './cv-versions.service';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
@@ -78,6 +78,60 @@ describe('CvVersionsService', () => {
     expect(service).toBeDefined();
   });
 
+  it('lưu chỉnh sửa Builder thành một phiên bản mới, không ghi đè bản đã có', async () => {
+    const candidateUser: AuthenticatedUser = {
+      id: 'candidate-id',
+      email: 'candidate@upnext.dev',
+      role: ActorType.CANDIDATE,
+      permissions: [],
+    };
+    prismaMock.cV.findUnique.mockResolvedValue({
+      id: 'cv-id',
+      candidateProfileId: 'profile-id',
+      source: CvSource.BUILDER,
+      status: CvStatus.ACTIVE,
+      isDefault: true,
+      version: 3,
+      candidateProfile: { candidateAccountId: 'candidate-id' },
+    });
+    prismaMock.cVVersion.count.mockResolvedValue(1);
+    prismaMock.cV.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    prismaMock.cVVersion.findFirst.mockResolvedValue({ versionNo: 1 });
+    prismaMock.cVVersion.create.mockResolvedValue({ id: 'version-2', cvId: 'cv-id', versionNo: 2 });
+    prismaMock.cV.findUniqueOrThrow = jest.fn().mockResolvedValue({
+      id: 'cv-id',
+      title: 'Frontend Developer',
+      status: CvStatus.ACTIVE,
+      isDefault: true,
+      version: 4,
+      updatedAt: new Date(),
+    });
+
+    const result = await service.createBuilderVersion(
+      'cv-id',
+      {
+        contentJson: { personalInfo: { fullName: 'UpNext Candidate' } },
+        expectedVersion: 3,
+        parsedText: 'UpNext Candidate',
+        title: 'Frontend Developer',
+      },
+      candidateUser,
+    );
+
+    expect(prismaMock.cV.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'cv-id', version: 3 },
+        data: expect.objectContaining({ version: { increment: 1 } }),
+      }),
+    );
+    expect(prismaMock.cVVersion.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ cvId: 'cv-id', versionNo: 2 }),
+      }),
+    );
+    expect(result.version).toMatchObject({ id: 'version-2', versionNo: 2 });
+  });
+
   it('không cho upload phiên bản CV khi thiếu file PDF', async () => {
     prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id' });
 
@@ -94,7 +148,12 @@ describe('CvVersionsService', () => {
       service.upload(
         'cv-id',
         {},
-        { buffer: Buffer.from('%PDF-1.4'), mimetype: 'application/pdf', originalname: 'cv.pdf', size: 8 },
+        {
+          buffer: Buffer.from('%PDF-1.4'),
+          mimetype: 'application/pdf',
+          originalname: 'cv.pdf',
+          size: 8,
+        },
         adminUser,
       ),
     ).rejects.toThrow(ConflictException);
@@ -111,7 +170,12 @@ describe('CvVersionsService', () => {
       service.upload(
         'cv-id',
         { templateId: 'template-id' },
-        { buffer: Buffer.from('%PDF-1.4'), mimetype: 'application/pdf', originalname: 'cv.pdf', size: 8 },
+        {
+          buffer: Buffer.from('%PDF-1.4'),
+          mimetype: 'application/pdf',
+          originalname: 'cv.pdf',
+          size: 8,
+        },
         adminUser,
       ),
     ).rejects.toThrow(NotFoundException);

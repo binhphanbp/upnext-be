@@ -156,7 +156,7 @@ describe('ApplicationsService', () => {
         jobPostId: 'job-post-id',
         cvVersionId: 'cv-version-id',
       }),
-    ).rejects.toThrow('Vui lòng cập nhật số điện thoại Việt Nam hợp lệ trước khi nộp hồ sơ');
+    ).rejects.toThrow('Vui lòng cập nhật số điện thoại liên hệ hợp lệ trước khi nộp hồ sơ');
   });
 
   describe('re-applying after a withdrawal', () => {

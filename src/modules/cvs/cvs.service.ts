@@ -1,5 +1,10 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { CvStatus, Prisma } from '@prisma/client';
 import { PaginationQueryDto, toPagination } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCvDto } from './dto/create-cv.dto';
@@ -33,7 +38,14 @@ export class CvsService {
           });
         }
 
-        const isDefault = dto.isDefault ?? existingCount === 0;
+        const status = dto.status ?? CvStatus.ACTIVE;
+        if (dto.isDefault && status !== CvStatus.ACTIVE) {
+          throw new BadRequestException('Chỉ CV đang hoạt động mới có thể đặt làm CV mặc định');
+        }
+        const activeCount = await tx.cV.count({
+          where: { candidateProfileId: profile.id, status: CvStatus.ACTIVE },
+        });
+        const isDefault = status === CvStatus.ACTIVE && (dto.isDefault ?? activeCount === 0);
 
         if (isDefault) {
           await this.clearDefaultCvs(tx, profile.id);
@@ -44,7 +56,7 @@ export class CvsService {
             candidateProfileId: profile.id,
             title: dto.title,
             source: dto.source,
-            status: dto.status,
+            status,
             isDefault,
             versions: this.buildInitialVersionCreate(dto),
           },
@@ -116,10 +128,19 @@ export class CvsService {
    */
   async update(id: string, dto: UpdateCvDto, candidateAccountId: string) {
     const cv = await this.findOne(id, candidateAccountId);
+    const nextStatus = dto.status ?? cv.status ?? CvStatus.ACTIVE;
+    const nextIsDefault = dto.isDefault ?? cv.isDefault;
+
+    if (nextIsDefault && nextStatus !== CvStatus.ACTIVE) {
+      throw new BadRequestException('Chỉ CV đang hoạt động mới có thể đặt làm CV mặc định');
+    }
+
+    // A draft or archived CV must never remain the candidate's default choice.
+    const normalizedIsDefault = nextStatus === CvStatus.ACTIVE ? nextIsDefault : false;
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        if (dto.isDefault) {
+        if (normalizedIsDefault) {
           await this.clearDefaultCvs(tx, cv.candidateProfileId);
         }
 
@@ -130,7 +151,7 @@ export class CvsService {
               title: dto.title,
               source: dto.source,
               status: dto.status,
-              isDefault: dto.isDefault,
+              isDefault: normalizedIsDefault,
               version: { increment: 1 },
             },
           });
@@ -151,7 +172,7 @@ export class CvsService {
             title: dto.title,
             source: dto.source,
             status: dto.status,
-            isDefault: dto.isDefault,
+            isDefault: normalizedIsDefault,
             version: { increment: 1 },
           },
           select: this.defaultSelect,
@@ -175,7 +196,7 @@ export class CvsService {
 
         if (cv.isDefault) {
           const nextDefault = await tx.cV.findFirst({
-            where: { candidateProfileId: cv.candidateProfileId },
+            where: { candidateProfileId: cv.candidateProfileId, status: CvStatus.ACTIVE },
             orderBy: { updatedAt: 'desc' },
             select: { id: true },
           });
@@ -198,6 +219,12 @@ export class CvsService {
 
   async setDefault(id: string, candidateAccountId: string) {
     const cv = await this.findOne(id, candidateAccountId);
+
+    // `status` luôn có ở response thật; guard này giữ tương thích cho bản ghi
+    // legacy/mock cũ vốn chưa chọn trường status.
+    if (cv.status && cv.status !== CvStatus.ACTIVE) {
+      throw new BadRequestException('Chỉ CV đang hoạt động mới có thể đặt làm CV mặc định');
+    }
 
     try {
       return await this.prisma.$transaction(async (tx) => {
