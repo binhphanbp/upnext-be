@@ -13,6 +13,7 @@ import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { Readable } from 'stream';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
+import { recruiterAccessibleJobPostFilter } from '../../common/authorization/job-post-access';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PaginationQueryDto, toPagination } from '../../common/dto/pagination-query.dto';
 import {
@@ -457,15 +458,23 @@ export class CvVersionsService {
       return cv;
     }
 
-    if (user.role === ActorType.RECRUITER) {
+    if (user.role === ActorType.RECRUITER && user.companyId) {
+      // `recruiterAccessibleJobPostFilter` là định nghĩa quyền dùng chung
+      // (job-post-access.ts): người tạo tin luôn có quyền, thành viên còn lại
+      // của công ty có quyền trừ khi bị thu hồi riêng cho đúng tin đó. Bản cũ
+      // ở đây tự viết lại điều kiện bằng `jobPost.recruiterAccountId` và
+      // `jobPost.hiringTeam` — hai field không tồn tại trên `JobPost` (job
+      // chỉ có `createdByRecruiterId`; quan hệ đúng tên là
+      // `hiringTeamMembers`, và bảng đó chỉ dùng cho hội thoại ứng tuyển, không
+      // phải quyền xem CV) — nên mọi lượt tải CV của recruiter đều rơi vào
+      // `PrismaClientValidationError` → 500 thô, bất kể có quyền hay không.
       const application = await this.prisma.application.findFirst({
         where: {
           cvVersion: { cvId },
-          OR: [
-            ...(user.companyId ? [{ jobPost: { companyId: user.companyId } }] : []),
-            { jobPost: { recruiterAccountId: user.id } },
-            { jobPost: { hiringTeam: { some: { recruiterAccountId: user.id } } } },
-          ],
+          jobPost: {
+            companyId: user.companyId,
+            ...recruiterAccessibleJobPostFilter(user.id),
+          },
         },
         select: { id: true },
       });

@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ActorType, CvSource, CvStatus, Prisma } from '@prisma/client';
@@ -38,6 +43,7 @@ describe('CvVersionsService', () => {
     },
     application: {
       count: jest.fn(),
+      findFirst: jest.fn(),
     },
     $transaction: jest.fn((arg: unknown) => {
       if (Array.isArray(arg)) {
@@ -329,5 +335,64 @@ describe('CvVersionsService', () => {
 
     expect(download).toMatchObject({ kind: 'redirect', url: 'https://cdn.example.com/candidate.pdf' });
     fetchMock.mockRestore();
+  });
+
+  describe('authorizeCvAccess — recruiter', () => {
+    const recruiterUser: AuthenticatedUser = {
+      id: 'recruiter-id',
+      email: 'recruiter@upnext.dev',
+      role: ActorType.RECRUITER,
+      companyId: 'company-id',
+      permissions: [],
+    };
+
+    beforeEach(() => {
+      prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
+      prismaMock.cVVersion.findUnique.mockResolvedValueOnce({ cvId: 'cv-id' }).mockResolvedValueOnce({
+        id: 'version-id',
+        sourceFile: {
+          storageKey: 'upnext/cv/candidate-file',
+          originalName: 'candidate.pdf',
+          mimeType: 'application/pdf',
+        },
+      });
+      cloudinaryMock.createSignedUrl.mockReturnValue('https://cdn.example.com/candidate.pdf');
+    });
+
+    it('lọc theo companyId của tin và bộ lọc quyền dùng chung — không tự viết field jobPost.recruiterAccountId/hiringTeam không tồn tại trên schema', async () => {
+      prismaMock.application.findFirst.mockResolvedValue({ id: 'app-id' });
+
+      await service.prepareDownload('version-id', recruiterUser);
+
+      expect(prismaMock.application.findFirst).toHaveBeenCalledWith({
+        where: {
+          cvVersion: { cvId: 'cv-id' },
+          jobPost: {
+            companyId: 'company-id',
+            OR: [
+              { createdByRecruiterId: 'recruiter-id' },
+              { accessRevocations: { none: { recruiterAccountId: 'recruiter-id' } } },
+            ],
+          },
+        },
+        select: { id: true },
+      });
+    });
+
+    it('cho phép tải khi tin thuộc công ty của recruiter và chưa bị thu hồi quyền', async () => {
+      prismaMock.application.findFirst.mockResolvedValue({ id: 'app-id' });
+
+      const download = await service.prepareDownload('version-id', recruiterUser);
+
+      expect(download.kind).toBe('redirect');
+    });
+
+    it('từ chối khi recruiter không thuộc công ty đăng tin và không phải người tạo tin', async () => {
+      prismaMock.application.findFirst.mockResolvedValue(null);
+
+      await expect(service.prepareDownload('version-id', recruiterUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
   });
 });
