@@ -360,7 +360,9 @@ export class EmailService {
         if (parsed.startDate) start = parsed.startDate;
         if (parsed.expiryDateText) expiry = parsed.expiryDateText;
         if (parsed.note !== undefined) noteText = parsed.note;
-      } catch {}
+      } catch {
+        // Note is a plain string rather than JSON
+      }
     }
 
     const defaultNoteHtml =

@@ -238,7 +238,7 @@ export class CvVersionsService {
         const cloudinaryResourceType = version.sourceFile.mimeType.startsWith('image/')
           ? 'image'
           : 'raw';
-        let signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
+        const signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
           resourceType: cloudinaryResourceType,
           deliveryType: 'upload',
         });
@@ -265,7 +265,7 @@ export class CvVersionsService {
           };
         }
       } catch (error) {
-        this.logger.warn(`Could not fetch Cloudinary CV asset: ${error}`);
+        this.logger.warn(`Could not fetch Cloudinary CV asset: ${String(error)}`);
       }
 
       if (version.parsedText?.trim()) {
