@@ -443,11 +443,15 @@ export class CvVersionsService {
       return cv;
     }
 
-    if (user.role === ActorType.RECRUITER && user.companyId) {
+    if (user.role === ActorType.RECRUITER) {
       const application = await this.prisma.application.findFirst({
         where: {
           cvVersion: { cvId },
-          jobPost: { companyId: user.companyId },
+          OR: [
+            ...(user.companyId ? [{ jobPost: { companyId: user.companyId } }] : []),
+            { jobPost: { recruiterAccountId: user.id } },
+            { jobPost: { hiringTeam: { some: { recruiterAccountId: user.id } } } },
+          ],
         },
         select: { id: true },
       });
