@@ -1007,7 +1007,9 @@ export class ApplicationsService {
             fileName:
               fileAsset?.originalName ||
               `CV-${app.candidateProfile?.account?.fullName || 'Candidate'}.pdf`,
-            fileUrl: fileAsset?.publicUrl || '',
+            fileUrl:
+              fileAsset?.publicUrl ||
+              (cvVersion?.id ? `/api/v1/cv-versions/${cvVersion.id}/download` : ''),
           }
         : null,
     };
