@@ -345,7 +345,7 @@ export class CvVersionsService {
             mimeType: version.sourceFile.mimeType,
           };
         }
-      } catch (error) {
+      } catch {
         // Fallback to signedUrl redirect if server-side fetch fails
       }
 
