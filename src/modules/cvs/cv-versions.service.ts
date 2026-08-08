@@ -235,9 +235,21 @@ export class CvVersionsService {
         deliveryType: 'upload',
       });
 
-      // Cloudinary documents are delivered directly to the browser after authorization.
-      // This avoids proxying binary files through the API server, which creates a fragile
-      // dependency on the VPS being able to fetch Cloudinary's delivery domain.
+      try {
+        const cloudinaryRes = await fetch(signedUrl);
+        if (cloudinaryRes.ok) {
+          const buffer = Buffer.from(await cloudinaryRes.arrayBuffer());
+          return {
+            kind: 'stream',
+            stream: Readable.from([buffer]),
+            fileName: version.sourceFile.originalName,
+            mimeType: version.sourceFile.mimeType,
+          };
+        }
+      } catch (error) {
+        // Fallback to signedUrl redirect if server-side fetch fails
+      }
+
       return {
         kind: 'redirect',
         url: signedUrl,
