@@ -98,12 +98,52 @@ export class InterviewsService {
       recruiterProfileId = profile.id;
     }
 
+    const targetRound = dto.interviewRound ?? 1;
+
+    // Prevent duplicate rounds for the same application
+    const existingRound = await this.prisma.interview.findFirst({
+      where: {
+        applicationId: dto.applicationId,
+        interviewRound: targetRound,
+        status: { not: InterviewStatus.CANCELLED },
+      },
+    });
+    if (existingRound) {
+      throw new BadRequestException(
+        `Vòng phỏng vấn ${targetRound} đã tồn tại cho hồ sơ này.`,
+      );
+    }
+
+    // Enforce sequential rounds: round N requires round N-1 to be COMPLETED + PASSED
+    if (targetRound > 1) {
+      const previousRound = await this.prisma.interview.findFirst({
+        where: {
+          applicationId: dto.applicationId,
+          interviewRound: targetRound - 1,
+          status: { not: InterviewStatus.CANCELLED },
+        },
+      });
+      if (!previousRound) {
+        throw new BadRequestException(
+          `Không thể tạo vòng ${targetRound} — vòng ${targetRound - 1} chưa tồn tại.`,
+        );
+      }
+      if (
+        previousRound.status !== InterviewStatus.COMPLETED ||
+        previousRound.result !== InterviewResult.PASSED
+      ) {
+        throw new BadRequestException(
+          `Không thể tạo vòng ${targetRound} — vòng ${targetRound - 1} chưa hoàn thành hoặc chưa đạt.`,
+        );
+      }
+    }
+
     const interview = await this.prisma.$transaction(async (tx) => {
       const createdInterview = await tx.interview.create({
         data: {
           applicationId: dto.applicationId,
           recruiterProfileId: recruiterProfileId,
-          interviewRound: dto.interviewRound ?? 1,
+          interviewRound: targetRound,
           type: dto.type ?? 'ONLINE',
           scheduledStartAt: new Date(dto.scheduledStartAt),
           scheduledEndAt: new Date(dto.scheduledEndAt),
@@ -211,7 +251,7 @@ export class InterviewsService {
 
     return this.prisma.interview.findMany({
       where,
-      orderBy: { scheduledStartAt: 'asc' },
+      orderBy: [{ createdAt: 'desc' }, { scheduledStartAt: 'desc' }],
       include: {
         application: {
           include: {
@@ -405,6 +445,83 @@ export class InterviewsService {
           recipientType,
           title: 'Lịch phỏng vấn bị hủy',
           body: `Lịch phỏng vấn vị trí ${interview.application.jobPost.title} đã bị hủy.`,
+          targetType: 'INTERVIEW',
+          targetId: id,
+        })
+        .catch(() => {});
+    }
+
+    return updated;
+  }
+
+  async markNoShow(id: string, dto: CancelInterviewDto, user: AuthenticatedUser) {
+    const interview = await this.prisma.interview.findUnique({
+      where: { id },
+      include: {
+        application: {
+          include: {
+            jobPost: true,
+            candidateProfile: {
+              select: {
+                candidateAccountId: true,
+              },
+            },
+          },
+        },
+        recruiterProfile: {
+          select: {
+            recruiterAccountId: true,
+          },
+        },
+      },
+    });
+
+    if (!interview) {
+      throw new NotFoundException(`Interview ${id} not found`);
+    }
+
+    await this.checkAccessPermission(interview, user);
+
+    if (
+      interview.status === InterviewStatus.CANCELLED ||
+      interview.status === InterviewStatus.COMPLETED ||
+      interview.status === InterviewStatus.NO_SHOW
+    ) {
+      throw new BadRequestException(
+        'Cannot mark as no-show a cancelled, completed or already no-show interview',
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updatedInterview = await tx.interview.update({
+        where: { id },
+        data: {
+          status: InterviewStatus.NO_SHOW,
+        },
+      });
+
+      await tx.interviewLog.create({
+        data: {
+          interviewId: id,
+          oldStatus: interview.status,
+          newStatus: InterviewStatus.NO_SHOW,
+          actorType: user.role,
+          actorId: user.id,
+          note: dto.note,
+        },
+      });
+
+      return updatedInterview;
+    });
+
+    // Notify the candidate about the no-show
+    if (interview.application.candidateProfile?.candidateAccountId) {
+      this.notificationsService
+        .createNotification({
+          recipientId: interview.application.candidateProfile.candidateAccountId,
+          recipientType: ActorType.CANDIDATE,
+          title: 'Phỏng vấn — không có mặt',
+          body: `Buổi phỏng vấn vị trí ${interview.application.jobPost.title} đã được đánh dấu là không có mặt.`,
           targetType: 'INTERVIEW',
           targetId: id,
         })
