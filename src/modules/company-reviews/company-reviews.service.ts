@@ -73,7 +73,21 @@ function withReviewer(review: PublicCompanyReview) {
   return { ...rest, reviewer: toReviewer(review) };
 }
 
-function computeOverallRatingFromDto(dto: Record<string, any>): number {
+/** The rating fields shared by the create and update DTOs. */
+type ReviewRatingFields = Partial<
+  Record<
+    | 'overallRating'
+    | 'salaryBenefitsRating'
+    | 'trainingLearningRating'
+    | 'managementCareRating'
+    | 'cultureFunRating'
+    | 'officeWorkspaceRating'
+    | 'overtimeSatisfaction',
+    number | null
+  >
+>;
+
+function computeOverallRatingFromDto(dto: ReviewRatingFields): number {
   const ratings = [
     dto.salaryBenefitsRating,
     dto.trainingLearningRating,

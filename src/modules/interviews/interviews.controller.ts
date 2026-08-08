@@ -28,6 +28,7 @@ import { AllowWhenRestricted } from '../../common/decorators/allow-when-restrict
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { RestrictedModeGuard } from '../auth/guards/restricted-mode.guard';
+import { CreateBatchInterviewsDto } from './dto/create-batch-interviews.dto';
 import { CreateInterviewDto } from './dto/create-interview.dto';
 import { RescheduleInterviewDto } from './dto/reschedule-interview.dto';
 import { CancelInterviewDto } from './dto/cancel-interview.dto';
@@ -50,6 +51,21 @@ export class InterviewsController {
   @ApiNotFoundResponse({ description: 'Không tìm thấy Application hoặc Recruiter' })
   create(@Body() dto: CreateInterviewDto, @CurrentUser() user: AuthenticatedUser) {
     return this.interviewsService.create(dto, user);
+  }
+
+  @Post('batch')
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @ApiOperation({
+    summary: 'Lên lịch phỏng vấn cho nhiều ứng viên trong một lần',
+    description:
+      'Tạo một buổi phỏng vấn riêng cho từng ứng viên. Ứng viên chưa ứng tuyển sẽ được tạo hồ sơ ' +
+      '"nhà tuyển dụng mời". Trả về kết quả theo từng ứng viên: một người lỗi không làm hỏng cả loạt.',
+  })
+  @ApiCreatedResponse({ description: 'Đã xử lý xong cả loạt, xem results để biết từng ứng viên' })
+  @ApiBadRequestResponse({ description: 'Payload không hợp lệ' })
+  @ApiForbiddenResponse({ description: 'Không có quyền lên lịch phỏng vấn cho tin tuyển dụng này' })
+  createBatch(@Body() dto: CreateBatchInterviewsDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.interviewsService.createBatch(dto, user);
   }
 
   @Get()

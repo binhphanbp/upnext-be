@@ -502,7 +502,10 @@ export class ReportsService {
           where: { id: report.targetId },
           select: {
             name: true,
-            recruiterAccounts: { select: { email: true, fullName: true } },
+            // The display name lives on the profile, not the account.
+            recruiterAccounts: {
+              select: { email: true, profile: { select: { fullName: true } } },
+            },
           },
         });
         if (!company) return;
@@ -511,7 +514,7 @@ export class ReportsService {
           company.recruiterAccounts.map((recruiter) =>
             this.emailService.sendCompanyRestrictedToRecruiter({
               to: recruiter.email,
-              recipientName: recruiter.fullName,
+              recipientName: recruiter.profile?.fullName || recruiter.email,
               companyName: company.name,
               reason: report.reason,
               appealWindowDays: REPUTATION_CONFIG.APPEAL_WINDOW_DAYS,

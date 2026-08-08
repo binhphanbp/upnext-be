@@ -58,6 +58,14 @@ enum CvStatus {
   ARCHIVED @map("archived")
 }
 
+/// How an application came to exist. A recruiter scheduling an interview for someone from
+/// the talent pool who never applied creates one on their behalf, and that row must stay
+/// distinguishable from a real self-submitted application in every report and funnel.
+enum ApplicationSource {
+  CANDIDATE_APPLIED @map("candidate_applied")
+  RECRUITER_INVITED @map("recruiter_invited")
+}
+
 enum ApplicationStatus {
   SUBMITTED    @map("submitted")
   VIEWED       @map("viewed")
@@ -873,6 +881,7 @@ model Company {
   cvScreeningRuns          CvScreeningRun[]
   conversations            Conversation[]
   candidateBlocks          CompanyCandidateBlock[]
+  candidateShortlists      RecruiterCandidateShortlist[]
   talentRecommendationRuns TalentRecommendationRun[]
   talentContactRequests    TalentContactRequest[]
   supportCases             SupportCase[]
@@ -1248,8 +1257,19 @@ model CompanyFollow {
   @@map("company_follows")
 }
 
+/// Shared talent pool: one entry per candidate per company, whoever added them.
+///
+/// Keyed on the company rather than the recruiter so a hiring team sees one list and two
+/// colleagues cannot both approach the same person unaware. `recruiterAccountId` is kept
+/// as "who saved this", not as part of the identity.
+///
+/// `jobPostId` is a context tag ("saved while looking at this posting"), deliberately not
+/// part of the unique key: the same candidate belongs in the pool once, and a nullable
+/// column in a unique key would let duplicates through anyway, since Postgres treats
+/// every NULL as distinct.
 model RecruiterCandidateShortlist {
   id                 String          @id @default(uuid()) @db.Uuid
+  companyId          String          @map("company_id") @db.Uuid
   candidateProfileId String          @map("candidate_profile_id") @db.Uuid
   recruiterAccountId String          @map("recruiter_account_id") @db.Uuid
   jobPostId          String?         @map("job_post_id") @db.Uuid
@@ -1259,11 +1279,13 @@ model RecruiterCandidateShortlist {
   createdAt          DateTime        @default(now()) @map("created_at")
   updatedAt          DateTime        @updatedAt @map("updated_at")
 
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
   recruiterAccount RecruiterAccount @relation(fields: [recruiterAccountId], references: [id], onDelete: Cascade)
   jobPost          JobPost?         @relation(fields: [jobPostId], references: [id], onDelete: SetNull)
 
-  @@unique([candidateProfileId, recruiterAccountId, jobPostId])
+  @@unique([companyId, candidateProfileId])
+  @@index([companyId, status, createdAt])
   @@index([recruiterAccountId])
   @@index([jobPostId])
   @@map("recruiter_candidate_shortlists")
@@ -1279,6 +1301,7 @@ model Application {
   candidateProfileId String            @map("candidate_profile_id") @db.Uuid
   cvVersionId        String            @map("cv_version_id") @db.Uuid
   coverLetter        String?           @map("cover_letter") @db.Text
+  source             ApplicationSource @default(CANDIDATE_APPLIED)
   status             ApplicationStatus @default(SUBMITTED)
   submittedAt        DateTime          @default(now()) @map("submitted_at")
   viewedAt           DateTime?         @map("viewed_at")

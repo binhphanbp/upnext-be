@@ -257,7 +257,7 @@ describe('CompanyReviewsService', () => {
         cultureFunRating: 5,
         officeWorkspaceRating: 4,
         overtimeSatisfaction: 3,
-      } as any);
+      });
 
       expect(review.overallRating).toBe(4);
     });

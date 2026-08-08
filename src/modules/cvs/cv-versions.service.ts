@@ -347,7 +347,6 @@ export class CvVersionsService {
         });
         throw new NotFoundException('Không thể tạo đường dẫn tải file CV');
       }
-
       try {
         const cloudinaryRes = await fetch(signedUrl);
         if (cloudinaryRes.ok) {

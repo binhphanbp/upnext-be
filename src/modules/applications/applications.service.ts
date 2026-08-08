@@ -6,7 +6,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ActorType, ApplicationStatus, CvStatus, JobStatus, InterviewStatus } from '@prisma/client';
+import {
+  ActorType,
+  ApplicationSource,
+  ApplicationStatus,
+  CvStatus,
+  JobStatus,
+  InterviewStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ApplyJobDto } from './dto/apply-job.dto';
@@ -277,6 +284,75 @@ export class ApplicationsService {
     });
 
     return app;
+  }
+
+  /**
+   * Returns the application a recruiter can hang an interview off, creating one on the
+   * candidate's behalf if they never applied to this posting.
+   *
+   * Interviews are keyed to an application, so scheduling someone sourced from the talent
+   * pool needs a row to exist. It is marked `RECRUITER_INVITED` so funnel and conversion
+   * reports never count it as a real inbound application, and it deliberately skips the
+   * candidate-side gates in `applyJob` (verified email, valid phone) — those protect the
+   * candidate's own submission, and none of them are the candidate's fault here.
+   */
+  async ensureRecruiterInvitedApplication(input: {
+    jobPostId: string;
+    candidateProfileId: string;
+    actor: { type: ActorType; id: string };
+  }) {
+    const existing = await this.prisma.application.findUnique({
+      where: {
+        candidateProfileId_jobPostId: {
+          candidateProfileId: input.candidateProfileId,
+          jobPostId: input.jobPostId,
+        },
+      },
+      select: { id: true, status: true, source: true },
+    });
+    if (existing) return { application: existing, created: false };
+
+    // An application must reference a CV version, so a candidate with no CV at all cannot
+    // be invited — the caller surfaces this per candidate instead of failing the batch.
+    const cv = await this.prisma.cV.findFirst({
+      where: { candidateProfileId: input.candidateProfileId, status: CvStatus.ACTIVE },
+      orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
+      select: {
+        versions: { orderBy: { versionNo: 'desc' }, take: 1, select: { id: true } },
+      },
+    });
+    const cvVersionId = cv?.versions[0]?.id;
+    if (!cvVersionId) {
+      throw new BadRequestException('Ứng viên chưa có CV nào để đính kèm vào lịch phỏng vấn.');
+    }
+
+    const application = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.application.create({
+        data: {
+          jobPostId: input.jobPostId,
+          candidateProfileId: input.candidateProfileId,
+          cvVersionId,
+          source: ApplicationSource.RECRUITER_INVITED,
+          status: ApplicationStatus.SUBMITTED,
+        },
+        select: { id: true, status: true, source: true },
+      });
+
+      await tx.applicationStatusLog.create({
+        data: {
+          applicationId: created.id,
+          actorType: input.actor.type,
+          actorId: input.actor.id,
+          oldStatus: null,
+          newStatus: ApplicationStatus.SUBMITTED,
+          note: 'Nhà tuyển dụng chủ động mời ứng viên từ danh sách đã lưu.',
+        },
+      });
+
+      return created;
+    });
+
+    return { application, created: true };
   }
 
   async withdrawApplication(candidateAccountId: string, id: string) {

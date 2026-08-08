@@ -7,6 +7,11 @@ import {
 import { ActorType, InterviewResult, InterviewStatus, Prisma } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ApplicationsService } from '../applications/applications.service';
+import {
+  BatchSchedulingMode,
+  CreateBatchInterviewsDto,
+} from './dto/create-batch-interviews.dto';
 import { CreateInterviewDto } from './dto/create-interview.dto';
 import { RescheduleInterviewDto } from './dto/reschedule-interview.dto';
 import { CancelInterviewDto } from './dto/cancel-interview.dto';
@@ -21,6 +26,7 @@ export class InterviewsService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
     private readonly conversationLifecycle: ConversationLifecycleService,
+    private readonly applicationsService: ApplicationsService,
   ) {}
 
   async create(dto: CreateInterviewDto, user: AuthenticatedUser) {
@@ -190,6 +196,98 @@ export class InterviewsService {
     }
 
     return interview;
+  }
+
+  /**
+   * Schedules one interview per candidate in a single request, for booking a whole
+   * shortlist at once.
+   *
+   * This is N independent 1-1 interviews, not one group session: `Interview` is keyed to a
+   * single application, and the result, answers and score dimensions all hang off that one
+   * row, so a shared interview would have nowhere to put per-candidate outcomes.
+   *
+   * Runs sequentially and reports per candidate rather than in a transaction. One
+   * candidate having no CV, or already being booked for this round, must not throw away
+   * the slots that were created for everyone else — the caller shows which rows failed.
+   */
+  async createBatch(dto: CreateBatchInterviewsDto, user: AuthenticatedUser) {
+    const durationMs = dto.durationMinutes * 60_000;
+    const stepMs = durationMs + (dto.gapMinutes ?? 0) * 60_000;
+    const startAt = new Date(dto.startAt);
+    const sequential = (dto.mode ?? BatchSchedulingMode.SEQUENTIAL) === BatchSchedulingMode.SEQUENTIAL;
+
+    // Duplicates in one request would collide on the round check and read as a failure
+    // the recruiter did not cause.
+    const candidateProfileIds = [...new Set(dto.candidateProfileIds)];
+
+    const results: Array<{
+      candidateProfileId: string;
+      scheduled: boolean;
+      interviewId?: string;
+      scheduledStartAt?: Date;
+      invitedApplicationCreated?: boolean;
+      error?: string;
+    }> = [];
+
+    for (const [index, candidateProfileId] of candidateProfileIds.entries()) {
+      const slotStart = new Date(startAt.getTime() + (sequential ? index * stepMs : 0));
+      const slotEnd = new Date(slotStart.getTime() + durationMs);
+
+      try {
+        const { application, created } =
+          await this.applicationsService.ensureRecruiterInvitedApplication({
+            jobPostId: dto.jobPostId,
+            candidateProfileId,
+            actor: { type: user.role, id: user.id },
+          });
+
+        // Reuses the single-interview path deliberately: permission checks, round
+        // ordering, the status log, the conversation and the candidate notification all
+        // live there and must behave identically whether one or twenty are booked.
+        const interview = await this.create(
+          {
+            applicationId: application.id,
+            scheduledStartAt: slotStart.toISOString(),
+            scheduledEndAt: slotEnd.toISOString(),
+            ...(dto.recruiterProfileId ? { recruiterProfileId: dto.recruiterProfileId } : {}),
+            ...(dto.interviewRound ? { interviewRound: dto.interviewRound } : {}),
+            ...(dto.type ? { type: dto.type } : {}),
+            ...(dto.meetingUrl ? { meetingUrl: dto.meetingUrl } : {}),
+            ...(dto.location ? { location: dto.location } : {}),
+            ...(dto.recruiterNote ? { recruiterNote: dto.recruiterNote } : {}),
+            ...(dto.candidateNote ? { candidateNote: dto.candidateNote } : {}),
+          },
+          user,
+        );
+
+        results.push({
+          candidateProfileId,
+          scheduled: true,
+          interviewId: interview.id,
+          scheduledStartAt: interview.scheduledStartAt,
+          invitedApplicationCreated: created,
+        });
+      } catch (error) {
+        // A permission failure applies to the whole request, not to one candidate, so it
+        // is not something the caller can fix per row.
+        if (error instanceof ForbiddenException) throw error;
+
+        results.push({
+          candidateProfileId,
+          scheduled: false,
+          error: error instanceof Error ? error.message : 'Không đặt được lịch phỏng vấn.',
+        });
+      }
+    }
+
+    return {
+      results,
+      summary: {
+        requested: candidateProfileIds.length,
+        scheduled: results.filter((result) => result.scheduled).length,
+        failed: results.filter((result) => !result.scheduled).length,
+      },
+    };
   }
 
   async findOne(id: string, user: AuthenticatedUser) {

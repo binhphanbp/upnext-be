@@ -25,6 +25,9 @@ describe('ApplicationsService', () => {
     cVVersion: {
       findUnique: jest.fn(),
     },
+    cV: {
+      findFirst: jest.fn(),
+    },
     application: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
@@ -157,6 +160,64 @@ describe('ApplicationsService', () => {
         cvVersionId: 'cv-version-id',
       }),
     ).rejects.toThrow('Vui lòng cập nhật số điện thoại liên hệ hợp lệ trước khi nộp hồ sơ');
+  });
+
+  describe('ensureRecruiterInvitedApplication', () => {
+    const actor = { type: ActorType.RECRUITER, id: 'recruiter-account-id' };
+
+    it('reuses the application when the candidate already applied', async () => {
+      prismaMock.application.findUnique.mockResolvedValue({
+        id: 'application-id',
+        status: ApplicationStatus.SUBMITTED,
+        source: 'CANDIDATE_APPLIED',
+      });
+
+      const result = await service.ensureRecruiterInvitedApplication({
+        jobPostId: 'job-post-id',
+        candidateProfileId: 'candidate-profile-id',
+        actor,
+      });
+
+      expect(result.created).toBe(false);
+      expect(prismaMock.application.create).not.toHaveBeenCalled();
+    });
+
+    it('marks a created row as recruiter-invited so funnels do not count it as inbound', async () => {
+      prismaMock.application.findUnique.mockResolvedValue(null);
+      prismaMock.cV.findFirst.mockResolvedValue({ versions: [{ id: 'cv-version-id' }] });
+      prismaMock.application.create.mockResolvedValue({ id: 'application-id' });
+
+      const result = await service.ensureRecruiterInvitedApplication({
+        jobPostId: 'job-post-id',
+        candidateProfileId: 'candidate-profile-id',
+        actor,
+      });
+
+      expect(result.created).toBe(true);
+      expect(prismaMock.application.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            source: 'RECRUITER_INVITED',
+            cvVersionId: 'cv-version-id',
+          }),
+        }),
+      );
+    });
+
+    it('refuses to invite a candidate who has no CV at all', async () => {
+      prismaMock.application.findUnique.mockResolvedValue(null);
+      prismaMock.cV.findFirst.mockResolvedValue(null);
+
+      // An application must reference a CV version, so there is nothing to attach.
+      await expect(
+        service.ensureRecruiterInvitedApplication({
+          jobPostId: 'job-post-id',
+          candidateProfileId: 'candidate-profile-id',
+          actor,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prismaMock.application.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('re-applying after a withdrawal', () => {
