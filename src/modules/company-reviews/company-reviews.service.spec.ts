@@ -237,4 +237,29 @@ describe('CompanyReviewsService', () => {
       expect(reportsServiceMock.createRecruiterReport).not.toHaveBeenCalled();
     });
   });
+
+  describe('createReview', () => {
+    it('automatically calculates overallRating from sub-ratings', async () => {
+      prismaMock.candidateProfile = { findUnique: jest.fn() };
+      prismaMock.company = { findUnique: jest.fn() };
+      prismaMock.companyReview.create = jest.fn();
+
+      prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'profile-1' });
+      prismaMock.company.findUnique.mockResolvedValue({ id: 'company-1' });
+      prismaMock.companyReview.findUnique.mockResolvedValue(null);
+      prismaMock.companyReview.create.mockImplementation(({ data }: any) => Promise.resolve(data));
+
+      const review = await service.createReview('candidate-acc-1', 'company-1', {
+        overallRating: 1, // Passed 1, but sub-ratings average to (5+4+3+5+4+3)/6 = 24/6 = 4
+        salaryBenefitsRating: 5,
+        trainingLearningRating: 4,
+        managementCareRating: 3,
+        cultureFunRating: 5,
+        officeWorkspaceRating: 4,
+        overtimeSatisfaction: 3,
+      } as any);
+
+      expect(review.overallRating).toBe(4);
+    });
+  });
 });

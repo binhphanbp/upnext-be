@@ -73,6 +73,21 @@ function withReviewer(review: PublicCompanyReview) {
   return { ...rest, reviewer: toReviewer(review) };
 }
 
+function computeOverallRatingFromDto(dto: Record<string, any>): number {
+  const ratings = [
+    dto.salaryBenefitsRating,
+    dto.trainingLearningRating,
+    dto.managementCareRating,
+    dto.cultureFunRating,
+    dto.officeWorkspaceRating,
+    dto.overtimeSatisfaction,
+  ].filter((v): v is number => typeof v === 'number' && v > 0);
+
+  if (ratings.length === 0) return dto.overallRating || 1;
+  const sum = ratings.reduce((acc, r) => acc + r, 0);
+  return Math.max(1, Math.min(5, Math.round(sum / ratings.length)));
+}
+
 @Injectable()
 export class CompanyReviewsService {
   constructor(
@@ -101,9 +116,12 @@ export class CompanyReviewsService {
       throw new ConflictException('Bạn đã đánh giá công ty này rồi.');
     }
 
+    const calculatedOverall = computeOverallRatingFromDto(dto);
+
     return this.prisma.companyReview.create({
       data: {
         ...dto,
+        overallRating: calculatedOverall,
         candidateProfileId: profile.id,
         companyId,
         status: CompanyReviewStatus.APPROVED,
@@ -276,11 +294,17 @@ export class CompanyReviewsService {
   }
 
   async updateReview(reviewId: string, candidateAccountId: string, dto: UpdateCompanyReviewDto) {
-    await this.getOwnedReview(reviewId, candidateAccountId);
+    const existing = await this.getOwnedReview(reviewId, candidateAccountId);
+
+    const merged = { ...existing, ...dto };
+    const calculatedOverall = computeOverallRatingFromDto(merged);
 
     return this.prisma.companyReview.update({
       where: { id: reviewId },
-      data: dto,
+      data: {
+        ...dto,
+        overallRating: calculatedOverall,
+      },
     });
   }
 
