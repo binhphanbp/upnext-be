@@ -28,11 +28,13 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { pdfUploadOptions } from '../../common/upload/multer-options';
 import { ActorType } from '@prisma/client';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
@@ -49,13 +51,17 @@ type UploadedFile = {
 
 @ApiTags('Cv - Versions')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, UserThrottlerGuard)
 @Roles(ActorType.CANDIDATE)
+@Throttle({ default: { limit: 60, ttl: 60_000 } })
 @Controller()
 export class CvVersionsController {
   constructor(private readonly cvVersionsService: CvVersionsService) {}
 
   @Post('cvs/:cvId/versions')
+  // Route đắt nhất của controller: ghi tối đa 10MB xuống ổ đĩa/Cloudinary mỗi
+  // lần. Trước đây không có trần nào — một tài khoản có thể spam file vô hạn.
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('file', pdfUploadOptions))
   @ApiOperation({ summary: 'Tải lên phiên bản CV mới' })
   @ApiParam({ name: 'cvId', description: 'UUID của CV' })

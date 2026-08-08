@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
 import { CvVersionsController } from './cv-versions.controller';
 import { CvVersionsService } from './cv-versions.service';
 
@@ -17,7 +18,11 @@ describe('CvVersionsController', () => {
           useValue: cvVersionsServiceMock,
         },
       ],
-    }).compile();
+    })
+      // Xem giải thích ở cvs.controller.spec.ts — cùng lý do.
+      .overrideGuard(UserThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<CvVersionsController>(CvVersionsController);
   });
