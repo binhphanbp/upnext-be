@@ -96,15 +96,22 @@ export class CompanyReviewsService {
   ) {}
 
   private async resolveCompanyId(idOrSlug: string): Promise<string> {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrSlug);
-    if (isUuid) return idOrSlug;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+    if (isUuid) {
+      const companyById = await this.prisma.company.findUnique({
+        where: { id: idOrSlug },
+        select: { id: true },
+      });
+      if (companyById) return companyById.id;
+    }
 
-    const company = await this.prisma.company.findUnique({
+    const companyBySlug = await this.prisma.company.findUnique({
       where: { slug: idOrSlug },
       select: { id: true },
     });
-    if (!company) throw new NotFoundException('Không tìm thấy công ty.');
-    return company.id;
+    if (companyBySlug) return companyBySlug.id;
+
+    throw new NotFoundException('Không tìm thấy công ty.');
   }
 
   private async getProfile(candidateAccountId: string) {
