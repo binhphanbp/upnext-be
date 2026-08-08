@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -50,6 +51,8 @@ export type PreparedCvDownload =
 
 @Injectable()
 export class CvVersionsService {
+  private readonly logger = new Logger(CvVersionsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
@@ -220,22 +223,27 @@ export class CvVersionsService {
           mimeType: version.sourceFile.mimeType,
         };
       } catch {
+        if (version.parsedText?.trim()) {
+          return {
+            kind: 'stream',
+            stream: Readable.from([Buffer.from(version.parsedText, 'utf-8')]),
+            fileName: `CV-${id.slice(0, 8)}.txt`,
+            mimeType: 'text/plain; charset=utf-8',
+          };
+        }
         throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ');
       }
     } else {
-      // Determine the Cloudinary resource_type based on the stored MIME type:
-      // - PDFs and other documents were uploaded as 'raw' (stored as-is)
-      // - Images were uploaded as 'image'
-      // Also use deliveryType 'upload' to match how files were stored (not 'authenticated').
-      const cloudinaryResourceType = version.sourceFile.mimeType.startsWith('image/')
-        ? 'image'
-        : 'raw';
-      const signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
-        resourceType: cloudinaryResourceType,
-        deliveryType: 'upload',
-      });
-
+      let signedUrl: string | null = null;
       try {
+        const cloudinaryResourceType = version.sourceFile.mimeType.startsWith('image/')
+          ? 'image'
+          : 'raw';
+        signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
+          resourceType: cloudinaryResourceType,
+          deliveryType: 'upload',
+        });
+
         const cloudinaryRes = await fetch(signedUrl);
         if (cloudinaryRes.ok) {
           const buffer = Buffer.from(await cloudinaryRes.arrayBuffer());
@@ -246,16 +254,29 @@ export class CvVersionsService {
             mimeType: version.sourceFile.mimeType,
           };
         }
-      } catch {
-        // Fallback to signedUrl redirect if server-side fetch fails
+      } catch (error) {
+        this.logger.warn(`Could not fetch Cloudinary CV asset: ${error}`);
       }
 
-      return {
-        kind: 'redirect',
-        url: signedUrl,
-        fileName: version.sourceFile.originalName,
-        mimeType: version.sourceFile.mimeType,
-      };
+      if (signedUrl) {
+        return {
+          kind: 'redirect',
+          url: signedUrl,
+          fileName: version.sourceFile.originalName,
+          mimeType: version.sourceFile.mimeType,
+        };
+      }
+
+      if (version.parsedText?.trim()) {
+        return {
+          kind: 'stream',
+          stream: Readable.from([Buffer.from(version.parsedText, 'utf-8')]),
+          fileName: `CV-${id.slice(0, 8)}.txt`,
+          mimeType: 'text/plain; charset=utf-8',
+        };
+      }
+
+      throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ');
     }
   }
 
