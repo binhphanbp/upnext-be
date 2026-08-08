@@ -275,6 +275,7 @@ export class CvVersionsService {
       where: { id },
       select: {
         id: true,
+        parsedText: true,
         sourceFile: {
           select: {
             storageKey: true,
@@ -290,6 +291,14 @@ export class CvVersionsService {
     }
 
     if (!version.sourceFile) {
+      if (version.parsedText?.trim()) {
+        return {
+          kind: 'stream',
+          stream: Readable.from([Buffer.from(version.parsedText, 'utf-8')]),
+          fileName: `CV-${id.slice(0, 8)}.txt`,
+          mimeType: 'text/plain; charset=utf-8',
+        };
+      }
       throw new NotFoundException('Phiên bản CV chưa có file để tải xuống');
     }
 
