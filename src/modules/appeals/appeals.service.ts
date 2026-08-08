@@ -1,5 +1,13 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { AppealStatus, CompanyStatus, Prisma } from '@prisma/client';
+import { EmailService } from '../../common/email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReputationLedgerService } from '../reputation/reputation-ledger.service';
 import { REPUTATION_CONFIG } from '../reputation/reputation.config';
@@ -9,9 +17,12 @@ const RESTRICTION_TARGET_TYPE = 'COMPANY';
 
 @Injectable()
 export class AppealsService {
+  private readonly logger = new Logger(AppealsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly reputationLedger: ReputationLedgerService,
+    private readonly emailService: EmailService,
   ) {}
 
   async create(recruiterId: string, dto: CreateAppealDto) {
@@ -37,6 +48,14 @@ export class AppealsService {
       );
     }
 
+    if (dto.evidenceFileId) {
+      // A dangling id would otherwise surface as a 500 from the FK violation.
+      const file = await this.prisma.fileAsset.findUnique({ where: { id: dto.evidenceFileId } });
+      if (!file) {
+        throw new NotFoundException('Evidence file not found');
+      }
+    }
+
     const existingPending = await this.prisma.appeal.findFirst({
       where: {
         recruiterAccountId: recruiterId,
@@ -50,7 +69,7 @@ export class AppealsService {
       throw new ConflictException('An appeal for this restriction is already pending review');
     }
 
-    return this.prisma.appeal.create({
+    const appeal = await this.prisma.appeal.create({
       data: {
         recruiterAccountId: recruiterId,
         targetType: RESTRICTION_TARGET_TYPE,
@@ -59,6 +78,66 @@ export class AppealsService {
         evidenceFileId: dto.evidenceFileId,
         status: AppealStatus.PENDING,
       },
+    });
+
+    await this.notify('kháng cáo mới tới admin', async () => {
+      const [admins, company] = await Promise.all([
+        this.prisma.adminUser.findMany({
+          where: { status: 'ACTIVE', role: { status: 'ACTIVE' } },
+          select: { email: true, fullName: true },
+        }),
+        this.prisma.company.findUnique({
+          where: { id: appeal.targetId },
+          select: { name: true },
+        }),
+      ]);
+
+      await Promise.all(
+        admins.map((admin) =>
+          this.emailService.sendAppealSubmittedToAdmin({
+            to: admin.email,
+            adminName: admin.fullName,
+            companyName: company?.name ?? 'Doanh nghiệp',
+            content: appeal.content,
+          }),
+        ),
+      );
+    });
+
+    return appeal;
+  }
+
+  /**
+   * Notifications are best-effort: resolving an appeal must not fail because SMTP is down,
+   * and this never runs inside the transaction that changed the data.
+   */
+  private async notify(what: string, send: () => Promise<void>) {
+    try {
+      await send();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Không gửi được email ${what}: ${message}`);
+    }
+  }
+
+  private async notifyAppealOutcome(companyId: string, approved: boolean) {
+    await this.notify('kết quả kháng cáo tới nhà tuyển dụng', async () => {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { name: true, recruiterAccounts: { select: { email: true, fullName: true } } },
+      });
+      if (!company) return;
+
+      await Promise.all(
+        company.recruiterAccounts.map((recruiter) =>
+          this.emailService.sendAppealOutcomeToRecruiter({
+            to: recruiter.email,
+            recipientName: recruiter.fullName,
+            companyName: company.name,
+            approved,
+          }),
+        ),
+      );
     });
   }
 
@@ -89,13 +168,16 @@ export class AppealsService {
     }
 
     if (status === 'REJECTED') {
-      return this.prisma.appeal.update({
+      const rejected = await this.prisma.appeal.update({
         where: { id: appealId },
         data: { status: AppealStatus.REJECTED, handledByAdminId: adminId },
       });
+
+      await this.notifyAppealOutcome(appeal.targetId, false);
+      return rejected;
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updatedAppeal = await tx.appeal.update({
         where: { id: appealId },
         data: { status: AppealStatus.APPROVED, handledByAdminId: adminId },
@@ -107,6 +189,9 @@ export class AppealsService {
 
       return updatedAppeal;
     });
+
+    await this.notifyAppealOutcome(appeal.targetId, true);
+    return updated;
   }
 
   private async liftRestriction(tx: Prisma.TransactionClient, companyId: string, adminId: string) {

@@ -336,6 +336,234 @@ export class EmailService {
     });
   }
 
+  /**
+   * Every moderation notification (report / appeal, to admin / reporter / affected party)
+   * shares one template — they differ only in wording, so a file each would be six copies
+   * of the same markup to keep in sync.
+   */
+  private async sendModerationNotice(params: {
+    to: string;
+    subject: string;
+    text: string;
+    title: string;
+    subtitle: string;
+    recipientName: string;
+    message: string;
+    details: { label: string; value: string }[];
+    ctaLabel?: string;
+    ctaLink?: string;
+    footerNote: string;
+    /** Red for enforcement, green for everything else. */
+    accent?: 'positive' | 'negative';
+  }) {
+    const [detailOne, detailTwo, detailThree] = params.details;
+
+    const html = this.renderTemplate('moderation-notice.html', {
+      title: params.title,
+      subtitle: params.subtitle,
+      recipientName: params.recipientName,
+      message: params.message,
+      detailOneLabel: detailOne?.label ?? '',
+      detailOneValue: detailOne?.value ?? '',
+      detailTwoLabel: detailTwo?.label ?? '',
+      detailTwoValue: detailTwo?.value ?? '',
+      detailThreeLabel: detailThree?.label ?? '',
+      detailThreeValue: detailThree?.value ?? '',
+      ctaLabel: params.ctaLabel ?? '',
+      ctaLink: params.ctaLink ?? '',
+      footerNote: params.footerNote,
+      accentColor: params.accent === 'negative' ? '#dc2626' : '#10a778',
+      sentDate: this.formatSentDate(),
+    });
+
+    await this.sendMail({
+      to: params.to,
+      subject: params.subject,
+      text: params.text,
+      html,
+      attachments: [
+        {
+          filename: 'upnext-logo.png',
+          path: this.resolveEmailAssetPath('upnext-logo.png'),
+          cid: 'upnext-logo',
+        },
+      ],
+      fallbackLog: `${params.subject} -> ${params.to}`,
+    });
+  }
+
+  /** A new report has landed in the moderation queue. */
+  async sendReportSubmittedToAdmin(params: {
+    to: string;
+    adminName?: string | null;
+    targetLabel: string;
+    reporterLabel: string;
+    reason: string;
+  }) {
+    await this.sendModerationNotice({
+      to: params.to,
+      subject: `[UpNext] Báo cáo vi phạm mới: ${params.targetLabel}`,
+      text: `Có báo cáo vi phạm mới về "${params.targetLabel}". Lý do: ${params.reason}`,
+      title: 'Báo cáo vi phạm mới',
+      subtitle: 'Một báo cáo vừa được gửi và đang chờ xử lý.',
+      recipientName: params.adminName?.trim() || params.to,
+      message: 'Vui lòng xem xét báo cáo dưới đây trong màn hình kiểm duyệt nội dung.',
+      details: [
+        { label: 'Đối tượng bị báo cáo', value: params.targetLabel },
+        { label: 'Người báo cáo', value: params.reporterLabel },
+        { label: 'Lý do', value: params.reason },
+      ],
+      ctaLabel: 'XEM VÀ XỬ LÝ BÁO CÁO',
+      ctaLink: this.resolveFrontendLink('/admin/reports'),
+      footerNote: 'Email tự động gửi tới quản trị viên kiểm duyệt nội dung trên UpNext.',
+    });
+  }
+
+  /** The reporter learns how their report was handled. */
+  async sendReportOutcomeToReporter(params: {
+    to: string;
+    recipientName?: string | null;
+    targetLabel: string;
+    approved: boolean;
+    note?: string | null;
+  }) {
+    await this.sendModerationNotice({
+      to: params.to,
+      subject: params.approved
+        ? `[UpNext] Báo cáo của bạn đã được xử lý`
+        : `[UpNext] Báo cáo của bạn không được chấp nhận`,
+      text: params.approved
+        ? `Báo cáo của bạn về "${params.targetLabel}" đã được xác nhận và xử lý.`
+        : `Báo cáo của bạn về "${params.targetLabel}" không được chấp nhận.`,
+      title: params.approved ? 'Báo cáo đã được xử lý' : 'Báo cáo không được chấp nhận',
+      subtitle: 'Kết quả kiểm duyệt cho báo cáo bạn đã gửi.',
+      recipientName: params.recipientName?.trim() || params.to,
+      message: params.approved
+        ? 'Cảm ơn bạn đã báo cáo. Quản trị viên đã xác nhận vi phạm và áp dụng biện pháp xử lý.'
+        : 'Quản trị viên đã xem xét và chưa thấy đủ căn cứ vi phạm, nên báo cáo này được đóng lại.',
+      details: [
+        { label: 'Đối tượng bị báo cáo', value: params.targetLabel },
+        { label: 'Kết quả', value: params.approved ? 'Đã xử lý' : 'Không chấp nhận' },
+        { label: 'Ghi chú', value: params.note?.trim() ?? '' },
+      ],
+      footerNote: 'Email tự động gửi từ hệ thống kiểm duyệt UpNext.',
+      accent: params.approved ? 'positive' : undefined,
+    });
+  }
+
+  /** The company is told it has been put into Restricted Mode, and how to appeal. */
+  async sendCompanyRestrictedToRecruiter(params: {
+    to: string;
+    recipientName?: string | null;
+    companyName: string;
+    reason: string;
+    appealWindowDays: number;
+  }) {
+    await this.sendModerationNotice({
+      to: params.to,
+      subject: `[UpNext] Doanh nghiệp ${params.companyName} đã bị hạn chế`,
+      text: `Doanh nghiệp "${params.companyName}" đã bị chuyển sang chế độ hạn chế. Lý do: ${params.reason}`,
+      title: 'Doanh nghiệp bị hạn chế',
+      subtitle: 'Một báo cáo vi phạm về doanh nghiệp của bạn đã được xác nhận.',
+      recipientName: params.recipientName?.trim() || params.to,
+      message:
+        'Doanh nghiệp của bạn đang ở chế độ hạn chế và điểm uy tín tạm thời bị thu hồi. ' +
+        'Nếu bạn cho rằng đây là quyết định chưa chính xác, hãy gửi kháng cáo kèm bằng chứng.',
+      details: [
+        { label: 'Doanh nghiệp', value: params.companyName },
+        { label: 'Lý do', value: params.reason },
+        { label: 'Thời hạn kháng cáo', value: `${params.appealWindowDays} ngày` },
+      ],
+      ctaLabel: 'GỬI KHÁNG CÁO',
+      ctaLink: this.resolveFrontendLink('/nha-tuyen-dung/khang-cao'),
+      footerNote: 'Email tự động gửi từ hệ thống kiểm duyệt UpNext.',
+      accent: 'negative',
+    });
+  }
+
+  /** The reviewer is told their company review was hidden. */
+  async sendReviewHiddenToReviewer(params: {
+    to: string;
+    recipientName?: string | null;
+    companyName: string;
+    reason: string;
+  }) {
+    await this.sendModerationNotice({
+      to: params.to,
+      subject: `[UpNext] Đánh giá của bạn về ${params.companyName} đã bị ẩn`,
+      text: `Đánh giá của bạn về "${params.companyName}" đã bị ẩn. Lý do: ${params.reason}`,
+      title: 'Đánh giá đã bị ẩn',
+      subtitle: 'Đánh giá của bạn không còn hiển thị công khai.',
+      recipientName: params.recipientName?.trim() || params.to,
+      message:
+        'Sau khi xem xét báo cáo từ doanh nghiệp, quản trị viên đã ẩn đánh giá của bạn. ' +
+        'Bạn có thể chỉnh sửa và gửi lại một đánh giá khách quan, đúng trải nghiệm thực tế.',
+      details: [
+        { label: 'Doanh nghiệp', value: params.companyName },
+        { label: 'Lý do báo cáo', value: params.reason },
+      ],
+      footerNote: 'Email tự động gửi từ hệ thống kiểm duyệt UpNext.',
+      accent: 'negative',
+    });
+  }
+
+  /** A new appeal has landed in the moderation queue. */
+  async sendAppealSubmittedToAdmin(params: {
+    to: string;
+    adminName?: string | null;
+    companyName: string;
+    content: string;
+  }) {
+    await this.sendModerationNotice({
+      to: params.to,
+      subject: `[UpNext] Kháng cáo mới từ ${params.companyName}`,
+      text: `Doanh nghiệp "${params.companyName}" vừa gửi kháng cáo: ${params.content}`,
+      title: 'Kháng cáo mới',
+      subtitle: 'Một doanh nghiệp bị hạn chế vừa gửi kháng cáo.',
+      recipientName: params.adminName?.trim() || params.to,
+      message: 'Vui lòng xem xét nội dung kháng cáo và bằng chứng kèm theo.',
+      details: [
+        { label: 'Doanh nghiệp', value: params.companyName },
+        { label: 'Nội dung kháng cáo', value: params.content },
+      ],
+      ctaLabel: 'XEM VÀ XỬ LÝ KHÁNG CÁO',
+      ctaLink: this.resolveFrontendLink('/admin/reports'),
+      footerNote: 'Email tự động gửi tới quản trị viên kiểm duyệt nội dung trên UpNext.',
+    });
+  }
+
+  /** The company learns whether its appeal succeeded. */
+  async sendAppealOutcomeToRecruiter(params: {
+    to: string;
+    recipientName?: string | null;
+    companyName: string;
+    approved: boolean;
+  }) {
+    await this.sendModerationNotice({
+      to: params.to,
+      subject: params.approved
+        ? `[UpNext] Kháng cáo được chấp nhận - ${params.companyName} đã được mở lại`
+        : `[UpNext] Kháng cáo của ${params.companyName} không được chấp nhận`,
+      text: params.approved
+        ? `Kháng cáo của "${params.companyName}" đã được chấp nhận, doanh nghiệp được mở lại.`
+        : `Kháng cáo của "${params.companyName}" không được chấp nhận.`,
+      title: params.approved ? 'Kháng cáo được chấp nhận' : 'Kháng cáo không được chấp nhận',
+      subtitle: 'Kết quả xử lý kháng cáo của doanh nghiệp bạn.',
+      recipientName: params.recipientName?.trim() || params.to,
+      message: params.approved
+        ? 'Quản trị viên đã chấp nhận kháng cáo. Doanh nghiệp của bạn được đưa trở lại trạng thái hoạt động và điểm uy tín đã được phục hồi.'
+        : 'Quản trị viên đã xem xét kháng cáo nhưng chưa đủ căn cứ để mở lại. Doanh nghiệp của bạn tiếp tục ở chế độ hạn chế.',
+      details: [
+        { label: 'Doanh nghiệp', value: params.companyName },
+        { label: 'Kết quả', value: params.approved ? 'Được chấp nhận' : 'Không được chấp nhận' },
+      ],
+      ctaLabel: 'XEM HỒ SƠ DOANH NGHIỆP',
+      ctaLink: this.resolveFrontendLink('/nha-tuyen-dung/ho-so-cong-ty'),
+      footerNote: 'Email tự động gửi từ hệ thống kiểm duyệt UpNext.',
+      accent: params.approved ? 'positive' : 'negative',
+    });
+  }
+
   private async sendMail(params: {
     to: string;
     subject: string;
@@ -374,6 +602,13 @@ export class EmailService {
   private renderTemplate(templateName: string, variables: Record<string, string>) {
     const templatePath = this.resolveEmailResourcePath('templates', templateName);
     let html = readFileSync(templatePath, 'utf8');
+
+    // `{{?key}}…{{/key}}` keeps its block only when `key` has a value, so one shared
+    // template can drop the rows a given notification has nothing to put in.
+    for (const [key, value] of Object.entries(variables)) {
+      const block = new RegExp(`\\{\\{\\?${key}\\}\\}([\\s\\S]*?)\\{\\{\\/${key}\\}\\}`, 'g');
+      html = html.replace(block, value.trim() ? '$1' : '');
+    }
 
     for (const [key, value] of Object.entries(variables)) {
       html = html.replaceAll(`{{${key}}}`, this.escapeHtml(value));

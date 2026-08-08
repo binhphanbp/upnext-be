@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ActorType, CompanyReviewStatus, ReportStatus } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../../common/email/email.service';
 import { ReputationLedgerService } from '../reputation/reputation-ledger.service';
 import { ReportsService } from './reports.service';
 
@@ -10,6 +11,12 @@ describe('ReportsService', () => {
   let service: ReportsService;
 
   const applyDelta = jest.fn();
+  const emailServiceMock = {
+    sendReportSubmittedToAdmin: jest.fn(),
+    sendReportOutcomeToReporter: jest.fn(),
+    sendCompanyRestrictedToRecruiter: jest.fn(),
+    sendReviewHiddenToReviewer: jest.fn(),
+  };
   const prismaMock: any = {
     report: {
       create: jest.fn(),
@@ -22,6 +29,8 @@ describe('ReportsService', () => {
     candidateProfile: { findUnique: jest.fn() },
     company: { findUnique: jest.fn(), update: jest.fn() },
     fileAsset: { findUnique: jest.fn() },
+    adminUser: { findMany: jest.fn().mockResolvedValue([]) },
+    recruiterAccount: { findUnique: jest.fn() },
     jobPost: { findUnique: jest.fn() },
     post: { findUnique: jest.fn() },
     $transaction: jest.fn((cb: (tx: unknown) => unknown) => cb(prismaMock)),
@@ -40,17 +49,25 @@ describe('ReportsService', () => {
         ReportsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: ReputationLedgerService, useValue: { applyDelta } },
+        { provide: EmailService, useValue: emailServiceMock },
       ],
     }).compile();
 
     service = module.get(ReportsService);
     jest.clearAllMocks();
+    prismaMock.adminUser.findMany.mockResolvedValue([]);
   });
 
   describe('create (candidate)', () => {
     beforeEach(() => {
       prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'candidate-profile-id' });
-      prismaMock.report.create.mockResolvedValue({ id: 'report-id' });
+      prismaMock.report.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({
+          id: 'report-id',
+          ...data,
+          reporterCandidate: { account: { fullName: 'Nguyễn Văn A', email: 'candidate@test.dev' } },
+        }),
+      );
     });
 
     it('records the reporter as a candidate', async () => {
@@ -70,7 +87,7 @@ describe('ReportsService', () => {
       );
     });
 
-    it('puts a company into Restricted Mode when a candidate reports the company', async () => {
+    it('does not restrict the company while the report is still unverified', async () => {
       prismaMock.company.findUnique.mockResolvedValue({ status: 'ACTIVE', reputationScore: 40 });
 
       await service.create(candidate, {
@@ -79,8 +96,39 @@ describe('ReportsService', () => {
         reason: 'Công ty lừa đảo',
       });
 
-      expect(prismaMock.company.update).toHaveBeenCalled();
-      expect(applyDelta).toHaveBeenCalled();
+      // Otherwise one unverified complaint would zero a company's reputation.
+      expect(prismaMock.company.update).not.toHaveBeenCalled();
+      expect(applyDelta).not.toHaveBeenCalled();
+    });
+
+    it('emails every active admin about the new report', async () => {
+      prismaMock.adminUser.findMany.mockResolvedValue([
+        { email: 'admin@upnext.dev', fullName: 'Quản trị viên' },
+      ]);
+      prismaMock.jobPost.findUnique.mockResolvedValue({ id: 'job-post-id', title: 'Backend Dev' });
+
+      await service.create(candidate, {
+        targetType: 'JOB_POST',
+        targetId: 'job-post-id',
+        reason: 'Tin tuyển dụng sai sự thật',
+      });
+
+      expect(emailServiceMock.sendReportSubmittedToAdmin).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'admin@upnext.dev', targetLabel: 'Backend Dev' }),
+      );
+    });
+
+    it('still creates the report when the notification fails', async () => {
+      prismaMock.adminUser.findMany.mockRejectedValue(new Error('SMTP down'));
+
+      // A moderation action must not depend on the mail server being up.
+      await expect(
+        service.create(candidate, {
+          targetType: 'JOB_POST',
+          targetId: 'job-post-id',
+          reason: 'Tin tuyển dụng sai sự thật',
+        }),
+      ).resolves.toBeDefined();
     });
   });
 
@@ -100,6 +148,7 @@ describe('ReportsService', () => {
           targetType: 'COMPANY_REVIEW',
           targetId: 'review-id',
           reason: 'Đánh giá sai sự thật',
+          evidenceFileId: null,
           reporterType: ActorType.RECRUITER,
           reporterRecruiterAccountId: 'recruiter-account-id',
           status: ReportStatus.PENDING,
@@ -164,6 +213,68 @@ describe('ReportsService', () => {
         service.updateStatus('report-id', 'admin-id', ReportStatus.RESOLVED),
       ).rejects.toThrow(BadRequestException);
       expect(prismaMock.companyReview.update).not.toHaveBeenCalled();
+    });
+
+    it('restricts the company only when the admin approves the report', async () => {
+      prismaMock.report.findUnique.mockResolvedValue({
+        id: 'report-id',
+        targetType: 'COMPANY',
+        targetId: 'company-id',
+        reason: 'Công ty lừa đảo',
+        status: ReportStatus.PENDING,
+      });
+      prismaMock.company.findUnique.mockResolvedValue({ status: 'ACTIVE', reputationScore: 40 });
+      prismaMock.report.update.mockResolvedValue({ id: 'report-id' });
+
+      await service.updateStatus('report-id', 'admin-id', ReportStatus.RESOLVED);
+
+      expect(prismaMock.company.update).toHaveBeenCalled();
+      expect(applyDelta).toHaveBeenCalled();
+    });
+
+    it('emails the company and the reporter once the restriction lands', async () => {
+      prismaMock.report.findUnique.mockResolvedValue({
+        id: 'report-id',
+        targetType: 'COMPANY',
+        targetId: 'company-id',
+        reason: 'Công ty lừa đảo',
+        status: ReportStatus.PENDING,
+        reporterCandidate: {
+          account: { fullName: 'Nguyễn Văn A', email: 'candidate@test.dev' },
+        },
+      });
+      prismaMock.company.findUnique.mockResolvedValue({
+        status: 'ACTIVE',
+        reputationScore: 40,
+        name: 'Công ty ABC',
+        recruiterAccounts: [{ email: 'hr@abc.dev', fullName: 'HR ABC' }],
+      });
+      prismaMock.report.update.mockResolvedValue({ id: 'report-id' });
+
+      await service.updateStatus('report-id', 'admin-id', ReportStatus.RESOLVED);
+
+      expect(emailServiceMock.sendCompanyRestrictedToRecruiter).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'hr@abc.dev', companyName: 'Công ty ABC' }),
+      );
+      expect(emailServiceMock.sendReportOutcomeToReporter).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'candidate@test.dev', approved: true }),
+      );
+    });
+
+    it('does not restrict the company when the admin rejects the report', async () => {
+      prismaMock.report.findUnique.mockResolvedValue({
+        id: 'report-id',
+        targetType: 'COMPANY',
+        targetId: 'company-id',
+        reason: 'Công ty lừa đảo',
+        status: ReportStatus.PENDING,
+      });
+      prismaMock.company.findUnique.mockResolvedValue({ status: 'ACTIVE', reputationScore: 40 });
+      prismaMock.report.update.mockResolvedValue({ id: 'report-id' });
+
+      await service.updateStatus('report-id', 'admin-id', ReportStatus.REJECTED);
+
+      expect(prismaMock.company.update).not.toHaveBeenCalled();
     });
 
     it('leaves content untouched for other target types', async () => {
