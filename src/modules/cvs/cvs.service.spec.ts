@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CvSource, CvStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -21,6 +21,7 @@ describe('CvsService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
@@ -118,6 +119,135 @@ describe('CvsService', () => {
         data: { isDefault: true },
       }),
     );
+  });
+
+  it('từ chối gắn sourceFileId của người khác vào CV mới — chặn rò rỉ file chéo tài khoản', async () => {
+    prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'profile-id' });
+    prismaMock.fileAsset.findUnique.mockResolvedValue({
+      id: 'file-id',
+      ownerId: 'nguoi-khac-account-id',
+    });
+
+    await expect(
+      service.create('candidate-account-id', {
+        title: 'CV mượn file người khác',
+        sourceFileId: 'file-id',
+      }),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prismaMock.cV.create).not.toHaveBeenCalled();
+  });
+
+  it('cho phép gắn sourceFileId khi file đúng là của chính người gọi', async () => {
+    prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'profile-id' });
+    prismaMock.fileAsset.findUnique.mockResolvedValue({
+      id: 'file-id',
+      ownerId: 'candidate-account-id',
+    });
+    prismaMock.cV.count.mockResolvedValue(0);
+    prismaMock.cV.create.mockResolvedValue({ id: 'cv-id' });
+
+    await service.create('candidate-account-id', {
+      title: 'CV của chính mình',
+      sourceFileId: 'file-id',
+    });
+
+    expect(prismaMock.cV.create).toHaveBeenCalled();
+  });
+
+  it('từ chối tạo CV mới khi tài khoản đã đạt trần số CV', async () => {
+    prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'profile-id' });
+    prismaMock.cV.count.mockResolvedValue(50);
+
+    await expect(
+      service.create('candidate-account-id', { title: 'CV thứ 51' }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'CV_LIMIT_REACHED' }),
+    });
+    expect(prismaMock.cV.create).not.toHaveBeenCalled();
+  });
+
+  it('từ chối cập nhật khi expectedVersion không khớp — chặn ghi đè âm thầm giữa hai tab', async () => {
+    prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'profile-id' });
+    prismaMock.cV.findFirst.mockResolvedValue({
+      id: 'cv-id',
+      candidateProfileId: 'profile-id',
+      isDefault: false,
+    });
+    prismaMock.cV.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.update('cv-id', { title: 'Tên mới', expectedVersion: 0 }, 'candidate-account-id'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'CV_VERSION_CONFLICT' }),
+    });
+  });
+
+  it('cập nhật thành công khi expectedVersion khớp, và tăng version lên 1', async () => {
+    prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'profile-id' });
+    prismaMock.cV.findFirst.mockResolvedValue({
+      id: 'cv-id',
+      candidateProfileId: 'profile-id',
+      isDefault: false,
+    });
+    prismaMock.cV.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.cV.findUniqueOrThrow.mockResolvedValue({ id: 'cv-id', version: 1 });
+
+    await service.update('cv-id', { title: 'Tên mới', expectedVersion: 0 }, 'candidate-account-id');
+
+    expect(prismaMock.cV.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'cv-id', version: 0 },
+        data: expect.objectContaining({ version: { increment: 1 } }),
+      }),
+    );
+  });
+
+  it('không có expectedVersion thì cập nhật như cũ, không kiểm tra khoá', async () => {
+    prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'profile-id' });
+    prismaMock.cV.findFirst.mockResolvedValue({
+      id: 'cv-id',
+      candidateProfileId: 'profile-id',
+      isDefault: false,
+    });
+    prismaMock.cV.update.mockResolvedValue({ id: 'cv-id', version: 1 });
+
+    await service.update('cv-id', { title: 'Tên mới' }, 'candidate-account-id');
+
+    expect(prismaMock.cV.update).toHaveBeenCalled();
+    expect(prismaMock.cV.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('trả về not-found (không phải 500 thô) khi CV bị xoá ngay trước khi đặt mặc định', async () => {
+    prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'profile-id' });
+    prismaMock.cV.findFirst.mockResolvedValue({
+      id: 'cv-id',
+      candidateProfileId: 'profile-id',
+      isDefault: false,
+    });
+    prismaMock.cV.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(service.setDefault('cv-id', 'candidate-account-id')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('từ chối mẫu CV đã bị admin vô hiệu hoá dù id vẫn tồn tại', async () => {
+    prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'profile-id' });
+    prismaMock.cVTemplate.findUnique.mockResolvedValue({ id: 'template-id', isActive: false });
+
+    await expect(
+      service.create('candidate-account-id', {
+        title: 'CV dùng mẫu đã tắt',
+        templateId: 'template-id',
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(prismaMock.cV.create).not.toHaveBeenCalled();
   });
 
   it('trả về conflict khi xóa CV đang được bản ghi khác tham chiếu', async () => {

@@ -1,7 +1,7 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ActorType } from '@prisma/client';
+import { ActorType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CvVersionsService } from './cv-versions.service';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
@@ -84,6 +84,63 @@ describe('CvVersionsService', () => {
     await expect(service.upload('cv-id', {}, undefined, adminUser)).rejects.toThrow(
       BadRequestException,
     );
+  });
+
+  it('từ chối tải lên khi CV đã đạt trần số phiên bản', async () => {
+    prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
+    prismaMock.cVVersion.count.mockResolvedValue(100);
+
+    await expect(
+      service.upload(
+        'cv-id',
+        {},
+        { buffer: Buffer.from('%PDF-1.4'), mimetype: 'application/pdf', originalname: 'cv.pdf', size: 8 },
+        adminUser,
+      ),
+    ).rejects.toThrow(ConflictException);
+
+    expect(prismaMock.fileAsset.create).not.toHaveBeenCalled();
+  });
+
+  it('từ chối mẫu CV đã bị admin vô hiệu hoá dù id vẫn tồn tại', async () => {
+    prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
+    prismaMock.cVVersion.count.mockResolvedValue(0);
+    prismaMock.cVTemplate.findUnique.mockResolvedValue({ id: 'template-id', isActive: false });
+
+    await expect(
+      service.upload(
+        'cv-id',
+        { templateId: 'template-id' },
+        { buffer: Buffer.from('%PDF-1.4'), mimetype: 'application/pdf', originalname: 'cv.pdf', size: 8 },
+        adminUser,
+      ),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prismaMock.fileAsset.create).not.toHaveBeenCalled();
+  });
+
+  it('trả về not-found (không phải 500 thô) khi CV gốc bị xoá ngay trước khi khôi phục phiên bản', async () => {
+    prismaMock.cVVersion.findUnique.mockResolvedValue({
+      id: 'version-id',
+      sourceFileId: 'file-id',
+      cvId: 'cv-id',
+      templateId: null,
+      versionNo: 1,
+      contentJson: null,
+      parsedText: null,
+      createdAt: new Date('2026-06-09T08:00:00.000Z'),
+      sourceFile: null,
+    });
+    prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
+    prismaMock.cVVersion.findFirst.mockResolvedValue({ versionNo: 3 });
+    prismaMock.cVVersion.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(service.restore('version-id', adminUser)).rejects.toThrow(NotFoundException);
   });
 
   it('khôi phục phiên bản cũ bằng cách tạo phiên bản mới có versionNo kế tiếp', async () => {

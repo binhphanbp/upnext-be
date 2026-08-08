@@ -21,9 +21,11 @@ import {
   ApiTags,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ActorType } from '@prisma/client';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CvsService } from './cvs.service';
@@ -34,13 +36,19 @@ import { CvEntity, CvList } from './entities/cv.entity';
 
 @ApiTags('Cvs')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, UserThrottlerGuard)
 @Roles(ActorType.CANDIDATE)
+// Trần mặc định cho route đọc — route tạo/ghi tự khai mức riêng bên dưới vì
+// không route nào trong controller này từng có throttle nào (xem
+// KE-HOACH-CV-BUILDER-AUDIT.md P0 — số CV/version tạo ra trước đây không giới
+// hạn, một tài khoản có thể spam vô hạn).
+@Throttle({ default: { limit: 60, ttl: 60_000 } })
 @Controller('cvs')
 export class CvsController {
   constructor(private readonly cvsService: CvsService) {}
 
   @Post()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Tạo CV' })
   @ApiCreatedResponse({ type: CvEntity, description: 'Tạo CV thành công.' })
   @ApiBadRequestResponse({ description: 'Body hoặc tham số truy vấn không hợp lệ.' })

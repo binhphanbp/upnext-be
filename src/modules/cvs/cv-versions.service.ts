@@ -24,6 +24,9 @@ import { hasPdfHeader } from '../../common/upload/cv-file-validation';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadCvVersionDto } from './dto/upload-cv-version.dto';
 
+/** Đủ dư cho một CV thật sự có nhiều bản chỉnh sửa, không đủ để spam vô hạn. */
+const MAX_VERSIONS_PER_CV = 100;
+
 type UploadedFile = {
   buffer: Buffer;
   mimetype: string;
@@ -60,37 +63,46 @@ export class CvVersionsService {
     user: AuthenticatedUser,
   ) {
     await this.authorizeCvAccess(cvId, user);
+    await this.ensureVersionLimitNotReached(cvId);
     await this.ensureTemplateExists(dto.templateId);
     this.ensurePdfFile(file);
 
     const savedFile = await this.saveCvFile(cvId, file);
 
-    return this.prisma.$transaction(async (tx) => {
-      const nextVersionNo = await this.getNextVersionNo(tx, cvId);
-      const sourceFile = await tx.fileAsset.create({
-        data: {
-          ownerType: 'cv',
-          ownerId: cvId,
-          purpose: FilePurpose.CV,
-          visibility: FileVisibility.PRIVATE,
-          storageKey: savedFile.storageKey,
-          originalName: file.originalname,
-          mimeType: file.mimetype,
-          sizeBytes: BigInt(file.size),
-        },
-      });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const nextVersionNo = await this.getNextVersionNo(tx, cvId);
+        const sourceFile = await tx.fileAsset.create({
+          data: {
+            ownerType: 'cv',
+            ownerId: cvId,
+            purpose: FilePurpose.CV,
+            visibility: FileVisibility.PRIVATE,
+            storageKey: savedFile.storageKey,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            sizeBytes: BigInt(file.size),
+          },
+        });
 
-      return tx.cVVersion.create({
-        data: {
-          cvId,
-          sourceFileId: sourceFile.id,
-          templateId: dto.templateId,
-          versionNo: nextVersionNo,
-          parsedText: dto.parsedText,
-        },
-        select: this.defaultSelect,
+        return tx.cVVersion.create({
+          data: {
+            cvId,
+            sourceFileId: sourceFile.id,
+            templateId: dto.templateId,
+            versionNo: nextVersionNo,
+            parsedText: dto.parsedText,
+          },
+          select: this.defaultSelect,
+        });
       });
-    });
+    } catch (error) {
+      // Template có thể bị xoá giữa lúc `ensureTemplateExists` kiểm tra xong
+      // và transaction này chạy (FK violation P2003) — trước đây lọt ra thành
+      // 500 thô thay vì lỗi rõ ràng.
+      this.handleKnownError(error);
+      throw error;
+    }
   }
 
   async findAll(cvId: string, query: PaginationQueryDto, user: AuthenticatedUser) {
@@ -230,24 +242,31 @@ export class CvVersionsService {
     const version = await this.getVersionOrThrow(id);
     await this.authorizeCvAccess(version.cvId, user);
 
-    return this.prisma.$transaction(async (tx) => {
-      const nextVersionNo = await this.getNextVersionNo(tx, version.cvId);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const nextVersionNo = await this.getNextVersionNo(tx, version.cvId);
 
-      return tx.cVVersion.create({
-        data: {
-          cvId: version.cvId,
-          sourceFileId: version.sourceFileId,
-          templateId: version.templateId,
-          versionNo: nextVersionNo,
-          contentJson:
-            version.contentJson === null
-              ? undefined
-              : (version.contentJson as Prisma.InputJsonValue),
-          parsedText: version.parsedText,
-        },
-        select: this.defaultSelect,
+        return tx.cVVersion.create({
+          data: {
+            cvId: version.cvId,
+            sourceFileId: version.sourceFileId,
+            templateId: version.templateId,
+            versionNo: nextVersionNo,
+            contentJson:
+              version.contentJson === null
+                ? undefined
+                : (version.contentJson as Prisma.InputJsonValue),
+            parsedText: version.parsedText,
+          },
+          select: this.defaultSelect,
+        });
       });
-    });
+    } catch (error) {
+      // CV gốc có thể đã bị xoá giữa lúc kiểm tra quyền và transaction này
+      // chạy — trước đây lọt ra thành 500 thô thay vì lỗi rõ ràng.
+      this.handleKnownError(error);
+      throw error;
+    }
   }
 
   async remove(id: string, user: AuthenticatedUser) {
@@ -321,6 +340,21 @@ export class CvVersionsService {
     throw new ForbiddenException('Bạn không có quyền truy cập CV này');
   }
 
+  /**
+   * `getNextVersionNo` chỉ đếm để đánh số thứ tự, chưa từng dùng để chặn.
+   * Không có trần nào ở đây trước đây — một tài khoản có thể tải lên PDF 10MB
+   * liên tục, mỗi file một bản ghi mới, không giới hạn.
+   */
+  private async ensureVersionLimitNotReached(cvId: string) {
+    const versionCount = await this.prisma.cVVersion.count({ where: { cvId } });
+    if (versionCount >= MAX_VERSIONS_PER_CV) {
+      throw new ConflictException({
+        code: 'CV_VERSION_LIMIT_REACHED',
+        message: 'CV này đã đạt số phiên bản tối đa. Hãy xoá bớt phiên bản cũ trước khi tải lên.',
+      });
+    }
+  }
+
   private async ensureTemplateExists(templateId?: string) {
     if (!templateId) {
       return;
@@ -328,10 +362,13 @@ export class CvVersionsService {
 
     const template = await this.prisma.cVTemplate.findUnique({
       where: { id: templateId },
-      select: { id: true },
+      select: { id: true, isActive: true },
     });
 
-    if (!template) {
+    // Trước đây chỉ kiểm tra tồn tại — một mẫu admin đã chủ động vô hiệu hoá
+    // (`isActive: false`, ví dụ layout lỗi/không còn dùng) vẫn chọn được nếu
+    // biết id, làm vô nghĩa việc admin bấm "Vô hiệu hoá".
+    if (!template || !template.isActive) {
       throw new NotFoundException('Không tìm thấy mẫu CV');
     }
   }
@@ -393,8 +430,14 @@ export class CvVersionsService {
   } satisfies Prisma.CVVersionSelect;
 
   private handleKnownError(error: unknown) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-      throw new ConflictException('Phiên bản CV đang được bản ghi khác sử dụng');
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2003') {
+        throw new ConflictException('Phiên bản CV đang được bản ghi khác sử dụng');
+      }
+
+      if (error.code === 'P2025') {
+        throw new NotFoundException('Không tìm thấy CV hoặc phiên bản CV');
+      }
     }
   }
 }
