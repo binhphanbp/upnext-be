@@ -326,13 +326,27 @@ export class CvVersionsService {
       // - PDFs and other documents were uploaded as 'raw' (stored as-is)
       // - Images were uploaded as 'image'
       // Also use deliveryType 'upload' to match how files were stored (not 'authenticated').
-      const cloudinaryResourceType = version.sourceFile.mimeType.startsWith('image/')
+      const cloudinaryResourceType = version.sourceFile.mimeType?.startsWith('image/')
         ? 'image'
         : 'raw';
-      const signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
-        resourceType: cloudinaryResourceType,
-        deliveryType: 'upload',
-      });
+
+      let signedUrl: string;
+      try {
+        signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
+          resourceType: cloudinaryResourceType,
+          deliveryType: 'upload',
+        });
+      } catch (error) {
+        // storageKey hỏng (rỗng/không phải public_id hợp lệ) hoặc Cloudinary
+        // chưa cấu hình — trước đây lọt ra thành 500 thô không rõ nguyên nhân.
+        // Log lại để chẩn đoán, trả lỗi rõ ràng cho client.
+        console.error('[CvVersionsService.prepareDownload] createSignedUrl failed', {
+          cvVersionId: id,
+          storageKey: version.sourceFile.storageKey,
+          error,
+        });
+        throw new NotFoundException('Không thể tạo đường dẫn tải file CV');
+      }
 
       try {
         const cloudinaryRes = await fetch(signedUrl);
