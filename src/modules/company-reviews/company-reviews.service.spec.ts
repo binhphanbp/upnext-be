@@ -89,8 +89,16 @@ describe('CompanyReviewsService', () => {
 
     it('stitches the caller-owned report onto each review', async () => {
       prismaMock.companyReview.findMany.mockResolvedValue([
-        { id: 'review-1', overallRating: 2 },
-        { id: 'review-2', overallRating: 5 },
+        {
+          id: 'review-1',
+          overallRating: 2,
+          candidateProfile: { id: 'profile-1', account: { fullName: 'Nguyễn Văn A' } },
+        },
+        {
+          id: 'review-2',
+          overallRating: 5,
+          candidateProfile: { id: 'profile-2', account: { fullName: 'Trần Thị B' } },
+        },
       ]);
       arrangeEmptyStats();
       // Reports live on the polymorphic Report table, so they arrive from a second query
@@ -120,6 +128,24 @@ describe('CompanyReviewsService', () => {
         createdAt: new Date('2026-08-01'),
       });
       expect(result.items[1]?.myReport).toBeNull();
+    });
+
+    it('names the reviewer without leaking the rest of their profile', async () => {
+      prismaMock.companyReview.findMany.mockResolvedValue([
+        {
+          id: 'review-1',
+          overallRating: 2,
+          candidateProfile: { id: 'profile-1', account: { fullName: 'Nguyễn Văn A' } },
+        },
+      ]);
+      arrangeEmptyStats();
+      reportsServiceMock.findRecruiterReportsByTargets.mockResolvedValue([]);
+
+      const result = await service.listMyCompanyReviews(recruiter, { page: 1, limit: 20 });
+
+      expect(result.items[0]?.reviewer).toEqual({ id: 'profile-1', fullName: 'Nguyễn Văn A' });
+      // The raw profile carries phone/gender/birthdate/address — it must not be passed through.
+      expect(result.items[0]).not.toHaveProperty('candidateProfile');
     });
 
     it('keeps the summary describing the whole company when a rating filter is applied', async () => {
