@@ -248,9 +248,10 @@ describe('CvVersionsService', () => {
     fetchMock.mockRestore();
   });
 
-  it('tự động chuyển sang dạng redirect nếu kết nối tải trực tiếp từ Cloudinary gặp lỗi', async () => {
+  it('tự động chuyển sang dạng stream parsedText hoặc 404 nếu kết nối tải trực tiếp từ Cloudinary gặp lỗi', async () => {
     prismaMock.cVVersion.findUnique.mockResolvedValueOnce({ cvId: 'cv-id' }).mockResolvedValueOnce({
       id: 'version-id',
+      parsedText: 'Nội dung CV ứng viên',
       sourceFile: {
         storageKey: 'upnext/cv/invalid-file-id',
         originalName: 'candidate.pdf',
@@ -263,7 +264,8 @@ describe('CvVersionsService', () => {
 
     const download = await service.prepareDownload('version-id', adminUser);
 
-    expect(download).toMatchObject({ kind: 'redirect', url: 'https://cdn.example.com/candidate.pdf' });
+    expect(download.kind).toBe('stream');
+    expect(download.mimeType).toContain('text/plain');
     fetchMock.mockRestore();
   });
 });

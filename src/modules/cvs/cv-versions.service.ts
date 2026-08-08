@@ -234,17 +234,27 @@ export class CvVersionsService {
         throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ');
       }
     } else {
-      let signedUrl: string | null = null;
       try {
         const cloudinaryResourceType = version.sourceFile.mimeType.startsWith('image/')
           ? 'image'
           : 'raw';
-        signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
+        let signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
           resourceType: cloudinaryResourceType,
           deliveryType: 'upload',
         });
 
-        const cloudinaryRes = await fetch(signedUrl);
+        let cloudinaryRes = await fetch(signedUrl);
+        if (!cloudinaryRes.ok && cloudinaryResourceType === 'raw') {
+          const altSignedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
+            resourceType: 'image',
+            deliveryType: 'upload',
+          });
+          const altRes = await fetch(altSignedUrl);
+          if (altRes.ok) {
+            cloudinaryRes = altRes;
+          }
+        }
+
         if (cloudinaryRes.ok) {
           const buffer = Buffer.from(await cloudinaryRes.arrayBuffer());
           return {
@@ -256,15 +266,6 @@ export class CvVersionsService {
         }
       } catch (error) {
         this.logger.warn(`Could not fetch Cloudinary CV asset: ${error}`);
-      }
-
-      if (signedUrl) {
-        return {
-          kind: 'redirect',
-          url: signedUrl,
-          fileName: version.sourceFile.originalName,
-          mimeType: version.sourceFile.mimeType,
-        };
       }
 
       if (version.parsedText?.trim()) {
@@ -371,7 +372,7 @@ export class CvVersionsService {
           cvVersion: { cvId },
           OR: [
             ...(user.companyId ? [{ jobPost: { companyId: user.companyId } }] : []),
-            { jobPost: { recruiterAccountId: user.id } },
+            { jobPost: { createdByRecruiterId: user.id } },
             { jobPost: { hiringTeam: { some: { recruiterAccountId: user.id } } } },
           ],
         },
