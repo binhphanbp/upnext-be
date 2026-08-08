@@ -317,6 +317,20 @@ export class ApplicationsController {
     return this.applicationsService.markViewed(user, id);
   }
 
+  @Patch('applications/:id/respond-offer')
+  @ApiOperation({ summary: 'Ứng viên phản hồi lời mời làm việc (Accept/Decline Offer)' })
+  @ApiParam({ name: 'id', description: 'UUID của hồ sơ ứng tuyển' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.CANDIDATE)
+  respondOffer(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: { action: 'ACCEPT' | 'DECLINE' },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.applicationsService.respondOffer(user.id, id, body.action);
+  }
+
   @Post('applications/:id/assignments')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)

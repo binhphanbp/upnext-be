@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -52,6 +53,8 @@ export type PreparedCvDownload =
 
 @Injectable()
 export class CvVersionsService {
+  private readonly logger = new Logger(CvVersionsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
@@ -320,37 +323,38 @@ export class CvVersionsService {
           mimeType: version.sourceFile.mimeType,
         };
       } catch {
+        if (version.parsedText?.trim()) {
+          return {
+            kind: 'stream',
+            stream: Readable.from([Buffer.from(version.parsedText, 'utf-8')]),
+            fileName: `CV-${id.slice(0, 8)}.txt`,
+            mimeType: 'text/plain; charset=utf-8',
+          };
+        }
         throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ');
       }
     } else {
-      // Determine the Cloudinary resource_type based on the stored MIME type:
-      // - PDFs and other documents were uploaded as 'raw' (stored as-is)
-      // - Images were uploaded as 'image'
-      // Also use deliveryType 'upload' to match how files were stored (not 'authenticated').
-      const cloudinaryResourceType = version.sourceFile.mimeType?.startsWith('image/')
-        ? 'image'
-        : 'raw';
-
-      let signedUrl: string;
       try {
-        signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
+        const cloudinaryResourceType = version.sourceFile.mimeType?.startsWith('image/')
+          ? 'image'
+          : 'raw';
+        const signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
           resourceType: cloudinaryResourceType,
           deliveryType: 'upload',
         });
-      } catch (error) {
-        // storageKey hỏng (rỗng/không phải public_id hợp lệ) hoặc Cloudinary
-        // chưa cấu hình — trước đây lọt ra thành 500 thô không rõ nguyên nhân.
-        // Log lại để chẩn đoán, trả lỗi rõ ràng cho client.
-        console.error('[CvVersionsService.prepareDownload] createSignedUrl failed', {
-          cvVersionId: id,
-          storageKey: version.sourceFile.storageKey,
-          error,
-        });
-        throw new NotFoundException('Không thể tạo đường dẫn tải file CV');
-      }
 
-      try {
-        const cloudinaryRes = await fetch(signedUrl);
+        let cloudinaryRes = await fetch(signedUrl);
+        if (!cloudinaryRes.ok && cloudinaryResourceType === 'raw') {
+          const altSignedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
+            resourceType: 'image',
+            deliveryType: 'upload',
+          });
+          const altRes = await fetch(altSignedUrl);
+          if (altRes.ok) {
+            cloudinaryRes = altRes;
+          }
+        }
+
         if (cloudinaryRes.ok) {
           const buffer = Buffer.from(await cloudinaryRes.arrayBuffer());
           return {
@@ -360,16 +364,20 @@ export class CvVersionsService {
             mimeType: version.sourceFile.mimeType,
           };
         }
-      } catch {
-        // Fallback to signedUrl redirect if server-side fetch fails
+      } catch (error) {
+        this.logger.warn(`Could not fetch Cloudinary CV asset: ${String(error)}`);
       }
 
-      return {
-        kind: 'redirect',
-        url: signedUrl,
-        fileName: version.sourceFile.originalName,
-        mimeType: version.sourceFile.mimeType,
-      };
+      if (version.parsedText?.trim()) {
+        return {
+          kind: 'stream',
+          stream: Readable.from([Buffer.from(version.parsedText, 'utf-8')]),
+          fileName: `CV-${id.slice(0, 8)}.txt`,
+          mimeType: 'text/plain; charset=utf-8',
+        };
+      }
+
+      throw new NotFoundException('Không tìm thấy file CV trên hệ thống lưu trữ');
     }
   }
 
@@ -471,10 +479,18 @@ export class CvVersionsService {
       const application = await this.prisma.application.findFirst({
         where: {
           cvVersion: { cvId },
+<<<<<<< HEAD
+          OR: [
+            ...(user.companyId ? [{ jobPost: { companyId: user.companyId } }] : []),
+            { jobPost: { createdByRecruiterId: user.id } },
+            { jobPost: { hiringTeam: { some: { recruiterAccountId: user.id } } } },
+          ],
+=======
           jobPost: {
             companyId: user.companyId,
             ...recruiterAccessibleJobPostFilter(user.id),
           },
+>>>>>>> origin/dev
         },
         select: { id: true },
       });
