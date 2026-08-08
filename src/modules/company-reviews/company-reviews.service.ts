@@ -27,6 +27,11 @@ const RATING_FIELDS = [
   'overtimeSatisfaction',
 ] as const;
 
+/**
+ * Reviews are attributed, not anonymous — but only the reviewer's name is exposed.
+ * The profile also holds phoneNumber, gender, birthdate, address and jobSearchStatus,
+ * none of which belong on a public page, so this selects the name and nothing else.
+ */
 const PUBLIC_REVIEW_SELECT = {
   id: true,
   overallRating: true,
@@ -41,12 +46,31 @@ const PUBLIC_REVIEW_SELECT = {
   cultureFunRating: true,
   officeWorkspaceRating: true,
   createdAt: true,
+  candidateProfile: {
+    select: {
+      id: true,
+      account: { select: { fullName: true } },
+    },
+  },
 } satisfies Prisma.CompanyReviewSelect;
 
 type PublicCompanyReview = Prisma.CompanyReviewGetPayload<{ select: typeof PUBLIC_REVIEW_SELECT }>;
 
 function roundToOneDecimal(value: number | null) {
   return value === null ? null : Math.round(value * 10) / 10;
+}
+
+/** Flattens the reviewer to just an id and a display name for the client. */
+function toReviewer(review: PublicCompanyReview) {
+  return {
+    id: review.candidateProfile.id,
+    fullName: review.candidateProfile.account.fullName,
+  };
+}
+
+function withReviewer(review: PublicCompanyReview) {
+  const { candidateProfile: _candidateProfile, ...rest } = review;
+  return { ...rest, reviewer: toReviewer(review) };
 }
 
 @Injectable()
@@ -102,7 +126,7 @@ export class CompanyReviewsService {
     });
 
     return {
-      items: reviews,
+      items: reviews.map(withReviewer),
       summary: this.buildSummary(reviews),
     };
   }
@@ -111,9 +135,9 @@ export class CompanyReviewsService {
    * Recruiter-facing list of the reviews left on their own company.
    *
    * Hidden reviews are excluded, exactly as on the public page, so a recruiter never
-   * sees content visitors cannot. Candidate identity is never joined in — reviews are
-   * anonymous by design. Each row carries the caller's own report, if any, because the
-   * report endpoint rejects duplicates and the UI has to know before offering the action.
+   * sees content visitors cannot. The reviewer's name is shown — the same name the public
+   * page shows, nothing more. Each row carries the caller's own report, if any, because
+   * the report endpoint rejects duplicates and the UI has to know before offering the action.
    */
   async listMyCompanyReviews(
     recruiterUser: AuthenticatedUser,
@@ -178,7 +202,7 @@ export class CompanyReviewsService {
       items: items.map((review) => {
         const report = myReportByReviewId.get(review.id);
         return {
-          ...review,
+          ...withReviewer(review),
           myReport: report
             ? {
                 id: report.id,
@@ -297,6 +321,7 @@ export class CompanyReviewsService {
       targetType: COMPANY_REVIEW_TARGET_TYPE,
       targetId: reviewId,
       reason: dto.reason,
+      evidenceFileId: dto.evidenceFileId,
     });
   }
 

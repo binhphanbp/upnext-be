@@ -7,8 +7,8 @@ export class CreateReportDto {
   @IsNotEmpty()
   targetType: string;
 
-  @ApiProperty({ description: 'UUID của đối tượng bị báo cáo' })
-  @IsUUID()
+  @ApiProperty({ description: 'ID, UUID hoặc slug của đối tượng bị báo cáo' })
+  @IsString()
   @IsNotEmpty()
   targetId: string;
 

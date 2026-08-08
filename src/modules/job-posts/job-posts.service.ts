@@ -47,6 +47,7 @@ export class JobPostsService {
         createdByRecruiterId: user.id,
         companyId: context.company.id,
         status: JobStatus.DRAFT,
+        moderationStatus: ModerationStatus.APPROVED,
       },
       include: this.ownerJobPostInclude(),
     });
@@ -136,21 +137,15 @@ export class JobPostsService {
   }
 
   async update(id: string, recruiterId: string, updateJobPostDto: UpdateJobPostDto) {
-    const job = await this.verifyJobOwner(id, recruiterId);
-
-    const needsReReview = job.moderationStatus !== ModerationStatus.PENDING;
+    await this.verifyJobOwner(id, recruiterId);
 
     return this.prisma.jobPost.update({
       where: { id },
       data: {
         ...updateJobPostDto,
-        ...(needsReReview
-          ? {
-              moderationStatus: ModerationStatus.PENDING,
-              reason: null,
-              moderationNote: null,
-            }
-          : {}),
+        moderationStatus: ModerationStatus.APPROVED,
+        reason: null,
+        moderationNote: null,
       },
       include: this.ownerJobPostInclude(),
     });
@@ -191,7 +186,10 @@ export class JobPostsService {
       await this.ensureCompanyCanPublish(job.companyId);
     }
 
-    const data: Prisma.JobPostUpdateInput = { status };
+    const data: Prisma.JobPostUpdateInput = {
+      status,
+      moderationStatus: ModerationStatus.APPROVED,
+    };
     if (status === JobStatus.PUBLISHED) {
       data.publishedAt = new Date();
     }

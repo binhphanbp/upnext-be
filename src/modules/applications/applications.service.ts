@@ -6,14 +6,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ActorType, ApplicationStatus, JobStatus, InterviewStatus } from '@prisma/client';
+import { ActorType, ApplicationStatus, CvStatus, JobStatus, InterviewStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { OutboxService } from '../outbox/outbox.service';
 import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
 import { ApplicationTransitionPolicy } from './application-transition.policy';
-import { isValidVietnamesePhoneNumber } from '../../common/validation/vietnamese-phone';
+import { isValidInternationalPhoneNumber } from '../../common/validation/phone';
 import { recruiterAccessibleJobPostFilter } from '../../common/authorization/job-post-access';
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
 import { UpdateApplicationCvDto } from './dto/update-application-cv.dto';
@@ -131,9 +131,9 @@ export class ApplicationsService {
       throw new NotFoundException('Candidate profile not found');
     }
 
-    if (!isValidVietnamesePhoneNumber(profile.phoneNumber)) {
+    if (!isValidInternationalPhoneNumber(profile.phoneNumber)) {
       throw new BadRequestException(
-        'Vui lòng cập nhật số điện thoại Việt Nam hợp lệ trước khi nộp hồ sơ',
+        'Vui lòng cập nhật số điện thoại liên hệ hợp lệ trước khi nộp hồ sơ',
       );
     }
 
@@ -159,6 +159,9 @@ export class ApplicationsService {
     }
     if (cvVersion.cv.candidateProfileId !== profile.id) {
       throw new BadRequestException('CV version does not belong to the candidate');
+    }
+    if (cvVersion.cv.status && cvVersion.cv.status !== CvStatus.ACTIVE) {
+      throw new BadRequestException('Hãy chọn một CV đang hoạt động để nộp hồ sơ');
     }
 
     const existing = await this.prisma.application.findUnique({
@@ -358,6 +361,9 @@ export class ApplicationsService {
     }
     if (cvVersion.cv.candidateProfileId !== profile.id) {
       throw new BadRequestException('CV version does not belong to the candidate');
+    }
+    if (cvVersion.cv.status && cvVersion.cv.status !== CvStatus.ACTIVE) {
+      throw new BadRequestException('Hãy chọn một CV đang hoạt động để cập nhật đơn ứng tuyển');
     }
 
     const changed = await this.prisma.application.updateMany({

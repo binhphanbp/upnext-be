@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { buildCvText } from '../../cv-screening/screening-text';
 import { MIN_RELEVANCE_SCORE, rankJobs } from '../matching/job-ranker';
 import { anonymizeSelf, coarsenAddress, redact } from './pii-redactor';
 
@@ -256,11 +257,21 @@ export class CandidateContextAssembler {
         versionNo: true,
         parsedText: true,
         contentJson: true,
+        sourceFile: { select: { originalName: true } },
         cv: {
           select: {
             title: true,
             candidateProfile: {
-              select: { account: { select: { fullName: true } } },
+              select: {
+                account: { select: { fullName: true, email: true } },
+                description: true,
+                skills: { include: { skill: true }, orderBy: { sortOrder: 'asc' } },
+                experiences: { orderBy: { sortOrder: 'asc' } },
+                projects: { orderBy: { sortOrder: 'asc' } },
+                educations: { orderBy: { sortOrder: 'asc' } },
+                certifications: { orderBy: { sortOrder: 'asc' } },
+                jobPreference: true,
+              },
             },
           },
         },
@@ -274,7 +285,14 @@ export class CandidateContextAssembler {
     }
 
     const fullName = version.cv.candidateProfile?.account?.fullName ?? null;
-    const redaction = redact(version.parsedText);
+    // `buildCvText` đã có sẵn ở cv-screening cho đúng bài toán này: parsedText
+    // rỗng khi CV chỉ là file PDF tải lên chưa từng được bóc tách (upload không
+    // tự OCR) — trước đây Copilot đọc thẳng `parsedText`, không có phương án dự
+    // phòng, nên báo nhầm "CV chưa có nội dung" dù hồ sơ ứng viên có đủ kinh
+    // nghiệm/kỹ năng đã điền tay. Dùng lại đúng logic ưu tiên parsedText, sập về
+    // hồ sơ có cấu trúc khi rỗng — thay vì viết lại một bản khác dễ lệch nhau.
+    const cvText = buildCvText(version as Parameters<typeof buildCvText>[0]);
+    const redaction = redact(cvText);
     if (redaction.removed.emails || redaction.removed.phones) {
       this.logger.debug(
         `Đã ẩn ${redaction.removed.emails} email và ${redaction.removed.phones} số điện thoại khỏi CV ${version.id}`,
