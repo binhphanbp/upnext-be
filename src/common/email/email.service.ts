@@ -336,6 +336,68 @@ export class EmailService {
     });
   }
 
+  async sendOfferLetter(params: {
+    to: string;
+    candidateName?: string | null;
+    jobTitle: string;
+    companyName: string;
+    salaryOffer?: string | null;
+    startDate?: string | null;
+    expiryDateText?: string | null;
+    offerNote?: string | null;
+    applicationLink: string;
+  }) {
+    let salary = params.salaryOffer || 'Thỏa thuận';
+    let start = params.startDate || 'Theo trao đổi trực tiếp';
+    let expiry = params.expiryDateText || '7 ngày';
+    let noteText = params.offerNote || '';
+
+    // If offerNote is JSON string from SendOfferDialog, parse it
+    if (params.offerNote && params.offerNote.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(params.offerNote);
+        if (parsed.salaryOffer) salary = parsed.salaryOffer;
+        if (parsed.startDate) start = parsed.startDate;
+        if (parsed.expiryDateText) expiry = parsed.expiryDateText;
+        if (parsed.note !== undefined) noteText = parsed.note;
+      } catch {}
+    }
+
+    const defaultNoteHtml =
+      'Chúc mừng bạn! Chúng tôi rất ấn tượng với năng lực và kinh nghiệm của bạn trong suốt quá trình phỏng vấn. Công ty trân trọng mời bạn gia nhập đội ngũ với các điều khoản đề xuất trên.<br/><br/>Vui lòng xem kỹ thông tin và phản hồi lại cho chúng tôi trước hạn chót. Rất mong được đồng hành cùng bạn!';
+
+    const formattedNoteHtml = noteText
+      ? this.escapeHtml(noteText).replaceAll('\n', '<br/>')
+      : defaultNoteHtml;
+
+    const html = this.renderTemplate('offer-letter.html', {
+      candidateName: params.candidateName?.trim() || params.to,
+      jobTitle: params.jobTitle,
+      companyName: params.companyName,
+      salaryOffer: salary,
+      startDate: start,
+      expiryDateText: expiry,
+      offerNoteHtml: formattedNoteHtml,
+      applicationLink: params.applicationLink,
+      sentDate: this.formatSentDate(),
+    });
+
+    await this.sendMail({
+      to: params.to,
+      subject: `[UpNext] Thư mời nhận việc - ${params.jobTitle} - ${params.companyName}`,
+      text: `Chúc mừng! Qua quá trình ứng tuyển và phỏng vấn, ${params.companyName} trân trọng gửi tới bạn Thư mời nhận việc cho vị trí ${params.jobTitle}.`,
+      html,
+      attachments: [
+        {
+          filename: 'upnext-logo.png',
+          path: this.resolveEmailAssetPath('upnext-logo.png'),
+          cid: 'upnext-logo',
+        },
+      ],
+      fallbackLog: `Offer letter for "${params.jobTitle}" from ${params.companyName} -> ${params.to}`,
+    });
+  }
+
   private async sendMail(params: {
     to: string;
     subject: string;

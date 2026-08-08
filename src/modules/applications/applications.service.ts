@@ -18,6 +18,7 @@ import { recruiterAccessibleJobPostFilter } from '../../common/authorization/job
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
 import { UpdateApplicationCvDto } from './dto/update-application-cv.dto';
 import { CV_SCORING_RUBRIC } from '../cv-screening/scoring-rubric';
+import { EmailService } from '../../common/email/email.service';
 
 const PIPELINE_SCORE_FIELD_BY_RUBRIC_KEY: Record<string, string> = {
   skills: 'skillScore',
@@ -103,6 +104,7 @@ export class ApplicationsService {
     private readonly outbox: OutboxService,
     private readonly conversationLifecycle: ConversationLifecycleService,
     private readonly transitionPolicy: ApplicationTransitionPolicy,
+    private readonly emailService: EmailService,
   ) {}
 
   async applyJob(candidateAccountId: string, dto: ApplyJobDto) {
@@ -1020,11 +1022,21 @@ export class ApplicationsService {
     const application = await this.prisma.application.findUnique({
       where: { id },
       include: {
-        jobPost: true,
+        jobPost: {
+          include: {
+            company: true,
+          },
+        },
         assignments: { where: { unassignedAt: null }, select: { recruiterAccountId: true } },
         candidateProfile: {
-          select: {
-            candidateAccountId: true,
+          include: {
+            account: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+              },
+            },
           },
         },
       },
@@ -1108,6 +1120,22 @@ export class ApplicationsService {
       return tx.application.findUniqueOrThrow({ where: { id } });
     });
 
+    if (status === ApplicationStatus.OFFERED && application.candidateProfile?.account?.email) {
+      void this.emailService
+        .sendOfferLetter({
+          to: application.candidateProfile.account.email,
+          candidateName: application.candidateProfile.account.fullName,
+          jobTitle: application.jobPost.title,
+          companyName: application.jobPost.company?.name ?? 'UpNext Employer',
+          salaryOffer: dto.note?.includes('Offer Salary:') ? dto.note : undefined,
+          offerNote: dto.note,
+          applicationLink: `${process.env.APP_FRONTEND_URL || 'http://localhost:3000'}/candidate/applications/${id}`,
+        })
+        .catch((err) => {
+          console.error('Failed to send offer letter email:', err);
+        });
+    }
+
     return updatedApp;
   }
 
@@ -1146,5 +1174,61 @@ export class ApplicationsService {
     });
 
     return this.prisma.application.findUniqueOrThrow({ where: { id } });
+  }
+
+  async respondOffer(candidateAccountId: string, id: string, action: 'ACCEPT' | 'DECLINE') {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { candidateAccountId },
+    });
+    if (!profile) {
+      throw new NotFoundException('Candidate profile not found');
+    }
+
+    const application = await this.prisma.application.findUnique({
+      where: { id },
+      include: { jobPost: true },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+
+    if (application.candidateProfileId !== profile.id) {
+      throw new ForbiddenException('You do not have permission to respond to this offer');
+    }
+
+    if (application.status !== ApplicationStatus.OFFERED) {
+      throw new BadRequestException('Application is not in OFFERED status');
+    }
+
+    const nextStatus = action === 'ACCEPT' ? ApplicationStatus.HIRED : ApplicationStatus.REJECTED;
+
+    const updatedApp = await this.prisma.$transaction(async (tx) => {
+      const app = await tx.application.update({
+        where: { id },
+        data: {
+          status: nextStatus,
+        },
+      });
+
+      await tx.applicationStatusLog.create({
+        data: {
+          applicationId: id,
+          actorType: ActorType.CANDIDATE,
+          actorId: candidateAccountId,
+          oldStatus: ApplicationStatus.OFFERED,
+          newStatus: nextStatus,
+          note: action === 'ACCEPT' ? 'Candidate accepted offer' : 'Candidate declined offer',
+        },
+      });
+
+      await this.conversationLifecycle.applyApplicationStatus(tx, id, nextStatus, {
+        type: ActorType.CANDIDATE,
+        id: candidateAccountId,
+      });
+
+      return app;
+    });
+
+    return updatedApp;
   }
 }
