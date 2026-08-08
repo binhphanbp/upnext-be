@@ -40,6 +40,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { CvVersionsService } from './cv-versions.service';
 import { UploadCvVersionDto } from './dto/upload-cv-version.dto';
+import { CreateBuilderCvVersionDto } from './dto/create-builder-cv-version.dto';
 import { CvVersion, CvVersionList } from './entities/cv.entity';
 
 type UploadedFile = {
@@ -77,6 +78,24 @@ export class CvVersionsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.cvVersionsService.upload(cvId, uploadCvVersionDto, file, user);
+  }
+
+  @Post('cvs/:cvId/builder-versions')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Lưu một phiên bản bất biến từ CV Builder' })
+  @ApiParam({ name: 'cvId', description: 'UUID của CV Builder' })
+  @ApiCreatedResponse({ type: CvVersion, description: 'Đã lưu phiên bản Builder mới.' })
+  @ApiBadRequestResponse({ description: 'Dữ liệu CV hoặc trạng thái không hợp lệ.' })
+  @ApiConflictResponse({
+    description: 'CV đã được chỉnh sửa ở nơi khác hoặc đã đạt giới hạn phiên bản.',
+  })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy CV.' })
+  createBuilderVersion(
+    @Param('cvId', new ParseUUIDPipe()) cvId: string,
+    @Body() dto: CreateBuilderCvVersionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cvVersionsService.createBuilderVersion(cvId, dto, user);
   }
 
   @Get('cvs/:cvId/versions')

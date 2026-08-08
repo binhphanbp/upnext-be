@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ActorType, FilePurpose, FileVisibility, Prisma } from '@prisma/client';
+import { ActorType, CvSource, CvStatus, FilePurpose, FileVisibility, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
@@ -23,6 +23,7 @@ import {
 import { hasPdfHeader } from '../../common/upload/cv-file-validation';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadCvVersionDto } from './dto/upload-cv-version.dto';
+import { CreateBuilderCvVersionDto } from './dto/create-builder-cv-version.dto';
 
 /** Đủ dư cho một CV thật sự có nhiều bản chỉnh sửa, không đủ để spam vô hạn. */
 const MAX_VERSIONS_PER_CV = 100;
@@ -100,6 +101,104 @@ export class CvVersionsService {
       // Template có thể bị xoá giữa lúc `ensureTemplateExists` kiểm tra xong
       // và transaction này chạy (FK violation P2003) — trước đây lọt ra thành
       // 500 thô thay vì lỗi rõ ràng.
+      this.handleKnownError(error);
+      throw error;
+    }
+  }
+
+  /**
+   * Saves a Builder edit as a new immutable version. Applications reference a
+   * CVVersion, so this endpoint must never overwrite an existing snapshot.
+   */
+  async createBuilderVersion(
+    cvId: string,
+    dto: CreateBuilderCvVersionDto,
+    user: AuthenticatedUser,
+  ) {
+    const cv = await this.prisma.cV.findUnique({
+      where: { id: cvId },
+      select: {
+        id: true,
+        candidateProfileId: true,
+        source: true,
+        status: true,
+        isDefault: true,
+        version: true,
+        candidateProfile: { select: { candidateAccountId: true } },
+      },
+    });
+
+    if (!cv) throw new NotFoundException('Không tìm thấy CV');
+    if (user.role !== ActorType.CANDIDATE || cv.candidateProfile.candidateAccountId !== user.id) {
+      throw new ForbiddenException('Bạn không có quyền chỉnh sửa CV này');
+    }
+    if (cv.source !== CvSource.BUILDER) {
+      throw new BadRequestException('Chỉ CV tạo bằng CV Builder mới lưu theo cách này');
+    }
+
+    const status = dto.status ?? cv.status;
+    if (status === CvStatus.ARCHIVED) {
+      throw new BadRequestException('Hãy dùng thao tác lưu trữ riêng thay vì lưu phiên bản mới');
+    }
+    if (!this.isNonEmptyObject(dto.contentJson)) {
+      throw new BadRequestException('Nội dung CV không hợp lệ');
+    }
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const currentVersionCount = await tx.cVVersion.count({ where: { cvId } });
+        if (currentVersionCount >= MAX_VERSIONS_PER_CV) {
+          throw new ConflictException({
+            code: 'CV_VERSION_LIMIT_REACHED',
+            message: 'CV này đã đạt số phiên bản tối đa. Hãy xoá bớt phiên bản cũ trước khi lưu.',
+          });
+        }
+
+        const updated = await tx.cV.updateMany({
+          where: { id: cvId, version: dto.expectedVersion },
+          data: {
+            ...(dto.title ? { title: dto.title } : {}),
+            status,
+            // A non-active CV cannot be offered as a default application CV.
+            isDefault: status === CvStatus.ACTIVE ? cv.isDefault : false,
+            version: { increment: 1 },
+          },
+        });
+
+        if (updated.count !== 1) {
+          throw new ConflictException({
+            code: 'CV_VERSION_CONFLICT',
+            message: 'CV đã được chỉnh sửa ở nơi khác. Hãy tải lại rồi thử lại.',
+          });
+        }
+
+        const nextVersionNo = await this.getNextVersionNo(tx, cvId);
+        const version = await tx.cVVersion.create({
+          data: {
+            cvId,
+            versionNo: nextVersionNo,
+            contentJson: dto.contentJson as Prisma.InputJsonValue,
+            parsedText: dto.parsedText,
+          },
+          select: this.defaultSelect,
+        });
+
+        return {
+          cv: await tx.cV.findUniqueOrThrow({
+            where: { id: cvId },
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              isDefault: true,
+              version: true,
+              updatedAt: true,
+            },
+          }),
+          version,
+        };
+      });
+    } catch (error) {
       this.handleKnownError(error);
       throw error;
     }
@@ -408,6 +507,10 @@ export class CvVersionsService {
     });
 
     return (latestVersion?.versionNo ?? 0) + 1;
+  }
+
+  private isNonEmptyObject(value: Record<string, unknown>) {
+    return Object.keys(value).length > 0;
   }
 
   private readonly defaultSelect = {
