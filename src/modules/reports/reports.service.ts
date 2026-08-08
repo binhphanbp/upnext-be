@@ -61,6 +61,7 @@ export class ReportsService {
       throw new NotFoundException('Candidate profile not found');
     }
     const reporterCandidateId = candidateProfile.id;
+    const targetId = await this.resolveTargetId(dto.targetType, dto.targetId);
 
     // Filing a report no longer restricts anything — that only happens once an admin
     // resolves it (see updateStatus). A single unverified complaint used to be enough to
@@ -68,7 +69,7 @@ export class ReportsService {
     const report = await this.prisma.report.create({
       data: {
         targetType: dto.targetType,
-        targetId: dto.targetId,
+        targetId,
         reason: dto.reason,
         evidenceFileId: dto.evidenceFileId ?? null,
         reporterType: ActorType.CANDIDATE,
@@ -89,6 +90,46 @@ export class ReportsService {
     });
 
     return report;
+  }
+
+  /** Checks if candidate has an active (PENDING/REVIEWING) report for the target. */
+  async findActiveCandidateReport(candidateAccountId: string, targetType: string, targetIdOrSlug: string) {
+    const candidateProfile = await this.prisma.candidateProfile.findUnique({
+      where: { candidateAccountId },
+      select: { id: true },
+    });
+    if (!candidateProfile) {
+      return { hasActiveReport: false };
+    }
+
+    const targetId = await this.resolveTargetId(targetType, targetIdOrSlug);
+
+    const activeReport = await this.prisma.report.findFirst({
+      where: {
+        reporterType: ActorType.CANDIDATE,
+        reporterCandidateId: candidateProfile.id,
+        targetType,
+        targetId,
+        status: { in: [ReportStatus.PENDING, ReportStatus.REVIEWING] },
+      },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      hasActiveReport: Boolean(activeReport),
+      report: activeReport
+        ? {
+            id: activeReport.id,
+            status: activeReport.status,
+            createdAt: activeReport.createdAt,
+          }
+        : null,
+    };
   }
 
   /**
@@ -567,5 +608,51 @@ export class ReportsService {
     } catch {
       return null;
     }
+  }
+
+  private async resolveTargetId(targetType: string, targetIdOrSlug: string): Promise<string> {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetIdOrSlug);
+    if (isUuid) {
+      return targetIdOrSlug;
+    }
+
+    try {
+      switch (targetType.toUpperCase()) {
+        case 'COMPANY': {
+          if (typeof this.prisma.company?.findFirst === 'function') {
+            const company = await this.prisma.company.findFirst({
+              where: { OR: [{ id: targetIdOrSlug }, { slug: targetIdOrSlug }] },
+              select: { id: true },
+            });
+            if (company) return company.id;
+          }
+          break;
+        }
+        case 'JOB_POST': {
+          if (typeof this.prisma.jobPost?.findFirst === 'function') {
+            const job = await this.prisma.jobPost.findFirst({
+              where: { OR: [{ id: targetIdOrSlug }, { slug: targetIdOrSlug }] },
+              select: { id: true },
+            });
+            if (job) return job.id;
+          }
+          break;
+        }
+        case 'POST': {
+          if (typeof this.prisma.post?.findFirst === 'function') {
+            const post = await this.prisma.post.findFirst({
+              where: { OR: [{ id: targetIdOrSlug }, { slug: targetIdOrSlug }] },
+              select: { id: true },
+            });
+            if (post) return post.id;
+          }
+          break;
+        }
+      }
+    } catch {
+      // Fall back to targetIdOrSlug on any lookup error
+    }
+
+    return targetIdOrSlug;
   }
 }

@@ -124,7 +124,15 @@ export class AppealsService {
     await this.notify('kết quả kháng cáo tới nhà tuyển dụng', async () => {
       const company = await this.prisma.company.findUnique({
         where: { id: companyId },
-        select: { name: true, recruiterAccounts: { select: { email: true, fullName: true } } },
+        select: {
+          name: true,
+          recruiterAccounts: {
+            select: {
+              email: true,
+              profile: { select: { fullName: true } },
+            },
+          },
+        },
       });
       if (!company) return;
 
@@ -132,7 +140,7 @@ export class AppealsService {
         company.recruiterAccounts.map((recruiter) =>
           this.emailService.sendAppealOutcomeToRecruiter({
             to: recruiter.email,
-            recipientName: recruiter.fullName,
+            recipientName: recruiter.profile?.fullName || recruiter.email,
             companyName: company.name,
             approved,
           }),

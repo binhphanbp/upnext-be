@@ -21,18 +21,19 @@ describe('ReportsService', () => {
     report: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
       update: jest.fn(),
     },
     companyReview: { update: jest.fn(), findUnique: jest.fn() },
     candidateProfile: { findUnique: jest.fn() },
-    company: { findUnique: jest.fn(), update: jest.fn() },
+    company: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     fileAsset: { findUnique: jest.fn() },
     adminUser: { findMany: jest.fn().mockResolvedValue([]) },
     recruiterAccount: { findUnique: jest.fn() },
-    jobPost: { findUnique: jest.fn() },
-    post: { findUnique: jest.fn() },
+    jobPost: { findUnique: jest.fn(), findFirst: jest.fn() },
+    post: { findUnique: jest.fn(), findFirst: jest.fn() },
     $transaction: jest.fn((cb: (tx: unknown) => unknown) => cb(prismaMock)),
   };
 
@@ -306,6 +307,39 @@ describe('ReportsService', () => {
       await expect(
         service.updateStatus('report-id', 'admin-id', ReportStatus.PENDING),
       ).resolves.toBeDefined();
+    });
+  });
+
+  describe('findActiveCandidateReport', () => {
+    it('returns hasActiveReport true when candidate has a PENDING report', async () => {
+      prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'candidate-profile-id' });
+      prismaMock.report.findFirst.mockResolvedValue({
+        id: 'report-id-1',
+        status: ReportStatus.PENDING,
+        createdAt: new Date(),
+      });
+
+      const result = await service.findActiveCandidateReport(
+        'candidate-account-id',
+        'COMPANY',
+        'company-id',
+      );
+
+      expect(result.hasActiveReport).toBe(true);
+      expect(result.report?.id).toBe('report-id-1');
+    });
+
+    it('returns hasActiveReport false when candidate has no active report', async () => {
+      prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'candidate-profile-id' });
+      prismaMock.report.findFirst.mockResolvedValue(null);
+
+      const result = await service.findActiveCandidateReport(
+        'candidate-account-id',
+        'COMPANY',
+        'company-id',
+      );
+
+      expect(result.hasActiveReport).toBe(false);
     });
   });
 });

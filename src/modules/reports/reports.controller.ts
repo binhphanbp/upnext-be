@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -21,5 +21,16 @@ export class ReportsController {
   @ApiCreatedResponse({ description: 'Báo cáo vi phạm đã được tạo thành công.' })
   create(@Body() dto: CreateReportDto, @CurrentUser() user: AuthenticatedUser) {
     return this.reportsService.create(user, dto);
+  }
+
+  @Get('check')
+  @Roles(ActorType.CANDIDATE)
+  @ApiOperation({ summary: 'Kiểm tra trạng thái báo cáo của ứng viên cho đối tượng' })
+  checkReportStatus(
+    @Query('targetType') targetType: string,
+    @Query('targetId') targetId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reportsService.findActiveCandidateReport(user.id, targetType, targetId);
   }
 }
