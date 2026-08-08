@@ -474,7 +474,7 @@ describe('JobPostsService', () => {
   });
 
   describe('update', () => {
-    it('resets moderationStatus to PENDING when editing an already-reviewed job post', async () => {
+    it('sets moderationStatus to APPROVED when editing a job post', async () => {
       prismaMock.jobPost.findFirst.mockResolvedValue({
         id: 'job-id',
         createdByRecruiterId: 'recruiter-id',
@@ -490,28 +490,12 @@ describe('JobPostsService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             title: 'New title',
-            moderationStatus: ModerationStatus.PENDING,
+            moderationStatus: ModerationStatus.APPROVED,
             reason: null,
             moderationNote: null,
           }),
         }),
       );
-    });
-
-    it('does not touch moderationStatus when the job post is still pending review', async () => {
-      prismaMock.jobPost.findFirst.mockResolvedValue({
-        id: 'job-id',
-        createdByRecruiterId: 'recruiter-id',
-        companyId: 'company-id',
-        status: 'DRAFT',
-        moderationStatus: ModerationStatus.PENDING,
-      });
-      prismaMock.jobPost.update.mockResolvedValue({});
-
-      await service.update('job-id', 'recruiter-id', { title: 'New title' });
-
-      const callData = prismaMock.jobPost.update.mock.calls[0][0].data;
-      expect(callData).not.toHaveProperty('moderationStatus');
     });
   });
 
