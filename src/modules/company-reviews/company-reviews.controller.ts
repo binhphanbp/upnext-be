@@ -30,13 +30,13 @@ export class CompanyReviewsController {
   constructor(private readonly companyReviewsService: CompanyReviewsService) {}
 
   @ApiOperation({ summary: 'Tạo đánh giá công ty' })
-  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiParam({ name: 'id', description: 'Company UUID or Slug' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.CANDIDATE)
   @Post(':id/reviews')
   createReview(
-    @Param('id', new ParseUUIDPipe()) companyId: string,
+    @Param('id') companyId: string,
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateCompanyReviewDto,
   ) {
@@ -44,22 +44,22 @@ export class CompanyReviewsController {
   }
 
   @ApiOperation({ summary: 'Đánh giá của tôi cho công ty này (nếu có)' })
-  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiParam({ name: 'id', description: 'Company UUID or Slug' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ActorType.CANDIDATE)
   @Get(':id/reviews/me')
   getMyReview(
-    @Param('id', new ParseUUIDPipe()) companyId: string,
+    @Param('id') companyId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.companyReviewsService.getMyReview(user.id, companyId);
   }
 
   @ApiOperation({ summary: 'Danh sách đánh giá công ty' })
-  @ApiParam({ name: 'id', description: 'Company UUID' })
+  @ApiParam({ name: 'id', description: 'Company UUID or Slug' })
   @Get(':id/reviews')
-  listReviews(@Param('id', new ParseUUIDPipe()) companyId: string) {
+  listReviews(@Param('id') companyId: string) {
     return this.companyReviewsService.listReviews(companyId);
   }
 }

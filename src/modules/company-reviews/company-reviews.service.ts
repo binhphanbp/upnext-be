@@ -95,6 +95,18 @@ export class CompanyReviewsService {
     private readonly reportsService: ReportsService,
   ) {}
 
+  private async resolveCompanyId(idOrSlug: string): Promise<string> {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrSlug);
+    if (isUuid) return idOrSlug;
+
+    const company = await this.prisma.company.findUnique({
+      where: { slug: idOrSlug },
+      select: { id: true },
+    });
+    if (!company) throw new NotFoundException('Không tìm thấy công ty.');
+    return company.id;
+  }
+
   private async getProfile(candidateAccountId: string) {
     const profile = await this.prisma.candidateProfile.findUnique({
       where: { candidateAccountId },
@@ -103,7 +115,8 @@ export class CompanyReviewsService {
     return profile;
   }
 
-  async createReview(candidateAccountId: string, companyId: string, dto: CreateCompanyReviewDto) {
+  async createReview(candidateAccountId: string, companyIdOrSlug: string, dto: CreateCompanyReviewDto) {
+    const companyId = await this.resolveCompanyId(companyIdOrSlug);
     const profile = await this.getProfile(candidateAccountId);
 
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
@@ -129,16 +142,21 @@ export class CompanyReviewsService {
     });
   }
 
-  async getMyReview(candidateAccountId: string, companyId: string) {
+  async getMyReview(candidateAccountId: string, companyIdOrSlug: string) {
+    const companyId = await this.resolveCompanyId(companyIdOrSlug);
     const profile = await this.getProfile(candidateAccountId);
     return this.prisma.companyReview.findUnique({
       where: { candidateProfileId_companyId: { candidateProfileId: profile.id, companyId } },
     });
   }
 
-  async listReviews(companyId: string) {
+  async listReviews(companyIdOrSlug: string) {
+    const companyId = await this.resolveCompanyId(companyIdOrSlug);
     const reviews = await this.prisma.companyReview.findMany({
-      where: { companyId, status: CompanyReviewStatus.APPROVED },
+      where: {
+        companyId,
+        status: { in: [CompanyReviewStatus.APPROVED, CompanyReviewStatus.PENDING] },
+      },
       select: PUBLIC_REVIEW_SELECT,
       orderBy: { createdAt: 'desc' },
     });
