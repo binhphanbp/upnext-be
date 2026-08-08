@@ -108,6 +108,22 @@ export class InterviewsController {
     return this.interviewsService.cancel(id, dto, user);
   }
 
+  @Patch(':id/no-show')
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @ApiOperation({ summary: 'Đánh dấu ứng viên không có mặt phỏng vấn' })
+  @ApiParam({ name: 'id', description: 'Interview UUID' })
+  @ApiOkResponse({ description: 'Đánh dấu không có mặt thành công' })
+  @ApiBadRequestResponse({ description: 'Lịch phỏng vấn đã hoàn thành/hủy' })
+  @ApiForbiddenResponse({ description: 'Không có quyền cập nhật phỏng vấn này' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy cuộc phỏng vấn' })
+  markNoShow(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: CancelInterviewDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.interviewsService.markNoShow(id, dto, user);
+  }
+
   @Patch(':id/result')
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @ApiOperation({ summary: 'Cập nhật kết quả phỏng vấn và hoàn thành phỏng vấn' })

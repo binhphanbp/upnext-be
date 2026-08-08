@@ -1903,6 +1903,7 @@ async function cleanHomeSeedData() {
     },
   });
 
+  // Only delete seed subscription plans that have no dependent subscriptions or invoices
   await prisma.subscriptionPlan.deleteMany({
     where: {
       createdByAdmin: {
@@ -1910,6 +1911,23 @@ async function cleanHomeSeedData() {
           endsWith: '@upnext.dev',
         },
       },
+      companySubscriptions: { none: {} },
+      invoices: { none: {} },
+    },
+  });
+
+  // Mark remaining admin seed plans as inactive & hidden instead of hard-deleting
+  await prisma.subscriptionPlan.updateMany({
+    where: {
+      createdByAdmin: {
+        email: {
+          endsWith: '@upnext.dev',
+        },
+      },
+    },
+    data: {
+      status: 'INACTIVE',
+      isPublic: false,
     },
   });
 
@@ -2301,8 +2319,9 @@ async function main() {
   const adminUser = seededAdmins['SUPER_ADMIN'];
 
   const plans = {
-    basic: await prisma.subscriptionPlan.create({
-      data: {
+    basic: await prisma.subscriptionPlan.upsert({
+      where: { code: 'RECRUITER_BASIC' },
+      update: {
         subscriptionName: 'Basic Trial',
         price: new Prisma.Decimal(0),
         description: 'Gói dùng thử miễn phí dành cho nhà tuyển dụng mới.',
@@ -2310,11 +2329,25 @@ async function main() {
         boostCreditLimit: 0,
         jobPostLimit: 3,
         status: 'ACTIVE',
+        isPublic: true,
+        createdByAdminId: adminUser.id,
+      },
+      create: {
+        code: 'RECRUITER_BASIC',
+        subscriptionName: 'Basic Trial',
+        price: new Prisma.Decimal(0),
+        description: 'Gói dùng thử miễn phí dành cho nhà tuyển dụng mới.',
+        durationDays: 14,
+        boostCreditLimit: 0,
+        jobPostLimit: 3,
+        status: 'ACTIVE',
+        isPublic: true,
         createdByAdminId: adminUser.id,
       },
     }),
-    standard: await prisma.subscriptionPlan.create({
-      data: {
+    standard: await prisma.subscriptionPlan.upsert({
+      where: { code: 'RECRUITER_STANDARD' },
+      update: {
         subscriptionName: 'Standard Plan',
         price: new Prisma.Decimal(490000),
         description: 'Gói tiêu chuẩn phù hợp cho doanh nghiệp vừa và nhỏ.',
@@ -2322,11 +2355,25 @@ async function main() {
         boostCreditLimit: 3,
         jobPostLimit: 10,
         status: 'ACTIVE',
+        isPublic: true,
+        createdByAdminId: adminUser.id,
+      },
+      create: {
+        code: 'RECRUITER_STANDARD',
+        subscriptionName: 'Standard Plan',
+        price: new Prisma.Decimal(490000),
+        description: 'Gói tiêu chuẩn phù hợp cho doanh nghiệp vừa và nhỏ.',
+        durationDays: 30,
+        boostCreditLimit: 3,
+        jobPostLimit: 10,
+        status: 'ACTIVE',
+        isPublic: true,
         createdByAdminId: adminUser.id,
       },
     }),
-    premium: await prisma.subscriptionPlan.create({
-      data: {
+    premium: await prisma.subscriptionPlan.upsert({
+      where: { code: 'RECRUITER_PREMIUM' },
+      update: {
         subscriptionName: 'Premium Plan',
         price: new Prisma.Decimal(1490000),
         description: 'Gói nâng cao không giới hạn cho các tập đoàn lớn.',
@@ -2334,11 +2381,25 @@ async function main() {
         boostCreditLimit: 10,
         jobPostLimit: 30,
         status: 'ACTIVE',
+        isPublic: true,
+        createdByAdminId: adminUser.id,
+      },
+      create: {
+        code: 'RECRUITER_PREMIUM',
+        subscriptionName: 'Premium Plan',
+        price: new Prisma.Decimal(1490000),
+        description: 'Gói nâng cao không giới hạn cho các tập đoàn lớn.',
+        durationDays: 30,
+        boostCreditLimit: 10,
+        jobPostLimit: 30,
+        status: 'ACTIVE',
+        isPublic: true,
         createdByAdminId: adminUser.id,
       },
     }),
-    customInactive: await prisma.subscriptionPlan.create({
-      data: {
+    customInactive: await prisma.subscriptionPlan.upsert({
+      where: { code: 'RECRUITER_LEGACY' },
+      update: {
         subscriptionName: 'Legacy Plan',
         price: new Prisma.Decimal(99000),
         description: 'Gói dịch vụ cũ đã ngưng cung cấp.',
@@ -2346,6 +2407,19 @@ async function main() {
         boostCreditLimit: 0,
         jobPostLimit: 1,
         status: 'INACTIVE',
+        isPublic: false,
+        createdByAdminId: adminUser.id,
+      },
+      create: {
+        code: 'RECRUITER_LEGACY',
+        subscriptionName: 'Legacy Plan',
+        price: new Prisma.Decimal(99000),
+        description: 'Gói dịch vụ cũ đã ngưng cung cấp.',
+        durationDays: 7,
+        boostCreditLimit: 0,
+        jobPostLimit: 1,
+        status: 'INACTIVE',
+        isPublic: false,
         createdByAdminId: adminUser.id,
       },
     }),
