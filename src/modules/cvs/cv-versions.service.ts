@@ -326,17 +326,43 @@ export class CvVersionsService {
       // - PDFs and other documents were uploaded as 'raw' (stored as-is)
       // - Images were uploaded as 'image'
       // Also use deliveryType 'upload' to match how files were stored (not 'authenticated').
-      const cloudinaryResourceType = version.sourceFile.mimeType.startsWith('image/')
+      const cloudinaryResourceType = version.sourceFile.mimeType?.startsWith('image/')
         ? 'image'
         : 'raw';
-      const signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
-        resourceType: cloudinaryResourceType,
-        deliveryType: 'upload',
-      });
 
-      // Cloudinary documents are delivered directly to the browser after authorization.
-      // This avoids proxying binary files through the API server, which creates a fragile
-      // dependency on the VPS being able to fetch Cloudinary's delivery domain.
+      let signedUrl: string;
+      try {
+        signedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
+          resourceType: cloudinaryResourceType,
+          deliveryType: 'upload',
+        });
+      } catch (error) {
+        // storageKey hỏng (rỗng/không phải public_id hợp lệ) hoặc Cloudinary
+        // chưa cấu hình — trước đây lọt ra thành 500 thô không rõ nguyên nhân.
+        // Log lại để chẩn đoán, trả lỗi rõ ràng cho client.
+        console.error('[CvVersionsService.prepareDownload] createSignedUrl failed', {
+          cvVersionId: id,
+          storageKey: version.sourceFile.storageKey,
+          error,
+        });
+        throw new NotFoundException('Không thể tạo đường dẫn tải file CV');
+      }
+
+      try {
+        const cloudinaryRes = await fetch(signedUrl);
+        if (cloudinaryRes.ok) {
+          const buffer = Buffer.from(await cloudinaryRes.arrayBuffer());
+          return {
+            kind: 'stream',
+            stream: Readable.from([buffer]),
+            fileName: version.sourceFile.originalName,
+            mimeType: version.sourceFile.mimeType,
+          };
+        }
+      } catch {
+        // Fallback to signedUrl redirect if server-side fetch fails
+      }
+
       return {
         kind: 'redirect',
         url: signedUrl,
@@ -431,11 +457,15 @@ export class CvVersionsService {
       return cv;
     }
 
-    if (user.role === ActorType.RECRUITER && user.companyId) {
+    if (user.role === ActorType.RECRUITER) {
       const application = await this.prisma.application.findFirst({
         where: {
           cvVersion: { cvId },
-          jobPost: { companyId: user.companyId },
+          OR: [
+            ...(user.companyId ? [{ jobPost: { companyId: user.companyId } }] : []),
+            { jobPost: { recruiterAccountId: user.id } },
+            { jobPost: { hiringTeam: { some: { recruiterAccountId: user.id } } } },
+          ],
         },
         select: { id: true },
       });

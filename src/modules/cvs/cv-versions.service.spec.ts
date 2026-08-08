@@ -268,7 +268,10 @@ describe('CvVersionsService', () => {
     });
     prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
     cloudinaryMock.createSignedUrl.mockReturnValue('https://cdn.example.com/candidate.pdf');
-    const fetchMock = jest.spyOn(global, 'fetch');
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => Buffer.from('%PDF-1.4').buffer,
+    } as Response);
 
     const download = await service.prepareDownload('version-id', adminUser);
 
@@ -278,11 +281,7 @@ describe('CvVersionsService', () => {
     });
     expect(download.fileName).toBe('candidate.pdf');
     expect(download.mimeType).toBe('application/pdf');
-    expect(download).toMatchObject({
-      kind: 'redirect',
-      url: 'https://cdn.example.com/candidate.pdf',
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(download.kind).toBe('stream');
 
     fetchMock.mockRestore();
   });
@@ -298,19 +297,22 @@ describe('CvVersionsService', () => {
     });
     prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
     cloudinaryMock.createSignedUrl.mockReturnValue('https://cdn.example.com/candidate.docx');
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => Buffer.from('docx-bytes').buffer,
+    } as Response);
+
     const download = await service.prepareDownload('version-id', adminUser);
 
     expect(cloudinaryMock.createSignedUrl).toHaveBeenCalledWith('upnext/cv/candidate-docx', {
       resourceType: 'raw',
       deliveryType: 'upload',
     });
-    expect(download).toMatchObject({
-      kind: 'redirect',
-      url: 'https://cdn.example.com/candidate.docx',
-    });
+    expect(download.kind).toBe('stream');
+    fetchMock.mockRestore();
   });
 
-  it('không tải hộ file Cloudinary qua mạng của máy chủ', async () => {
+  it('tự động chuyển sang dạng redirect nếu kết nối tải trực tiếp từ Cloudinary gặp lỗi', async () => {
     prismaMock.cVVersion.findUnique.mockResolvedValueOnce({ cvId: 'cv-id' }).mockResolvedValueOnce({
       id: 'version-id',
       sourceFile: {
@@ -321,12 +323,11 @@ describe('CvVersionsService', () => {
     });
     prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
     cloudinaryMock.createSignedUrl.mockReturnValue('https://cdn.example.com/candidate.pdf');
-    const fetchMock = jest.spyOn(global, 'fetch');
+    const fetchMock = jest.spyOn(global, 'fetch').mockRejectedValue(new Error('Network error'));
 
     const download = await service.prepareDownload('version-id', adminUser);
 
-    expect(download).toMatchObject({ kind: 'redirect' });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(download).toMatchObject({ kind: 'redirect', url: 'https://cdn.example.com/candidate.pdf' });
     fetchMock.mockRestore();
   });
 });

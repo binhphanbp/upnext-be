@@ -145,7 +145,7 @@ export class CvVersionsController {
 
     response.set({
       'Content-Type': download.mimeType,
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(download.fileName)}"`,
+      'Content-Disposition': `inline; filename="${encodeURIComponent(download.fileName)}"`,
     });
 
     return new StreamableFile(download.stream);
