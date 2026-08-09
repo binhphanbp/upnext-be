@@ -108,4 +108,26 @@ describe('validateEnv CORS origins', () => {
     expect(config.googleClientId).toBe('google-client-id');
     expect(config.googleClientSecret).toBe('google-client-secret');
   });
+
+  it('keeps direct Gemini as the safe default while upnext-ai is not enabled', () => {
+    const config = validateEnv(createConfig());
+
+    expect(config.aiLlmProvider).toBe('gemini');
+    expect(config.aiServiceFallbackToGemini).toBe(true);
+  });
+
+  it('requires a distinct service URL and signing secret before enabling upnext-ai', () => {
+    expect(() => validateEnv(createConfig({ AI_LLM_PROVIDER: 'upnext-ai' }))).toThrow(ZodError);
+
+    const config = validateEnv(
+      createConfig({
+        AI_LLM_PROVIDER: 'upnext-ai',
+        AI_SERVICE_URL: 'http://upnext-ai:8000',
+        AI_INTERNAL_JWT_SECRET: 'a'.repeat(32),
+      }),
+    );
+
+    expect(config.aiLlmProvider).toBe('upnext-ai');
+    expect(config.aiServiceUrl).toBe('http://upnext-ai:8000');
+  });
 });

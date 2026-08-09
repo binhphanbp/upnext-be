@@ -63,6 +63,14 @@ const envSchema = z
         'https://upnext.works,https://staging.upnext.works,http://localhost:5173,http://localhost:3000',
       ),
     GEMINI_API_KEY: z.string().optional(),
+    AI_LLM_PROVIDER: z.enum(['gemini', 'upnext-ai']).default('gemini'),
+    AI_SERVICE_URL: z.string().url().optional(),
+    AI_INTERNAL_JWT_SECRET: z.string().min(32).optional(),
+    AI_SERVICE_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(25_000),
+    AI_SERVICE_FALLBACK_TO_GEMINI: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
     AI_MAX_RUNS_PER_DAY: z.coerce.number().int().positive().default(50),
     AI_MAX_TOKENS_PER_DAY: z.coerce.number().int().positive().default(200_000),
     GOOGLE_CLIENT_ID: optionalCredentialSchema,
@@ -120,6 +128,21 @@ const envSchema = z
           'APP_BACKEND_URL must not be a localhost URL in production – Google OAuth uses this as the callback URL',
       });
     }
+
+    if (env.AI_LLM_PROVIDER === 'upnext-ai' && !env.AI_SERVICE_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AI_SERVICE_URL'],
+        message: 'AI_SERVICE_URL is required when AI_LLM_PROVIDER=upnext-ai',
+      });
+    }
+    if (env.AI_LLM_PROVIDER === 'upnext-ai' && !env.AI_INTERNAL_JWT_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AI_INTERNAL_JWT_SECRET'],
+        message: 'AI_INTERNAL_JWT_SECRET is required when AI_LLM_PROVIDER=upnext-ai',
+      });
+    }
   });
 
 export type AppConfig = {
@@ -143,6 +166,11 @@ export type AppConfig = {
   cloudinaryFolder: string;
   corsOrigins: string[];
   geminiApiKey?: string;
+  aiLlmProvider: 'gemini' | 'upnext-ai';
+  aiServiceUrl?: string;
+  aiInternalJwtSecret?: string;
+  aiServiceTimeoutMs: number;
+  aiServiceFallbackToGemini: boolean;
   aiMaxRunsPerDay: number;
   aiMaxTokensPerDay: number;
   googleClientId?: string;
@@ -181,6 +209,11 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     cloudinaryFolder: parsed.CLOUDINARY_FOLDER,
     corsOrigins,
     geminiApiKey: parsed.GEMINI_API_KEY,
+    aiLlmProvider: parsed.AI_LLM_PROVIDER,
+    aiServiceUrl: parsed.AI_SERVICE_URL,
+    aiInternalJwtSecret: parsed.AI_INTERNAL_JWT_SECRET,
+    aiServiceTimeoutMs: parsed.AI_SERVICE_TIMEOUT_MS,
+    aiServiceFallbackToGemini: parsed.AI_SERVICE_FALLBACK_TO_GEMINI,
     aiMaxRunsPerDay: parsed.AI_MAX_RUNS_PER_DAY,
     aiMaxTokensPerDay: parsed.AI_MAX_TOKENS_PER_DAY,
     googleClientId: parsed.GOOGLE_CLIENT_ID,
