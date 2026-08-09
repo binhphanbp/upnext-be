@@ -91,11 +91,11 @@ describe('ApplicationsService', () => {
     expect(service).toBeDefined();
   });
 
-  it('creates the candidate-recruiter conversation as soon as an application is submitted', async () => {
+  it('accepts an international contact number when an application is submitted', async () => {
     prismaMock.candidateAccount.findUnique.mockResolvedValue({
       emailVerifiedAt: new Date(),
       fullName: 'Candidate',
-      profile: { id: 'candidate-profile-id', phoneNumber: '0901234567' },
+      profile: { id: 'candidate-profile-id', phoneNumber: '+1 (202) 555-0123' },
     });
     prismaMock.jobPost.findUnique.mockResolvedValue({
       id: 'job-post-id',
@@ -118,6 +118,7 @@ describe('ApplicationsService', () => {
       cvVersionId: 'cv-version-id',
     });
 
+    expect(prismaMock.application.create).toHaveBeenCalled();
     expect(applyApplicationStatus).toHaveBeenCalledWith(
       prismaMock,
       'application-id',
