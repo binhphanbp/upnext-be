@@ -3,20 +3,25 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender, JobSearchStatus, ProfileVisibility } from '@prisma/client';
 import { IsDateString, IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import {
-  normalizeVietnamesePhoneNumber,
-  VIETNAMESE_PHONE_PATTERN,
-} from '../../../common/validation/vietnamese-phone';
+  INTERNATIONAL_PHONE_PATTERN,
+  normalizeInternationalPhoneNumber,
+} from '../../../common/validation/phone';
 
 export class UpdateCandidateProfileDto {
-  @ApiPropertyOptional({ example: '0916110241', maxLength: 30 })
+  @ApiPropertyOptional({
+    example: '+1 202 555 0123',
+    description:
+      'Số điện thoại liên hệ gồm 7–15 chữ số; hỗ trợ số nội địa và định dạng quốc tế có mã quốc gia.',
+    maxLength: 30,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(30)
   @Transform(({ value }: TransformFnParams): unknown =>
-    typeof value === 'string' ? normalizeVietnamesePhoneNumber(value) : value,
+    typeof value === 'string' ? normalizeInternationalPhoneNumber(value) : value,
   )
-  @Matches(VIETNAMESE_PHONE_PATTERN, {
-    message: 'Số điện thoại Việt Nam chưa hợp lệ',
+  @Matches(INTERNATIONAL_PHONE_PATTERN, {
+    message: 'Vui lòng nhập số điện thoại hợp lệ gồm 7–15 chữ số, có thể kèm mã quốc gia.',
   })
   phoneNumber?: string;
 
