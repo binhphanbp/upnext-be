@@ -6,6 +6,7 @@ import { ApplicationsService } from './applications.service';
 import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
 import { ApplicationTransitionPolicy } from './application-transition.policy';
 import { ActorType, ApplicationStatus, JobStatus } from '@prisma/client';
+import { EmailService } from '../../common/email/email.service';
 
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
@@ -71,6 +72,12 @@ describe('ApplicationsService', () => {
           provide: ApplicationTransitionPolicy,
           useValue: {
             assertTransition: jest.fn(),
+          },
+        },
+        {
+          provide: EmailService,
+          useValue: {
+            sendOfferLetter: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],

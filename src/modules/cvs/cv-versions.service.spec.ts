@@ -350,15 +350,25 @@ describe('CvVersionsService', () => {
 
     beforeEach(() => {
       prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id', candidateProfile: null });
-      prismaMock.cVVersion.findUnique.mockResolvedValueOnce({ cvId: 'cv-id' }).mockResolvedValueOnce({
-        id: 'version-id',
-        sourceFile: {
-          storageKey: 'upnext/cv/candidate-file',
-          originalName: 'candidate.pdf',
-          mimeType: 'application/pdf',
-        },
-      });
+      prismaMock.cVVersion.findUnique
+        .mockResolvedValueOnce({ cvId: 'cv-id' })
+        .mockResolvedValueOnce({
+          id: 'version-id',
+          sourceFile: {
+            storageKey: 'upnext/cv/candidate-file',
+            originalName: 'candidate.pdf',
+            mimeType: 'application/pdf',
+          },
+        });
       cloudinaryMock.createSignedUrl.mockReturnValue('https://cdn.example.com/candidate.pdf');
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => Buffer.from('%PDF-1.4').buffer,
+      } as Response);
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
     });
 
     it('lọc theo companyId của tin và bộ lọc quyền dùng chung — không tự viết field jobPost.recruiterAccountId/hiringTeam không tồn tại trên schema', async () => {
@@ -386,7 +396,7 @@ describe('CvVersionsService', () => {
 
       const download = await service.prepareDownload('version-id', recruiterUser);
 
-      expect(download.kind).toBe('redirect');
+      expect(download.kind).toBe('stream');
     });
 
     it('từ chối khi recruiter không thuộc công ty đăng tin và không phải người tạo tin', async () => {

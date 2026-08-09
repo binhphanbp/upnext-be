@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Readable } from 'stream';
 import { UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
 import { CvVersionsController } from './cv-versions.controller';
 import { CvVersionsService } from './cv-versions.service';
@@ -31,10 +32,10 @@ describe('CvVersionsController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('redirects an authorized Cloudinary CV without proxying it through the API', async () => {
+  it('streams an authorized CV through the API with private response headers', async () => {
     cvVersionsServiceMock.prepareDownload.mockResolvedValue({
-      kind: 'redirect',
-      url: 'https://res.cloudinary.com/upnext/raw/upload/v1/cv.pdf',
+      kind: 'stream',
+      stream: Readable.from([Buffer.from('%PDF-1.4')]),
       fileName: 'candidate.pdf',
       mimeType: 'application/pdf',
     });
@@ -52,10 +53,12 @@ describe('CvVersionsController', () => {
       } as never,
     );
 
-    expect(response.set).toHaveBeenCalledWith('Cache-Control', 'private, no-store');
-    expect(response.redirect).toHaveBeenCalledWith(
-      302,
-      'https://res.cloudinary.com/upnext/raw/upload/v1/cv.pdf',
-    );
+    expect(response.set).toHaveBeenCalledWith({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'inline; filename="candidate.pdf"',
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    expect(response.redirect).not.toHaveBeenCalled();
   });
 });

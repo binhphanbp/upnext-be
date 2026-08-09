@@ -37,19 +37,17 @@ type UploadedFile = {
   size: number;
 };
 
-export type PreparedCvDownload =
-  | {
-      kind: 'stream';
-      stream: Readable;
-      fileName: string;
-      mimeType: string;
-    }
-  | {
-      kind: 'redirect';
-      url: string;
-      fileName: string;
-      mimeType: string;
-    };
+export type PreparedCvDownload = {
+  /**
+   * Always proxy an authorized CV through UpNext instead of redirecting to a
+   * storage URL. This keeps authorization, `Content-Disposition`, and cache
+   * policy consistent for local storage and Cloudinary-backed files.
+   */
+  kind: 'stream';
+  stream: Readable;
+  fileName: string;
+  mimeType: string;
+};
 
 @Injectable()
 export class CvVersionsService {
@@ -479,18 +477,10 @@ export class CvVersionsService {
       const application = await this.prisma.application.findFirst({
         where: {
           cvVersion: { cvId },
-<<<<<<< HEAD
-          OR: [
-            ...(user.companyId ? [{ jobPost: { companyId: user.companyId } }] : []),
-            { jobPost: { createdByRecruiterId: user.id } },
-            { jobPost: { hiringTeam: { some: { recruiterAccountId: user.id } } } },
-          ],
-=======
           jobPost: {
             companyId: user.companyId,
             ...recruiterAccessibleJobPostFilter(user.id),
           },
->>>>>>> origin/dev
         },
         select: { id: true },
       });

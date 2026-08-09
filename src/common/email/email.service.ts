@@ -625,7 +625,6 @@ export class EmailService {
       ctaLink: this.resolveFrontendLink('/nha-tuyen-dung/ho-so-cong-ty'),
       footerNote: 'Email tự động gửi từ hệ thống kiểm duyệt UpNext.',
       accent: params.approved ? 'positive' : 'negative',
->>>>>>> origin/dev
     });
   }
 
