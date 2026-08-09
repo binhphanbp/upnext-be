@@ -1,11 +1,11 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { ApplicationsService } from './applications.service';
 import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
 import { ApplicationTransitionPolicy } from './application-transition.policy';
-import { ActorType, ApplicationStatus, JobStatus } from '@prisma/client';
+import { ActorType, ApplicationStatus, JobStatus, OfferResponse } from '@prisma/client';
 import { EmailService } from '../../common/email/email.service';
 
 describe('ApplicationsService', () => {
@@ -31,9 +31,13 @@ describe('ApplicationsService', () => {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
+      count: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
     },
     interview: {
       count: jest.fn(),
+      findFirst: jest.fn(),
     },
     applicationStatusLog: {
       create: jest.fn(),
@@ -72,6 +76,7 @@ describe('ApplicationsService', () => {
           provide: ApplicationTransitionPolicy,
           useValue: {
             assertTransition: jest.fn(),
+            assertAllowed: jest.fn(),
           },
         },
         {
@@ -89,6 +94,48 @@ describe('ApplicationsService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('returns a paginated candidate activity feed with an independent summary', async () => {
+    prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'candidate-profile-id' });
+    prismaMock.application.findMany.mockResolvedValue([]);
+    prismaMock.application.count
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(7)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2);
+    prismaMock.interview.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.getMyApplicationActivity('candidate-id', {
+        group: 'active',
+        limit: 2,
+        page: 2,
+        q: 'frontend',
+        sort: 'newest',
+      }),
+    ).resolves.toEqual({
+      items: [],
+      meta: { page: 2, limit: 2, total: 2, totalPages: 1 },
+      summary: {
+        total: 7,
+        active: 3,
+        interviewing: 1,
+        actionRequired: 2,
+        nextInterviewAt: null,
+        nextInterviewApplicationId: null,
+      },
+    });
+
+    expect(prismaMock.application.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: { submittedAt: 'desc' },
+        skip: 2,
+        take: 2,
+        where: expect.objectContaining({ candidateProfileId: 'candidate-profile-id' }),
+      }),
+    );
   });
 
   it('accepts an international contact number when an application is submitted', async () => {
@@ -286,6 +333,78 @@ describe('ApplicationsService', () => {
         applicationId: 'application-id',
         status: ApplicationStatus.SUBMITTED,
       });
+    });
+  });
+
+  describe('candidate offer response', () => {
+    const offeredApplication = {
+      id: 'application-id',
+      candidateProfileId: 'candidate-profile-id',
+      status: ApplicationStatus.OFFERED,
+      offerResponse: OfferResponse.PENDING,
+      offerDeadlineAt: new Date('2099-02-01T00:00:00.000Z'),
+      version: 4,
+      jobPost: {
+        title: 'Backend Developer',
+        createdByRecruiterId: 'recruiter-id',
+      },
+    };
+
+    beforeEach(() => {
+      prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'candidate-profile-id' });
+      prismaMock.application.findUnique.mockResolvedValue(offeredApplication);
+      prismaMock.application.update.mockResolvedValue({
+        ...offeredApplication,
+        offerResponse: OfferResponse.ACCEPTED,
+      });
+    });
+
+    it('records acceptance without prematurely hiring the candidate', async () => {
+      await service.respondOffer('candidate-id', 'application-id', 'ACCEPT');
+
+      const updateCall = prismaMock.application.update.mock.calls.at(-1)[0];
+      expect(updateCall.where).toEqual({ id: 'application-id' });
+      expect(updateCall.data).toMatchObject({ offerResponse: OfferResponse.ACCEPTED });
+      expect(updateCall.data.status).not.toBe(ApplicationStatus.HIRED);
+      expect(updateCall.data.hiredAt).toBeUndefined();
+      expect(applyApplicationStatus).not.toHaveBeenCalledWith(
+        prismaMock,
+        'application-id',
+        ApplicationStatus.HIRED,
+        expect.anything(),
+      );
+      expect(enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({ recipientId: 'recruiter-id' }),
+        }),
+        prismaMock,
+      );
+    });
+
+    it('rejects a second response to the same offer', async () => {
+      prismaMock.application.findUnique.mockResolvedValue({
+        ...offeredApplication,
+        offerResponse: OfferResponse.ACCEPTED,
+      });
+
+      await expect(
+        service.respondOffer('candidate-id', 'application-id', 'DECLINE'),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('candidate withdrawal guard', () => {
+    it('does not allow withdrawal once an offer is being handled', async () => {
+      prismaMock.candidateProfile.findUnique.mockResolvedValue({ id: 'candidate-profile-id' });
+      prismaMock.application.findUnique.mockResolvedValue({
+        id: 'application-id',
+        candidateProfileId: 'candidate-profile-id',
+        status: ApplicationStatus.OFFERED,
+      });
+
+      await expect(service.withdrawApplication('candidate-id', 'application-id')).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
