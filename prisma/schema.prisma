@@ -70,6 +70,15 @@ enum ApplicationStatus {
   WITHDRAWN    @map("withdrawn")
 }
 
+/// Candidate response to a formal offer. The application remains OFFERED until
+/// the recruiter records the final hiring decision, so a declined offer never
+/// masquerades as a recruiter rejection.
+enum OfferResponse {
+  PENDING  @map("pending")
+  ACCEPTED @map("accepted")
+  DECLINED @map("declined")
+}
+
 enum ActorType {
   CANDIDATE @map("candidate")
   RECRUITER @map("recruiter")
@@ -1284,6 +1293,10 @@ model Application {
   viewedAt           DateTime?         @map("viewed_at")
   rejectedAt         DateTime?         @map("rejected_at")
   hiredAt            DateTime?         @map("hired_at")
+  offerDetails       Json?             @map("offer_details")
+  offerDeadlineAt    DateTime?         @map("offer_deadline_at")
+  offerResponse      OfferResponse?    @map("offer_response")
+  offerRespondedAt   DateTime?         @map("offer_responded_at")
   createdAt          DateTime          @default(now()) @map("created_at")
   updatedAt          DateTime          @updatedAt @map("updated_at")
   version            Int               @default(0)

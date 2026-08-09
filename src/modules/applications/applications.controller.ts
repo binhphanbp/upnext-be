@@ -35,6 +35,8 @@ import { ApplyJobDto } from './dto/apply-job.dto';
 import { AssignApplicationDto, UnassignApplicationDto } from './dto/assign-application.dto';
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
 import { UpdateApplicationCvDto } from './dto/update-application-cv.dto';
+import { CandidateApplicationActivityQueryDto } from './dto/candidate-application-activity-query.dto';
+import { RespondOfferDto } from './dto/respond-offer.dto';
 import { ApplicationAssignmentService } from './application-assignment.service';
 import { ApplicationEntity, CheckAppliedJobResponse } from './entities/application.entity';
 
@@ -120,6 +122,23 @@ export class ApplicationsController {
   @ApiNotFoundResponse({ description: 'Không tìm thấy hồ sơ ứng viên.' })
   getMyApplications(@CurrentUser() user: AuthenticatedUser) {
     return this.applicationsService.getMyApplications(user.id);
+  }
+
+  @Get('applications/me/activity')
+  @ApiOperation({
+    summary: 'Theo dõi hồ sơ ứng tuyển của ứng viên, có phân trang và nhóm trạng thái',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.CANDIDATE)
+  @ApiOkResponse({
+    description: 'Danh sách hoạt động ứng tuyển, tóm tắt và phân trang cho ứng viên.',
+  })
+  getMyApplicationActivity(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: CandidateApplicationActivityQueryDto,
+  ) {
+    return this.applicationsService.getMyApplicationActivity(user.id, query);
   }
 
   @Get('applications/:id')
@@ -325,7 +344,7 @@ export class ApplicationsController {
   @Roles(ActorType.CANDIDATE)
   respondOffer(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() body: { action: 'ACCEPT' | 'DECLINE' },
+    @Body() body: RespondOfferDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.applicationsService.respondOffer(user.id, id, body.action);
