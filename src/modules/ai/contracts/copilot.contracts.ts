@@ -323,6 +323,11 @@ const nullableText = (max: number) =>
 
 export const intentPlanSchema = z.object({
   intent: aiIntentSchema,
+  /**
+   * Gemini can legally return `null` for an empty collection when it honours
+   * the nullable JSON Schema. Treat that representation exactly like an
+   * omitted list, rather than failing an otherwise valid, tool-free request.
+   */
   toolCalls: z
     .array(
       z.object({
@@ -331,7 +336,9 @@ export const intentPlanSchema = z.object({
         argument: nullableText(120),
       }),
     )
-    .max(3),
+    .max(3)
+    .nullish()
+    .transform((value) => value ?? []),
   /** Model tự nhận biết câu hỏi ngoài phạm vi thay vì cố trả lời bừa. */
   refusalReason: nullableText(300),
 });

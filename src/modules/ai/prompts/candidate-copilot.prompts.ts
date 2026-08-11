@@ -129,6 +129,7 @@ export function routerResponseSchema(intents: readonly string[]) {
       intent: { type: 'STRING', enum: [...intents] },
       toolCalls: {
         type: 'ARRAY',
+        nullable: true,
         items: {
           type: 'OBJECT',
           properties: {
@@ -140,6 +141,6 @@ export function routerResponseSchema(intents: readonly string[]) {
       },
       refusalReason: { type: 'STRING', nullable: true },
     },
-    required: ['intent', 'toolCalls'],
+    required: ['intent'],
   };
 }
