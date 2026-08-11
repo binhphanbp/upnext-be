@@ -155,7 +155,7 @@ jobs:
               -e DATABASE_URL="$DATABASE_URL" \
               ghcr.io/binhphanbp/upnext-be:staging \
               ./node_modules/.bin/prisma migrate resolve \
-              --rolled-back 20260715100000_enable_pgvector_cv_screening
+              --rolled-back 20260719090000_use_pgvector_for_cv_screening
             /opt/upnext/scripts/deploy/deploy.sh staging backend'
 
       - name: Notify Telegram success
