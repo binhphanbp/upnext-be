@@ -256,7 +256,27 @@ export class GeminiLlmAdapter implements LlmProviderPort {
   private httpError(status: number, body: string): Error {
     this.logger.error(`Gemini trả ${status}: ${body.slice(0, 300)}`);
     if (status === 429) return new Error('AI_MODEL_RATE_LIMIT');
+
+    /**
+     * Google dùng HTTP 400 cho cả lỗi request thật sự và các điều kiện hạ tầng
+     * như egress IP không thuộc vùng được hỗ trợ (`FAILED_PRECONDITION`).
+     * Không được báo trường hợp thứ hai là "đầu ra AI không hợp lệ": response
+     * chưa hề được tạo, và người dùng cần nhận thông báo dịch vụ tạm thời không
+     * khả dụng để có thể thử lại sau.
+     */
+    if (status === 400 && this.isFailedPrecondition(body)) {
+      return new Error('AI_SERVICE_UNAVAILABLE');
+    }
     if (status === 400) return new Error('AI_INVALID_OUTPUT');
     return new Error('AI_SERVICE_UNAVAILABLE');
+  }
+
+  private isFailedPrecondition(body: string): boolean {
+    try {
+      const parsed = JSON.parse(body) as { error?: { status?: unknown } };
+      return parsed.error?.status === 'FAILED_PRECONDITION';
+    } catch {
+      return false;
+    }
   }
 }
