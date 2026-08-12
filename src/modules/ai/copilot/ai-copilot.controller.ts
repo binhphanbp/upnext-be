@@ -237,7 +237,7 @@ export class AiCopilotController {
     id: string,
     dto: SendMessageDto,
     candidateProfileId: string,
-    conversation: { contextType: AiConversationContext; contextId: string | null },
+    conversation: { contextType: AiConversationContext; contextId: string | null; locale: string },
     request: Request,
     response: Response,
   ): Promise<void> {
@@ -279,6 +279,7 @@ export class AiCopilotController {
         prompt: dto.prompt,
         contextType: dto.contextType ?? conversation.contextType,
         contextId: dto.contextId ?? conversation.contextId,
+        locale: conversation.locale,
         signal: abort.signal,
       })) {
         write(event);

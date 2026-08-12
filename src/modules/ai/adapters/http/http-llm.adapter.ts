@@ -144,11 +144,11 @@ export class HttpLlmAdapter implements LlmProviderPort {
         signal,
       });
       if (!response.ok) {
-        const ignoredBody = await response.text().catch(() => '');
+        const responseBody = await response.text().catch(() => '');
         this.logger.warn(`upnext-ai returned ${response.status}; body omitted from logs`, {
-          responseBytes: ignoredBody.length,
+          responseBytes: responseBody.length,
         });
-        throw new Error(this.httpError(response.status));
+        throw new Error(this.serviceError(response.status, responseBody));
       }
       return { response, release, timedOut };
     } catch (error) {
@@ -265,14 +265,36 @@ export class HttpLlmAdapter implements LlmProviderPort {
     }
   }
 
-  private httpError(status: number): string {
+  private serviceError(status: number, responseBody: string): string {
+    const providerCode = this.parseServiceErrorCode(responseBody);
+    if (providerCode) return providerCode;
     if (status === 429) return 'AI_MODEL_RATE_LIMIT';
     if (status === 400 || status === 422) return 'AI_INVALID_OUTPUT';
     if (status === 504) return 'AI_MODEL_TIMEOUT';
     return 'AI_SERVICE_UNAVAILABLE';
   }
 
+  private parseServiceErrorCode(responseBody: string): string | null {
+    try {
+      const parsed = JSON.parse(responseBody) as {
+        detail?: { code?: unknown } | string;
+      };
+      const value =
+        parsed.detail && typeof parsed.detail === 'object' ? parsed.detail.code : undefined;
+      return typeof value === 'string' ? this.knownErrorCode(value) : null;
+    } catch {
+      return null;
+    }
+  }
+
   private knownErrorCode(value: unknown): string {
-    return typeof value === 'string' && value.startsWith('AI_') ? value : 'AI_SERVICE_UNAVAILABLE';
+    const allowed = new Set([
+      'AI_MODEL_TIMEOUT',
+      'AI_MODEL_RATE_LIMIT',
+      'AI_INVALID_OUTPUT',
+      'AI_CONTENT_BLOCKED',
+      'AI_SERVICE_UNAVAILABLE',
+    ]);
+    return typeof value === 'string' && allowed.has(value) ? value : 'AI_SERVICE_UNAVAILABLE';
   }
 }
