@@ -144,18 +144,32 @@ jobs:
             exit 1
           fi
 
-          echo "Initial staging deploy failed. Recovering the deferred pgvector migration once..."
+          echo "Initial staging deploy failed. Checking whether the deferred pgvector migration is actually failed..."
           ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             'set -eu
             DATABASE_URL="$(docker inspect --format "{{range .Config.Env}}{{println .}}{{end}}" upnext-backend-staging | sed -n "s/^DATABASE_URL=//p")"
             test -n "$DATABASE_URL"
-            docker run --rm \
+            MIGRATION_STATUS="$(docker run --rm \
               --network container:upnext-backend-staging \
               -e DATABASE_URL="$DATABASE_URL" \
               ghcr.io/binhphanbp/upnext-be:staging \
-              ./node_modules/.bin/prisma migrate resolve \
-              --rolled-back 20260719090000_use_pgvector_for_cv_screening
+              ./node_modules/.bin/prisma migrate status 2>&1 || true)"
+            printf "%s\\n" "$MIGRATION_STATUS"
+
+            if printf "%s" "$MIGRATION_STATUS" | grep -Fq "20260719090000_use_pgvector_for_cv_screening" \
+              && printf "%s" "$MIGRATION_STATUS" | grep -Fqi "failed"; then
+              echo "Recovering the failed deferred pgvector migration once..."
+              docker run --rm \
+                --network container:upnext-backend-staging \
+                -e DATABASE_URL="$DATABASE_URL" \
+                ghcr.io/binhphanbp/upnext-be:staging \
+                ./node_modules/.bin/prisma migrate resolve \
+                --rolled-back 20260719090000_use_pgvector_for_cv_screening
+            else
+              echo "No failed deferred pgvector migration found; preserving the original deploy failure."
+              exit 1
+            fi
             /opt/upnext/scripts/deploy/deploy.sh staging backend'
 
       - name: Notify Telegram success
