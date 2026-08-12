@@ -17,19 +17,17 @@ describe('HttpLlmAdapter', () => {
   beforeEach(() => jest.restoreAllMocks());
 
   it('sends only an authenticated contract to the private structured endpoint', async () => {
-    const fetchSpy = jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            value: { intent: 'search' },
-            inputTokens: 4,
-            outputTokens: 2,
-            model: 'test',
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
-      );
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          value: { intent: 'search' },
+          inputTokens: 4,
+          outputTokens: 2,
+          model: 'test',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
     const adapter = new HttpLlmAdapter(config, jwtService);
 
     await expect(
@@ -63,5 +61,43 @@ describe('HttpLlmAdapter', () => {
         responseSchema: {},
       }),
     ).rejects.toThrow('AI_MODEL_RATE_LIMIT');
+  });
+
+  it.each([
+    [502, 'AI_INVALID_OUTPUT'],
+    [504, 'AI_MODEL_TIMEOUT'],
+  ])('preserves the private service error contract for HTTP %i', async (status, code) => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ detail: { code, message: 'safe provider message' } }), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const adapter = new HttpLlmAdapter(config, jwtService);
+
+    await expect(
+      adapter.generateStructured({
+        systemInstruction: 'x',
+        messages: [{ role: 'user', text: 'x' }],
+        responseSchema: {},
+      }),
+    ).rejects.toThrow(code);
+  });
+
+  it('does not trust unknown error codes returned by the private service', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ detail: { code: 'AI_EXPOSE_INTERNAL_SECRET' } }), {
+        status: 502,
+      }),
+    );
+    const adapter = new HttpLlmAdapter(config, jwtService);
+
+    await expect(
+      adapter.generateStructured({
+        systemInstruction: 'x',
+        messages: [{ role: 'user', text: 'x' }],
+        responseSchema: {},
+      }),
+    ).rejects.toThrow('AI_SERVICE_UNAVAILABLE');
   });
 });

@@ -22,6 +22,8 @@ export type ToolExecutionInput = {
   ownerId: string;
   /** Tham số duy nhất, thường là UUID hoặc slug lấy từ ngữ cảnh trang. */
   argument?: string | undefined;
+  /** Locale giao diện để timeline không trộn tiếng Việt và tiếng Anh. */
+  locale?: string | undefined;
 };
 
 export type ToolExecutionResult =
@@ -35,6 +37,8 @@ type ToolDefinition = {
   purpose: string;
   /** Nhãn tiếng Việt hiện trên timeline của UI. */
   label: string;
+  /** Nhãn tiếng Anh hiện trên timeline của UI. */
+  labelEn: string;
   run: (input: ToolExecutionInput) => Promise<{ detail: string; data: unknown }>;
 };
 
@@ -46,6 +50,10 @@ type ToolDefinition = {
  * đủ hẹp để không giữ kết nối SSE vô thời hạn.
  */
 const TOOL_TIMEOUT_MS = 5_000;
+
+function isEnglish(locale: string | undefined): boolean {
+  return locale?.toLowerCase().startsWith('en') ?? false;
+}
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -99,6 +107,19 @@ export class ToolRegistryService {
     }));
   }
 
+  /**
+   * Nhãn an toàn để UI báo tiến độ *trước* khi truy vấn bắt đầu.
+   *
+   * Không trả purpose nội bộ hay tên tool kỹ thuật cho client. Tên lạ vẫn dùng
+   * một nhãn chung; `execute()` phía dưới mới là nơi quyết định blocked/failed.
+   */
+  labelFor(actorType: ActorType, name: string, locale = 'vi'): string {
+    const definition = this.definitionsFor(actorType).find((tool) => tool.name === name);
+    return isEnglish(locale)
+      ? (definition?.labelEn ?? 'Checking access')
+      : (definition?.label ?? 'Kiểm tra quyền truy cập');
+  }
+
   async execute(name: string, input: ToolExecutionInput): Promise<ToolExecutionResult> {
     const definition = this.definitionsFor(input.actorType).find((tool) => tool.name === name);
 
@@ -111,10 +132,10 @@ export class ToolRegistryService {
       );
       return {
         status: 'blocked',
-        label: 'Kiểm tra quyền công cụ',
-        detail: isOtherRole
-          ? `${name} không thuộc quyền của vai trò này`
-          : `${name} không phải công cụ hợp lệ`,
+        label: isEnglish(input.locale) ? 'Checking access' : 'Kiểm tra quyền công cụ',
+        detail: isEnglish(input.locale)
+          ? 'This action is not available for your account.'
+          : 'Thao tác này không khả dụng với tài khoản của bạn.',
       };
     }
 
@@ -124,13 +145,24 @@ export class ToolRegistryService {
         TOOL_TIMEOUT_MS,
         definition.name,
       );
-      return { status: 'succeeded', label: definition.label, detail, data };
+      return {
+        status: 'succeeded',
+        label: isEnglish(input.locale) ? definition.labelEn : definition.label,
+        detail,
+        data,
+      };
     } catch (error) {
       // Tool lỗi không được làm sập cả lượt trả lời — model vẫn trả lời được
       // với những dữ liệu đã lấy xong, và UI hiện tool đó là failed.
       const message = error instanceof Error ? error.message : 'Lỗi không xác định';
       this.logger.warn(`Tool "${name}" thất bại: ${message}`);
-      return { status: 'failed', label: definition.label, detail: message.slice(0, 200) };
+      return {
+        status: 'failed',
+        label: isEnglish(input.locale) ? definition.labelEn : definition.label,
+        detail: isEnglish(input.locale)
+          ? 'UpNext could not retrieve this data. Please try again.'
+          : 'UpNext chưa lấy được dữ liệu này. Bạn vui lòng thử lại.',
+      };
     }
   }
 
@@ -145,10 +177,13 @@ export class ToolRegistryService {
         name: 'get_own_profile',
         purpose: 'Đọc hồ sơ, kỹ năng, kinh nghiệm và nguyện vọng của chính người dùng',
         label: 'Đọc hồ sơ của bạn',
-        run: async ({ ownerId }) => {
+        labelEn: 'Reading your profile',
+        run: async ({ ownerId, locale }) => {
           const profile = await this.context.profile(ownerId);
           return {
-            detail: `${profile.desiredPosition ?? 'Chưa đặt vị trí mong muốn'} · ${profile.skills.length} kỹ năng`,
+            detail: isEnglish(locale)
+              ? `${profile.desiredPosition ?? 'No target role yet'} · ${profile.skills.length} skills`
+              : `${profile.desiredPosition ?? 'Chưa đặt vị trí mong muốn'} · ${profile.skills.length} kỹ năng`,
             data: profile,
           };
         },
@@ -157,18 +192,30 @@ export class ToolRegistryService {
         name: 'get_own_cv',
         purpose: 'Đọc nội dung CV của chính người dùng. argument là cvVersionId nếu cần bản cụ thể',
         label: 'Đọc CV của bạn',
-        run: async ({ ownerId, argument }) => {
+        labelEn: 'Reading your CV',
+        run: async ({ ownerId, argument, locale }) => {
           const cv = await this.context.cvVersion(ownerId, argument ?? null);
-          return { detail: `${cv.cvName} (bản ${cv.versionNo})`, data: cv };
+          return {
+            detail: isEnglish(locale)
+              ? `${cv.cvName} (version ${cv.versionNo})`
+              : `${cv.cvName} (bản ${cv.versionNo})`,
+            data: cv,
+          };
         },
       },
       {
         name: 'get_own_applications',
         purpose: 'Đọc danh sách đơn ứng tuyển và trạng thái của chính người dùng',
         label: 'Đọc đơn ứng tuyển của bạn',
-        run: async ({ ownerId }) => {
+        labelEn: 'Reading your applications',
+        run: async ({ ownerId, locale }) => {
           const applications = await this.context.applications(ownerId);
-          return { detail: `${applications.length} đơn`, data: applications };
+          return {
+            detail: isEnglish(locale)
+              ? `${applications.length} applications`
+              : `${applications.length} đơn`,
+            data: applications,
+          };
         },
       },
       {
@@ -176,6 +223,7 @@ export class ToolRegistryService {
         purpose:
           'Đọc một tin tuyển dụng đang mở. argument là jobPostId hoặc slug lấy từ ngữ cảnh trang',
         label: 'Đọc tin tuyển dụng',
+        labelEn: 'Reading the job post',
         run: async ({ argument }) => {
           if (!argument) throw new Error('Thiếu id hoặc slug của tin tuyển dụng');
           const job = await this.context.jobPost(argument);
@@ -186,9 +234,13 @@ export class ToolRegistryService {
         name: 'search_matching_jobs',
         purpose: 'Tìm các tin tuyển dụng đang mở khớp với kỹ năng và nguyện vọng của người dùng',
         label: 'Tìm việc phù hợp',
-        run: async ({ ownerId }) => {
+        labelEn: 'Finding matching jobs',
+        run: async ({ ownerId, locale }) => {
           const jobs = await this.context.candidateJobs(ownerId);
-          return { detail: `${jobs.length} vị trí`, data: jobs };
+          return {
+            detail: isEnglish(locale) ? `${jobs.length} roles` : `${jobs.length} vị trí`,
+            data: jobs,
+          };
         },
       },
     ];

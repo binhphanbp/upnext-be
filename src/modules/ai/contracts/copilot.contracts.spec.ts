@@ -30,10 +30,12 @@ describe('intentPlanSchema', () => {
 });
 
 describe('routerResponseSchema', () => {
-  it('keeps the optional tool-call contract aligned with the runtime parser', () => {
+  it('keeps optional fields absent in Gemini output while the runtime remains backward compatible', () => {
     const schema = routerResponseSchema(AI_INTENTS);
 
     expect(schema.required).toEqual(['intent']);
-    expect(schema.properties.toolCalls).toMatchObject({ nullable: true });
+    expect(schema.properties.toolCalls).toMatchObject({ type: 'ARRAY' });
+    expect(schema.properties.toolCalls).not.toHaveProperty('nullable');
+    expect(schema.properties.refusalReason).toEqual({ type: 'STRING' });
   });
 });

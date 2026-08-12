@@ -64,17 +64,18 @@ describe('ToolRegistryService', () => {
   });
 
   describe('chặn tool ngoài quyền', () => {
-    it('chặn tool của recruiter khi actor là ứng viên, và nói rõ lý do', async () => {
+    it('chặn tool của recruiter và không để lộ tên tool nội bộ', async () => {
       const result = await registry.execute('search_visible_candidates', {
         actorType: ActorType.CANDIDATE,
         ownerId: 'profile-1',
       });
 
       expect(result.status).toBe('blocked');
-      expect(result.detail).toContain('không thuộc quyền');
+      expect(result.detail).toBe('Thao tác này không khả dụng với tài khoản của bạn.');
+      expect(result.detail).not.toContain('search_visible_candidates');
     });
 
-    it('phân biệt "tool của role khác" với "tool không tồn tại"', async () => {
+    it('trả cùng thông báo an toàn cho tool role khác và tool không tồn tại', async () => {
       const otherRole = await registry.execute('get_report_case', {
         actorType: ActorType.CANDIDATE,
         ownerId: 'profile-1',
@@ -86,9 +87,9 @@ describe('ToolRegistryService', () => {
 
       expect(otherRole.status).toBe('blocked');
       expect(invented.status).toBe('blocked');
-      // Hai thông báo phải khác nhau: một là thử vượt quyền, một là model bịa tên.
-      expect(otherRole.detail).not.toBe(invented.detail);
-      expect(invented.detail).toContain('không phải công cụ hợp lệ');
+      // Phân biệt chỉ nằm trong log nội bộ; client không được biết tên/cấu trúc tool.
+      expect(otherRole.detail).toBe(invented.detail);
+      expect(invented.detail).not.toContain('delete_all_applications');
     });
 
     it('KHÔNG chạy tool nào khi bị chặn', async () => {
@@ -115,7 +116,7 @@ describe('ToolRegistryService', () => {
       expect(applications).toHaveBeenCalledWith('profile-cua-toi');
     });
 
-    it('tool lỗi trả failed thay vì ném ra ngoài', async () => {
+    it('tool lỗi trả thông báo an toàn thay vì ném hoặc lộ lỗi nội bộ', async () => {
       cvVersion.mockRejectedValue(new Error('Bạn chưa có CV nào'));
 
       const result = await registry.execute('get_own_cv', {
@@ -124,7 +125,8 @@ describe('ToolRegistryService', () => {
       });
 
       expect(result.status).toBe('failed');
-      expect(result.detail).toContain('chưa có CV');
+      expect(result.detail).toBe('UpNext chưa lấy được dữ liệu này. Bạn vui lòng thử lại.');
+      expect(result.detail).not.toContain('chưa có CV');
     });
 
     it('get_public_job báo lỗi rõ khi thiếu id thay vì gọi bừa', async () => {
@@ -154,7 +156,7 @@ describe('ToolRegistryService', () => {
       const result = await pending;
 
       expect(result.status).toBe('failed');
-      expect(result.detail).toContain('vượt quá thời gian');
+      expect(result.detail).toBe('UpNext chưa lấy được dữ liệu này. Bạn vui lòng thử lại.');
     });
 
     it('tool xong trước 5s không bị timeout ăn nhầm kết quả', async () => {
@@ -166,6 +168,27 @@ describe('ToolRegistryService', () => {
       });
 
       expect(result.status).toBe('succeeded');
+    });
+  });
+
+  describe('i18n timeline', () => {
+    it('dùng nhãn và lỗi tiếng Anh khi giao diện tiếng Anh', async () => {
+      applications.mockRejectedValue(new Error('database connection string'));
+
+      expect(registry.labelFor(ActorType.CANDIDATE, 'get_own_applications', 'en')).toBe(
+        'Reading your applications',
+      );
+      const result = await registry.execute('get_own_applications', {
+        actorType: ActorType.CANDIDATE,
+        ownerId: 'profile-1',
+        locale: 'en',
+      });
+
+      expect(result).toMatchObject({
+        status: 'failed',
+        label: 'Reading your applications',
+        detail: 'UpNext could not retrieve this data. Please try again.',
+      });
     });
   });
 });
