@@ -27,6 +27,16 @@ const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const PHONE_VN = /(?<![\d])(?:\+?84|0)(?:[\s.\-()]?\d){8,10}(?![\d])/g;
 
 /**
+ * Số quốc tế ở định dạng E.164 (có thể được người dùng viết kèm khoảng trắng,
+ * dấu chấm, gạch ngang hoặc ngoặc). Candidate profile đã hỗ trợ số quốc tế;
+ * vì vậy chỉ lọc `PHONE_VN` sẽ làm lộ số như `+1 (415) 555-2671` trong CV.
+ *
+ * E.164 giới hạn tối đa 15 chữ số. Mẫu yêu cầu tối thiểu 8 chữ số để không
+ * che nhầm phép tính hoặc mã ngắn có dấu `+`.
+ */
+const PHONE_E164 = /(?<![\p{L}\p{N}])\+(?:\d[\s.\-()]*){7,14}\d(?![\p{L}\p{N}])/gu;
+
+/**
  * URL — chỉ giữ lại host để câu trả lời còn nói được "có link GitHub".
  *
  * Tên có hậu tố `_PATTERN` vì `URL` trần sẽ che constructor `URL` toàn cục và
@@ -61,6 +71,10 @@ export function redact(input: string | null | undefined): RedactionSummary {
       return '[email đã ẩn]';
     })
     .replace(PHONE_VN, () => {
+      phones += 1;
+      return '[số điện thoại đã ẩn]';
+    })
+    .replace(PHONE_E164, () => {
       phones += 1;
       return '[số điện thoại đã ẩn]';
     })

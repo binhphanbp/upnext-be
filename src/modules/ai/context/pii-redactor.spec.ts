@@ -17,6 +17,14 @@ describe('redact', () => {
     }
   });
 
+  it('ẩn số điện thoại quốc tế ở định dạng E.164', () => {
+    const result = redact('Liên hệ +1 (415) 555-2671 hoặc +44 20 7946 0958');
+
+    expect(result.text).not.toContain('415');
+    expect(result.text).not.toContain('7946');
+    expect(result.removed.phones).toBe(2);
+  });
+
   it('không cắt giữa một dãy số dài không phải số điện thoại', () => {
     // Mã số thuế 10 chữ số không bắt đầu bằng 0 — không được coi là SĐT.
     const result = redact('Mã số thuế 3101234567 của công ty');
