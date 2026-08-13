@@ -113,8 +113,24 @@ describe('validateEnv CORS origins', () => {
     const config = validateEnv(createConfig());
 
     expect(config.aiLlmProvider).toBe('gemini');
+    expect(config.aiEmbeddingProvider).toBe('gemini');
+    expect(config.aiEmbeddingFallbackToGemini).toBe(true);
     expect(config.aiServiceFallbackToGemini).toBe(true);
     expect(config.aiBatchServiceTimeoutMs).toBe(90_000);
+  });
+
+  it('requires the private service contract before enabling remote embeddings', () => {
+    expect(() => validateEnv(createConfig({ AI_EMBEDDING_PROVIDER: 'upnext-ai' }))).toThrow(
+      ZodError,
+    );
+    const config = validateEnv(
+      createConfig({
+        AI_EMBEDDING_PROVIDER: 'upnext-ai',
+        AI_SERVICE_URL: 'http://upnext-ai:8000',
+        AI_INTERNAL_JWT_SECRET: 'b'.repeat(32),
+      }),
+    );
+    expect(config.aiEmbeddingProvider).toBe('upnext-ai');
   });
 
   it('bounds the private AI batch timeout separately from interactive requests', () => {

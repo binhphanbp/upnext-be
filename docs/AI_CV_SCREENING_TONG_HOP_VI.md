@@ -308,7 +308,16 @@ Nếu `parsedText` rỗng, service tổng hợp từ candidate profile:
 
 Các CV được tạo embedding song song với concurrency tối đa 8. Lỗi của một CV được log và không làm dừng toàn bộ danh sách.
 
-## 11. Gọi Gemini embedding và chuẩn hóa vector
+## 11. Tạo embedding và chuẩn hóa vector
+
+`EmbeddingService` gọi qua `EMBEDDING_PROVIDER`, không phụ thuộc trực tiếp vào một
+transport. Mặc định `AI_EMBEDDING_PROVIDER=gemini` giữ nguyên đường gọi Gemini hiện
+tại. Khi `AI_EMBEDDING_PROVIDER=upnext-ai`, backend ký JWT nội bộ có scope
+`embedding:invoke` và gọi `POST /internal/v1/embeddings` trên private Docker network.
+
+Hai đường gọi bắt buộc dùng cùng model, số chiều, chuẩn hóa và cache key. Vì vậy có
+thể canary/rollback mà không trộn hai không gian vector và không cần re-index dữ liệu
+đang hợp lệ.
 
 Request embedding dùng:
 
@@ -326,7 +335,19 @@ normalized[i] = x[i] / norm
 
 Vector zero, sai số chiều, có `NaN` hoặc `Infinity` đều bị từ chối.
 
-Embedding API được retry tối đa 3 lần, delay lần lượt khoảng 500 ms và 1.000 ms trước các lần thử tiếp theo.
+Đường Gemini trực tiếp retry tối đa 3 lần, delay lần lượt khoảng 500 ms và 1.000 ms.
+Gateway `upnext-ai` có timeout riêng qua `AI_EMBEDDING_SERVICE_TIMEOUT_MS`. Khi
+`AI_EMBEDDING_FALLBACK_TO_GEMINI=true`, backend chỉ fallback với lỗi unavailable,
+timeout hoặc rate-limit; output sai contract không được fallback để tránh che khuất
+lỗi dữ liệu.
+
+Rollout an toàn trên staging:
+
+1. Deploy và kiểm tra readiness của `upnext-ai` trước.
+2. Giữ `AI_EMBEDDING_PROVIDER=gemini` ở lần deploy backend đầu tiên.
+3. Bật `AI_EMBEDDING_PROVIDER=upnext-ai` và giữ fallback `true` trong giai đoạn canary.
+4. Theo dõi latency/error và chạy một screening thực tế; sau đó mới cân nhắc tắt fallback.
+5. Rollback tức thì bằng cách đặt provider về `gemini`; không xóa cache hay vector.
 
 ## 12. Cache và lưu embedding
 

@@ -1,7 +1,14 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  EMBEDDING_CACHE_KEY,
+  EMBEDDING_DIMENSIONS,
+  EMBEDDING_MODEL,
+  EMBEDDING_PROVIDER,
+  EmbeddingProviderPort,
+  MAX_EMBEDDING_TEXT_LENGTH,
+} from '../ai/ports/embedding-provider.port';
 import {
   buildCvText,
   buildJobText,
@@ -9,12 +16,6 @@ import {
   CvVersionForText,
   JOB_TEXT_INCLUDE,
 } from './screening-text';
-
-const EMBEDDING_MODEL = 'gemini-embedding-001';
-const EMBEDDING_DIMENSIONS = 768;
-const EMBEDDING_CACHE_KEY = `${EMBEDDING_MODEL}:${EMBEDDING_DIMENSIONS}:l2-v1`;
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const MAX_EMBEDDING_TEXT_LENGTH = 12000;
 
 export type EmbeddingResult = {
   vector: number[];
@@ -38,51 +39,21 @@ export class EmbeddingService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
+    @Inject(EMBEDDING_PROVIDER) private readonly embeddingProvider: EmbeddingProviderPort,
   ) {}
 
   async createEmbedding(text: string): Promise<number[]> {
-    const apiKey = this.configService.get<string>('geminiApiKey')?.trim();
-    if (!apiKey) {
-      throw new BadRequestException('Gemini API key is not configured on the server');
-    }
-
     const normalizedText = this.normalizeForEmbedding(text);
     if (!normalizedText) {
       throw new BadRequestException('Cannot create embedding from empty text');
     }
-
-    return this.withRetry(async () => {
-      const response = await fetch(
-        `${GEMINI_API_BASE}/models/${EMBEDDING_MODEL}:embedContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: `models/${EMBEDDING_MODEL}`,
-            content: {
-              parts: [{ text: normalizedText }],
-            },
-            outputDimensionality: EMBEDDING_DIMENSIONS,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`Gemini embedding failed with ${response.status}: ${body}`);
-      }
-
-      const data = (await response.json()) as {
-        embedding?: { values?: unknown };
-      };
-      const values = data.embedding?.values;
-      if (!this.isNumberArray(values)) {
-        throw new Error('Gemini embedding response did not include numeric values');
-      }
-
-      return this.normalizeVector(values);
-    });
+    if (!this.embeddingProvider.isConfigured())
+      throw new BadRequestException('Embedding service is not configured on the server');
+    const result = await this.embeddingProvider.createEmbedding(normalizedText);
+    if (result.modelName !== EMBEDDING_MODEL || result.cacheKey !== EMBEDDING_CACHE_KEY) {
+      throw new Error('AI_INVALID_OUTPUT');
+    }
+    return this.assertVector(result.vector);
   }
 
   async getOrCreateJobEmbedding(jobPostId: string): Promise<EmbeddingResult> {
@@ -351,19 +322,6 @@ export class EmbeddingService {
     return `[${vector.join(',')}]`;
   }
 
-  private normalizeVector(value: number[]) {
-    const vector = this.assertVector(value);
-    const norm = Math.sqrt(vector.reduce((sum, item) => sum + item * item, 0));
-
-    if (!Number.isFinite(norm) || norm === 0) {
-      throw new Error('Gemini returned a zero or invalid embedding vector');
-    }
-
-    // gemini-embedding-001 only normalizes its default 3072-dimensional
-    // output. Reduced dimensions must be normalized by the caller.
-    return vector.map((item) => item / norm);
-  }
-
   private assertVector(value: unknown): number[] {
     if (!this.isNumberArray(value) || value.length !== EMBEDDING_DIMENSIONS) {
       throw new Error(`Embedding vector must contain ${EMBEDDING_DIMENSIONS} finite numbers`);
@@ -408,27 +366,6 @@ export class EmbeddingService {
     });
 
     await Promise.all(workers);
-  }
-
-  private async withRetry<T>(operation: () => Promise<T>, attempts = 3): Promise<T> {
-    let lastError: unknown;
-
-    for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      try {
-        return await operation();
-      } catch (error) {
-        lastError = error;
-        if (attempt < attempts) {
-          await this.delay(500 * attempt);
-        }
-      }
-    }
-
-    throw lastError;
-  }
-
-  private delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private getErrorStack(error: unknown) {
