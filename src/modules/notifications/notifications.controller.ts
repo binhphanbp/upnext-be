@@ -1,10 +1,12 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Delete,
   Param,
   Query,
+  Body,
   UseGuards,
   ParseUUIDPipe,
   HttpCode,
@@ -71,5 +73,25 @@ export class NotificationsController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.notificationsService.deleteNotification(id, user.id, user.role);
+  }
+
+  @Post('test-send')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: '[DEV ONLY] Send a test notification' })
+  @ApiResponse({ status: 201, description: 'Test notification sent.' })
+  async testSendNotification(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto?: { title?: string; body?: string; targetType?: string; targetId?: string },
+  ) {
+    const title = dto?.title || 'Test Notification';
+    const body = dto?.body || 'This is a test notification from UpNext Firebase';
+    return this.notificationsService.createNotification({
+      recipientId: user.id,
+      recipientType: user.role,
+      title,
+      body,
+      targetType: dto?.targetType || 'TEST',
+      targetId: dto?.targetId || null,
+    });
   }
 }

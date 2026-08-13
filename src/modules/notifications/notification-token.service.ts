@@ -16,12 +16,19 @@ export class NotificationTokenService {
   async registerToken(userId: string, role: ActorType, dto: SaveFcmTokenDto) {
     this.logger.log(`Registering FCM token for user ${userId} with role ${role}`);
 
+    const existing = await this.prisma.notificationToken.findUnique({
+      where: { token: dto.token },
+    });
+
     const data = {
       token: dto.token,
       deviceType: dto.deviceType || null,
-      candidateAccountId: role === ActorType.CANDIDATE ? userId : null,
-      recruiterAccountId: role === ActorType.RECRUITER ? userId : null,
-      adminUserId: role === ActorType.ADMIN ? userId : null,
+      candidateAccountId:
+        role === ActorType.CANDIDATE ? userId : existing?.candidateAccountId || null,
+      recruiterAccountId:
+        role === ActorType.RECRUITER ? userId : existing?.recruiterAccountId || null,
+      adminUserId:
+        role === ActorType.ADMIN ? userId : existing?.adminUserId || null,
     };
 
     return this.prisma.notificationToken.upsert({

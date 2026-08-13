@@ -125,6 +125,9 @@ const envSchema = z
       .min(1)
       .default(resolve(process.cwd(), 'uploads'))
       .transform((value) => resolve(value)),
+    FIREBASE_PROJECT_ID: z.string().optional(),
+    FIREBASE_CLIENT_EMAIL: z.string().optional(),
+    FIREBASE_PRIVATE_KEY: z.string().optional(),
   })
   .superRefine((env, ctx) => {
     // Only the production application environment disallows local credentialed origins.
@@ -233,6 +236,12 @@ export type AppConfig = {
   chatApplicationEnabled: boolean;
   chatOutreachEnabled: boolean;
   chatSupportEnabled: boolean;
+  firebaseProjectId?: string;
+  firebaseClientEmail?: string;
+  firebasePrivateKey?: string;
+  FIREBASE_PROJECT_ID?: string;
+  FIREBASE_CLIENT_EMAIL?: string;
+  FIREBASE_PRIVATE_KEY?: string;
 };
 
 export function validateEnv(config: Record<string, unknown>): AppConfig {
@@ -286,5 +295,11 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     chatApplicationEnabled: parsed.CHAT_APPLICATION_ENABLED,
     chatOutreachEnabled: parsed.CHAT_OUTREACH_ENABLED,
     chatSupportEnabled: parsed.CHAT_SUPPORT_ENABLED,
+    firebaseProjectId: parsed.FIREBASE_PROJECT_ID,
+    firebaseClientEmail: parsed.FIREBASE_CLIENT_EMAIL,
+    firebasePrivateKey: parsed.FIREBASE_PRIVATE_KEY,
+    FIREBASE_PROJECT_ID: parsed.FIREBASE_PROJECT_ID,
+    FIREBASE_CLIENT_EMAIL: parsed.FIREBASE_CLIENT_EMAIL,
+    FIREBASE_PRIVATE_KEY: parsed.FIREBASE_PRIVATE_KEY,
   };
 }

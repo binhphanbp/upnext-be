@@ -48,6 +48,7 @@ describe('ApplicationsService', () => {
     },
     recruiterAccount: {
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     $transaction: jest.fn((cb: (tx: unknown) => unknown) => cb(prismaMock)),
   };
