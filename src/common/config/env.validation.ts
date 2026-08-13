@@ -67,6 +67,7 @@ const envSchema = z
     AI_SERVICE_URL: z.string().url().optional(),
     AI_INTERNAL_JWT_SECRET: z.string().min(32).optional(),
     AI_SERVICE_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(25_000),
+    AI_BATCH_SERVICE_TIMEOUT_MS: z.coerce.number().int().min(10_000).max(150_000).default(90_000),
     AI_SERVICE_FALLBACK_TO_GEMINI: z
       .enum(['true', 'false'])
       .default('true')
@@ -170,6 +171,7 @@ export type AppConfig = {
   aiServiceUrl?: string;
   aiInternalJwtSecret?: string;
   aiServiceTimeoutMs: number;
+  aiBatchServiceTimeoutMs: number;
   aiServiceFallbackToGemini: boolean;
   aiMaxRunsPerDay: number;
   aiMaxTokensPerDay: number;
@@ -213,6 +215,7 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     aiServiceUrl: parsed.AI_SERVICE_URL,
     aiInternalJwtSecret: parsed.AI_INTERNAL_JWT_SECRET,
     aiServiceTimeoutMs: parsed.AI_SERVICE_TIMEOUT_MS,
+    aiBatchServiceTimeoutMs: parsed.AI_BATCH_SERVICE_TIMEOUT_MS,
     aiServiceFallbackToGemini: parsed.AI_SERVICE_FALLBACK_TO_GEMINI,
     aiMaxRunsPerDay: parsed.AI_MAX_RUNS_PER_DAY,
     aiMaxTokensPerDay: parsed.AI_MAX_TOKENS_PER_DAY,

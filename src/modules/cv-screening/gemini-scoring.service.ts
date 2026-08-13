@@ -1,10 +1,8 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { EducationLevel } from '@prisma/client';
+import { LLM_PROVIDER, LlmProviderPort } from '../ai/ports/llm-provider.port';
 import { CV_SCORING_RUBRIC, CvScoringCriterionBreakdown } from './scoring-rubric';
 
-const SCORING_MODEL = 'gemini-2.5-flash';
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MAX_JOB_TEXT_LENGTH = 8000;
 const MAX_CV_TEXT_LENGTH = 6000;
 const GEMINI_SCORING_RUBRIC = CV_SCORING_RUBRIC.filter(
@@ -58,75 +56,30 @@ export type GeminiScoreResult = {
 
 @Injectable()
 export class GeminiScoringService {
-  private readonly logger = new Logger(GeminiScoringService.name);
-
-  constructor(private readonly configService: ConfigService) {}
+  constructor(@Inject(LLM_PROVIDER) private readonly llmProvider: LlmProviderPort) {}
 
   async scoreBatch(jobDetailText: string, candidates: ScoringCandidateInput[]) {
     if (candidates.length < 1 || candidates.length > 10) {
       throw new BadRequestException('Gemini scoring batch size must be between 1 and 10 CVs');
     }
 
-    const apiKey = this.configService.get<string>('geminiApiKey')?.trim();
-    if (!apiKey) {
-      throw new BadRequestException('Gemini API key is not configured on the server');
-    }
-
     return this.withRetry(async () => {
-      const response = await fetch(
-        `${GEMINI_API_BASE}/models/${SCORING_MODEL}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: this.buildPrompt(jobDetailText, candidates),
-                  },
-                ],
-              },
-            ],
-            generationConfig: {
-              temperature: 0,
-              topP: 0.1,
-              candidateCount: 1,
-              responseMimeType: 'application/json',
-              responseSchema: this.responseSchema(),
-            },
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`Gemini scoring failed with ${response.status}: ${body}`);
-      }
-
-      const data = (await response.json()) as {
-        candidates?: Array<{
-          content?: {
-            parts?: Array<{ text?: string }>;
-          };
-        }>;
-        usageMetadata?: {
-          promptTokenCount?: number;
-          candidatesTokenCount?: number;
-        };
-      };
-      const text = data.candidates?.[0]?.content?.parts
-        ?.map((part) => part.text ?? '')
-        .join('')
-        .trim();
-
-      if (!text) {
-        throw new Error('Gemini scoring response was empty');
-      }
-
-      const parsed = this.parseJson(text);
+      const response = await this.llmProvider.generateStructured({
+        systemInstruction: this.buildSystemInstruction(),
+        messages: [
+          {
+            role: 'user',
+            text: JSON.stringify(this.buildInput(jobDetailText, candidates)),
+          },
+        ],
+        responseSchema: this.responseSchema(),
+        temperature: 0,
+        modelTier: 'quality',
+        executionProfile: 'batch',
+      });
+      const parsed = response.value;
       if (!Array.isArray(parsed)) {
-        throw new Error('Gemini scoring response must be a JSON array');
+        throw new Error('AI scoring response must be a JSON array');
       }
 
       const requestedApplicationIds = new Set(
@@ -138,19 +91,16 @@ export class GeminiScoringService {
           .map((item) => this.normalizeScoreResult(item))
           .filter((item) => requestedApplicationIds.has(item.applicationId)),
         usage: {
-          inputTokens: data.usageMetadata?.promptTokenCount ?? null,
-          outputTokens: data.usageMetadata?.candidatesTokenCount ?? null,
+          inputTokens: response.inputTokens,
+          outputTokens: response.outputTokens,
         },
+        modelName: response.modelName,
       };
     });
   }
 
-  get modelName() {
-    return SCORING_MODEL;
-  }
-
-  private buildPrompt(jobDetailText: string, candidates: ScoringCandidateInput[]) {
-    const payload = {
+  private buildInput(jobDetailText: string, candidates: ScoringCandidateInput[]) {
+    return {
       jobDetail: this.truncateText(jobDetailText, MAX_JOB_TEXT_LENGTH),
       // Deliberately omits candidate name/email: the model does not need
       // identity to score fit, and withholding it removes an obvious channel
@@ -162,7 +112,9 @@ export class GeminiScoringService {
         cvText: this.truncateText(candidate.cvText, MAX_CV_TEXT_LENGTH),
       })),
     };
+  }
 
+  private buildSystemInstruction() {
     return `Bạn là chuyên gia tuyển dụng kỹ thuật cho các vị trí phần mềm và CNTT. Hãy chấm từng CV theo tin tuyển dụng.
 
 Quy tắc bắt buộc:
@@ -210,10 +162,7 @@ Rubric bắt buộc:
 ${JSON.stringify(GEMINI_SCORING_RUBRIC)}
 
 Trả về một mảng JSON. Mỗi phần tử phải có:
-applicationId, skillScore, experienceScore, projectScore, candidateEducationLevel, matchedSkills, missingSkills, strengths, weaknesses, criteriaBreakdown, summary.
-
-Dữ liệu đầu vào:
-${JSON.stringify(payload)}`;
+applicationId, skillScore, experienceScore, projectScore, candidateEducationLevel, matchedSkills, missingSkills, strengths, weaknesses, criteriaBreakdown, summary.`;
   }
 
   private responseSchema() {
@@ -279,29 +228,6 @@ ${JSON.stringify(payload)}`;
         ],
       },
     };
-  }
-
-  private parseJson(text: string): unknown {
-    try {
-      return JSON.parse(text) as unknown;
-    } catch (error) {
-      const cleaned = text
-        .replace(/^```(?:json)?/i, '')
-        .replace(/```$/i, '')
-        .trim();
-      try {
-        return JSON.parse(cleaned) as unknown;
-      } catch {
-        const arrayStart = cleaned.indexOf('[');
-        const arrayEnd = cleaned.lastIndexOf(']');
-        if (arrayStart >= 0 && arrayEnd > arrayStart) {
-          return JSON.parse(cleaned.slice(arrayStart, arrayEnd + 1)) as unknown;
-        }
-
-        this.logger.error(`Failed to parse Gemini JSON: ${(error as Error).message}`);
-        throw error;
-      }
-    }
   }
 
   private normalizeScoreResult(value: unknown): GeminiScoreResult {

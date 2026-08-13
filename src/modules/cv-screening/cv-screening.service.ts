@@ -38,7 +38,7 @@ const MAX_APPLICATIONS_PER_RUN = 200;
 const GEMINI_BATCH_SIZE = 8;
 const GEMINI_BATCH_CONCURRENCY = 1;
 const GEMINI_FALLBACK_CONCURRENCY = 1;
-const SCORING_VERSION = 'cv-screening-v10-no-retrieval-vi';
+const SCORING_VERSION = 'cv-screening-v11-ai-gateway-vi';
 
 type ApplicationForScreening = Prisma.ApplicationGetPayload<{
   select: {
@@ -462,6 +462,7 @@ export class CvScreeningService {
   private async recordAiUsage(
     runId: string,
     usage: { inputTokens: number | null; outputTokens: number | null },
+    modelName: string,
     succeeded: boolean,
   ) {
     try {
@@ -477,10 +478,12 @@ export class CvScreeningService {
           companyId: run.companyId,
           actorType: ActorType.RECRUITER,
           actorId: run.recruiterAccountId,
-          modelName: this.geminiScoringService.modelName,
+          modelName,
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
-          costEstimate: estimateGeminiCostVnd(usage.inputTokens, usage.outputTokens),
+          costEstimate: modelName.startsWith('gemini-')
+            ? estimateGeminiCostVnd(usage.inputTokens, usage.outputTokens)
+            : null,
           referenceType: 'CV_SCREENING_RUN',
           referenceId: runId,
           succeeded,
@@ -520,7 +523,7 @@ export class CvScreeningService {
 
   /**
    * Skips Gemini for applications that already have a score produced by the
-   * current model + scoring version, as long as the job post has not been
+   * current scoring version, as long as the job post has not been
    * edited since. CV versions are append-only, so a changed CV means a new
    * cvVersionId and therefore no cached score to reuse.
    */
@@ -536,7 +539,6 @@ export class CvScreeningService {
     const existingScores = await this.prisma.applicationAiScore.findMany({
       where: {
         applicationId: { in: selected.map((item) => item.application.id) },
-        modelName: this.geminiScoringService.modelName,
         scoringVersion: SCORING_VERSION,
         updatedAt: { gte: jobPostUpdatedAt },
       },
@@ -573,7 +575,7 @@ export class CvScreeningService {
     }
 
     try {
-      const { results, usage } = await this.geminiScoringService.scoreBatch(
+      const { results, usage, modelName } = await this.geminiScoringService.scoreBatch(
         jobText,
         batch.map((item) => ({
           applicationId: item.application.id,
@@ -581,7 +583,7 @@ export class CvScreeningService {
           candidateEducationLevel: item.candidateEducationLevel,
         })),
       );
-      await this.recordAiUsage(runId, usage, true);
+      await this.recordAiUsage(runId, usage, modelName, true);
       const resultByApplicationId = new Map(
         results.map((result) => [result.applicationId, result]),
       );
@@ -601,7 +603,7 @@ export class CvScreeningService {
 
         persistOperations.push({
           item,
-          operation: this.persistScore(runId, item, result, requiredEducationLevel),
+          operation: this.persistScore(runId, item, result, requiredEducationLevel, modelName),
         });
       }
 
@@ -682,6 +684,7 @@ export class CvScreeningService {
     item: ScreeningCandidate,
     result: GeminiScoreResult,
     requiredEducationLevel: EducationLevel,
+    modelName: string,
   ) {
     const skillScore = this.roundScore(result.skillScore);
     const experienceScore = this.roundScore(result.experienceScore);
@@ -726,7 +729,7 @@ export class CvScreeningService {
       summary: result.summary,
       recommendation: this.recommendationForScore(finalScore),
       rawAiResponse: rawAiResponse as Prisma.InputJsonValue,
-      modelName: this.geminiScoringService.modelName,
+      modelName,
       scoringVersion: SCORING_VERSION,
     };
 
