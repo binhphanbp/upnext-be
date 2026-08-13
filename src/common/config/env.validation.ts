@@ -65,16 +65,27 @@ const envSchema = z
     GEMINI_API_KEY: z.string().optional(),
     AI_LLM_PROVIDER: z.enum(['gemini', 'upnext-ai']).default('gemini'),
     AI_EMBEDDING_PROVIDER: z.enum(['gemini', 'upnext-ai']).default('gemini'),
+    AI_JOB_POST_EXTRACTION_PROVIDER: z.enum(['gemini', 'upnext-ai']).default('gemini'),
     AI_SERVICE_URL: z.string().url().optional(),
     AI_INTERNAL_JWT_SECRET: z.string().min(32).optional(),
     AI_SERVICE_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(25_000),
     AI_EMBEDDING_SERVICE_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(20_000),
+    AI_JOB_POST_EXTRACTION_SERVICE_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(60_000)
+      .default(45_000),
     AI_BATCH_SERVICE_TIMEOUT_MS: z.coerce.number().int().min(10_000).max(150_000).default(90_000),
     AI_SERVICE_FALLBACK_TO_GEMINI: z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
     AI_EMBEDDING_FALLBACK_TO_GEMINI: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    AI_JOB_POST_EXTRACTION_FALLBACK_TO_GEMINI: z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
@@ -137,25 +148,27 @@ const envSchema = z
     }
 
     if (
-      (env.AI_LLM_PROVIDER === 'upnext-ai' || env.AI_EMBEDDING_PROVIDER === 'upnext-ai') &&
+      (env.AI_LLM_PROVIDER === 'upnext-ai' ||
+        env.AI_EMBEDDING_PROVIDER === 'upnext-ai' ||
+        env.AI_JOB_POST_EXTRACTION_PROVIDER === 'upnext-ai') &&
       !env.AI_SERVICE_URL
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['AI_SERVICE_URL'],
-        message:
-          'AI_SERVICE_URL is required when AI_LLM_PROVIDER or AI_EMBEDDING_PROVIDER is upnext-ai',
+        message: 'AI_SERVICE_URL is required when an AI provider is upnext-ai',
       });
     }
     if (
-      (env.AI_LLM_PROVIDER === 'upnext-ai' || env.AI_EMBEDDING_PROVIDER === 'upnext-ai') &&
+      (env.AI_LLM_PROVIDER === 'upnext-ai' ||
+        env.AI_EMBEDDING_PROVIDER === 'upnext-ai' ||
+        env.AI_JOB_POST_EXTRACTION_PROVIDER === 'upnext-ai') &&
       !env.AI_INTERNAL_JWT_SECRET
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['AI_INTERNAL_JWT_SECRET'],
-        message:
-          'AI_INTERNAL_JWT_SECRET is required when AI_LLM_PROVIDER or AI_EMBEDDING_PROVIDER is upnext-ai',
+        message: 'AI_INTERNAL_JWT_SECRET is required when an AI provider is upnext-ai',
       });
     }
   });
@@ -183,13 +196,16 @@ export type AppConfig = {
   geminiApiKey?: string;
   aiLlmProvider: 'gemini' | 'upnext-ai';
   aiEmbeddingProvider: 'gemini' | 'upnext-ai';
+  aiJobPostExtractionProvider: 'gemini' | 'upnext-ai';
   aiServiceUrl?: string;
   aiInternalJwtSecret?: string;
   aiServiceTimeoutMs: number;
   aiEmbeddingServiceTimeoutMs: number;
+  aiJobPostExtractionTimeoutMs: number;
   aiBatchServiceTimeoutMs: number;
   aiServiceFallbackToGemini: boolean;
   aiEmbeddingFallbackToGemini: boolean;
+  aiJobPostExtractionFallbackToGemini: boolean;
   aiMaxRunsPerDay: number;
   aiMaxTokensPerDay: number;
   googleClientId?: string;
@@ -230,13 +246,16 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     geminiApiKey: parsed.GEMINI_API_KEY,
     aiLlmProvider: parsed.AI_LLM_PROVIDER,
     aiEmbeddingProvider: parsed.AI_EMBEDDING_PROVIDER,
+    aiJobPostExtractionProvider: parsed.AI_JOB_POST_EXTRACTION_PROVIDER,
     aiServiceUrl: parsed.AI_SERVICE_URL,
     aiInternalJwtSecret: parsed.AI_INTERNAL_JWT_SECRET,
     aiServiceTimeoutMs: parsed.AI_SERVICE_TIMEOUT_MS,
     aiEmbeddingServiceTimeoutMs: parsed.AI_EMBEDDING_SERVICE_TIMEOUT_MS,
+    aiJobPostExtractionTimeoutMs: parsed.AI_JOB_POST_EXTRACTION_SERVICE_TIMEOUT_MS,
     aiBatchServiceTimeoutMs: parsed.AI_BATCH_SERVICE_TIMEOUT_MS,
     aiServiceFallbackToGemini: parsed.AI_SERVICE_FALLBACK_TO_GEMINI,
     aiEmbeddingFallbackToGemini: parsed.AI_EMBEDDING_FALLBACK_TO_GEMINI,
+    aiJobPostExtractionFallbackToGemini: parsed.AI_JOB_POST_EXTRACTION_FALLBACK_TO_GEMINI,
     aiMaxRunsPerDay: parsed.AI_MAX_RUNS_PER_DAY,
     aiMaxTokensPerDay: parsed.AI_MAX_TOKENS_PER_DAY,
     googleClientId: parsed.GOOGLE_CLIENT_ID,
