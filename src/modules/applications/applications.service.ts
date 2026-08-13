@@ -271,27 +271,41 @@ export class ApplicationsService {
         },
       );
 
-      await this.outbox.enqueue(
-        {
-          aggregateType: 'application',
-          aggregateId: createdApp.id,
-          eventType: 'notification.create',
-          // A revived row reuses its id, so the original key would dedupe the
-          // re-application away and the recruiter would never hear about it.
-          dedupeKey: withdrawnApplication
-            ? `application:${createdApp.id}:resubmitted:v${createdApp.version}:recruiter:${jobPost.createdByRecruiterId}`
-            : `application:${createdApp.id}:created:recruiter:${jobPost.createdByRecruiterId}`,
-          payload: {
-            recipientId: jobPost.createdByRecruiterId,
-            recipientType: ActorType.RECRUITER,
-            title: 'Có hồ sơ ứng tuyển mới',
-            body: `${candidateAccount.fullName} đã nộp hồ sơ ứng tuyển vào vị trí ${jobPost.title}.`,
-            targetType: 'APPLICATION',
-            targetId: createdApp.id,
-          },
-        },
-        tx,
+      // Find all active recruiters belonging to this company
+      const companyRecruiters = await tx.recruiterAccount.findMany({
+        where: { companyId: jobPost.companyId, status: 'ACTIVE' },
+        select: { id: true },
+      });
+
+      const recruiterIdsToNotify = Array.from(
+        new Set(
+          [jobPost.createdByRecruiterId, ...companyRecruiters.map((r) => r.id)].filter(
+            (id): id is string => Boolean(id),
+          ),
+        ),
       );
+
+      for (const recId of recruiterIdsToNotify) {
+        await this.outbox.enqueue(
+          {
+            aggregateType: 'application',
+            aggregateId: createdApp.id,
+            eventType: 'notification.create',
+            dedupeKey: withdrawnApplication
+              ? `application:${createdApp.id}:resubmitted:v${createdApp.version}:recruiter:${recId}`
+              : `application:${createdApp.id}:created:recruiter:${recId}`,
+            payload: {
+              recipientId: recId,
+              recipientType: ActorType.RECRUITER,
+              title: 'Có hồ sơ ứng tuyển mới',
+              body: `${candidateAccount.fullName} đã nộp hồ sơ ứng tuyển vào vị trí ${jobPost.title}.`,
+              targetType: 'APPLICATION',
+              targetId: createdApp.id,
+            },
+          },
+          tx,
+        );
+      }
 
       return createdApp;
     });
@@ -1555,7 +1569,7 @@ export class ApplicationsService {
       where: { id },
       include: {
         jobPost: {
-          select: { title: true, createdByRecruiterId: true },
+          select: { title: true, companyId: true, createdByRecruiterId: true },
         },
       },
     });
@@ -1606,15 +1620,28 @@ export class ApplicationsService {
         },
       });
 
-      if (application.jobPost.createdByRecruiterId) {
+      const companyRecruiters = await tx.recruiterAccount.findMany({
+        where: { companyId: application.jobPost.companyId, status: 'ACTIVE' },
+        select: { id: true },
+      });
+
+      const recruiterIdsToNotify = Array.from(
+        new Set(
+          [application.jobPost.createdByRecruiterId, ...companyRecruiters.map((r) => r.id)].filter(
+            (id): id is string => Boolean(id),
+          ),
+        ),
+      );
+
+      for (const recId of recruiterIdsToNotify) {
         await this.outbox.enqueue(
           {
             aggregateType: 'application',
             aggregateId: id,
             eventType: 'notification.create',
-            dedupeKey: `application:${id}:offer-response:${response}:v${application.version + 1}`,
+            dedupeKey: `application:${id}:offer-response:${response}:v${application.version + 1}:recruiter:${recId}`,
             payload: {
-              recipientId: application.jobPost.createdByRecruiterId,
+              recipientId: recId,
               recipientType: ActorType.RECRUITER,
               title: 'Ứng viên đã phản hồi đề nghị',
               body: `Ứng viên đã ${action === 'ACCEPT' ? 'đồng ý' : 'từ chối'} đề nghị cho vị trí ${application.jobPost.title}.`,

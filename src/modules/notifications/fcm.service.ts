@@ -121,6 +121,7 @@ export class FcmService {
 
         response.responses.forEach((resp, index) => {
           if (!resp.success && resp.error) {
+            this.fcmLogger.warn(`FCM send error for token ${tokens[index].substring(0, 15)}...: ${resp.error.code} - ${resp.error.message}`);
             const errCode = resp.error.code;
             if (
               errCode === 'messaging/invalid-registration-token' ||

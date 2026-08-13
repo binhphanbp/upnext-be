@@ -1,22 +1,47 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { initializeApp, getApp, getApps, cert, App } from 'firebase-admin/app';
 import { generateKeyPairSync } from 'node:crypto';
+import * as dotenv from 'dotenv';
+import { resolve } from 'node:path';
+
+// Force load .env immediately before NestJS module resolution
+dotenv.config({ path: resolve(process.cwd(), '.env') });
 
 export const FIREBASE_ADMIN = 'FIREBASE_ADMIN';
 
 export const FirebaseAdminProvider = {
   provide: FIREBASE_ADMIN,
-  useFactory: () => {
+  inject: [ConfigService],
+  useFactory: (configService: ConfigService) => {
+    const logger = new Logger('FirebaseAdminProvider');
+
     const apps = getApps();
     if (apps.length > 0) {
       return getApp();
     }
 
-    let projectId = process.env.FIREBASE_PROJECT_ID;
-    let clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    let privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    let projectId =
+      configService.get<string>('firebaseProjectId') ||
+      configService.get<string>('FIREBASE_PROJECT_ID') ||
+      process.env.FIREBASE_PROJECT_ID;
+
+    let clientEmail =
+      configService.get<string>('firebaseClientEmail') ||
+      configService.get<string>('FIREBASE_CLIENT_EMAIL') ||
+      process.env.FIREBASE_CLIENT_EMAIL;
+
+    let privateKey =
+      configService.get<string>('firebasePrivateKey') ||
+      configService.get<string>('FIREBASE_PRIVATE_KEY') ||
+      process.env.FIREBASE_PRIVATE_KEY;
+
+    if (privateKey) {
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
 
     if (!projectId || !clientEmail || !privateKey) {
-      console.warn('Firebase env variables not set. Using dummy config for local development.');
+      logger.warn('⚠️ Firebase env variables not set. Using dummy config for local development.');
       projectId = 'dummy-project';
       clientEmail = 'dummy@dummy.iam.gserviceaccount.com';
       const { privateKey: generatedKey } = generateKeyPairSync('rsa', {
@@ -27,6 +52,8 @@ export const FirebaseAdminProvider = {
         },
       });
       privateKey = generatedKey;
+    } else {
+      logger.log(`🔥 Initializing Firebase Admin SDK for project: ${projectId} (${clientEmail})`);
     }
 
     try {
@@ -39,8 +66,8 @@ export const FirebaseAdminProvider = {
       });
     } catch (err) {
       if (process.env.NODE_ENV !== 'production') {
-        console.warn(
-          '⚠️ Warning: Failed to initialize Firebase Admin with provided credentials. Push notifications will be mocked.',
+        logger.warn(
+          '⚠️ Failed to initialize Firebase Admin with provided credentials. Push notifications will be mocked.',
           err,
         );
         return {
