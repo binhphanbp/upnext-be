@@ -1,9 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { EducationLevel, SalaryPeriod } from '@prisma/client';
-import { LlmProviderPort } from '../ai/ports/llm-provider.port';
 import { JobPostOutputLanguage, JobPostPresentationStyle } from './dto/generate-job-post-draft.dto';
 import { GeminiJobPostService } from './gemini-job-post.service';
 import { JobPostExtractionProviderPort } from './ports/job-post-extraction-provider.port';
+import { JobPostGenerationProviderPort } from './ports/job-post-generation-provider.port';
 
 describe('GeminiJobPostService', () => {
   const generatedDraft = {
@@ -36,8 +36,7 @@ describe('GeminiJobPostService', () => {
       modelName: 'upnext-ai/gemini',
       isConfigured: () => true,
       generateStructured,
-      streamText: jest.fn(),
-    } as unknown as LlmProviderPort;
+    } as unknown as JobPostGenerationProviderPort;
     const extractionProvider = {
       modelName: 'gemini-2.5-flash',
       isConfigured: () => true,
@@ -67,7 +66,6 @@ describe('GeminiJobPostService', () => {
     expect(generateStructured).toHaveBeenCalledTimes(1);
     expect(generateStructured).toHaveBeenCalledWith(
       expect.objectContaining({
-        modelTier: 'quality',
         temperature: 0.3,
         responseSchema: expect.objectContaining({ type: 'OBJECT' }),
       }),
@@ -79,8 +77,7 @@ describe('GeminiJobPostService', () => {
       modelName: 'upnext-ai/gemini',
       isConfigured: () => true,
       generateStructured: jest.fn(),
-      streamText: jest.fn(),
-    } as unknown as LlmProviderPort;
+    } as unknown as JobPostGenerationProviderPort;
     const extractStructured = jest.fn().mockResolvedValue({
       value: generatedDraft,
       inputTokens: 180,
@@ -122,8 +119,7 @@ describe('GeminiJobPostService', () => {
       modelName: 'upnext-ai/gemini',
       isConfigured: () => true,
       generateStructured: jest.fn(),
-      streamText: jest.fn(),
-    } as unknown as LlmProviderPort;
+    } as unknown as JobPostGenerationProviderPort;
     const extractStructured = jest.fn().mockRejectedValue(new Error('AI_INVALID_OUTPUT'));
     const extractionProvider = {
       modelName: 'upnext-ai/gemini',
@@ -151,8 +147,7 @@ describe('GeminiJobPostService', () => {
       modelName: 'upnext-ai/gemini',
       isConfigured: () => true,
       generateStructured: jest.fn(),
-      streamText: jest.fn(),
-    } as unknown as LlmProviderPort;
+    } as unknown as JobPostGenerationProviderPort;
     const extractStructured = jest.fn().mockResolvedValue({
       value: ['not-a-job-post'],
       inputTokens: 2,
