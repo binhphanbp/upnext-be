@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { initializeApp, getApp, getApps, cert, App } from 'firebase-admin/app';
 import { generateKeyPairSync } from 'node:crypto';
