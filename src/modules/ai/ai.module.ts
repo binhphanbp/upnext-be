@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GeminiLlmAdapter } from './adapters/gemini/gemini-llm.adapter';
+import { GeminiEmbeddingAdapter } from './adapters/gemini/gemini-embedding.adapter';
+import { FallbackEmbeddingAdapter } from './adapters/http/fallback-embedding.adapter';
+import { HttpEmbeddingAdapter } from './adapters/http/http-embedding.adapter';
 import { FallbackLlmAdapter } from './adapters/http/fallback-llm.adapter';
 import { HttpLlmAdapter } from './adapters/http/http-llm.adapter';
 import { CandidateContextAssembler } from './context/candidate-context.assembler';
@@ -11,6 +14,7 @@ import { AiCopilotController } from './copilot/ai-copilot.controller';
 import { AiCopilotService } from './copilot/ai-copilot.service';
 import { AiRunTrackerService } from './copilot/ai-run-tracker.service';
 import { LLM_PROVIDER, LlmProviderPort } from './ports/llm-provider.port';
+import { EMBEDDING_PROVIDER, EmbeddingProviderPort } from './ports/embedding-provider.port';
 import { ToolRegistryService } from './tools/tool-registry.service';
 
 /**
@@ -27,6 +31,8 @@ import { ToolRegistryService } from './tools/tool-registry.service';
   controllers: [AiCopilotController],
   providers: [
     GeminiLlmAdapter,
+    GeminiEmbeddingAdapter,
+    HttpEmbeddingAdapter,
     HttpLlmAdapter,
     {
       provide: LLM_PROVIDER,
@@ -45,6 +51,19 @@ import { ToolRegistryService } from './tools/tool-registry.service';
       },
       inject: [ConfigService, HttpLlmAdapter, GeminiLlmAdapter],
     },
+    {
+      provide: EMBEDDING_PROVIDER,
+      useFactory: (
+        config: ConfigService,
+        http: HttpEmbeddingAdapter,
+        gemini: GeminiEmbeddingAdapter,
+      ): EmbeddingProviderPort => {
+        if (config.get<string>('aiEmbeddingProvider') !== 'upnext-ai') return gemini;
+        if (config.get<boolean>('aiEmbeddingFallbackToGemini') === false) return http;
+        return new FallbackEmbeddingAdapter(http, gemini);
+      },
+      inject: [ConfigService, HttpEmbeddingAdapter, GeminiEmbeddingAdapter],
+    },
     AiCopilotService,
     AiConversationsService,
     AiActionsService,
@@ -53,6 +72,6 @@ import { ToolRegistryService } from './tools/tool-registry.service';
     CandidateContextAssembler,
     ToolRegistryService,
   ],
-  exports: [LLM_PROVIDER, CandidateContextAssembler, ToolRegistryService],
+  exports: [LLM_PROVIDER, EMBEDDING_PROVIDER, CandidateContextAssembler, ToolRegistryService],
 })
 export class AiModule {}
