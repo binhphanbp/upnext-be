@@ -55,6 +55,7 @@ export class HttpLlmAdapter implements LlmProviderPort {
         messages: request.messages,
         responseSchema: request.responseSchema,
         temperature: request.temperature,
+        modelTier: request.modelTier,
       },
       request.signal,
     );
@@ -73,6 +74,7 @@ export class HttpLlmAdapter implements LlmProviderPort {
         value: body.value,
         inputTokens: body.inputTokens,
         outputTokens: body.outputTokens,
+        modelName: body.model,
       };
     } finally {
       release();

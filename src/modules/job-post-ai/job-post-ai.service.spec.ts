@@ -54,7 +54,6 @@ describe('JobPostAiService', () => {
     $transaction?: jest.Mock;
   };
   let gemini: {
-    modelName: string;
     generateDraft: jest.Mock;
     extractDraft: jest.Mock;
   };
@@ -71,9 +70,8 @@ describe('JobPostAiService', () => {
       specialization: { findMany: jest.fn().mockResolvedValue(context.specializations) },
     };
     gemini = {
-      modelName: 'gemini-test',
-      generateDraft: jest.fn().mockResolvedValue(rawDraft),
-      extractDraft: jest.fn().mockResolvedValue(rawDraft),
+      generateDraft: jest.fn().mockResolvedValue({ draft: rawDraft, modelName: 'gemini-test' }),
+      extractDraft: jest.fn().mockResolvedValue({ draft: rawDraft, modelName: 'gemini-test' }),
     };
     quota = {
       consume: jest.fn().mockResolvedValue({ usage: { id: 'usage-1' }, replayed: false }),
@@ -105,6 +103,7 @@ describe('JobPostAiService', () => {
     expect(response.draft.jobCategoryId).toBe('category-1');
     expect(response.draft.skillIds).toEqual(['skill-typescript', 'skill-react']);
     expect(response.draft.description).toBe('<p>Phát triển sản phẩm.</p>');
+    expect(response.model).toBe('gemini-test');
     expect(response.suggestions.unmatchedSkillNames).toEqual(['GraphQL']);
     expect(gemini.generateDraft).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -162,10 +161,13 @@ describe('JobPostAiService', () => {
       { id: 'specialization-frontend', name: 'Frontend' },
     ]);
     gemini.extractDraft.mockResolvedValue({
-      ...rawDraft,
-      // What the model actually returns when it paraphrases the catalog entry.
-      jobCategoryName: 'Frontend',
-      specializationNames: ['Frontend Engineering'],
+      modelName: 'gemini-test',
+      draft: {
+        ...rawDraft,
+        // What the model actually returns when it paraphrases the catalog entry.
+        jobCategoryName: 'Frontend',
+        specializationNames: ['Frontend Engineering'],
+      },
     });
 
     const response = await service.extractText(
@@ -180,7 +182,10 @@ describe('JobPostAiService', () => {
 
   it('does not force a match between unrelated names', async () => {
     prisma.jobCategory.findMany.mockResolvedValue([{ id: 'category-1', name: 'Aviation' }]);
-    gemini.extractDraft.mockResolvedValue({ ...rawDraft, jobCategoryName: 'Cybersecurity' });
+    gemini.extractDraft.mockResolvedValue({
+      modelName: 'gemini-test',
+      draft: { ...rawDraft, jobCategoryName: 'Cybersecurity' },
+    });
 
     const response = await service.extractText(
       'recruiter-1',

@@ -6,9 +6,10 @@ import { JobPostAiController } from './job-post-ai.controller';
 import { JobPostAiService } from './job-post-ai.service';
 import { JobPostSalaryInsightService } from './job-post-salary-insight.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
-  imports: [CvScreeningModule, SubscriptionsModule],
+  imports: [AiModule, CvScreeningModule, SubscriptionsModule],
   controllers: [JobPostAiController],
   providers: [
     GeminiJobPostService,

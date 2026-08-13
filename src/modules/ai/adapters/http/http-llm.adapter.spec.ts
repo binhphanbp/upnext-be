@@ -35,14 +35,23 @@ describe('HttpLlmAdapter', () => {
         systemInstruction: 'Classify intent.',
         messages: [{ role: 'user', text: 'Tìm việc React' }],
         responseSchema: { type: 'object' },
+        modelTier: 'quality',
       }),
-    ).resolves.toEqual({ value: { intent: 'search' }, inputTokens: 4, outputTokens: 2 });
+    ).resolves.toEqual({
+      value: { intent: 'search' },
+      inputTokens: 4,
+      outputTokens: 2,
+      modelName: 'test',
+    });
 
     expect(fetchSpy).toHaveBeenCalledWith(
       'http://upnext-ai:8000/internal/v1/llm/structured',
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: 'Bearer internal-service-token' }),
       }),
+    );
+    expect(JSON.parse((fetchSpy.mock.calls[0]?.[1]?.body as string) ?? '{}')).toEqual(
+      expect.objectContaining({ modelTier: 'quality' }),
     );
     expect(signAsync).toHaveBeenCalledWith(
       expect.objectContaining({ scope: 'llm:invoke', environment: 'staging' }),

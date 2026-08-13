@@ -24,6 +24,8 @@ export type StructuredRequest = {
   /** JSON Schema kiểu Gemini. Provider buộc output khớp schema này. */
   responseSchema: Record<string, unknown>;
   temperature?: number;
+  /** Tier nghiệp vụ do upnext-ai ánh xạ sang model thật; không nhận tên model tuỳ ý. */
+  modelTier?: 'fast' | 'quality';
   signal?: AbortSignal;
 };
 
@@ -32,6 +34,7 @@ export type StructuredResponse = {
   value: unknown;
   inputTokens: number;
   outputTokens: number;
+  modelName: string;
 };
 
 export type TextStreamRequest = {

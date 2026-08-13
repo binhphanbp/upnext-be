@@ -5,7 +5,11 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { GenerateJobPostDraftDto } from './dto/generate-job-post-draft.dto';
-import { GeminiJobPostService, RawJobPostDraft } from './gemini-job-post.service';
+import {
+  GeminiJobPostService,
+  JobPostDraftResult,
+  RawJobPostDraft,
+} from './gemini-job-post.service';
 import { htmlToPlainText, plainTextToRichText, sanitizeRichText } from './rich-text';
 
 type CatalogOption = { id: string; name: string };
@@ -265,7 +269,7 @@ export class JobPostAiService {
 
   private toResponse(
     source: 'generated' | 'extracted',
-    raw: RawJobPostDraft,
+    result: JobPostDraftResult,
     context: LoadedContext,
     forced?: {
       jobCategoryId?: string;
@@ -275,6 +279,7 @@ export class JobPostAiService {
       preferredSkillIds?: string[];
     },
   ) {
+    const raw: RawJobPostDraft = result.draft;
     const category = this.matchByName(context.categories, raw.jobCategoryName);
     const experienceLevel = this.matchByName(context.experienceLevels, raw.experienceLevelName);
     const employmentType = this.matchByName(context.employmentTypes, raw.employmentTypeName);
@@ -286,7 +291,7 @@ export class JobPostAiService {
     ];
 
     return {
-      model: this.gemini.modelName,
+      model: result.modelName,
       source,
       draft: {
         title: raw.title,
