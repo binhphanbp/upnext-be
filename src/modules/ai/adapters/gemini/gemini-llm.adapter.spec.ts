@@ -31,16 +31,31 @@ describe('GeminiLlmAdapter', () => {
   });
 
   it('keeps genuine malformed structured requests distinct from service availability', async () => {
-    jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue(
-        new Response(JSON.stringify({ error: { code: 400, status: 'INVALID_ARGUMENT' } }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      );
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: { code: 400, status: 'INVALID_ARGUMENT' } }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
     const adapter = new GeminiLlmAdapter(config);
 
     await expect(adapter.generateStructured(request)).rejects.toThrow('AI_INVALID_OUTPUT');
+  });
+
+  it('uses the quality model for controlled quality structured requests', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    const adapter = new GeminiLlmAdapter(config);
+
+    await expect(adapter.generateStructured({ ...request, modelTier: 'quality' })).resolves.toEqual(
+      expect.objectContaining({ value: { ok: true }, modelName: 'gemini-2.5-flash' }),
+    );
+    expect(fetchSpy.mock.calls[0]?.[0]).toContain('/models/gemini-2.5-flash:generateContent');
   });
 });

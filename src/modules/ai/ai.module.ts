@@ -20,10 +20,8 @@ import { ToolRegistryService } from './tools/tool-registry.service';
  * `AI_LLM_PROVIDER=upnext-ai`; tắt flag là quay lại Gemini trực tiếp mà không
  * đổi controller, prompt, quota hay công cụ nghiệp vụ.
  *
- * `exports` cố ý chỉ có `CandidateContextAssembler` và `ToolRegistryService` —
- * hai thứ module khác có thể cần tái dùng. Adapter **không** được export: ADR §5.1
- * cấm module nghiệp vụ inject adapter trực tiếp, và cách rẻ nhất để thực thi điều
- * đó là không cho nó ra khỏi đây.
+ * Module nghiệp vụ khác chỉ được inject `LLM_PROVIDER`; các adapter cụ thể vẫn
+ * không được export để giữ đúng ranh giới ADR §5.1.
  */
 @Module({
   controllers: [AiCopilotController],
@@ -55,6 +53,6 @@ import { ToolRegistryService } from './tools/tool-registry.service';
     CandidateContextAssembler,
     ToolRegistryService,
   ],
-  exports: [CandidateContextAssembler, ToolRegistryService],
+  exports: [LLM_PROVIDER, CandidateContextAssembler, ToolRegistryService],
 })
 export class AiModule {}
