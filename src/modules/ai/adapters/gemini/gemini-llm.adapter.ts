@@ -23,6 +23,7 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const ROUTING_MODEL = 'gemini-2.5-flash-lite';
 const ANSWER_MODEL = 'gemini-2.5-flash';
 const STRUCTURED_TIMEOUT_MS = 45_000;
+const BATCH_STRUCTURED_TIMEOUT_MS = 60_000;
 /** §13.4 — tối đa 20 giây cho một request tương tác. */
 const STREAM_TIMEOUT_MS = 20_000;
 
@@ -79,7 +80,10 @@ export class GeminiLlmAdapter implements LlmProviderPort {
     if (!apiKey) throw new Error('GEMINI_NOT_CONFIGURED');
     const model = request.modelTier === 'quality' ? ANSWER_MODEL : ROUTING_MODEL;
 
-    const { signal, release } = this.linkedSignal(STRUCTURED_TIMEOUT_MS, request.signal);
+    const { signal, release } = this.linkedSignal(
+      request.executionProfile === 'batch' ? BATCH_STRUCTURED_TIMEOUT_MS : STRUCTURED_TIMEOUT_MS,
+      request.signal,
+    );
     try {
       const response = await fetch(
         `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`,

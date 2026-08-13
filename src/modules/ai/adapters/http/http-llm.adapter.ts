@@ -56,8 +56,12 @@ export class HttpLlmAdapter implements LlmProviderPort {
         responseSchema: request.responseSchema,
         temperature: request.temperature,
         modelTier: request.modelTier,
+        executionProfile: request.executionProfile,
       },
       request.signal,
+      request.executionProfile === 'batch'
+        ? (this.configService.get<number>('aiBatchServiceTimeoutMs') ?? 90_000)
+        : undefined,
     );
 
     try {
@@ -131,9 +135,10 @@ export class HttpLlmAdapter implements LlmProviderPort {
     path: string,
     body: object,
     externalSignal?: AbortSignal,
+    timeoutMs?: number,
   ): Promise<ServiceResponse> {
     const endpoint = this.endpoint(path);
-    const { signal, release, timedOut } = this.linkedSignal(externalSignal);
+    const { signal, release, timedOut } = this.linkedSignal(externalSignal, timeoutMs);
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -194,7 +199,10 @@ export class HttpLlmAdapter implements LlmProviderPort {
     );
   }
 
-  private linkedSignal(external?: AbortSignal): {
+  private linkedSignal(
+    external?: AbortSignal,
+    timeoutMs?: number,
+  ): {
     signal: AbortSignal;
     release: () => void;
     timedOut: () => boolean;
@@ -207,7 +215,7 @@ export class HttpLlmAdapter implements LlmProviderPort {
         didTimeout = true;
         controller.abort(new Error('timeout'));
       },
-      this.configService.get<number>('aiServiceTimeoutMs') ?? 25_000,
+      timeoutMs ?? this.configService.get<number>('aiServiceTimeoutMs') ?? 25_000,
     );
     const forwardAbort = () => controller.abort(external?.reason);
     if (external?.aborted) forwardAbort();

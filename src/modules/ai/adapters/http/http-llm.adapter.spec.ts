@@ -7,6 +7,7 @@ describe('HttpLlmAdapter', () => {
     aiServiceUrl: 'http://upnext-ai:8000',
     aiInternalJwtSecret: 'a'.repeat(32),
     aiServiceTimeoutMs: 5_000,
+    aiBatchServiceTimeoutMs: 90_000,
     appEnv: 'staging',
   });
   const signAsync = jest.fn().mockResolvedValue('internal-service-token');
@@ -36,6 +37,7 @@ describe('HttpLlmAdapter', () => {
         messages: [{ role: 'user', text: 'Tìm việc React' }],
         responseSchema: { type: 'object' },
         modelTier: 'quality',
+        executionProfile: 'batch',
       }),
     ).resolves.toEqual({
       value: { intent: 'search' },
@@ -51,7 +53,7 @@ describe('HttpLlmAdapter', () => {
       }),
     );
     expect(JSON.parse((fetchSpy.mock.calls[0]?.[1]?.body as string) ?? '{}')).toEqual(
-      expect.objectContaining({ modelTier: 'quality' }),
+      expect.objectContaining({ modelTier: 'quality', executionProfile: 'batch' }),
     );
     expect(signAsync).toHaveBeenCalledWith(
       expect.objectContaining({ scope: 'llm:invoke', environment: 'staging' }),

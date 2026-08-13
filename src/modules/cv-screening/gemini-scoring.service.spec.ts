@@ -1,13 +1,10 @@
-import { ConfigService } from '@nestjs/config';
 import { EducationLevel } from '@prisma/client';
+import { LlmProviderPort } from '../ai/ports/llm-provider.port';
 import { estimateGeminiCostVnd, GeminiScoringService } from './gemini-scoring.service';
 import { CV_SCORING_RUBRIC } from './scoring-rubric';
 
 describe('GeminiScoringService', () => {
-  const originalFetch = global.fetch;
-
   afterEach(() => {
-    global.fetch = originalFetch;
     jest.restoreAllMocks();
   });
 
@@ -39,19 +36,8 @@ describe('GeminiScoringService', () => {
       summary: 'Ứng viên đáp ứng một phần yêu cầu.',
     };
 
-    global.fetch = jest.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          candidates: [{ content: { parts: [{ text: JSON.stringify([geminiResult]) }] } }],
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
-
-    const service = new GeminiScoringService(
-      new ConfigService({ geminiApiKey: 'test-gemini-key' }),
-    );
-    const { results } = await service.scoreBatch('Yêu cầu công việc', [
+    const { service, provider } = createService([geminiResult]);
+    const { results, modelName } = await service.scoreBatch('Yêu cầu công việc', [
       {
         applicationId,
         cvText: 'CV ứng viên',
@@ -68,49 +54,32 @@ describe('GeminiScoringService', () => {
     expect(result.criteriaBreakdown[0].items).toHaveLength(4);
     expect(result.criteriaBreakdown.find((item) => item.key === 'projects')?.items).toHaveLength(3);
     expect(result.raw).toMatchObject({ criteriaBreakdown });
+    expect(modelName).toBe('gemini-2.5-flash');
 
-    const request = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
-    const body = JSON.parse(typeof request.body === 'string' ? request.body : '{}') as {
-      contents: Array<{ parts: Array<{ text: string }> }>;
-      generationConfig: {
-        responseSchema: {
-          items: { properties: Record<string, unknown> };
-        };
-      };
+    const request = provider.generateStructured.mock.calls[0][0];
+    const schema = request.responseSchema as {
+      items: { properties: Record<string, unknown> };
     };
-    expect(body.generationConfig.responseSchema.items.properties).not.toHaveProperty(
-      'educationScore',
-    );
-    expect(body.contents[0].parts[0].text).not.toContain('"key":"education"');
-    expect(body.contents[0].parts[0].text).toContain('"key":"impact-evidence"');
-    expect(body.contents[0].parts[0].text).not.toContain('"key":"impact-scale"');
-    expect(body.contents[0].parts[0].text).not.toContain('"key":"evidence-quality"');
-    expect(body.contents[0].parts[0].text).toContain(
+    expect(request.modelTier).toBe('quality');
+    expect(request.executionProfile).toBe('batch');
+    expect(schema.items.properties).not.toHaveProperty('educationScore');
+    expect(request.systemInstruction).not.toContain('"key":"education"');
+    expect(request.systemInstruction).toContain('"key":"impact-evidence"');
+    expect(request.systemInstruction).not.toContain('"key":"impact-scale"');
+    expect(request.systemInstruction).not.toContain('"key":"evidence-quality"');
+    expect(request.systemInstruction).toContain(
       'Có số liệu nhưng không rõ vai trò cá nhân thì impact-evidence không được 7 điểm',
     );
     // Identity must not reach the model: it is not needed to score fit and is
     // an obvious channel for demographic bias.
-    expect(body.contents[0].parts[0].text).not.toContain('candidateName');
-    expect(body.generationConfig.responseSchema.items.properties).not.toHaveProperty(
-      'recommendation',
-    );
+    expect(request.messages[0].text).not.toContain('candidateName');
+    expect(request.systemInstruction).not.toContain('CV ứng viên');
+    expect(schema.items.properties).not.toHaveProperty('recommendation');
   });
 
   it('surfaces token usage so AI spend can be measured', async () => {
     const applicationId = '44444444-4444-4444-8444-444444444444';
-    global.fetch = jest.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          candidates: [{ content: { parts: [{ text: '[]' }] } }],
-          usageMetadata: { promptTokenCount: 12000, candidatesTokenCount: 800 },
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
-
-    const service = new GeminiScoringService(
-      new ConfigService({ geminiApiKey: 'test-gemini-key' }),
-    );
+    const { service } = createService([], 12000, 800);
     const { usage } = await service.scoreBatch('Yêu cầu công việc', [
       { applicationId, cvText: 'CV', candidateEducationLevel: null },
     ]);
@@ -120,24 +89,15 @@ describe('GeminiScoringService', () => {
     expect(estimateGeminiCostVnd(usage.inputTokens, usage.outputTokens)).toBeCloseTo(142, 1);
   });
 
-  it('reports null token usage when Gemini omits usageMetadata', async () => {
+  it('reports zero token usage when the provider omits usage counts', async () => {
     const applicationId = '55555555-5555-4555-8555-555555555555';
-    global.fetch = jest.fn().mockResolvedValue(
-      new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '[]' }] } }] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
-
-    const service = new GeminiScoringService(
-      new ConfigService({ geminiApiKey: 'test-gemini-key' }),
-    );
+    const { service } = createService([]);
     const { usage } = await service.scoreBatch('Yêu cầu công việc', [
       { applicationId, cvText: 'CV', candidateEducationLevel: null },
     ]);
 
-    expect(usage).toEqual({ inputTokens: null, outputTokens: null });
-    expect(estimateGeminiCostVnd(usage.inputTokens, usage.outputTokens)).toBeNull();
+    expect(usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+    expect(estimateGeminiCostVnd(usage.inputTokens, usage.outputTokens)).toBe(0);
   });
 
   it.each([
@@ -207,40 +167,21 @@ async function scoreWithImpactEvidence(impactScore: number | undefined, cvText =
     }),
   }));
 
-  global.fetch = jest.fn().mockResolvedValue(
-    new Response(
-      JSON.stringify({
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  text: JSON.stringify([
-                    {
-                      applicationId,
-                      skillScore: 0,
-                      experienceScore: 0,
-                      projectScore: 20,
-                      candidateEducationLevel: null,
-                      matchedSkills: [],
-                      missingSkills: [],
-                      strengths: [],
-                      weaknesses: [],
-                      criteriaBreakdown,
-                      summary: 'Đánh giá dự án.',
-                    },
-                  ]),
-                },
-              ],
-            },
-          },
-        ],
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    ),
-  );
-
-  const service = new GeminiScoringService(new ConfigService({ geminiApiKey: 'test-gemini-key' }));
+  const { service } = createService([
+    {
+      applicationId,
+      skillScore: 0,
+      experienceScore: 0,
+      projectScore: 20,
+      candidateEducationLevel: null,
+      matchedSkills: [],
+      missingSkills: [],
+      strengths: [],
+      weaknesses: [],
+      criteriaBreakdown,
+      summary: 'Đánh giá dự án.',
+    },
+  ]);
   const { results } = await service.scoreBatch('Yêu cầu công việc', [
     {
       applicationId,
@@ -249,4 +190,20 @@ async function scoreWithImpactEvidence(impactScore: number | undefined, cvText =
     },
   ]);
   return results;
+}
+
+function createService(value: unknown, inputTokens = 0, outputTokens = 0) {
+  const provider = {
+    modelName: 'test-provider',
+    isConfigured: jest.fn().mockReturnValue(true),
+    generateStructured: jest.fn().mockResolvedValue({
+      value,
+      inputTokens,
+      outputTokens,
+      modelName: 'gemini-2.5-flash',
+    }),
+    streamText: jest.fn(),
+  } satisfies jest.Mocked<LlmProviderPort>;
+
+  return { service: new GeminiScoringService(provider), provider };
 }

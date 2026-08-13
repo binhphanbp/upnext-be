@@ -26,6 +26,8 @@ export type StructuredRequest = {
   temperature?: number;
   /** Tier nghiệp vụ do upnext-ai ánh xạ sang model thật; không nhận tên model tuỳ ý. */
   modelTier?: 'fast' | 'quality';
+  /** Hồ sơ thực thi có ngân sách/timeout do nền tảng kiểm soát. */
+  executionProfile?: 'interactive' | 'batch';
   signal?: AbortSignal;
 };
 

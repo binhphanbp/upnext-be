@@ -114,6 +114,16 @@ describe('validateEnv CORS origins', () => {
 
     expect(config.aiLlmProvider).toBe('gemini');
     expect(config.aiServiceFallbackToGemini).toBe(true);
+    expect(config.aiBatchServiceTimeoutMs).toBe(90_000);
+  });
+
+  it('bounds the private AI batch timeout separately from interactive requests', () => {
+    expect(() => validateEnv(createConfig({ AI_BATCH_SERVICE_TIMEOUT_MS: '9999' }))).toThrow(
+      ZodError,
+    );
+
+    const config = validateEnv(createConfig({ AI_BATCH_SERVICE_TIMEOUT_MS: '120000' }));
+    expect(config.aiBatchServiceTimeoutMs).toBe(120_000);
   });
 
   it('requires a distinct service URL and signing secret before enabling upnext-ai', () => {
