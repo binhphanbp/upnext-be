@@ -114,11 +114,30 @@ describe('validateEnv CORS origins', () => {
 
     expect(config.aiLlmProvider).toBe('gemini');
     expect(config.aiEmbeddingProvider).toBe('gemini');
+    expect(config.aiJobPostGenerationProvider).toBe('gemini');
     expect(config.aiJobPostExtractionProvider).toBe('gemini');
     expect(config.aiEmbeddingFallbackToGemini).toBe(true);
+    expect(config.aiJobPostGenerationFallbackToGemini).toBe(true);
     expect(config.aiJobPostExtractionFallbackToGemini).toBe(true);
     expect(config.aiServiceFallbackToGemini).toBe(true);
     expect(config.aiBatchServiceTimeoutMs).toBe(90_000);
+  });
+
+  it('requires the private service contract before enabling JD generation canary', () => {
+    expect(() =>
+      validateEnv(createConfig({ AI_JOB_POST_GENERATION_PROVIDER: 'upnext-ai' })),
+    ).toThrow(ZodError);
+
+    const config = validateEnv(
+      createConfig({
+        AI_JOB_POST_GENERATION_PROVIDER: 'upnext-ai',
+        AI_SERVICE_URL: 'http://upnext-ai:8000',
+        AI_INTERNAL_JWT_SECRET: 'b'.repeat(32),
+      }),
+    );
+
+    expect(config.aiJobPostGenerationProvider).toBe('upnext-ai');
+    expect(config.aiJobPostGenerationTimeoutMs).toBe(45_000);
   });
 
   it('requires the private service contract before enabling JD extraction canary', () => {

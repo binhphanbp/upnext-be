@@ -6,22 +6,30 @@ import { JobPostAiController } from './job-post-ai.controller';
 import { JobPostAiService } from './job-post-ai.service';
 import { JobPostSalaryInsightService } from './job-post-salary-insight.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
-import { AiModule } from '../ai/ai.module';
 import { ConfigService } from '@nestjs/config';
 import { FallbackJobPostExtractionAdapter } from './adapters/fallback-job-post-extraction.adapter';
+import { FallbackJobPostGenerationAdapter } from './adapters/fallback-job-post-generation.adapter';
 import { GeminiJobPostExtractionAdapter } from './adapters/gemini-job-post-extraction.adapter';
+import { GeminiJobPostGenerationAdapter } from './adapters/gemini-job-post-generation.adapter';
 import { HttpJobPostExtractionAdapter } from './adapters/http-job-post-extraction.adapter';
+import { HttpJobPostGenerationAdapter } from './adapters/http-job-post-generation.adapter';
 import {
   JOB_POST_EXTRACTION_PROVIDER,
   JobPostExtractionProviderPort,
 } from './ports/job-post-extraction-provider.port';
+import {
+  JOB_POST_GENERATION_PROVIDER,
+  JobPostGenerationProviderPort,
+} from './ports/job-post-generation-provider.port';
 
 @Module({
-  imports: [AiModule, CvScreeningModule, SubscriptionsModule],
+  imports: [CvScreeningModule, SubscriptionsModule],
   controllers: [JobPostAiController],
   providers: [
     GeminiJobPostExtractionAdapter,
     HttpJobPostExtractionAdapter,
+    GeminiJobPostGenerationAdapter,
+    HttpJobPostGenerationAdapter,
     {
       provide: JOB_POST_EXTRACTION_PROVIDER,
       useFactory: (
@@ -38,6 +46,23 @@ import {
         return new FallbackJobPostExtractionAdapter(httpAdapter, geminiAdapter);
       },
       inject: [ConfigService, HttpJobPostExtractionAdapter, GeminiJobPostExtractionAdapter],
+    },
+    {
+      provide: JOB_POST_GENERATION_PROVIDER,
+      useFactory: (
+        configService: ConfigService,
+        httpAdapter: HttpJobPostGenerationAdapter,
+        geminiAdapter: GeminiJobPostGenerationAdapter,
+      ): JobPostGenerationProviderPort => {
+        if (configService.get<string>('aiJobPostGenerationProvider') !== 'upnext-ai') {
+          return geminiAdapter;
+        }
+        if (configService.get<boolean>('aiJobPostGenerationFallbackToGemini') === false) {
+          return httpAdapter;
+        }
+        return new FallbackJobPostGenerationAdapter(httpAdapter, geminiAdapter);
+      },
+      inject: [ConfigService, HttpJobPostGenerationAdapter, GeminiJobPostGenerationAdapter],
     },
     GeminiJobPostService,
     GeminiSalaryResearchService,

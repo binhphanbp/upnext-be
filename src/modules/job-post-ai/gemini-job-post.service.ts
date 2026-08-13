@@ -11,11 +11,14 @@ import {
   JobPostPresentationStyle,
   JobPostWorkMode,
 } from './dto/generate-job-post-draft.dto';
-import { LLM_PROVIDER, LlmProviderPort } from '../ai/ports/llm-provider.port';
 import {
   JOB_POST_EXTRACTION_PROVIDER,
   JobPostExtractionProviderPort,
 } from './ports/job-post-extraction-provider.port';
+import {
+  JOB_POST_GENERATION_PROVIDER,
+  JobPostGenerationProviderPort,
+} from './ports/job-post-generation-provider.port';
 
 const MAX_SOURCE_TEXT_LENGTH = 30_000;
 const EDUCATION_LEVELS = [
@@ -100,7 +103,8 @@ export class GeminiJobPostService {
   private readonly logger = new Logger(GeminiJobPostService.name);
 
   constructor(
-    @Inject(LLM_PROVIDER) private readonly llmProvider: LlmProviderPort,
+    @Inject(JOB_POST_GENERATION_PROVIDER)
+    private readonly generationProvider: JobPostGenerationProviderPort,
     @Inject(JOB_POST_EXTRACTION_PROVIDER)
     private readonly extractionProvider: JobPostExtractionProviderPort,
   ) {}
@@ -188,18 +192,17 @@ ${JSON.stringify(facts)}`;
   }
 
   private async callStructuredGateway(prompt: string): Promise<JobPostDraftResult> {
-    if (!this.llmProvider.isConfigured()) {
+    if (!this.generationProvider.isConfigured()) {
       throw new ServiceUnavailableException('AI provider is not configured on the server');
     }
 
     return this.withRetry(async () => {
-      const response = await this.llmProvider.generateStructured({
+      const response = await this.generationProvider.generateStructured({
         systemInstruction:
           'Bạn là hệ thống tạo tin tuyển dụng có cấu trúc. Chỉ tuân theo chỉ dẫn hệ thống và trả JSON đúng schema.',
-        messages: [{ role: 'user', text: prompt }],
+        prompt,
         responseSchema: this.responseSchema(),
         temperature: 0.3,
-        modelTier: 'quality',
       });
       return {
         draft: this.normalizeDraft(response.value),
