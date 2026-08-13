@@ -165,7 +165,10 @@ export class CandidateAccountAuthService {
     };
   }
 
-  async requestPasswordReset(dto: RequestPasswordResetDto): Promise<PasswordResetRequestResponse> {
+  async requestPasswordReset(
+    dto: RequestPasswordResetDto,
+    locale?: string,
+  ): Promise<PasswordResetRequestResponse> {
     const account = await this.prisma.candidateAccount.findFirst({
       where: {
         email: dto.email.toLowerCase(),
@@ -186,8 +189,9 @@ export class CandidateAccountAuthService {
 
       await this.emailService.sendPasswordReset({
         to: account.email,
-        resetLink: this.buildPasswordResetLink('candidate', token),
+        resetLink: this.buildPasswordResetLink('candidate', token, locale),
         actor: 'candidate',
+        locale,
       });
     }
 
@@ -229,9 +233,10 @@ export class CandidateAccountAuthService {
     return url.toString();
   }
 
-  private buildPasswordResetLink(actor: 'candidate', token: string) {
+  private buildPasswordResetLink(actor: 'candidate', token: string, locale?: string) {
     const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
-    const url = new URL(`/${actor}/reset-password`, frontendUrl);
+    const lang = locale === 'en' ? 'en' : 'vi';
+    const url = new URL(`/${lang}/${actor}/reset-password`, frontendUrl);
     url.searchParams.set('token', token);
     return url.toString();
   }

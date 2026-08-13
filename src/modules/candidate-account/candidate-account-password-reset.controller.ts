@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Headers, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -33,8 +33,8 @@ export class CandidateAccountPasswordResetController {
     type: PasswordResetRequestResponse,
   })
   @ApiBadRequestResponse({ description: 'Payload không hợp lệ' })
-  requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
-    return this.candidateAccountAuthService.requestPasswordReset(dto);
+  requestPasswordReset(@Body() dto: RequestPasswordResetDto, @Headers('x-locale') locale?: string) {
+    return this.candidateAccountAuthService.requestPasswordReset(dto, locale);
   }
 
   @Public()
