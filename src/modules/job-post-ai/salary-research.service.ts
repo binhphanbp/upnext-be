@@ -1,14 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  GROUNDED_RESEARCH_PROVIDER,
+  GroundedResearchProviderPort,
+  GroundedSource,
+} from './ports/grounded-research-provider.port';
 
-// Measured on this endpoint: the Gemini 3.x models answer this prompt without ever calling the
-// search tool, so groundingMetadata comes back empty and the result is discarded for lack of
-// citations. 2.5-pro searches every time and is also faster here (~20s vs ~45s).
-const SALARY_RESEARCH_MODEL = 'gemini-2.5-pro';
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-// A grounded search runs several Google queries before it answers; measured round trips sit at
-// 42–50s. A tighter budget aborts every call and the recruiter only ever sees "not enough data".
-const REQUEST_TIMEOUT_MS = 75_000;
+const SALARY_RESEARCH_PERSONA = 'Bạn là chuyên gia nghiên cứu lương IT tại Việt Nam.';
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 100;
 const MIN_SALARY = 3_000_000;
@@ -42,7 +39,7 @@ export type SalaryResearchResult = {
   model: string;
 };
 
-type GeminiSalaryPayload = {
+type SalaryPayload = {
   available?: unknown;
   salaryMin?: unknown;
   median?: unknown;
@@ -52,9 +49,9 @@ type GeminiSalaryPayload = {
   evidenceNotes?: unknown;
 };
 
-type GroundingMetadata = {
-  webSearchQueries?: string[];
-  groundingChunks?: Array<{ web?: { title?: string; uri?: string } }>;
+type Evidence = {
+  sources: GroundedSource[];
+  searchQueries: string[];
 };
 
 type CachedResearch = {
@@ -63,11 +60,14 @@ type CachedResearch = {
 };
 
 @Injectable()
-export class GeminiSalaryResearchService {
-  private readonly logger = new Logger(GeminiSalaryResearchService.name);
+export class SalaryResearchService {
+  private readonly logger = new Logger(SalaryResearchService.name);
   private readonly cache = new Map<string, CachedResearch>();
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    @Inject(GROUNDED_RESEARCH_PROVIDER)
+    private readonly groundedResearch: GroundedResearchProviderPort,
+  ) {}
 
   async research(input: SalaryResearchInput): Promise<SalaryResearchResult | null> {
     const cacheKey = this.buildCacheKey(input);
@@ -77,88 +77,51 @@ export class GeminiSalaryResearchService {
     }
     if (cached) this.cache.delete(cacheKey);
 
-    const apiKey = this.configService.get<string>('geminiApiKey')?.trim();
-    if (!apiKey) {
-      this.logger.warn('Gemini salary research skipped because the API key is not configured');
+    if (!this.groundedResearch.isConfigured()) {
+      this.logger.warn('Salary research skipped because no grounded provider is configured');
       return null;
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
     try {
-      const response = await fetch(
-        `${GEMINI_API_BASE}/models/${SALARY_RESEARCH_MODEL}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: this.buildPrompt(input) }] }],
-            tools: [{ googleSearch: {} }],
-            // No structured-output config on purpose: asking for a response schema alongside
-            // googleSearch makes the API return an empty groundingMetadata, and citations are the
-            // whole point of this call. The shape is pinned in the prompt and parsed defensively.
-            generationConfig: {
-              temperature: 0.1,
-              candidateCount: 1,
-            },
-          }),
-        },
-      );
+      const answer = await this.groundedResearch.generateGrounded({
+        systemInstruction: SALARY_RESEARCH_PERSONA,
+        prompt: this.buildPrompt(input),
+        temperature: 0.1,
+      });
 
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        this.logger.error(`Gemini salary research HTTP error ${response.status}: ${body}`);
-        return null;
-      }
-
-      const data = (await response.json()) as {
-        candidates?: Array<{
-          content?: { parts?: Array<{ text?: string }> };
-          finishReason?: string;
-          groundingMetadata?: GroundingMetadata;
-        }>;
-      };
-      const candidate = data.candidates?.[0];
-      const text = candidate?.content?.parts
-        ?.map((part) => part.text ?? '')
-        .join('')
-        .trim();
-      if (!text) return null;
-
-      const payload = this.parsePayload(text, candidate?.finishReason);
+      const payload = this.parsePayload(answer.text);
       if (!payload) return null;
 
-      const result = this.validateResult(payload, candidate?.groundingMetadata);
+      const result = this.validateResult(payload, answer, answer.modelName);
       if (!result) return null;
 
       this.setCache(cacheKey, result);
       return result;
     } catch (error) {
-      this.logger.error(`Gemini salary research network/timeout error: ${String(error)}`);
+      // Logged with the stable code rather than a raw message. Every outcome of this
+      // method is `null` to the caller, so without the code an unreachable provider,
+      // an exhausted quota and a genuinely data-poor query are indistinguishable in
+      // the logs -- which is how a hard region block once read as "no salary data".
+      const code = error instanceof Error ? error.message : 'unknown';
+      this.logger.error(`Salary research failed (${code})`);
       return null;
-    } finally {
-      clearTimeout(timeout);
     }
   }
 
-  private parsePayload(text: string, finishReason?: string): GeminiSalaryPayload | null {
+  private parsePayload(text: string): SalaryPayload | null {
     const normalized = this.extractJsonObject(text);
 
     try {
-      return JSON.parse(normalized) as GeminiSalaryPayload;
+      return JSON.parse(normalized) as SalaryPayload;
     } catch (error) {
       const recovered = this.recoverPayload(normalized);
       if (!recovered) {
-        this.logger.warn(
-          `Gemini salary research returned invalid JSON${finishReason ? ` (${finishReason})` : ''}: ${String(error)}`,
-        );
+        this.logger.warn(`Salary research returned invalid JSON: ${String(error)}`);
         return null;
       }
 
       this.logger.warn(
-        `Gemini salary research returned invalid JSON${finishReason ? ` (${finishReason})` : ''}; recovered the validated salary fields`,
+        'Salary research returned invalid JSON; recovered the validated salary fields',
       );
       return recovered;
     }
@@ -175,7 +138,7 @@ export class GeminiSalaryResearchService {
     return start >= 0 && end > start ? unfenced.slice(start, end + 1) : unfenced;
   }
 
-  private recoverPayload(value: string): GeminiSalaryPayload | null {
+  private recoverPayload(value: string): SalaryPayload | null {
     const available = this.extractBoolean(value, 'available');
     if (available === undefined) return null;
 
@@ -319,8 +282,9 @@ ${JSON.stringify(facts)}
   }
 
   private validateResult(
-    payload: GeminiSalaryPayload,
-    groundingMetadata?: GroundingMetadata,
+    payload: SalaryPayload,
+    evidence: Evidence,
+    modelName: string,
   ): SalaryResearchResult | null {
     if (payload.available !== true) return null;
 
@@ -338,12 +302,9 @@ ${JSON.stringify(facts)}
       return null;
     }
 
-    const sources = this.extractSources(groundingMetadata);
+    const sources = evidence.sources;
     const distinctSourceTitles = new Set(sources.map((source) => source.title.toLowerCase()));
-    const searchQueries = (groundingMetadata?.webSearchQueries ?? [])
-      .map((query) => query.trim())
-      .filter(Boolean)
-      .slice(0, 8);
+    const searchQueries = evidence.searchQueries.slice(0, 8);
     if (distinctSourceTitles.size < 2 || searchQueries.length === 0) {
       return null;
     }
@@ -373,29 +334,8 @@ ${JSON.stringify(facts)}
       sources,
       searchQueries,
       searchedAt: new Date().toISOString(),
-      model: SALARY_RESEARCH_MODEL,
+      model: modelName,
     };
-  }
-
-  private extractSources(groundingMetadata?: GroundingMetadata) {
-    const sources = new Map<string, { title: string; url: string }>();
-    for (const chunk of groundingMetadata?.groundingChunks ?? []) {
-      const title = this.toText(chunk.web?.title, 200);
-      const url = chunk.web?.uri?.trim() ?? '';
-      if (!title || !this.isSafeUrl(url) || sources.has(url)) continue;
-      sources.set(url, { title, url });
-      if (sources.size >= 8) break;
-    }
-    return Array.from(sources.values());
-  }
-
-  private isSafeUrl(value: string) {
-    try {
-      const url = new URL(value);
-      return url.protocol === 'https:' || url.protocol === 'http:';
-    } catch {
-      return false;
-    }
   }
 
   private toSalary(value: unknown) {

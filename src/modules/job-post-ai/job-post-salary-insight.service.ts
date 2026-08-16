@@ -3,7 +3,7 @@ import { CompanyType, JobStatus, ModerationStatus, Prisma, SalaryPeriod } from '
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmbeddingService } from '../cv-screening/embedding.service';
 import { SalaryInsightDto } from './dto/salary-insight.dto';
-import { GeminiSalaryResearchService } from './gemini-salary-research.service';
+import { SalaryResearchService } from './salary-research.service';
 
 const LOOKBACK_MONTHS = 18;
 const MIN_SAMPLE_SIZE = 5;
@@ -177,7 +177,7 @@ export class JobPostSalaryInsightService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly embeddings: EmbeddingService,
-    private readonly salaryResearch: GeminiSalaryResearchService,
+    private readonly salaryResearch: SalaryResearchService,
   ) {}
 
   async analyze(dto: SalaryInsightDto, recruiterId?: string) {

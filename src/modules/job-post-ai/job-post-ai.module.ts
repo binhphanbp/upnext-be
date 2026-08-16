@@ -1,18 +1,25 @@
 import { Module } from '@nestjs/common';
 import { CvScreeningModule } from '../cv-screening/cv-screening.module';
 import { GeminiJobPostService } from './gemini-job-post.service';
-import { GeminiSalaryResearchService } from './gemini-salary-research.service';
+import { SalaryResearchService } from './salary-research.service';
 import { JobPostAiController } from './job-post-ai.controller';
 import { JobPostAiService } from './job-post-ai.service';
 import { JobPostSalaryInsightService } from './job-post-salary-insight.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ConfigService } from '@nestjs/config';
+import { FallbackGroundedResearchAdapter } from './adapters/fallback-grounded-research.adapter';
 import { FallbackJobPostExtractionAdapter } from './adapters/fallback-job-post-extraction.adapter';
 import { FallbackJobPostGenerationAdapter } from './adapters/fallback-job-post-generation.adapter';
+import { GeminiGroundedResearchAdapter } from './adapters/gemini-grounded-research.adapter';
 import { GeminiJobPostExtractionAdapter } from './adapters/gemini-job-post-extraction.adapter';
 import { GeminiJobPostGenerationAdapter } from './adapters/gemini-job-post-generation.adapter';
+import { HttpGroundedResearchAdapter } from './adapters/http-grounded-research.adapter';
 import { HttpJobPostExtractionAdapter } from './adapters/http-job-post-extraction.adapter';
 import { HttpJobPostGenerationAdapter } from './adapters/http-job-post-generation.adapter';
+import {
+  GROUNDED_RESEARCH_PROVIDER,
+  GroundedResearchProviderPort,
+} from './ports/grounded-research-provider.port';
 import {
   JOB_POST_EXTRACTION_PROVIDER,
   JobPostExtractionProviderPort,
@@ -30,6 +37,8 @@ import {
     HttpJobPostExtractionAdapter,
     GeminiJobPostGenerationAdapter,
     HttpJobPostGenerationAdapter,
+    GeminiGroundedResearchAdapter,
+    HttpGroundedResearchAdapter,
     {
       provide: JOB_POST_EXTRACTION_PROVIDER,
       useFactory: (
@@ -64,8 +73,25 @@ import {
       },
       inject: [ConfigService, HttpJobPostGenerationAdapter, GeminiJobPostGenerationAdapter],
     },
+    {
+      provide: GROUNDED_RESEARCH_PROVIDER,
+      useFactory: (
+        configService: ConfigService,
+        httpAdapter: HttpGroundedResearchAdapter,
+        geminiAdapter: GeminiGroundedResearchAdapter,
+      ): GroundedResearchProviderPort => {
+        if (configService.get<string>('aiGroundedResearchProvider') !== 'upnext-ai') {
+          return geminiAdapter;
+        }
+        if (configService.get<boolean>('aiGroundedResearchFallbackToGemini') === false) {
+          return httpAdapter;
+        }
+        return new FallbackGroundedResearchAdapter(httpAdapter, geminiAdapter);
+      },
+      inject: [ConfigService, HttpGroundedResearchAdapter, GeminiGroundedResearchAdapter],
+    },
     GeminiJobPostService,
-    GeminiSalaryResearchService,
+    SalaryResearchService,
     JobPostAiService,
     JobPostSalaryInsightService,
   ],
