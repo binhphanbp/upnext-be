@@ -15,7 +15,12 @@ uploads/*
 !uploads/cv/
 # CV thật của ứng viên, tên file là email của họ — không bao giờ được đưa lên git.
 cv/
+# Chặn dump/backup database lỡ tay commit.
 *.sql
+# Nhưng migration là source code, bắt buộc phải lên git. Không có dòng này thì mọi
+# migration mới bị git bỏ qua im lặng: máy local vẫn chạy ngon vì DB đã apply rồi,
+# chỉ nổ khi deploy lên staging/production vì thiếu bảng hoặc thiếu cột.
+!prisma/migrations/**/*.sql
 scratch/
 firebase-service-account.json
 
