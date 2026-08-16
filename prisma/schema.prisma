@@ -1061,6 +1061,9 @@ model JobPost {
   status               JobStatus        @default(DRAFT)
   moderationStatus     ModerationStatus @default(PENDING) @map("moderation_status")
   moderationNote       String?          @map("moderation_note") @db.Text
+  /// Set once the followers of this company have been told the posting exists, so a
+  /// posting is announced exactly once no matter how often it is edited or re-published.
+  followerAlertSentAt  DateTime?        @map("follower_alert_sent_at")
   reason               String?          @db.Text
   isHidden             Boolean          @default(false) @map("is_hidden")
   publishedAt          DateTime?        @map("published_at")
@@ -1104,6 +1107,8 @@ model JobPost {
   @@index([employmentTypeId])
   @@index([status, moderationStatus, publishedAt])
   @@index([status, moderationStatus, publishedAt, expiredAt])
+  /// Drives the follower-alert sweep, which looks only for postings not yet announced.
+  @@index([followerAlertSentAt, publishedAt])
   @@map("job_posts")
 }
 
