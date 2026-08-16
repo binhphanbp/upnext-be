@@ -50,6 +50,9 @@ describe('JobPostsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    quotaMock.getFeatureLimit.mockResolvedValue({ enabled: true, limit: null });
+    prismaMock.jobPost.count = jest.fn().mockResolvedValue(0);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         JobPostsService,
@@ -567,4 +570,38 @@ describe('JobPostsService', () => {
       expect(result.jobPost.isHidden).toBe(true);
     });
   });
+
+  describe('assertJobPostQuota', () => {
+    it('throws ForbiddenException when feature is disabled', async () => {
+      quotaMock.getFeatureLimit.mockResolvedValue({ enabled: false, limit: null });
+
+      await expect(service.assertJobPostQuota('company-id')).rejects.toThrow(
+        'Gói dịch vụ hiện tại của bạn không hỗ trợ tạo hoặc đăng tin tuyển dụng',
+      );
+    });
+
+    it('throws ForbiddenException with QUOTA_EXHAUSTED when active job count reaches limit', async () => {
+      quotaMock.getFeatureLimit.mockResolvedValue({ enabled: true, limit: 3 });
+      prismaMock.jobPost.count.mockResolvedValue(3);
+
+      await expect(service.assertJobPostQuota('company-id')).rejects.toThrow(
+        'Bạn đã sử dụng hết số lượng tin đăng tuyển dụng (3/3)',
+      );
+    });
+
+    it('allows when active job count is below limit', async () => {
+      quotaMock.getFeatureLimit.mockResolvedValue({ enabled: true, limit: 3 });
+      prismaMock.jobPost.count.mockResolvedValue(2);
+
+      await expect(service.assertJobPostQuota('company-id')).resolves.not.toThrow();
+    });
+
+    it('allows when quota is unlimited (limit: null)', async () => {
+      quotaMock.getFeatureLimit.mockResolvedValue({ enabled: true, limit: null });
+      prismaMock.jobPost.count.mockResolvedValue(100);
+
+      await expect(service.assertJobPostQuota('company-id')).resolves.not.toThrow();
+    });
+  });
 });
+

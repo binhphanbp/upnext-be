@@ -24,6 +24,21 @@ export class InterviewsService {
   ) {}
 
   async create(dto: CreateInterviewDto, user: AuthenticatedUser) {
+    const start = new Date(dto.scheduledStartAt);
+    const end = new Date(dto.scheduledEndAt);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Bắt buộc nhập Ngày Giờ phỏng vấn hợp lệ');
+    }
+
+    if (start.getTime() < Date.now() - 60_000) {
+      throw new BadRequestException('Ngày hẹn không hợp lệ. Thời gian phỏng vấn phải ở tương lai.');
+    }
+
+    if (end.getTime() <= start.getTime()) {
+      throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu.');
+    }
+
     const application = await this.prisma.application.findUnique({
       where: { id: dto.applicationId },
       include: {
@@ -284,6 +299,21 @@ export class InterviewsService {
   }
 
   async reschedule(id: string, dto: RescheduleInterviewDto, user: AuthenticatedUser) {
+    const start = new Date(dto.scheduledStartAt);
+    const end = new Date(dto.scheduledEndAt);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Bắt buộc nhập Ngày Giờ phỏng vấn hợp lệ');
+    }
+
+    if (start.getTime() < Date.now() - 60_000) {
+      throw new BadRequestException('Ngày hẹn không hợp lệ. Thời gian phỏng vấn phải ở tương lai.');
+    }
+
+    if (end.getTime() <= start.getTime()) {
+      throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu.');
+    }
+
     const interview = await this.prisma.interview.findUnique({
       where: { id },
       include: {

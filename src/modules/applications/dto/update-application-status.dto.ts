@@ -30,6 +30,16 @@ export class OfferDetailsDto {
   @IsString()
   @MaxLength(1000)
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  offerLetterUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  attachmentName?: string;
 }
 
 export class UpdateApplicationStatusDto {

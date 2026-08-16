@@ -11,6 +11,7 @@ import {
   Prisma,
   ModerationStatus,
   ActorType,
+  SubscriptionFeature,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -26,6 +27,7 @@ import {
 import { ListAdminJobPostsQueryDto } from './dto/list-admin-job-posts-query.dto';
 import { UpdateJobPostDto } from './dto/update-job-post.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { REPUTATION_CONFIG } from '../reputation/reputation.config';
 import { PublicJobPostQueryDto } from './dto/public-job-post-query.dto';
 
@@ -34,10 +36,13 @@ export class JobPostsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly quotaService: SubscriptionQuotaService,
   ) {}
 
   async create(user: AuthenticatedUser, createJobPostDto: CreateJobPostDto) {
     const context = await this.resolveRecruiterContext(user.id);
+    await this.assertJobPostQuota(context.company.id);
+
     const slug = this.createSlug(createJobPostDto.title);
 
     return this.prisma.jobPost.create({
@@ -785,6 +790,42 @@ export class JobPostsService {
     return { company: account.company };
   }
 
+  async assertJobPostQuota(companyId: string) {
+    const quota = await this.quotaService.getFeatureLimit(
+      companyId,
+      SubscriptionFeature.JOB_POST,
+    );
+
+    if (!quota.enabled) {
+      throw new ForbiddenException({
+        code: 'FEATURE_NOT_IN_PLAN',
+        message:
+          'Gói dịch vụ hiện tại của bạn không hỗ trợ tạo hoặc đăng tin tuyển dụng. Vui lòng mua gói dịch vụ.',
+        feature: SubscriptionFeature.JOB_POST,
+      });
+    }
+
+    if (quota.limit !== null) {
+      const activeCount = await this.prisma.jobPost.count({
+        where: {
+          companyId,
+          status: JobStatus.PUBLISHED,
+          deletedAt: null,
+        },
+      });
+
+      if (activeCount >= quota.limit) {
+        throw new ForbiddenException({
+          code: 'QUOTA_EXHAUSTED',
+          message: `Bạn đã sử dụng hết số lượng tin đăng tuyển dụng (${activeCount}/${quota.limit}) của gói hiện tại. Vui lòng mua hoặc nâng cấp gói dịch vụ để tiếp tục đăng tin.`,
+          feature: SubscriptionFeature.JOB_POST,
+          limit: quota.limit,
+          used: activeCount,
+        });
+      }
+    }
+  }
+
   private async ensureCompanyCanPublish(companyId: string) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
@@ -805,6 +846,8 @@ export class JobPostsService {
         `Company reputation score must be at least ${REPUTATION_CONFIG.MIN_SCORE_TO_PUBLISH} to publish job posts`,
       );
     }
+
+    await this.assertJobPostQuota(companyId);
   }
 
   private publicJobPostInclude() {

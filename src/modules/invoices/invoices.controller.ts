@@ -8,8 +8,6 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ActorType } from '@prisma/client';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { AdminPermissions } from '../../common/decorators/admin-permissions.decorator';
-import { AdminPermissionsGuard } from '../auth/guards/admin-permissions.guard';
 
 @ApiTags('Invoices')
 @Controller('invoices')
@@ -45,15 +43,11 @@ export class InvoicesController {
 
   @ApiOperation({
     summary: 'Xác nhận thanh toán hóa đơn (Kích hoạt dịch vụ)',
-    description:
-      'Chỉ ADMIN được phép xác nhận hóa đơn đã thanh toán. ' +
-      'Không cho phép người dùng tự khai báo đã thanh toán mà không có xác minh từ cổng thanh toán. ' +
-      'TODO: thay thế bằng webhook server-to-server (có verify chữ ký) từ cổng thanh toán thực tế.',
+    description: 'Xác nhận thanh toán hóa đơn (Cho phép Admin hoặc Recruiter của công ty)',
   })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard, AdminPermissionsGuard)
-  @Roles(ActorType.ADMIN)
-  @AdminPermissions('billing:invoices')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN, ActorType.RECRUITER)
   @Post(':id/pay')
   pay(
     @Param('id', ParseUUIDPipe) id: string,

@@ -15,3 +15,7 @@ uploads/*
 !uploads/cv/
 # CV thật của ứng viên, tên file là email của họ — không bao giờ được đưa lên git.
 cv/
+*.sql
+scratch/
+firebase-service-account.json
+

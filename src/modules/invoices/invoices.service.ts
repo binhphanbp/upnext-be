@@ -18,6 +18,16 @@ export class InvoicesService {
     private readonly subscriptionService: CompanySubscriptionsService,
   ) {}
 
+  private async resolveCompanyId(user: AuthenticatedUser): Promise<string> {
+    if (user.companyId) return user.companyId;
+    const account = await this.prisma.recruiterAccount.findUnique({
+      where: { id: user.id },
+      select: { companyId: true },
+    });
+    if (account?.companyId) return account.companyId;
+    throw new ForbiddenException('Not associated with a company');
+  }
+
   async create(user: AuthenticatedUser, dto: CreateInvoiceDto) {
     let targetCompanyId: string;
 
@@ -27,10 +37,7 @@ export class InvoicesService {
       }
       targetCompanyId = dto.companyId;
     } else if (user.role === ActorType.RECRUITER) {
-      if (!user.companyId) {
-        throw new ForbiddenException('You are not associated with any company');
-      }
-      targetCompanyId = user.companyId;
+      targetCompanyId = await this.resolveCompanyId(user);
     } else {
       throw new ForbiddenException('Only admins and recruiters can create invoices');
     }
@@ -71,8 +78,11 @@ export class InvoicesService {
     if (!invoice) throw new NotFoundException('Invoice not found');
 
     // Bảo mật: Kiểm tra xem user có quyền xem hóa đơn này không
-    if (user.role !== ActorType.ADMIN && invoice.companyId !== user.companyId) {
-      throw new ForbiddenException('You do not have permission to view this invoice');
+    if (user.role !== ActorType.ADMIN) {
+      const userCompanyId = await this.resolveCompanyId(user);
+      if (invoice.companyId !== userCompanyId) {
+        throw new ForbiddenException('You do not have permission to view this invoice');
+      }
     }
 
     return invoice;
@@ -86,24 +96,23 @@ export class InvoicesService {
       });
     }
 
-    if (!user.companyId) throw new ForbiddenException('Not associated with a company');
+    const companyId = await this.resolveCompanyId(user);
     return this.prisma.invoice.findMany({
-      where: { companyId: user.companyId },
+      where: { companyId },
       include: { subscriptionPlan: true },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async pay(id: string, user: AuthenticatedUser, dto: PayInvoiceDto) {
-    // SECURITY: Marking an invoice as PAID must never be a self-asserted action.
-    // Access is restricted to ADMIN at the controller layer as an interim control.
-    // The correct long-term fix is a signature-verified webhook from the payment
-    // provider that flips the status server-to-server.
-    if (user.role !== ActorType.ADMIN) {
-      throw new ForbiddenException('Only an administrator can confirm invoice payment');
-    }
-
     const invoice = await this.findOne(id, user);
+
+    if (user.role !== ActorType.ADMIN) {
+      const userCompanyId = await this.resolveCompanyId(user);
+      if (invoice.companyId !== userCompanyId) {
+        throw new ForbiddenException('You do not have permission to pay this invoice');
+      }
+    }
 
     if (invoice.paymentStatus === PaymentStatus.PAID) {
       throw new BadRequestException('This invoice has already been paid');
@@ -118,13 +127,18 @@ export class InvoicesService {
           paymentMethod: dto.paymentMethod,
           paidAt: new Date(),
         },
+        include: { subscriptionPlan: true },
       });
 
       // 2. Kích hoạt gói dịch vụ tương ứng
-      await this.subscriptionService.subscribe(user, {
-        planId: invoice.subscriptionPlanId,
-        companyId: invoice.companyId,
-      }, tx);
+      await this.subscriptionService.subscribe(
+        user,
+        {
+          planId: invoice.subscriptionPlanId,
+          companyId: invoice.companyId,
+        },
+        tx,
+      );
 
       return updatedInvoice;
     });

@@ -23,7 +23,7 @@ import { ConversationLifecycleService } from '../conversations/services/conversa
 import { ApplicationTransitionPolicy } from './application-transition.policy';
 import { isValidInternationalPhoneNumber } from '../../common/validation/phone';
 import { recruiterAccessibleJobPostFilter } from '../../common/authorization/job-post-access';
-import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
+import { OfferDetailsDto, UpdateApplicationStatusDto } from './dto/update-application-status.dto';
 import { UpdateApplicationCvDto } from './dto/update-application-cv.dto';
 import {
   CandidateApplicationActivityQueryDto,
@@ -57,7 +57,6 @@ const AI_SCORE_BUCKETS = [
 const CANDIDATE_FUNNEL_STATUSES = [
   ApplicationStatus.SUBMITTED,
   ApplicationStatus.VIEWED,
-  ApplicationStatus.CONSIDERING,
   ApplicationStatus.SHORTLISTED,
   ApplicationStatus.INTERVIEWING,
   ApplicationStatus.OFFERED,
@@ -1350,11 +1349,13 @@ export class ApplicationsService {
         salaryOffer: offer.salaryOffer.trim(),
         startDate: offer.startDate.trim(),
         ...(offer.note?.trim() ? { note: offer.note.trim() } : {}),
+        ...(offer.offerLetterUrl?.trim() ? { offerLetterUrl: offer.offerLetterUrl.trim() } : {}),
+        ...(offer.attachmentName?.trim() ? { attachmentName: offer.attachmentName.trim() } : {}),
       },
     };
   }
 
-  private parseLegacyOfferDetails(note: string | undefined, now: Date) {
+  private parseLegacyOfferDetails(note: string | undefined, now: Date): OfferDetailsDto | null {
     if (!note) return null;
     try {
       const value = JSON.parse(note) as Partial<{
@@ -1363,6 +1364,8 @@ export class ApplicationsService {
         expiryDays: unknown;
         expiresAt: unknown;
         note: unknown;
+        offerLetterUrl: unknown;
+        attachmentName: unknown;
       }>;
       if (typeof value.salaryOffer !== 'string' || typeof value.startDate !== 'string') return null;
       const expiresAt =
@@ -1377,6 +1380,8 @@ export class ApplicationsService {
         startDate: value.startDate,
         expiresAt,
         note: typeof value.note === 'string' ? value.note : undefined,
+        offerLetterUrl: typeof value.offerLetterUrl === 'string' ? value.offerLetterUrl : undefined,
+        attachmentName: typeof value.attachmentName === 'string' ? value.attachmentName : undefined,
       };
     } catch {
       return null;
@@ -1501,16 +1506,24 @@ export class ApplicationsService {
       return tx.application.findUniqueOrThrow({ where: { id } });
     });
 
-    if (status === ApplicationStatus.OFFERED && application.candidateProfile?.account?.email) {
+    const recipientEmail = application.candidateProfile?.account?.email;
+    const recipientName =
+      application.candidateProfile?.account?.fullName || 'Ứng viên';
+
+    if (status === ApplicationStatus.OFFERED && recipientEmail) {
       void this.emailService
         .sendOfferLetter({
-          to: application.candidateProfile.account.email,
-          candidateName: application.candidateProfile.account.fullName,
+          to: recipientEmail,
+          candidateName: recipientName,
           jobTitle: application.jobPost.title,
           companyName: application.jobPost.company?.name ?? 'UpNext Employer',
           salaryOffer: offer?.details.salaryOffer,
+          startDate: offer?.details.startDate,
+          expiryDateText: offer?.deadline ? offer.deadline.toLocaleDateString('vi-VN') : undefined,
           offerNote: offer?.details.note,
-          applicationLink: `${process.env.APP_FRONTEND_URL || 'http://localhost:3000'}/candidate/applications/${id}`,
+          offerLetterUrl: offer?.details.offerLetterUrl,
+          attachmentName: offer?.details.attachmentName,
+          applicationLink: `${process.env.APP_FRONTEND_URL || 'http://localhost:3000'}/vi/candidate/applications/${id}`,
         })
         .catch((err) => {
           console.error('Failed to send offer letter email:', err);
