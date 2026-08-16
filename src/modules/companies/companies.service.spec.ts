@@ -6,6 +6,7 @@ import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import { EmailService } from '../../common/email/email.service';
 import { ReputationLedgerService } from '../reputation/reputation-ledger.service';
 import { CompaniesService } from './companies.service';
+import { COMPANY_LICENSE_EXTRACTION_PROVIDER } from './ports/company-license-extraction-provider.port';
 
 describe('CompaniesService', () => {
   let service: CompaniesService;
@@ -94,6 +95,14 @@ describe('CompaniesService', () => {
           provide: ReputationLedgerService,
           useValue: {
             applyDelta: jest.fn(),
+          },
+        },
+        {
+          provide: COMPANY_LICENSE_EXTRACTION_PROVIDER,
+          useValue: {
+            modelName: 'stub',
+            isConfigured: () => true,
+            extractStructured: jest.fn(),
           },
         },
       ],

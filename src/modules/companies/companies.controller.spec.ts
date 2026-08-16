@@ -6,6 +6,7 @@ import { EmailService } from '../../common/email/email.service';
 import { ReputationLedgerService } from '../reputation/reputation-ledger.service';
 import { CompaniesController } from './companies.controller';
 import { CompaniesService } from './companies.service';
+import { COMPANY_LICENSE_EXTRACTION_PROVIDER } from './ports/company-license-extraction-provider.port';
 
 describe('CompaniesController', () => {
   let controller: CompaniesController;
@@ -44,6 +45,14 @@ describe('CompaniesController', () => {
           provide: ReputationLedgerService,
           useValue: {
             applyDelta: jest.fn(),
+          },
+        },
+        {
+          provide: COMPANY_LICENSE_EXTRACTION_PROVIDER,
+          useValue: {
+            modelName: 'stub',
+            isConfigured: () => true,
+            extractStructured: jest.fn(),
           },
         },
       ],
