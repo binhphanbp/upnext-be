@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -26,6 +27,8 @@ import {
 
 @Injectable()
 export class CandidateAccountAuthService {
+  private readonly logger = new Logger(CandidateAccountAuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
@@ -110,10 +113,17 @@ export class CandidateAccountAuthService {
     const verificationLink = this.buildEmailVerificationLink(verificationToken);
 
     if (!account.emailVerifiedAt) {
-      await this.emailService.sendCandidateEmailVerification({
-        to: account.email,
-        candidateName: account.fullName,
-        verificationLink,
+      await Promise.resolve(
+        this.emailService.sendCandidateEmailVerification({
+          to: account.email,
+          candidateName: account.fullName,
+          verificationLink,
+        }),
+      ).catch((error) => {
+        this.logger.error(
+          `Failed to send candidate verification email to ${account.email}`,
+          error instanceof Error ? error.stack : String(error),
+        );
       });
     }
 
@@ -187,11 +197,18 @@ export class CandidateAccountAuthService {
         role: ActorType.CANDIDATE,
       });
 
-      await this.emailService.sendPasswordReset({
-        to: account.email,
-        resetLink: this.buildPasswordResetLink('candidate', token, locale),
-        actor: 'candidate',
-        locale,
+      await Promise.resolve(
+        this.emailService.sendPasswordReset({
+          to: account.email,
+          resetLink: this.buildPasswordResetLink('candidate', token, locale),
+          actor: 'candidate',
+          locale,
+        }),
+      ).catch((error) => {
+        this.logger.error(
+          `Failed to send candidate password reset email to ${account.email}`,
+          error instanceof Error ? error.stack : String(error),
+        );
       });
     }
 

@@ -25,6 +25,12 @@ export class EmailService {
               user,
               pass,
             },
+            pool: true,
+            maxConnections: 5,
+            maxMessages: 100,
+            connectionTimeout: 5000,
+            greetingTimeout: 5000,
+            socketTimeout: 10000,
           })
         : null;
   }
@@ -345,12 +351,16 @@ export class EmailService {
     startDate?: string | null;
     expiryDateText?: string | null;
     offerNote?: string | null;
+    offerLetterUrl?: string | null;
+    attachmentName?: string | null;
     applicationLink: string;
   }) {
     let salary = params.salaryOffer || 'Thỏa thuận';
     let start = params.startDate || 'Theo trao đổi trực tiếp';
     let expiry = params.expiryDateText || '7 ngày';
     let noteText = params.offerNote || '';
+    let offerLetterUrl = params.offerLetterUrl || '';
+    let attachmentName = params.attachmentName || '';
 
     // If offerNote is JSON string from SendOfferDialog, parse it
     if (params.offerNote && params.offerNote.startsWith('{')) {
@@ -360,6 +370,8 @@ export class EmailService {
         if (parsed.startDate) start = parsed.startDate;
         if (parsed.expiryDateText) expiry = parsed.expiryDateText;
         if (parsed.note !== undefined) noteText = parsed.note;
+        if (parsed.offerLetterUrl) offerLetterUrl = parsed.offerLetterUrl;
+        if (parsed.attachmentName) attachmentName = parsed.attachmentName;
       } catch {
         // Note is a plain string rather than JSON
       }
@@ -380,6 +392,8 @@ export class EmailService {
       startDate: start,
       expiryDateText: expiry,
       offerNoteHtml: formattedNoteHtml,
+      offerLetterUrl: offerLetterUrl.trim(),
+      attachmentName: attachmentName.trim() || 'Thư mời nhận việc đính kèm',
       applicationLink: params.applicationLink,
       sentDate: this.formatSentDate(),
     });
@@ -387,7 +401,7 @@ export class EmailService {
     await this.sendMail({
       to: params.to,
       subject: `[UpNext] Thư mời nhận việc - ${params.jobTitle} - ${params.companyName}`,
-      text: `Chúc mừng! Qua quá trình ứng tuyển và phỏng vấn, ${params.companyName} trân trọng gửi tới bạn Thư mời nhận việc cho vị trí ${params.jobTitle}.`,
+      text: `Chúc mừng! Qua quá trình ứng tuyển và phỏng vấn, ${params.companyName} trân trọng gửi tới bạn Thư mời nhận việc cho vị trí ${params.jobTitle}. Xem chi tiết tại: ${params.applicationLink}`,
       html,
       attachments: [
         {

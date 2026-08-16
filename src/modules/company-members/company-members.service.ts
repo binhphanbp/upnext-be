@@ -312,18 +312,47 @@ export class CompanyMembersService {
     }
 
     // Find current user member record in the target member's company
-    const currentUserMember = await this.prisma.companyMember.findFirst({
+    let currentUserMember = await this.prisma.companyMember.findFirst({
       where: { recruiterAccountId: currentUser.id, companyId: targetMember.companyId },
       include: { role: true },
     });
 
-    if (currentUser.role !== ActorType.ADMIN && !currentUserMember) {
-      throw new ForbiddenException('You are not a member of this company.');
+    if (!currentUserMember && currentUser.role !== ActorType.ADMIN) {
+      const account = await this.prisma.recruiterAccount.findFirst({
+        where: { id: currentUser.id, companyId: targetMember.companyId },
+        include: { recruiterRole: true },
+      });
+
+      if (!account) {
+        throw new ForbiddenException('You are not a member of this company.');
+      }
+
+      const ownerRole = await this.prisma.recruiterRole.findFirst({
+        where: { code: 'OWNER' },
+      });
+
+      if (ownerRole) {
+        currentUserMember = await this.prisma.companyMember.create({
+          data: {
+            recruiterAccountId: currentUser.id,
+            companyId: targetMember.companyId,
+            roleId: account.recruiterRoleId ?? ownerRole.id,
+            status: CompanyMemberStatus.ACTIVE,
+            joinedAt: new Date(),
+          },
+          include: { role: true },
+        });
+      }
     }
 
     // ─── If target role is OWNER (Ownership Transfer) ──────────────────────
     if (targetRole.code === 'OWNER') {
-      if (currentUser.role !== ActorType.ADMIN && currentUserMember?.role?.code !== 'OWNER') {
+      const isCurrentUserOwner =
+        currentUser.role === ActorType.ADMIN ||
+        currentUserMember?.role?.code === 'OWNER' ||
+        !currentUserMember?.role;
+
+      if (!isCurrentUserOwner) {
         throw new ForbiddenException('Only the company owner can transfer ownership.');
       }
 
@@ -332,37 +361,72 @@ export class CompanyMembersService {
         return targetMember;
       }
 
-      // Find the HR role to downgrade the previous owner to
-      const hrRole = await this.prisma.recruiterRole.findFirst({
-        where: { code: 'HR' },
+      // Find the HR role to downgrade the previous owner(s) to
+      let hrRole = await this.prisma.recruiterRole.findFirst({
+        where: {
+          code: { in: ['HR', 'hr', 'RECRUITER', 'recruiter'] },
+          OR: [{ companyId: targetMember.companyId }, { companyId: null }],
+        },
+        orderBy: { companyId: 'desc' },
       });
 
       if (!hrRole) {
-        throw new NotFoundException('HR role not found to downgrade the previous owner.');
+        hrRole = await this.prisma.recruiterRole.findFirst({
+          where: {
+            code: { notIn: ['OWNER', 'owner'] },
+            OR: [{ companyId: targetMember.companyId }, { companyId: null }],
+          },
+        });
+      }
+
+      if (!hrRole) {
+        hrRole = await this.prisma.recruiterRole.create({
+          data: {
+            code: 'HR',
+            name: 'HR',
+            description: 'Quản lý tin tuyển dụng và hồ sơ ứng viên',
+          },
+        });
       }
 
       return this.prisma.$transaction(async (tx) => {
-        // Find previous owner's recruiterAccountId
+        // Find all previous owners in this company (excluding the target member)
         const previousOwners = await tx.companyMember.findMany({
           where: {
             companyId: targetMember.companyId,
             role: { code: 'OWNER' },
+            id: { not: memberId },
           },
           select: { id: true, recruiterAccountId: true },
         });
 
+        const previousOwnerMemberIds = previousOwners.map((o) => o.id);
         const previousOwnerAccountIds = previousOwners
           .map((o) => o.recruiterAccountId)
-          .filter((id): id is string => Boolean(id));
+          .filter((id): id is string => Boolean(id) && id !== targetMember.recruiterAccountId);
+
+        // Also ensure current user is downgraded if they were owner in this company
+        if (
+          currentUserMember &&
+          currentUserMember.id !== memberId &&
+          !previousOwnerMemberIds.includes(currentUserMember.id)
+        ) {
+          previousOwnerMemberIds.push(currentUserMember.id);
+        }
+        if (
+          currentUser.id !== targetMember.recruiterAccountId &&
+          !previousOwnerAccountIds.includes(currentUser.id)
+        ) {
+          previousOwnerAccountIds.push(currentUser.id);
+        }
 
         // 1. Downgrade previous owner(s) in this company to HR
-        await tx.companyMember.updateMany({
-          where: {
-            companyId: targetMember.companyId,
-            role: { code: 'OWNER' },
-          },
-          data: { roleId: hrRole.id },
-        });
+        if (previousOwnerMemberIds.length > 0) {
+          await tx.companyMember.updateMany({
+            where: { id: { in: previousOwnerMemberIds } },
+            data: { roleId: hrRole.id },
+          });
+        }
 
         if (previousOwnerAccountIds.length > 0) {
           await tx.recruiterAccount.updateMany({
@@ -471,10 +535,6 @@ export class CompanyMembersService {
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
-
-  // JWT.companyId có thể đã cũ nếu recruiter vừa được gắn vào công ty trong
-  // cùng phiên (VD: vừa tạo công ty lúc onboarding) — luôn fallback kiểm tra
-  // DB thay vì chỉ tin claim trên token.
   private async belongsToCompany(user: AuthenticatedUser, companyId: string): Promise<boolean> {
     if (user.companyId === companyId) {
       return true;

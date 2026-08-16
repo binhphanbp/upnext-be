@@ -79,8 +79,27 @@
         </div>
       </div>
 
+      <!-- Optional Attached File Box -->
+      {{?offerLetterUrl}}
+      <div style="margin-bottom: 24px; padding: 16px 20px; background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; text-align: center;">
+        <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: #92400e;">
+          📎 Tài liệu đính kèm từ Nhà tuyển dụng:
+        </p>
+        <a href="{{offerLetterUrl}}" target="_blank" style="display: inline-block; background-color: #f59e0b; color: #ffffff; font-size: 13px; font-weight: 700; padding: 10px 20px; border-radius: 8px; text-decoration: none;">
+          📄 Tải xuống {{attachmentName}}
+        </a>
+      </div>
+      {{/offerLetterUrl}}
+
+      <!-- CTA Button to respond to offer -->
+      <div style="text-align: center; margin: 28px 0;">
+        <a href="{{applicationLink}}" style="display: inline-block; background-color: #059669; color: #ffffff; font-weight: 700; font-size: 15px; padding: 14px 28px; border-radius: 10px; text-decoration: none; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);">
+          👉 Xem & Phản hồi Thư mời nhận việc
+        </a>
+      </div>
+
       <!-- Instruction paragraph -->
-      <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0 0 28px 0;">
+      <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0 0 28px 0; text-align: center;">
         Vui lòng đăng nhập vào tài khoản UpNext của bạn để phản hồi thư mời nhận việc trước thời hạn nêu trên.
       </p>
 

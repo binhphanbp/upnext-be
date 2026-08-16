@@ -78,10 +78,17 @@ export class RecruiterAuthService {
         role: ActorType.RECRUITER,
       });
       const verificationLink = this.buildEmailVerificationLink(verificationToken);
-      await this.emailService.sendRecruiterEmailVerification({
-        to: account.email,
-        recruiterName: account.email,
-        verificationLink,
+      await Promise.resolve(
+        this.emailService.sendRecruiterEmailVerification({
+          to: account.email,
+          recruiterName: account.email,
+          verificationLink,
+        }),
+      ).catch((error) => {
+        this.logger.error(
+          `Failed to send recruiter verification email to ${account.email}`,
+          error instanceof Error ? error.stack : String(error),
+        );
       });
 
       // Không phát access/refresh token khi email chưa được xác thực —
@@ -237,10 +244,17 @@ export class RecruiterAuthService {
     const verificationLink = this.buildEmailVerificationLink(verificationToken);
 
     if (!account.emailVerifiedAt) {
-      await this.emailService.sendRecruiterEmailVerification({
-        to: account.email,
-        recruiterName: account.profile?.fullName,
-        verificationLink,
+      await Promise.resolve(
+        this.emailService.sendRecruiterEmailVerification({
+          to: account.email,
+          recruiterName: account.profile?.fullName,
+          verificationLink,
+        }),
+      ).catch((error) => {
+        this.logger.error(
+          `Failed to send recruiter verification email to ${account.email}`,
+          error instanceof Error ? error.stack : String(error),
+        );
       });
     }
 
@@ -279,10 +293,17 @@ export class RecruiterAuthService {
     const verificationLink = this.buildEmailVerificationLink(verificationToken);
 
     if (!account.emailVerifiedAt) {
-      await this.emailService.sendRecruiterEmailVerification({
-        to: account.email,
-        recruiterName: account.profile?.fullName,
-        verificationLink,
+      await Promise.resolve(
+        this.emailService.sendRecruiterEmailVerification({
+          to: account.email,
+          recruiterName: account.profile?.fullName,
+          verificationLink,
+        }),
+      ).catch((error) => {
+        this.logger.error(
+          `Failed to send recruiter verification email to ${account.email}`,
+          error instanceof Error ? error.stack : String(error),
+        );
       });
     }
 
@@ -387,11 +408,18 @@ export class RecruiterAuthService {
         role: ActorType.RECRUITER,
       });
 
-      await this.emailService.sendPasswordReset({
-        to: account.email,
-        resetLink: this.buildPasswordResetLink('recruiter', token, locale),
-        actor: 'recruiter',
-        locale,
+      await Promise.resolve(
+        this.emailService.sendPasswordReset({
+          to: account.email,
+          resetLink: this.buildPasswordResetLink('recruiter', token, locale),
+          actor: 'recruiter',
+          locale,
+        }),
+      ).catch((error) => {
+        this.logger.error(
+          `Failed to send recruiter password reset email to ${account.email}`,
+          error instanceof Error ? error.stack : String(error),
+        );
       });
     }
 

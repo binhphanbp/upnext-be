@@ -26,10 +26,21 @@ export class CompanySubscriptionsService {
       }
       targetCompanyId = dto.companyId;
     } else if (user.role === ActorType.RECRUITER) {
-      if (!user.companyId) {
-        throw new ForbiddenException('You are not associated with any company');
+      if (dto.companyId) {
+        targetCompanyId = dto.companyId;
+      } else if (user.companyId) {
+        targetCompanyId = user.companyId;
+      } else {
+        const account = await (transaction ?? this.prisma).recruiterAccount.findUnique({
+          where: { id: user.id },
+          select: { companyId: true },
+        });
+        if (account?.companyId) {
+          targetCompanyId = account.companyId;
+        } else {
+          throw new ForbiddenException('You are not associated with any company');
+        }
       }
-      targetCompanyId = user.companyId;
     } else {
       throw new ForbiddenException('Only admins and recruiters can subscribe to plans');
     }

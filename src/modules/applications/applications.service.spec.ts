@@ -7,6 +7,7 @@ import { ConversationLifecycleService } from '../conversations/services/conversa
 import { ApplicationTransitionPolicy } from './application-transition.policy';
 import { ActorType, ApplicationStatus, JobStatus, OfferResponse } from '@prisma/client';
 import { EmailService } from '../../common/email/email.service';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
@@ -53,7 +54,12 @@ describe('ApplicationsService', () => {
     $transaction: jest.fn((cb: (tx: unknown) => unknown) => cb(prismaMock)),
   };
 
+  const emailServiceMock = {
+    sendOfferLetter: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
+    emailServiceMock.sendOfferLetter.mockClear();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ApplicationsService,
@@ -82,9 +88,7 @@ describe('ApplicationsService', () => {
         },
         {
           provide: EmailService,
-          useValue: {
-            sendOfferLetter: jest.fn().mockResolvedValue(undefined),
-          },
+          useValue: emailServiceMock,
         },
       ],
     }).compile();
@@ -463,6 +467,73 @@ describe('ApplicationsService', () => {
         where: { id: 'job-post-id', ...revocationFilter },
         select: { id: true },
       });
+    });
+  });
+
+  describe('sending offer letter email', () => {
+    it('gửi email Thư mời nhận việc đầy đủ thông tin khi chuyển trạng thái sang OFFERED', async () => {
+      const user: AuthenticatedUser = {
+        id: 'recruiter-id',
+        email: 'recruiter@fpt.com',
+        role: ActorType.RECRUITER,
+        companyId: 'company-id',
+        permissions: ['applications:manage'],
+      };
+
+      const mockApp = {
+        id: 'app-id',
+        version: 1,
+        status: ApplicationStatus.INTERVIEWING,
+        jobPost: {
+          title: 'Senior Frontend Engineer',
+          companyId: 'company-id',
+          company: { name: 'FPT Software' },
+        },
+        assignments: [],
+        candidateProfile: {
+          candidateAccountId: 'cand-acc-id',
+          account: {
+            id: 'cand-acc-id',
+            email: 'candidate@gmail.com',
+            fullName: 'Nguyen Van A',
+          },
+        },
+      };
+
+      prismaMock.application.findUnique.mockResolvedValue(mockApp);
+      prismaMock.application.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.application.findUniqueOrThrow.mockResolvedValue({
+        ...mockApp,
+        status: ApplicationStatus.OFFERED,
+      });
+
+      const futureDate = new Date(Date.now() + 7 * 86_400_000).toISOString();
+
+      await service.updateStatus(user, 'app-id', {
+        status: ApplicationStatus.OFFERED,
+        offer: {
+          salaryOffer: '35.000.000 VNĐ',
+          startDate: '01/09/2026',
+          expiresAt: futureDate,
+          note: 'Chúc mừng bạn đã trúng tuyển!',
+          offerLetterUrl: 'https://cdn.upnext.vn/offer-1.pdf',
+          attachmentName: 'Offer_Letter.pdf',
+        },
+      });
+
+      expect(emailServiceMock.sendOfferLetter).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'candidate@gmail.com',
+          candidateName: 'Nguyen Van A',
+          jobTitle: 'Senior Frontend Engineer',
+          companyName: 'FPT Software',
+          salaryOffer: '35.000.000 VNĐ',
+          startDate: '01/09/2026',
+          offerNote: 'Chúc mừng bạn đã trúng tuyển!',
+          offerLetterUrl: 'https://cdn.upnext.vn/offer-1.pdf',
+          attachmentName: 'Offer_Letter.pdf',
+        }),
+      );
     });
   });
 });
