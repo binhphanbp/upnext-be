@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -33,6 +34,11 @@ import { CreateJobLocationDto } from '../job-locations/dto/create-job-location.d
 import { UpdateJobLocationDto } from '../job-locations/dto/update-job-location.dto';
 import { ReputationLedgerService } from '../reputation/reputation-ledger.service';
 import { REPUTATION_CONFIG } from '../reputation/reputation.config';
+import {
+  COMPANY_LICENSE_EXTRACTION_PROVIDER,
+  CompanyLicenseExtractionProviderPort,
+  CompanyLicenseFile,
+} from './ports/company-license-extraction-provider.port';
 
 /**
  * A company's current plan is its ACTIVE subscription that has not lapsed yet — a row
@@ -41,6 +47,48 @@ import { REPUTATION_CONFIG } from '../reputation/reputation.config';
 function activeSubscriptionWhere(now: Date): Prisma.CompanySubscriptionWhereInput {
   return { status: SubscriptionStatus.ACTIVE, expiredAt: { gt: now } };
 }
+
+/**
+ * Prompt and schema are carried over verbatim from the previous inline Gemini
+ * call so that moving the capability behind a port cannot change which fields
+ * onboarding reads off a licence. The schema keeps its legacy uppercase types
+ * and `nullable`; upnext-ai normalises those before reaching the provider.
+ */
+const LICENSE_SYSTEM_INSTRUCTION =
+  'Bạn đọc giấy phép kinh doanh và chỉ trả về JSON đúng schema. Không thêm giải thích.';
+
+const LICENSE_PROMPT = `Trích xuất đúng từ giấy phép/GCN đăng ký doanh nghiệp. Trả JSON ngắn.
+Rules:
+- Không suy đoán. Không thấy thì null.
+- city: tên tỉnh/thành phố cấp cao nhất, dùng dạng đầy đủ như "Thành phố Hồ Chí Minh", "Thành phố Hà Nội", "Tỉnh Bình Dương".
+- address: địa chỉ trụ sở KHÔNG lặp lại city ở cuối; giữ số nhà, đường, phường/xã, quận/huyện nếu có.
+- website: domain/URL thực tế nếu có, không tự tạo.
+Fields: name, taxCode, city, address, email, phone, website.`;
+
+const LICENSE_RESPONSE_SCHEMA: Record<string, unknown> = {
+  type: 'OBJECT',
+  properties: {
+    name: { type: 'STRING', description: 'Tên chính thức của doanh nghiệp/công ty' },
+    taxCode: { type: 'STRING', description: 'Mã số doanh nghiệp hoặc mã số thuế' },
+    city: {
+      type: 'STRING',
+      nullable: true,
+      description: 'Tỉnh/thành phố cấp cao nhất trong địa chỉ trụ sở',
+    },
+    address: {
+      type: 'STRING',
+      description: 'Địa chỉ trụ sở không bao gồm tỉnh/thành phố ở cuối',
+    },
+    email: { type: 'STRING', nullable: true, description: 'Địa chỉ email của công ty nếu có' },
+    phone: { type: 'STRING', nullable: true, description: 'Số điện thoại của công ty nếu có' },
+    website: {
+      type: 'STRING',
+      nullable: true,
+      description: 'Địa chỉ trang web (website) của công ty nếu có',
+    },
+  },
+  required: ['name', 'taxCode', 'address'],
+};
 
 const COMPANY_INFO_COMPLETION_ACTION_TYPE = 'COMPANY_INFO_COMPLETED';
 const COMPANY_INFO_REQUIRED_FIELDS = [
@@ -110,6 +158,8 @@ export class CompaniesService {
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
     private readonly reputationLedger: ReputationLedgerService,
+    @Inject(COMPANY_LICENSE_EXTRACTION_PROVIDER)
+    private readonly licenseExtraction: CompanyLicenseExtractionProviderPort,
   ) {}
 
   private readonly logger = new Logger(CompaniesService.name);
@@ -246,9 +296,7 @@ export class CompaniesService {
       ...(query.planId
         ? { subscriptions: { some: { ...activeSubscriptionWhere(now), planId: query.planId } } }
         : {}),
-      ...(query.plan === 'none'
-        ? { subscriptions: { none: activeSubscriptionWhere(now) } }
-        : {}),
+      ...(query.plan === 'none' ? { subscriptions: { none: activeSubscriptionWhere(now) } } : {}),
     };
 
     const [items, total] = await Promise.all([
@@ -645,111 +693,41 @@ export class CompaniesService {
     if (!file) {
       throw new BadRequestException('File is required');
     }
-
-    const apiKey = this.configService.get<string>('geminiApiKey')?.trim();
-    if (!apiKey) {
-      throw new BadRequestException('Gemini API key is not configured on the server');
+    if (!this.licenseExtraction.isConfigured()) {
+      throw new BadRequestException('Dịch vụ đọc giấy phép kinh doanh chưa được cấu hình');
     }
 
-    // Convert file buffer to base64
-    const base64Data = file.buffer.toString('base64');
-
-    const prompt = `Trích xuất đúng từ giấy phép/GCN đăng ký doanh nghiệp. Trả JSON ngắn.
-Rules:
-- Không suy đoán. Không thấy thì null.
-- city: tên tỉnh/thành phố cấp cao nhất, dùng dạng đầy đủ như "Thành phố Hồ Chí Minh", "Thành phố Hà Nội", "Tỉnh Bình Dương".
-- address: địa chỉ trụ sở KHÔNG lặp lại city ở cuối; giữ số nhà, đường, phường/xã, quận/huyện nếu có.
-- website: domain/URL thực tế nếu có, không tự tạo.
-Fields: name, taxCode, city, address, email, phone, website.`;
+    const mimeType = this.licenseMimeType(file.mimetype);
 
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    inlineData: {
-                      mimeType: file.mimetype,
-                      data: base64Data,
-                    },
-                  },
-                  {
-                    text: prompt,
-                  },
-                ],
-              },
-            ],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              responseSchema: {
-                type: 'OBJECT',
-                properties: {
-                  name: { type: 'STRING', description: 'Tên chính thức của doanh nghiệp/công ty' },
-                  taxCode: { type: 'STRING', description: 'Mã số doanh nghiệp hoặc mã số thuế' },
-                  city: {
-                    type: 'STRING',
-                    nullable: true,
-                    description: 'Tỉnh/thành phố cấp cao nhất trong địa chỉ trụ sở',
-                  },
-                  address: {
-                    type: 'STRING',
-                    description: 'Địa chỉ trụ sở không bao gồm tỉnh/thành phố ở cuối',
-                  },
-                  email: {
-                    type: 'STRING',
-                    nullable: true,
-                    description: 'Địa chỉ email của công ty nếu có',
-                  },
-                  phone: {
-                    type: 'STRING',
-                    nullable: true,
-                    description: 'Số điện thoại của công ty nếu có',
-                  },
-                  website: {
-                    type: 'STRING',
-                    nullable: true,
-                    description: 'Địa chỉ trang web (website) của công ty nếu có',
-                  },
-                },
-                required: ['name', 'taxCode', 'address'],
-              },
-            },
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
-      }
-
-      const responseData = (await response.json()) as {
-        candidates?: Array<{
-          content?: {
-            parts?: Array<{
-              text?: string;
-            }>;
-          };
-        }>;
-      };
-      const text = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!text) {
-        throw new Error('Failed to extract text from Gemini response');
-      }
-
-      return JSON.parse(text) as Record<string, unknown>;
+      const { value } = await this.licenseExtraction.extractStructured({
+        systemInstruction: LICENSE_SYSTEM_INSTRUCTION,
+        prompt: LICENSE_PROMPT,
+        responseSchema: LICENSE_RESPONSE_SCHEMA,
+        file: { mimeType, base64Data: file.buffer.toString('base64') },
+      });
+      return value as Record<string, unknown>;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new BadRequestException(`Không thể quét giấy phép kinh doanh: ${message}`);
+      // The provider message is an internal code (AI_*), not something a
+      // recruiter can act on, so it is logged rather than shown.
+      const code = error instanceof Error ? error.message : 'unknown';
+      this.logger.warn(`Business licence extraction failed (${code})`);
+      throw new BadRequestException(
+        'Không thể quét giấy phép kinh doanh. Vui lòng thử lại hoặc nhập thông tin thủ công.',
+      );
     }
+  }
+
+  /** Narrow the upload's mime type to what the extraction capability accepts. */
+  private licenseMimeType(mimetype: string): CompanyLicenseFile['mimeType'] {
+    const supported = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const;
+    const match = supported.find((candidate) => candidate === mimetype);
+    if (!match) {
+      throw new BadRequestException(
+        'Định dạng tệp không được hỗ trợ. Chấp nhận PDF, JPEG, PNG hoặc WEBP.',
+      );
+    }
+    return match;
   }
 
   async uploadBusinessLicense(id: string, file: UploadedFile, user: AuthenticatedUser) {
