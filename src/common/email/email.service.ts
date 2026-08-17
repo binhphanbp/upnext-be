@@ -294,6 +294,51 @@ export class EmailService {
     });
   }
 
+  /**
+   * One email per company per sweep, listing every posting announced in that batch.
+   *
+   * Grouping is the point: a company that publishes eight roles at once should cost a
+   * follower one email, not eight. The list is plain text rendered with `white-space:
+   * pre-line`, because `renderTemplate` escapes every value and therefore cannot build
+   * markup from a variable.
+   */
+  async sendFollowedCompanyJobs(params: {
+    to: string;
+    recipientName?: string | null;
+    companyName: string;
+    jobTitles: string[];
+    companyPath: string;
+  }) {
+    const jobCountLine =
+      params.jobTitles.length === 1
+        ? 'Có 1 vị trí mới phù hợp để bạn xem qua.'
+        : `Có ${params.jobTitles.length} vị trí mới phù hợp để bạn xem qua.`;
+
+    const html = this.renderTemplate('followed-company-jobs.html', {
+      recipientName: params.recipientName?.trim() || params.to,
+      companyName: params.companyName,
+      jobCountLine,
+      jobList: params.jobTitles.map((title) => `• ${title}`).join('\n'),
+      companyLink: this.resolveFrontendLink(params.companyPath),
+      sentDate: this.formatSentDate(),
+    });
+
+    await this.sendMail({
+      to: params.to,
+      subject: `[UpNext] ${params.companyName} vừa đăng ${params.jobTitles.length} tin tuyển dụng mới`,
+      text: `${params.companyName} vừa đăng tin mới: ${params.jobTitles.join(', ')}`,
+      html,
+      attachments: [
+        {
+          filename: 'upnext-logo.png',
+          path: this.resolveEmailAssetPath('upnext-logo.png'),
+          cid: 'upnext-logo',
+        },
+      ],
+      fallbackLog: `Followed-company job alert (${params.jobTitles.length}) "${params.companyName}" -> ${params.to}`,
+    });
+  }
+
   async sendInterviewReminder(params: {
     to: string;
     recipientName?: string | null;
