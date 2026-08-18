@@ -407,6 +407,7 @@ enum SubscriptionFeature {
   TALENT_CONTACT @map("talent_contact")
   AI_CV_MATCHING @map("ai_cv_matching")
   AI_JD_GENERATE @map("ai_jd_generate")
+  AI_COPILOT_RUN @map("ai_copilot_run")
   HR_SEAT        @map("hr_seat")
 }
 
@@ -492,6 +493,8 @@ model CandidateProfile {
   talentRecommendations TalentRecommendation[]
   talentContactRequests TalentContactRequest[]
   aiConversations       AIConversation[]
+  subscriptions         CandidateSubscription[]
+  subscriptionUsages    CandidateSubscriptionUsage[]
 
   @@index([jobSearchStatus])
   @@index([profileVisibility])
@@ -1792,10 +1795,11 @@ model SubscriptionPlan {
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  createdByAdmin       AdminUser?            @relation("SubscriptionPlanCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: SetNull)
-  companySubscriptions CompanySubscription[]
-  invoices             Invoice[]
-  features             PlanFeature[]
+  createdByAdmin         AdminUser?              @relation("SubscriptionPlanCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  companySubscriptions   CompanySubscription[]
+  candidateSubscriptions CandidateSubscription[]
+  invoices               Invoice[]
+  features               PlanFeature[]
 
   @@index([audience, isPublic, status])
   @@map("subscription_plans")
@@ -1849,6 +1853,78 @@ model CompanySubscription {
   @@index([companyId, status])
   @@index([expiredAt])
   @@map("company_subscriptions")
+}
+
+/// Candidate entitlement. Recruiter and candidate subscriptions share the
+/// plan catalogue and feature definitions, but keep their owner records and
+/// ledgers separate so that billing, privacy and access rules cannot leak
+/// across audiences.
+model CandidateSubscription {
+  id                 String             @id @default(uuid()) @db.Uuid
+  planId             String             @map("plan_id") @db.Uuid
+  candidateProfileId String             @map("candidate_profile_id") @db.Uuid
+  startedAt          DateTime           @default(now()) @map("started_at")
+  expiredAt          DateTime           @map("expired_at")
+  currentPeriodStart DateTime?          @map("current_period_start")
+  currentPeriodEnd   DateTime?          @map("current_period_end")
+  status             SubscriptionStatus @default(ACTIVE)
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  plan             SubscriptionPlan                    @relation(fields: [planId], references: [id], onDelete: Restrict)
+  candidateProfile CandidateProfile                    @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  usages           CandidateSubscriptionUsage[]
+  quotaCounters    CandidateSubscriptionQuotaCounter[]
+
+  @@index([candidateProfileId, status])
+  @@index([expiredAt])
+  @@map("candidate_subscriptions")
+}
+
+/// Per-period materialised counter for a candidate entitlement. The same
+/// conditional-update approach as recruiter quota counters keeps concurrent
+/// Copilot requests from overspending a limited allowance.
+model CandidateSubscriptionQuotaCounter {
+  id                      String              @id @default(uuid()) @db.Uuid
+  candidateSubscriptionId String              @map("candidate_subscription_id") @db.Uuid
+  feature                 SubscriptionFeature
+  limitValue              Int?                @map("limit_value")
+  usedValue               Int                 @default(0) @map("used_value")
+  periodStart             DateTime            @map("period_start")
+  periodEnd               DateTime            @map("period_end")
+  createdAt               DateTime            @default(now()) @map("created_at")
+  updatedAt               DateTime            @updatedAt @map("updated_at")
+
+  candidateSubscription CandidateSubscription @relation(fields: [candidateSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateSubscriptionId, feature, periodStart])
+  @@index([candidateSubscriptionId, feature])
+  @@map("candidate_subscription_quota_counters")
+}
+
+/// Immutable candidate usage ledger. A reversal is linked to its original
+/// consume row, making retries and failed AI runs auditable and idempotent.
+model CandidateSubscriptionUsage {
+  id                      String                     @id @default(uuid()) @db.Uuid
+  candidateSubscriptionId String                     @map("candidate_subscription_id") @db.Uuid
+  candidateProfileId      String                     @map("candidate_profile_id") @db.Uuid
+  feature                 SubscriptionFeature
+  quantity                Int
+  direction               SubscriptionUsageDirection
+  referenceType           String                     @map("reference_type") @db.VarChar(80)
+  referenceId             String                     @map("reference_id") @db.Uuid
+  idempotencyKey          String                     @unique @map("idempotency_key") @db.VarChar(180)
+  reversedUsageId         String?                    @unique @map("reversed_usage_id") @db.Uuid
+  createdAt               DateTime                   @default(now()) @map("created_at")
+
+  candidateSubscription CandidateSubscription       @relation(fields: [candidateSubscriptionId], references: [id], onDelete: Restrict)
+  candidateProfile      CandidateProfile            @relation(fields: [candidateProfileId], references: [id], onDelete: Restrict)
+  reversedUsage         CandidateSubscriptionUsage? @relation("CandidateSubscriptionUsageReversal", fields: [reversedUsageId], references: [id], onDelete: SetNull)
+  reversal              CandidateSubscriptionUsage? @relation("CandidateSubscriptionUsageReversal")
+
+  @@index([candidateProfileId, feature, createdAt])
+  @@index([candidateSubscriptionId, feature, createdAt])
+  @@map("candidate_subscription_usages")
 }
 
 /// Materialised per-period counter. Quota is consumed with a conditional

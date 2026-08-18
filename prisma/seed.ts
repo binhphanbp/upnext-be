@@ -20,11 +20,13 @@ import {
   ModerationStatus,
   PostStatus,
   PostType,
+  PlanAudience,
   Prisma,
   PrismaClient,
   ProfileVisibility,
   SalaryPeriod,
   SkillPriority,
+  SubscriptionFeature,
   WorkingModel,
 } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -2423,7 +2425,96 @@ async function main() {
         createdByAdminId: adminUser.id,
       },
     }),
+    candidateFree: await prisma.subscriptionPlan.upsert({
+      where: { code: 'CANDIDATE_FREE' },
+      update: {
+        audience: PlanAudience.CANDIDATE,
+        subscriptionName: 'Candidate Free',
+        price: new Prisma.Decimal(0),
+        description: 'Gói cơ bản để ứng viên trải nghiệm trợ lý nghề nghiệp AI.',
+        durationDays: 30,
+        status: 'ACTIVE',
+        isPublic: false,
+        sortOrder: 10,
+        createdByAdminId: adminUser.id,
+      },
+      create: {
+        code: 'CANDIDATE_FREE',
+        audience: PlanAudience.CANDIDATE,
+        subscriptionName: 'Candidate Free',
+        price: new Prisma.Decimal(0),
+        description: 'Gói cơ bản để ứng viên trải nghiệm trợ lý nghề nghiệp AI.',
+        durationDays: 30,
+        status: 'ACTIVE',
+        isPublic: false,
+        sortOrder: 10,
+        createdByAdminId: adminUser.id,
+      },
+    }),
+    candidatePro: await prisma.subscriptionPlan.upsert({
+      where: { code: 'CANDIDATE_PRO' },
+      update: {
+        audience: PlanAudience.CANDIDATE,
+        subscriptionName: 'Candidate Pro',
+        price: new Prisma.Decimal(99000),
+        description: 'Gói nâng cao với nhiều lượt trợ lý AI hơn trong mỗi chu kỳ.',
+        durationDays: 30,
+        status: 'ACTIVE',
+        isPublic: false,
+        highlightLabel: 'Sắp ra mắt',
+        sortOrder: 20,
+        createdByAdminId: adminUser.id,
+      },
+      create: {
+        code: 'CANDIDATE_PRO',
+        audience: PlanAudience.CANDIDATE,
+        subscriptionName: 'Candidate Pro',
+        price: new Prisma.Decimal(99000),
+        description: 'Gói nâng cao với nhiều lượt trợ lý AI hơn trong mỗi chu kỳ.',
+        durationDays: 30,
+        status: 'ACTIVE',
+        isPublic: false,
+        highlightLabel: 'Sắp ra mắt',
+        sortOrder: 20,
+        createdByAdminId: adminUser.id,
+      },
+    }),
   };
+
+  // Quota policy belongs to the plan catalogue, not to Copilot code. Adding a
+  // future candidate AI capability therefore only needs a PlanFeature row.
+  await Promise.all([
+    prisma.planFeature.upsert({
+      where: {
+        planId_feature: {
+          planId: plans.candidateFree.id,
+          feature: SubscriptionFeature.AI_COPILOT_RUN,
+        },
+      },
+      update: { enabled: true, limitValue: 10 },
+      create: {
+        planId: plans.candidateFree.id,
+        feature: SubscriptionFeature.AI_COPILOT_RUN,
+        enabled: true,
+        limitValue: 10,
+      },
+    }),
+    prisma.planFeature.upsert({
+      where: {
+        planId_feature: {
+          planId: plans.candidatePro.id,
+          feature: SubscriptionFeature.AI_COPILOT_RUN,
+        },
+      },
+      update: { enabled: true, limitValue: 100 },
+      create: {
+        planId: plans.candidatePro.id,
+        feature: SubscriptionFeature.AI_COPILOT_RUN,
+        enabled: true,
+        limitValue: 100,
+      },
+    }),
+  ]);
 
   const permissionsList = [
     {
