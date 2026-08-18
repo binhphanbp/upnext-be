@@ -1,13 +1,15 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { FeatureGuard } from './feature.guard';
+import { CandidateSubscriptionController } from './candidate-subscription.controller';
+import { CandidateSubscriptionQuotaService } from './candidate-subscription-quota.service';
 import { SubscriptionQuotaController } from './subscription-quota.controller';
 import { SubscriptionQuotaService } from './subscription-quota.service';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [SubscriptionQuotaController],
-  providers: [SubscriptionQuotaService, FeatureGuard],
-  exports: [SubscriptionQuotaService, FeatureGuard],
+  controllers: [SubscriptionQuotaController, CandidateSubscriptionController],
+  providers: [SubscriptionQuotaService, CandidateSubscriptionQuotaService, FeatureGuard],
+  exports: [SubscriptionQuotaService, CandidateSubscriptionQuotaService, FeatureGuard],
 })
 export class SubscriptionsModule {}
