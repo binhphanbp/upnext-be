@@ -440,6 +440,36 @@ export class ApplicationsService {
                 email: true,
               },
             },
+            // Ứng viên xem đơn của chính mình không cần các trường này (đã biết
+            // hồ sơ mình), nhưng recruiter cần đủ thông tin này để xem "Chi tiết
+            // hồ sơ ứng viên" (không chỉ CV) — cùng include cho cả 2 nhánh vì đơn
+            // giản, không có rủi ro lộ dữ liệu (đây là hồ sơ ứng viên tự khai khi
+            // ứng tuyển, recruiter đã có quyền xem đơn này).
+            educations: {
+              orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
+            },
+            experiences: {
+              orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
+            },
+            skills: {
+              include: { skill: true },
+              orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+            },
+            projects: {
+              orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { createdAt: 'desc' }],
+            },
+            certifications: {
+              orderBy: [{ sortOrder: 'asc' }, { issuedDate: 'desc' }, { createdAt: 'desc' }],
+            },
+            languages: {
+              orderBy: [{ language: 'asc' }],
+            },
+            links: {
+              orderBy: [{ type: 'asc' }, { createdAt: 'desc' }],
+            },
+            jobPreference: {
+              include: { desiredLevel: true },
+            },
           },
         },
         jobPost: {
@@ -1527,6 +1557,19 @@ export class ApplicationsService {
         })
         .catch((err) => {
           console.error('Failed to send offer letter email:', err);
+        });
+    }
+
+    if (status === ApplicationStatus.REJECTED && recipientEmail) {
+      void this.emailService
+        .sendApplicationRejected({
+          to: recipientEmail,
+          candidateName: recipientName,
+          jobTitle: application.jobPost.title,
+          companyName: application.jobPost.company?.name ?? 'UpNext Employer',
+        })
+        .catch((err) => {
+          console.error('Failed to send application rejected email:', err);
         });
     }
 

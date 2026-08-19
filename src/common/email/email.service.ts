@@ -459,6 +459,79 @@ export class EmailService {
     });
   }
 
+  /** The candidate learns their application was not selected for this job post. */
+  async sendApplicationRejected(params: {
+    to: string;
+    candidateName?: string | null;
+    jobTitle: string;
+    companyName: string;
+  }) {
+    await this.sendModerationNotice({
+      to: params.to,
+      subject: `[UpNext] Kết quả ứng tuyển vị trí ${params.jobTitle}`,
+      text: `Cảm ơn bạn đã ứng tuyển vị trí ${params.jobTitle} tại ${params.companyName}. Hồ sơ của bạn chưa phù hợp với vị trí này ở thời điểm hiện tại.`,
+      title: 'Kết quả ứng tuyển',
+      subtitle: `Cập nhật về đơn ứng tuyển của bạn tại ${params.companyName}.`,
+      recipientName: params.candidateName?.trim() || params.to,
+      message:
+        `Cảm ơn bạn đã quan tâm và dành thời gian ứng tuyển. Sau khi xem xét, ${params.companyName} ` +
+        'nhận thấy hồ sơ của bạn chưa phù hợp với vị trí này ở thời điểm hiện tại. ' +
+        'Đừng ngần ngại tiếp tục ứng tuyển các vị trí khác phù hợp hơn trên UpNext.',
+      details: [
+        { label: 'Vị trí ứng tuyển', value: params.jobTitle },
+        { label: 'Doanh nghiệp', value: params.companyName },
+      ],
+      ctaLabel: 'XEM CÁC TIN TUYỂN DỤNG KHÁC',
+      ctaLink: this.resolveFrontendLink('/jobs'),
+      footerNote: 'Email tự động gửi từ hệ thống tuyển dụng UpNext.',
+      accent: 'negative',
+    });
+  }
+
+  /**
+   * Sent once, right when a recruiter schedules the interview — distinct from
+   * `sendInterviewReminder`, which fires ~1 hour before the scheduled time.
+   */
+  async sendInterviewInvitation(params: {
+    to: string;
+    candidateName?: string | null;
+    jobTitle: string;
+    companyName: string;
+    scheduledStartAt: Date;
+    interviewType: 'ONLINE' | 'ONSITE';
+    meetingUrl?: string | null;
+    location?: string | null;
+    applicationLink: string;
+  }) {
+    const scheduledTime = new Intl.DateTimeFormat('vi-VN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(params.scheduledStartAt);
+    const isOnline = params.interviewType === 'ONLINE';
+    const locationOrMeetingValue = isOnline
+      ? params.meetingUrl || 'Sẽ được cập nhật trước buổi phỏng vấn'
+      : params.location || 'Sẽ được cập nhật trước buổi phỏng vấn';
+
+    await this.sendModerationNotice({
+      to: params.to,
+      subject: `[UpNext] Lời mời phỏng vấn - ${params.jobTitle}`,
+      text: `Bạn có lịch phỏng vấn vị trí ${params.jobTitle} tại ${params.companyName} vào ${scheduledTime}.`,
+      title: 'Lời mời phỏng vấn',
+      subtitle: `${params.companyName} đã lên lịch phỏng vấn với bạn.`,
+      recipientName: params.candidateName?.trim() || params.to,
+      message: `Chúc mừng! ${params.companyName} muốn trao đổi trực tiếp với bạn về vị trí ${params.jobTitle}. Vui lòng xem chi tiết lịch hẹn dưới đây.`,
+      details: [
+        { label: 'Vị trí ứng tuyển', value: params.jobTitle },
+        { label: 'Thời gian', value: scheduledTime },
+        { label: isOnline ? 'Link tham gia' : 'Địa điểm', value: locationOrMeetingValue },
+      ],
+      ctaLabel: 'XEM CHI TIẾT LỊCH PHỎNG VẤN',
+      ctaLink: params.applicationLink,
+      footerNote: 'Email tự động gửi từ hệ thống tuyển dụng UpNext.',
+      accent: 'positive',
+    });
+  }
+
   /**
    * Every moderation notification (report / appeal, to admin / reporter / affected party)
    * shares one template — they differ only in wording, so a file each would be six copies

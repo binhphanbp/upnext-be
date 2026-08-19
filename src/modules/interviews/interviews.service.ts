@@ -14,6 +14,7 @@ import { UpdateInterviewResultDto } from './dto/update-interview-result.dto';
 import { recruiterAccessibleJobPostFilter } from '../../common/authorization/job-post-access';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ConversationLifecycleService } from '../conversations/services/conversation-lifecycle.service';
+import { EmailService } from '../../common/email/email.service';
 
 @Injectable()
 export class InterviewsService {
@@ -21,6 +22,7 @@ export class InterviewsService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
     private readonly conversationLifecycle: ConversationLifecycleService,
+    private readonly emailService: EmailService,
   ) {}
 
   async create(dto: CreateInterviewDto, user: AuthenticatedUser) {
@@ -42,7 +44,7 @@ export class InterviewsService {
     const application = await this.prisma.application.findUnique({
       where: { id: dto.applicationId },
       include: {
-        jobPost: true,
+        jobPost: { include: { company: { select: { name: true } } } },
         assignments: {
           where: { unassignedAt: null },
           select: { recruiterAccountId: true },
@@ -50,6 +52,7 @@ export class InterviewsService {
         candidateProfile: {
           select: {
             candidateAccountId: true,
+            account: { select: { email: true, fullName: true } },
           },
         },
       },
@@ -202,6 +205,27 @@ export class InterviewsService {
           targetId: interview.id,
         })
         .catch(() => {});
+    }
+
+    // Thư mời gửi ngay lúc đặt lịch — khác với sendInterviewReminder (nhắc lại
+    // ~1 giờ trước giờ hẹn, chạy ở interview-reminders.service.ts theo cron).
+    const recipientEmail = application.candidateProfile?.account?.email;
+    if (recipientEmail) {
+      void this.emailService
+        .sendInterviewInvitation({
+          to: recipientEmail,
+          candidateName: application.candidateProfile?.account?.fullName,
+          jobTitle: application.jobPost.title,
+          companyName: application.jobPost.company?.name ?? 'UpNext Employer',
+          scheduledStartAt: interview.scheduledStartAt,
+          interviewType: interview.type,
+          meetingUrl: interview.meetingUrl,
+          location: interview.location,
+          applicationLink: `${process.env.APP_FRONTEND_URL || 'http://localhost:3000'}/vi/candidate/applications/${dto.applicationId}`,
+        })
+        .catch((err) => {
+          console.error('Failed to send interview invitation email:', err);
+        });
     }
 
     return interview;
