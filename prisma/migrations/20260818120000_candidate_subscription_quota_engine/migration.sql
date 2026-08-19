@@ -14,7 +14,7 @@ CREATE TABLE "candidate_subscriptions" (
     "expired_at" TIMESTAMP(3) NOT NULL,
     "current_period_start" TIMESTAMP(3),
     "current_period_end" TIMESTAMP(3),
-    "status" "SubscriptionStatus" NOT NULL DEFAULT 'ACTIVE',
+    "status" "SubscriptionStatus" NOT NULL DEFAULT 'active',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -58,17 +58,17 @@ CREATE INDEX "candidate_subscriptions_candidate_profile_id_status_idx"
   ON "candidate_subscriptions"("candidate_profile_id", "status");
 CREATE INDEX "candidate_subscriptions_expired_at_idx"
   ON "candidate_subscriptions"("expired_at");
-CREATE INDEX "candidate_subscription_quota_counters_candidate_subscription_id_feature_idx"
+CREATE INDEX "candidate_sub_quota_counter_subscription_feature_idx"
   ON "candidate_subscription_quota_counters"("candidate_subscription_id", "feature");
-CREATE UNIQUE INDEX "candidate_subscription_quota_counters_candidate_subscription_id_feature_period_start_key"
+CREATE UNIQUE INDEX "candidate_sub_quota_counter_period_uq"
   ON "candidate_subscription_quota_counters"("candidate_subscription_id", "feature", "period_start");
-CREATE UNIQUE INDEX "candidate_subscription_usages_idempotency_key_key"
+CREATE UNIQUE INDEX "candidate_sub_usage_idempotency_key_uq"
   ON "candidate_subscription_usages"("idempotency_key");
-CREATE UNIQUE INDEX "candidate_subscription_usages_reversed_usage_id_key"
+CREATE UNIQUE INDEX "candidate_sub_usage_reversed_usage_id_uq"
   ON "candidate_subscription_usages"("reversed_usage_id");
-CREATE INDEX "candidate_subscription_usages_candidate_profile_id_feature_created_at_idx"
+CREATE INDEX "candidate_sub_usage_profile_feature_created_idx"
   ON "candidate_subscription_usages"("candidate_profile_id", "feature", "created_at");
-CREATE INDEX "candidate_subscription_usages_candidate_subscription_id_feature_created_at_idx"
+CREATE INDEX "candidate_sub_usage_subscription_feature_created_idx"
   ON "candidate_subscription_usages"("candidate_subscription_id", "feature", "created_at");
 
 -- AddForeignKey

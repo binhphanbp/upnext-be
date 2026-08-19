@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubscribeCompanyDto } from './dto/subscribe-company.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { ActorType, Prisma, SubscriptionStatus } from '@prisma/client';
+import { ActorType, PlanAudience, Prisma, SubscriptionStatus } from '@prisma/client';
 
 @Injectable()
 export class CompanySubscriptionsService {
@@ -18,32 +18,13 @@ export class CompanySubscriptionsService {
     dto: SubscribeCompanyDto,
     transaction?: Prisma.TransactionClient,
   ) {
-    let targetCompanyId: string;
-
-    if (user.role === ActorType.ADMIN) {
-      if (!dto.companyId) {
-        throw new BadRequestException('companyId is required for admin');
-      }
-      targetCompanyId = dto.companyId;
-    } else if (user.role === ActorType.RECRUITER) {
-      if (dto.companyId) {
-        targetCompanyId = dto.companyId;
-      } else if (user.companyId) {
-        targetCompanyId = user.companyId;
-      } else {
-        const account = await (transaction ?? this.prisma).recruiterAccount.findUnique({
-          where: { id: user.id },
-          select: { companyId: true },
-        });
-        if (account?.companyId) {
-          targetCompanyId = account.companyId;
-        } else {
-          throw new ForbiddenException('You are not associated with any company');
-        }
-      }
-    } else {
-      throw new ForbiddenException('Only admins and recruiters can subscribe to plans');
+    if (user.role !== ActorType.ADMIN) {
+      throw new ForbiddenException('Only administrators can grant a subscription manually');
     }
+    if (!dto.companyId) {
+      throw new BadRequestException('companyId is required for admin');
+    }
+    const targetCompanyId = dto.companyId;
 
     const client = transaction ?? this.prisma;
     const company = await client.company.findUnique({ where: { id: targetCompanyId } });
@@ -56,6 +37,9 @@ export class CompanySubscriptionsService {
     if (!plan) throw new NotFoundException('Subscription plan not found');
     if (plan.status !== SubscriptionStatus.ACTIVE) {
       throw new BadRequestException('This subscription plan is not active');
+    }
+    if (plan.audience !== PlanAudience.RECRUITER) {
+      throw new BadRequestException('This plan is not available for recruiters');
     }
 
     const now = new Date();
@@ -83,6 +67,15 @@ export class CompanySubscriptionsService {
           expiredAt: expiredAt,
           currentPeriodStart: now,
           currentPeriodEnd: expiredAt,
+          source: 'ADMIN_GRANT',
+          planSnapshot: {
+            code: plan.code,
+            name: plan.subscriptionName,
+            audience: plan.audience,
+            price: plan.price.toString(),
+            currency: 'VND',
+            durationDays: plan.durationDays,
+          },
           status: SubscriptionStatus.ACTIVE,
         },
         include: {

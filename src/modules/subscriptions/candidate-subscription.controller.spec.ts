@@ -5,6 +5,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { PrismaService } from '../../prisma/prisma.service';
 import { CandidateSubscriptionController } from './candidate-subscription.controller';
 import { CandidateSubscriptionQuotaService } from './candidate-subscription-quota.service';
+import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 
 describe('CandidateSubscriptionController', () => {
   const prisma = {
@@ -13,6 +14,11 @@ describe('CandidateSubscriptionController', () => {
   const quota = {
     activePlan: jest.fn(),
     peek: jest.fn(),
+  };
+  const lifecycle = {
+    candidateSandboxCheckout: jest.fn(),
+    requestCandidateCancellation: jest.fn(),
+    revokeCandidateCancellation: jest.fn(),
   };
   const user: AuthenticatedUser = {
     id: 'candidate-account-1',
@@ -29,6 +35,7 @@ describe('CandidateSubscriptionController', () => {
       providers: [
         { provide: PrismaService, useValue: prisma },
         { provide: CandidateSubscriptionQuotaService, useValue: quota },
+        { provide: SubscriptionLifecycleService, useValue: lifecycle },
       ],
     }).compile();
     controller = module.get(CandidateSubscriptionController);

@@ -30,6 +30,8 @@ function buildMockPrisma() {
   return {
     candidateSubscription: {
       findFirst: jest.fn().mockResolvedValue(activeSubscription),
+      findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findUniqueOrThrow: jest
         .fn()
         .mockResolvedValue({ ...activeSubscription, plan: { code: 'CANDIDATE_FREE' } }),
@@ -64,6 +66,7 @@ function buildMockPrisma() {
         .fn()
         .mockImplementation(({ data }: { data: object }) => ({ id: 'candidate-usage-1', ...data })),
     },
+    subscriptionLifecycleEvent: { create: jest.fn() },
   };
 }
 
@@ -137,6 +140,43 @@ describe('CandidateSubscriptionQuotaService', () => {
 
     expect(prisma.candidateSubscription.create).toHaveBeenCalled();
     expect(prisma.candidateSubscriptionQuotaCounter.createMany).toHaveBeenCalled();
+  });
+
+  it('expires a lapsed plan before it provisions the configured Free plan', async () => {
+    const expired = {
+      id: 'expired-candidate-subscription',
+      planId: 'candidate-pro',
+      cancelAtPeriodEnd: true,
+    };
+    prisma.candidateSubscription.findMany.mockResolvedValue([expired]);
+    prisma.candidateSubscription.findFirst.mockResolvedValue(null);
+    prisma.subscriptionPlan.findFirst.mockResolvedValue({
+      id: 'candidate-free',
+      code: 'CANDIDATE_FREE',
+      durationDays: 30,
+      features: [],
+    });
+    prisma.candidateSubscription.create.mockResolvedValue({
+      ...activeSubscription,
+      planId: 'candidate-free',
+    });
+
+    await service.consume(asTx(prisma), consumeInput);
+
+    expect(prisma.candidateSubscription.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: expired.id }),
+        data: { status: 'CANCELLED' },
+      }),
+    );
+    expect(prisma.subscriptionLifecycleEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: 'SUBSCRIPTION_CANCELLED',
+          subscriptionPlanId: 'candidate-pro',
+        }),
+      }),
+    );
   });
 
   it('reverses a failed AI run once and restores only the charged amount', async () => {

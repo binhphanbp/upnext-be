@@ -287,6 +287,7 @@ export class SubscriptionQuotaService {
         expiredAt,
         currentPeriodStart: now,
         currentPeriodEnd: expiredAt,
+        source: 'FREE_PROVISION',
         status: SubscriptionStatus.ACTIVE,
       },
     });
@@ -310,6 +311,7 @@ export class SubscriptionQuotaService {
   }
 
   private async resolveActiveSubscription(client: PrismaClientLike, companyId: string) {
+    await this.reconcileExpiredSubscriptions(client, companyId);
     const subscription = await client.companySubscription.findFirst({
       where: {
         companyId,
@@ -324,6 +326,48 @@ export class SubscriptionQuotaService {
     }
 
     return subscription;
+  }
+
+  /**
+   * Keep the persisted lifecycle state truthful at the same boundary where
+   * entitlement is checked.  Relying only on `expiredAt` in a query makes the
+   * UI/history report an old plan as ACTIVE forever; a background job can be
+   * added later for reporting, but access must not depend on it.
+   */
+  private async reconcileExpiredSubscriptions(client: PrismaClientLike, companyId: string) {
+    const now = new Date();
+    const expired = await client.companySubscription.findMany({
+      where: {
+        companyId,
+        status: SubscriptionStatus.ACTIVE,
+        expiredAt: { lte: now },
+      },
+      select: { id: true, planId: true, cancelAtPeriodEnd: true },
+    });
+
+    for (const subscription of expired) {
+      const status = subscription.cancelAtPeriodEnd
+        ? SubscriptionStatus.CANCELLED
+        : SubscriptionStatus.EXPIRED;
+      const updated = await client.companySubscription.updateMany({
+        where: { id: subscription.id, status: SubscriptionStatus.ACTIVE, expiredAt: { lte: now } },
+        data: { status },
+      });
+      if (!updated.count) continue;
+
+      await client.subscriptionLifecycleEvent.create({
+        data: {
+          audience: PlanAudience.RECRUITER,
+          ownerId: companyId,
+          eventType:
+            status === SubscriptionStatus.CANCELLED
+              ? 'SUBSCRIPTION_CANCELLED'
+              : 'SUBSCRIPTION_EXPIRED',
+          subscriptionPlanId: subscription.planId,
+          metadata: { subscriptionId: subscription.id, effectiveAt: now.toISOString() },
+        },
+      });
+    }
   }
 
   /**

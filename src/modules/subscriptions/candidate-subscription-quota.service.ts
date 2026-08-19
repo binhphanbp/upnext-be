@@ -221,6 +221,7 @@ export class CandidateSubscriptionQuotaService {
         expiredAt,
         currentPeriodStart: startedAt,
         currentPeriodEnd: expiredAt,
+        source: 'FREE_PROVISION',
         status: SubscriptionStatus.ACTIVE,
       },
     });
@@ -240,6 +241,7 @@ export class CandidateSubscriptionQuotaService {
   }
 
   private async resolveActiveSubscription(client: PrismaClientLike, candidateProfileId: string) {
+    await this.reconcileExpiredSubscriptions(client, candidateProfileId);
     const subscription = await client.candidateSubscription.findFirst({
       where: {
         candidateProfileId,
@@ -249,6 +251,54 @@ export class CandidateSubscriptionQuotaService {
       orderBy: { startedAt: 'desc' },
     });
     return subscription ?? this.provisionFreeSubscription(client, candidateProfileId);
+  }
+
+  /**
+   * Expiry is evaluated at the entitlement boundary instead of relying on a
+   * background scheduler. This means a plan cannot keep granting allowance
+   * after its period ends, even if the scheduler is temporarily unavailable.
+   *
+   * A cancellation request takes effect only at period end. The update is
+   * conditional so concurrent requests can never append duplicate lifecycle
+   * evidence for the same subscription.
+   */
+  private async reconcileExpiredSubscriptions(
+    client: PrismaClientLike,
+    candidateProfileId: string,
+  ) {
+    const now = new Date();
+    const expired = await client.candidateSubscription.findMany({
+      where: {
+        candidateProfileId,
+        status: SubscriptionStatus.ACTIVE,
+        expiredAt: { lte: now },
+      },
+      select: { id: true, planId: true, cancelAtPeriodEnd: true },
+    });
+
+    for (const subscription of expired) {
+      const status = subscription.cancelAtPeriodEnd
+        ? SubscriptionStatus.CANCELLED
+        : SubscriptionStatus.EXPIRED;
+      const result = await client.candidateSubscription.updateMany({
+        where: { id: subscription.id, status: SubscriptionStatus.ACTIVE, expiredAt: { lte: now } },
+        data: { status },
+      });
+      if (!result.count) continue;
+
+      await client.subscriptionLifecycleEvent.create({
+        data: {
+          audience: PlanAudience.CANDIDATE,
+          ownerId: candidateProfileId,
+          eventType:
+            status === SubscriptionStatus.CANCELLED
+              ? 'SUBSCRIPTION_CANCELLED'
+              : 'SUBSCRIPTION_EXPIRED',
+          subscriptionPlanId: subscription.planId,
+          metadata: { subscriptionId: subscription.id, effectiveAt: now.toISOString() },
+        },
+      });
+    }
   }
 
   private async getOrCreateCounter(

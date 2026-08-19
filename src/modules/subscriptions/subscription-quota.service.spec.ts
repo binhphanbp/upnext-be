@@ -24,6 +24,8 @@ function buildMockPrisma() {
   const mock = {
     companySubscription: {
       findFirst: jest.fn().mockResolvedValue(activeSubscription),
+      findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       create: jest.fn(),
     },
     subscriptionPlan: { findFirst: jest.fn() },
@@ -55,6 +57,7 @@ function buildMockPrisma() {
         .fn()
         .mockImplementation(({ data }: any) => Promise.resolve({ id: 'usage-1', ...data })),
     },
+    subscriptionLifecycleEvent: { create: jest.fn() },
   };
   return mock;
 }
@@ -80,6 +83,21 @@ describe('SubscriptionQuotaService', () => {
   });
 
   describe('consume', () => {
+    it('marks a lapsed recruiter plan before resolving the current entitlement', async () => {
+      prisma.companySubscription.findMany.mockResolvedValue([
+        { id: 'sub-expired', planId: 'plan-expired', cancelAtPeriodEnd: false },
+      ]);
+
+      await service.consume(asTx(prisma), consumeInput);
+
+      expect(prisma.companySubscription.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'EXPIRED' } }),
+      );
+      expect(prisma.subscriptionLifecycleEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ audience: 'RECRUITER' }) }),
+      );
+    });
+
     it('consumes quota and writes a CONSUME ledger entry', async () => {
       const result = await service.consume(asTx(prisma), consumeInput);
 
