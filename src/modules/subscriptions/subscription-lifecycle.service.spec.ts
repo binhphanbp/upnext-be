@@ -245,4 +245,95 @@ describe('SubscriptionLifecycleService', () => {
       }),
     );
   });
+
+  // Mỗi checkout thành công tạo một hàng subscription mới với bộ đếm về 0.  Đó là
+  // hành vi đúng khi đi lên từ gói Free, và là một cách reset hạn mức nếu người dùng
+  // đang ở gói trả phí.  `idempotencyKey` không chặn được: hai key khác nhau cho cùng
+  // một gói là hai checkout hợp lệ.  Bốn test dưới đây khóa đúng ranh giới đó.
+  describe('không cho mua lại gói trả phí để reset hạn mức', () => {
+    function activePaidPlan(planId: string) {
+      return { planId, plan: { price: { toString: () => '99000' } } };
+    }
+
+    it('từ chối mua lại đúng gói đang dùng, và không ghi gì cả', async () => {
+      const prisma = buildPrisma();
+      prisma.tx.candidateSubscription.findFirst.mockResolvedValue(activePaidPlan(dto.planId));
+      const service = new SubscriptionLifecycleService(
+        prisma as unknown as PrismaService,
+        { get: jest.fn().mockReturnValue(true) } as unknown as ConfigService,
+      );
+
+      await expect(service.candidateSandboxCheckout('profile-1', actor, dto)).rejects.toMatchObject(
+        { response: { code: 'SUBSCRIPTION_ALREADY_ACTIVE' } },
+      );
+      expect(prisma.tx.candidateSubscription.updateMany).not.toHaveBeenCalled();
+      expect(prisma.tx.candidateSubscription.create).not.toHaveBeenCalled();
+      expect(prisma.tx.candidateSubscriptionQuotaCounter.createMany).not.toHaveBeenCalled();
+    });
+
+    it('từ chối đổi sang gói trả phí khác giữa chu kỳ', async () => {
+      const prisma = buildPrisma();
+      prisma.tx.candidateSubscription.findFirst.mockResolvedValue(
+        activePaidPlan('99999999-9999-9999-9999-999999999999'),
+      );
+      const service = new SubscriptionLifecycleService(
+        prisma as unknown as PrismaService,
+        { get: jest.fn().mockReturnValue(true) } as unknown as ConfigService,
+      );
+
+      await expect(service.candidateSandboxCheckout('profile-1', actor, dto)).rejects.toMatchObject(
+        { response: { code: 'SUBSCRIPTION_CHANGE_NOT_SUPPORTED' } },
+      );
+      expect(prisma.tx.candidateSubscription.create).not.toHaveBeenCalled();
+    });
+
+    // §8.6 của kế hoạch nghiệp vụ: "Free -> trả phí" là dòng DUY NHẤT được bắt đầu chu
+    // kỳ mới với bộ đếm reset về 0.  Guard ở trên không được chặn dòng này, nếu không
+    // thì không ai mua được gói đầu tiên.
+    it('vẫn cho đi lên từ gói Free và reset bộ đếm — đúng §8.6 dòng 1', async () => {
+      const prisma = buildPrisma();
+      prisma.tx.candidateSubscription.findFirst.mockResolvedValue({
+        planId: 'free-plan-id',
+        plan: { price: { toString: () => '0' } },
+      });
+      const service = new SubscriptionLifecycleService(
+        prisma as unknown as PrismaService,
+        { get: jest.fn().mockReturnValue(true) } as unknown as ConfigService,
+      );
+
+      const result = await service.candidateSandboxCheckout('profile-1', actor, dto);
+
+      expect(result.replayed).toBe(false);
+      expect(prisma.tx.candidateSubscription.create).toHaveBeenCalled();
+      expect(prisma.tx.candidateSubscriptionQuotaCounter.createMany).toHaveBeenCalled();
+    });
+
+    it('áp dụng cùng ranh giới đó cho phía nhà tuyển dụng', async () => {
+      const prisma = buildPrisma();
+      prisma.subscriptionPlan.findFirst.mockResolvedValue({
+        ...publicPlan,
+        id: recruiterDto.planId,
+        audience: PlanAudience.RECRUITER,
+      });
+      prisma.tx.subscriptionCheckout.upsert.mockResolvedValue({
+        id: 'recruiter-checkout-1',
+        subscriptionPlanId: recruiterDto.planId,
+        status: SubscriptionCheckoutStatus.PENDING,
+      });
+      prisma.tx.companySubscription.findFirst.mockResolvedValue(
+        activePaidPlan(recruiterDto.planId),
+      );
+      const service = new SubscriptionLifecycleService(
+        prisma as unknown as PrismaService,
+        { get: jest.fn().mockReturnValue(true) } as unknown as ConfigService,
+      );
+      const recruiter = { ...actor, role: ActorType.RECRUITER, companyId: 'company-1' };
+
+      await expect(
+        service.recruiterSandboxCheckout('company-1', recruiter, recruiterDto),
+      ).rejects.toMatchObject({ response: { code: 'SUBSCRIPTION_ALREADY_ACTIVE' } });
+      expect(prisma.tx.companySubscription.updateMany).not.toHaveBeenCalled();
+      expect(prisma.tx.companySubscription.create).not.toHaveBeenCalled();
+    });
+  });
 });

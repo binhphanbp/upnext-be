@@ -123,6 +123,36 @@ export class SubscriptionLifecycleService {
         return { data: this.toSubscriptionResponse(completed, checkout.id), replayed: true };
       }
 
+      // Chỉ "Free -> trả phí" được phép bắt đầu chu kỳ mới với bộ đếm về 0.  Mọi
+      // chuyển dịch giữa hai gói TRẢ PHÍ phải giữ nguyên chu kỳ và mang theo số đã
+      // dùng, và điều đó chưa được cài.  Nếu cho đi tiếp ở đây thì mua lại gói trở
+      // thành cách reset hạn mức: mỗi checkout tạo một hàng mới với usedValue = 0.
+      // Kiểm tra nằm trong cùng transaction với thao tác ghi, sau nhánh replay, nên
+      // một retry hợp lệ vẫn trả về subscription cũ thay vì gặp lỗi này.
+      const current = await tx.candidateSubscription.findFirst({
+        where: {
+          candidateProfileId,
+          status: SubscriptionStatus.ACTIVE,
+          expiredAt: { gt: now },
+        },
+        orderBy: { startedAt: 'desc' },
+        select: { planId: true, plan: { select: { price: true } } },
+      });
+      if (current && Number(current.plan.price) > 0) {
+        throw new ConflictException(
+          current.planId === plan.id
+            ? {
+                code: 'SUBSCRIPTION_ALREADY_ACTIVE',
+                message: 'Bạn đang dùng gói này. Gia hạn sẽ được áp dụng khi hết chu kỳ hiện tại.',
+              }
+            : {
+                code: 'SUBSCRIPTION_CHANGE_NOT_SUPPORTED',
+                message:
+                  'Đổi gói giữa chu kỳ chưa được hỗ trợ. Vui lòng chờ hết chu kỳ hiện tại rồi chọn gói mới.',
+              },
+        );
+      }
+
       const expiresAt = new Date(now.getTime() + plan.durationDays * DAY_MS);
       await tx.candidateSubscription.updateMany({
         where: { candidateProfileId, status: SubscriptionStatus.ACTIVE },
@@ -283,6 +313,33 @@ export class SubscriptionLifecycleService {
         if (!completed)
           throw new ConflictException('Checkout is still being completed. Please retry.');
         return { data: this.toSubscriptionResponse(completed, checkout.id), replayed: true };
+      }
+
+      // Cùng lý do như phía candidate: chỉ Free -> trả phí được reset bộ đếm.  Xem
+      // ghi chú trong candidateSandboxCheckout.
+      const current = await tx.companySubscription.findFirst({
+        where: {
+          companyId,
+          status: SubscriptionStatus.ACTIVE,
+          expiredAt: { gt: now },
+        },
+        orderBy: { startedAt: 'desc' },
+        select: { planId: true, plan: { select: { price: true } } },
+      });
+      if (current && Number(current.plan.price) > 0) {
+        throw new ConflictException(
+          current.planId === plan.id
+            ? {
+                code: 'SUBSCRIPTION_ALREADY_ACTIVE',
+                message:
+                  'Công ty đang dùng gói này. Gia hạn sẽ được áp dụng khi hết chu kỳ hiện tại.',
+              }
+            : {
+                code: 'SUBSCRIPTION_CHANGE_NOT_SUPPORTED',
+                message:
+                  'Đổi gói giữa chu kỳ chưa được hỗ trợ. Vui lòng chờ hết chu kỳ hiện tại rồi chọn gói mới.',
+              },
+        );
       }
 
       const expiresAt = new Date(now.getTime() + plan.durationDays * DAY_MS);
