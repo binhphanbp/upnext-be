@@ -18,6 +18,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { CandidateAccountAuthService } from './candidate-account-auth.service';
 import { VerifyCandidateEmailDto } from './dto/verify-candidate-email.dto';
+import { RequestCandidateEmailVerificationDto } from './dto/request-email-verification.dto';
 import {
   CandidateEmailVerificationRequest,
   CandidateEmailVerificationResult,
@@ -42,6 +43,34 @@ export class CandidateAccountEmailVerificationController {
   @ApiForbiddenResponse({ description: 'Chỉ ứng viên mới có thể gọi endpoint này' })
   requestEmailVerification(@CurrentUser() user: AuthenticatedUser) {
     return this.candidateAccountAuthService.requestEmailVerification(user.id);
+  }
+
+  @Public()
+  @Post('request-unauthenticated')
+  @ApiOperation({
+    summary: 'Gửi lại link xác thực email ứng viên bằng địa chỉ email (chưa đăng nhập)',
+  })
+  @ApiBody({ type: RequestCandidateEmailVerificationDto })
+  @ApiOkResponse({
+    description: 'Đã gửi link xác thực email nếu tài khoản tồn tại và chưa được xác thực',
+    type: CandidateEmailVerificationRequest,
+  })
+  @ApiBadRequestResponse({ description: 'Payload không hợp lệ' })
+  requestEmailVerificationUnauthenticated(@Body() dto: RequestCandidateEmailVerificationDto) {
+    return this.candidateAccountAuthService.requestEmailVerificationByEmail(dto.email);
+  }
+
+  @Public()
+  @Post('status')
+  @ApiOperation({ summary: 'Kiểm tra trạng thái xác thực email ứng viên' })
+  @ApiBody({ type: RequestCandidateEmailVerificationDto })
+  @ApiOkResponse({
+    description: 'Trạng thái xác thực email',
+    type: CandidateEmailVerificationRequest,
+  })
+  @ApiBadRequestResponse({ description: 'Payload không hợp lệ' })
+  getEmailVerificationStatus(@Body() dto: RequestCandidateEmailVerificationDto) {
+    return this.candidateAccountAuthService.getEmailVerificationStatusByEmail(dto.email);
   }
 
   @Public()

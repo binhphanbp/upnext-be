@@ -49,7 +49,29 @@ export class CandidateAccountAuthService {
             create: {},
           },
         },
-        select: { id: true, email: true },
+        select: { id: true, email: true, fullName: true },
+      });
+
+      // Gửi email xác thực ngay khi đăng ký, giống luồng recruiter — khác ở
+      // chỗ candidate vẫn được đăng nhập luôn (nộp đơn mới bị chặn tới khi xác
+      // thực, không chặn đăng nhập/hoàn thiện hồ sơ như bên recruiter).
+      const verificationToken = await this.authService.signEmailVerificationToken({
+        id: account.id,
+        email: account.email,
+        role: ActorType.CANDIDATE,
+      });
+      const verificationLink = this.buildEmailVerificationLink(verificationToken);
+      await Promise.resolve(
+        this.emailService.sendCandidateEmailVerification({
+          to: account.email,
+          candidateName: account.fullName,
+          verificationLink,
+        }),
+      ).catch((error) => {
+        this.logger.error(
+          `Failed to send candidate verification email to ${account.email}`,
+          error instanceof Error ? error.stack : String(error),
+        );
       });
 
       return this.authService.signAccessToken({
@@ -172,6 +194,87 @@ export class CandidateAccountAuthService {
       email: verifiedAccount.email,
       emailVerified: true,
       emailVerifiedAt: verifiedAccount.emailVerifiedAt as Date,
+    };
+  }
+
+  /**
+   * Gửi lại link xác thực bằng email, không cần đăng nhập — cần cho trường
+   * hợp mở link xác thực trên thiết bị/trình duyệt khác với lúc đăng ký.
+   */
+  async requestEmailVerificationByEmail(
+    email: string,
+  ): Promise<CandidateEmailVerificationRequest> {
+    const normalizedEmail = email.toLowerCase();
+    const account = await this.prisma.candidateAccount.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        emailVerifiedAt: true,
+      },
+    });
+
+    if (!account) {
+      throw new NotFoundException('Không tìm thấy tài khoản ứng viên với email này');
+    }
+
+    const verificationToken = await this.authService.signEmailVerificationToken({
+      id: account.id,
+      email: account.email,
+      role: ActorType.CANDIDATE,
+    });
+    const verificationLink = this.buildEmailVerificationLink(verificationToken);
+
+    if (!account.emailVerifiedAt) {
+      await Promise.resolve(
+        this.emailService.sendCandidateEmailVerification({
+          to: account.email,
+          candidateName: account.fullName,
+          verificationLink,
+        }),
+      ).catch((error) => {
+        this.logger.error(
+          `Failed to send candidate verification email to ${account.email}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      });
+    }
+
+    return {
+      email: account.email,
+      emailVerified: Boolean(account.emailVerifiedAt),
+      emailVerifiedAt: account.emailVerifiedAt,
+      message: account.emailVerifiedAt
+        ? 'Email của bạn đã được xác thực.'
+        : 'Hệ thống đã gửi link xác thực đến email của bạn.',
+    };
+  }
+
+  /** Không tiết lộ việc một email có tồn tại tài khoản hay không. */
+  async getEmailVerificationStatusByEmail(
+    email: string,
+  ): Promise<CandidateEmailVerificationRequest> {
+    const normalizedEmail = email.toLowerCase();
+    const account = await this.prisma.candidateAccount.findUnique({
+      where: { email: normalizedEmail },
+      select: { email: true, emailVerifiedAt: true },
+    });
+
+    if (!account) {
+      return {
+        email: normalizedEmail,
+        emailVerified: false,
+        emailVerifiedAt: null,
+        message: 'Đã kiểm tra trạng thái xác thực email.',
+      };
+    }
+
+    return {
+      email: normalizedEmail,
+      emailVerified: Boolean(account.emailVerifiedAt),
+      emailVerifiedAt: account.emailVerifiedAt,
+      message: 'Đã kiểm tra trạng thái xác thực email.',
     };
   }
 
