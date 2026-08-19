@@ -22,7 +22,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { ActorType, AiConversationContext } from '@prisma/client';
+import { ActorType, AiConversationContext, SubscriptionFeature } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { Request, Response } from 'express';
 import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
@@ -42,6 +43,7 @@ import { AiBudgetService } from './ai-budget.service';
 import { AiConversationsService } from './ai-conversations.service';
 import { AiCopilotService } from './ai-copilot.service';
 import { AiRunTrackerService } from './ai-run-tracker.service';
+import { CandidateSubscriptionQuotaService } from '../../subscriptions/candidate-subscription-quota.service';
 
 /** Một người dùng được mở tối đa bấy nhiêu lượt chat song song. */
 const MAX_CONCURRENT_RUNS_PER_USER = 2;
@@ -82,6 +84,7 @@ export class AiCopilotController {
     private readonly context: CandidateContextAssembler,
     private readonly budget: AiBudgetService,
     private readonly runTracker: AiRunTrackerService,
+    private readonly candidateQuota: CandidateSubscriptionQuotaService,
   ) {}
 
   @Get('conversations')
@@ -241,69 +244,100 @@ export class AiCopilotController {
     request: Request,
     response: Response,
   ): Promise<void> {
-    // Kiểm tra hạn mức và đồng thời đã qua ở trên; chỉ ghi tin nhắn của người
-    // dùng sau khi chắc chắn lượt này sẽ thực sự chạy, để một request bị từ
-    // chối không để lại một dòng prompt rác trong lịch sử hội thoại.
-    await this.conversations.appendUserMessage(id, dto.prompt);
-
-    response.writeHead(200, {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
+    // Reserve trước khi ghi prompt và trước khi mở SSE. Khi hết lượt, client
+    // nhận 409 bình thường (không phải một stream 200 rồi thất bại) và lịch sử
+    // không có câu hỏi dang dở. Không giữ DB transaction trong lúc gọi model:
+    // phần quota tự ghi counter + ledger atomically, sau đó được hoàn đúng một
+    // lần nếu run không kết thúc bằng event `done`.
+    const quotaReservation = await this.candidateQuota.reserve({
+      candidateProfileId,
+      feature: SubscriptionFeature.AI_COPILOT_RUN,
+      referenceType: 'ai_copilot_run',
+      referenceId: randomUUID(),
+      idempotencyKey: `ai-copilot:${randomUUID()}`,
     });
-    response.flushHeaders();
-
-    const abort = new AbortController();
-    const onClose = () => abort.abort(new Error('client_disconnected'));
-    request.on('close', onClose);
-    const totalTimeout = setTimeout(
-      () => abort.abort(new Error('total_run_timeout')),
-      TOTAL_RUN_TIMEOUT_MS,
-    );
-
-    const heartbeat = setInterval(() => {
-      if (!response.writableEnded) response.write(': ping\n\n');
-    }, 15_000);
-
-    const write = (event: AiStreamEvent) => {
-      if (response.writableEnded) return;
-      response.write(`event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`);
-    };
+    let completed = false;
 
     try {
-      for await (const event of this.copilot.run({
-        conversationId: id,
-        candidateProfileId,
-        candidateAccountId: user.id,
-        prompt: dto.prompt,
-        contextType: dto.contextType ?? conversation.contextType,
-        contextId: dto.contextId ?? conversation.contextId,
-        locale: conversation.locale,
-        signal: abort.signal,
-      })) {
-        write(event);
-      }
-    } catch (error) {
-      // `run()` đã tự bọc lỗi thành event; tới đây là lỗi ngoài dự kiến của
-      // chính generator. Vẫn phải gửi một event error, nếu không client treo ở
-      // trạng thái streaming vĩnh viễn.
-      this.logger.error(
-        `Stream Copilot đứt bất thường: ${error instanceof Error ? error.message : 'unknown'}`,
-      );
-      write({
-        event: 'error',
-        data: {
-          code: 'AI_SERVICE_UNAVAILABLE',
-          detail: 'Kết nối tới dịch vụ AI bị ngắt.',
-          status: 'model_unavailable',
-        },
+      // Chỉ ghi tin nhắn của người dùng sau khi chắc chắn lượt này thực sự
+      // được phép chạy. Nếu ghi DB hoặc provider lỗi, finally hoàn lượt.
+      await this.conversations.appendUserMessage(id, dto.prompt);
+
+      response.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
       });
+      response.flushHeaders();
+
+      const abort = new AbortController();
+      const onClose = () => abort.abort(new Error('client_disconnected'));
+      request.on('close', onClose);
+      const totalTimeout = setTimeout(
+        () => abort.abort(new Error('total_run_timeout')),
+        TOTAL_RUN_TIMEOUT_MS,
+      );
+
+      const heartbeat = setInterval(() => {
+        if (!response.writableEnded) response.write(': ping\n\n');
+      }, 15_000);
+
+      const write = (event: AiStreamEvent) => {
+        if (response.writableEnded) return;
+        response.write(`event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`);
+      };
+
+      try {
+        for await (const event of this.copilot.run({
+          conversationId: id,
+          candidateProfileId,
+          candidateAccountId: user.id,
+          prompt: dto.prompt,
+          contextType: dto.contextType ?? conversation.contextType,
+          contextId: dto.contextId ?? conversation.contextId,
+          locale: conversation.locale,
+          signal: abort.signal,
+        })) {
+          if (event.event === 'done') completed = true;
+          write(event);
+        }
+      } catch (error) {
+        // `run()` đã tự bọc lỗi thành event; tới đây là lỗi ngoài dự kiến của
+        // chính generator. Vẫn phải gửi một event error, nếu không client treo ở
+        // trạng thái streaming vĩnh viễn.
+        this.logger.error(
+          `Stream Copilot đứt bất thường: ${error instanceof Error ? error.message : 'unknown'}`,
+        );
+        write({
+          event: 'error',
+          data: {
+            code: 'AI_SERVICE_UNAVAILABLE',
+            detail: 'Kết nối tới dịch vụ AI bị ngắt.',
+            status: 'model_unavailable',
+          },
+        });
+      } finally {
+        clearInterval(heartbeat);
+        clearTimeout(totalTimeout);
+        request.off('close', onClose);
+        if (!response.writableEnded) response.end();
+      }
     } finally {
-      clearInterval(heartbeat);
-      clearTimeout(totalTimeout);
-      request.off('close', onClose);
-      if (!response.writableEnded) response.end();
+      if (!completed && !quotaReservation.replayed) {
+        try {
+          await this.candidateQuota.reverseUsage(quotaReservation.usage.id, 'copilot_run_failed');
+        } catch (error) {
+          // Không che lỗi stream đã gửi cho ứng viên. Usage ledger có unique
+          // reversal nên có thể kiểm tra/hoàn lại an toàn bằng job vận hành nếu
+          // database tạm thời không phản hồi.
+          this.logger.error(
+            `Không thể hoàn lượt Copilot ${quotaReservation.usage.id}: ${
+              error instanceof Error ? error.message : 'unknown'
+            }`,
+          );
+        }
+      }
     }
   }
 }
