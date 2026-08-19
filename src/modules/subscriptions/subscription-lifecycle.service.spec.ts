@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CandidateSandboxCheckoutDto } from './dto/candidate-sandbox-checkout.dto';
+import { RecruiterSandboxCheckoutDto } from '../company-subscriptions/dto/recruiter-sandbox-checkout.dto';
 import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 
 const actor = {
@@ -21,6 +22,11 @@ const actor = {
 const dto: CandidateSandboxCheckoutDto = {
   planId: '22222222-2222-2222-2222-222222222222',
   idempotencyKey: 'candidate-upgrade-0001',
+};
+
+const recruiterDto: RecruiterSandboxCheckoutDto = {
+  planId: '33333333-3333-3333-3333-333333333333',
+  idempotencyKey: 'recruiter-upgrade-0001',
 };
 
 const publicPlan = {
@@ -59,6 +65,21 @@ function buildPrisma() {
       update: jest.fn(),
     },
     candidateSubscriptionQuotaCounter: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    companySubscription: {
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      create: jest.fn().mockResolvedValue({
+        id: 'company-subscription-1',
+        startedAt: new Date('2026-08-19T00:00:00.000Z'),
+        expiredAt: new Date('2026-09-18T00:00:00.000Z'),
+        cancelAtPeriodEnd: false,
+        cancelRequestedAt: null,
+        source: 'SANDBOX_CHECKOUT',
+        plan: { code: 'RECRUITER_PRO', subscriptionName: 'Recruiter Pro' },
+      }),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
+    subscriptionQuotaCounter: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
     subscriptionLifecycleEvent: {
       createMany: jest.fn().mockResolvedValue({ count: 2 }),
       create: jest.fn(),
@@ -67,6 +88,7 @@ function buildPrisma() {
   return {
     subscriptionPlan: { findFirst: jest.fn().mockResolvedValue(publicPlan) },
     candidateSubscription: tx.candidateSubscription,
+    companySubscription: tx.companySubscription,
     $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
     tx,
   };
@@ -157,6 +179,70 @@ describe('SubscriptionLifecycleService', () => {
 
     await expect(service.candidateSandboxCheckout('profile-1', actor, dto)).rejects.toThrow(
       NotFoundException,
+    );
+  });
+
+  it('does not enable sandbox checkout in production even if its feature flag is accidentally true', async () => {
+    const prisma = buildPrisma();
+    const service = new SubscriptionLifecycleService(
+      prisma as unknown as PrismaService,
+      {
+        get: jest.fn((key: string) =>
+          key === 'subscriptionSandboxCheckoutEnabled' ? true : 'production',
+        ),
+      } as unknown as ConfigService,
+    );
+
+    await expect(service.candidateSandboxCheckout('profile-1', actor, dto)).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(prisma.subscriptionPlan.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('activates a public recruiter plan for the token company, with its own checkout evidence', async () => {
+    const prisma = buildPrisma();
+    prisma.subscriptionPlan.findFirst.mockResolvedValue({
+      ...publicPlan,
+      id: recruiterDto.planId,
+      code: 'RECRUITER_PRO',
+      subscriptionName: 'Recruiter Pro',
+      audience: PlanAudience.RECRUITER,
+      features: [{ feature: SubscriptionFeature.AI_JD_GENERATE, enabled: true, limitValue: 20 }],
+    });
+    prisma.tx.subscriptionCheckout.upsert.mockResolvedValue({
+      id: 'recruiter-checkout-1',
+      subscriptionPlanId: recruiterDto.planId,
+      status: SubscriptionCheckoutStatus.PENDING,
+    });
+    const service = new SubscriptionLifecycleService(
+      prisma as unknown as PrismaService,
+      { get: jest.fn().mockReturnValue(true) } as unknown as ConfigService,
+    );
+    const recruiter = { ...actor, role: ActorType.RECRUITER, companyId: 'company-1' };
+
+    const result = await service.recruiterSandboxCheckout('company-1', recruiter, recruiterDto);
+
+    expect(result.replayed).toBe(false);
+    expect(prisma.tx.companySubscription.updateMany).toHaveBeenCalledWith({
+      where: { companyId: 'company-1', status: SubscriptionStatus.ACTIVE },
+      data: { status: SubscriptionStatus.INACTIVE },
+    });
+    expect(prisma.tx.companySubscription.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ companyId: 'company-1', source: 'SANDBOX_CHECKOUT' }),
+        include: { plan: true },
+      }),
+    );
+    expect(prisma.tx.subscriptionQuotaCounter.createMany).toHaveBeenCalled();
+    expect(prisma.tx.subscriptionLifecycleEvent.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            audience: PlanAudience.RECRUITER,
+            eventType: 'CHECKOUT_COMPLETED',
+          }),
+        ]),
+      }),
     );
   });
 });

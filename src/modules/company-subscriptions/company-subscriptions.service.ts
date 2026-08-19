@@ -8,10 +8,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SubscribeCompanyDto } from './dto/subscribe-company.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ActorType, PlanAudience, Prisma, SubscriptionStatus } from '@prisma/client';
+import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 
 @Injectable()
 export class CompanySubscriptionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly quota: SubscriptionQuotaService,
+  ) {}
 
   async subscribe(
     user: AuthenticatedUser,
@@ -107,20 +111,7 @@ export class CompanySubscriptionsService {
   }
 
   async getActiveSubscription(companyId: string) {
-    const activeSub = await this.prisma.companySubscription.findFirst({
-      where: {
-        companyId: companyId,
-        status: SubscriptionStatus.ACTIVE,
-        expiredAt: { gt: new Date() },
-      },
-      include: { plan: true },
-    });
-
-    if (!activeSub) {
-      throw new NotFoundException('No active subscription found for this company');
-    }
-
-    return activeSub;
+    return this.quota.getActiveSubscription(companyId);
   }
 
   async getHistory(user: AuthenticatedUser) {
