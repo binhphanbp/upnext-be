@@ -2327,7 +2327,12 @@ async function main() {
         subscriptionName: 'Basic Trial',
         price: new Prisma.Decimal(0),
         description: 'Gói dùng thử miễn phí dành cho nhà tuyển dụng mới.',
-        durationDays: 14,
+        // Gói miễn phí là gói được cấp tự động, và mỗi lần nó hết hạn thì một
+        // subscription mới được cấp với bộ đếm về 0 -- tức durationDays chính là chu
+        // kỳ reset hạn mức của gói miễn phí. Ở 14 ngày, hạn mức AI của gói miễn phí
+        // được làm mới hơn hai lần mỗi tháng, gấp đôi mức bảng giá công bố. 30 ngày
+        // khớp với mọi gói còn lại và với phía ứng viên (CANDIDATE_FREE).
+        durationDays: 30,
         boostCreditLimit: 0,
         jobPostLimit: 3,
         status: 'ACTIVE',
@@ -2339,7 +2344,12 @@ async function main() {
         subscriptionName: 'Basic Trial',
         price: new Prisma.Decimal(0),
         description: 'Gói dùng thử miễn phí dành cho nhà tuyển dụng mới.',
-        durationDays: 14,
+        // Gói miễn phí là gói được cấp tự động, và mỗi lần nó hết hạn thì một
+        // subscription mới được cấp với bộ đếm về 0 -- tức durationDays chính là chu
+        // kỳ reset hạn mức của gói miễn phí. Ở 14 ngày, hạn mức AI của gói miễn phí
+        // được làm mới hơn hai lần mỗi tháng, gấp đôi mức bảng giá công bố. 30 ngày
+        // khớp với mọi gói còn lại và với phía ứng viên (CANDIDATE_FREE).
+        durationDays: 30,
         boostCreditLimit: 0,
         jobPostLimit: 3,
         status: 'ACTIVE',
@@ -2460,8 +2470,15 @@ async function main() {
         description: 'Gói nâng cao với nhiều lượt trợ lý AI hơn trong mỗi chu kỳ.',
         durationDays: 30,
         status: 'ACTIVE',
-        isPublic: false,
-        highlightLabel: 'Sắp ra mắt',
+        // `candidateSandboxCheckout()` chỉ nhận gói có `isPublic`, nên để false thì
+        // luồng nâng cấp của ứng viên trả SUBSCRIPTION_PLAN_NOT_AVAILABLE ở mọi lần
+        // gọi -- và admin không bật lại được, vì `isPublic` không có trong
+        // UpdateSubscriptionPlanDto. Bật ở đây để luồng đã bàn giao chạy được.
+        // Nhãn "Sắp ra mắt" bị bỏ: một gói mua được thì nhãn đó không còn đúng.
+        // Ghi null tường minh, nếu không thì nhánh `update` bỏ qua trường này và nhãn
+        // cũ vẫn còn trên những database đã seed trước đây.
+        isPublic: true,
+        highlightLabel: null,
         sortOrder: 20,
         createdByAdminId: adminUser.id,
       },
@@ -2473,8 +2490,15 @@ async function main() {
         description: 'Gói nâng cao với nhiều lượt trợ lý AI hơn trong mỗi chu kỳ.',
         durationDays: 30,
         status: 'ACTIVE',
-        isPublic: false,
-        highlightLabel: 'Sắp ra mắt',
+        // `candidateSandboxCheckout()` chỉ nhận gói có `isPublic`, nên để false thì
+        // luồng nâng cấp của ứng viên trả SUBSCRIPTION_PLAN_NOT_AVAILABLE ở mọi lần
+        // gọi -- và admin không bật lại được, vì `isPublic` không có trong
+        // UpdateSubscriptionPlanDto. Bật ở đây để luồng đã bàn giao chạy được.
+        // Nhãn "Sắp ra mắt" bị bỏ: một gói mua được thì nhãn đó không còn đúng.
+        // Ghi null tường minh, nếu không thì nhánh `update` bỏ qua trường này và nhãn
+        // cũ vẫn còn trên những database đã seed trước đây.
+        isPublic: true,
+        highlightLabel: null,
         sortOrder: 20,
         createdByAdminId: adminUser.id,
       },
