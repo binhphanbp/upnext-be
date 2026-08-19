@@ -144,7 +144,7 @@ jobs:
             exit 1
           fi
 
-          echo "Initial staging deploy failed. Checking whether the deferred pgvector migration is actually failed..."
+          echo "Initial staging deploy failed. Checking for failed migrations in database..."
           ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             'set -eu
@@ -155,19 +155,25 @@ jobs:
               -e DATABASE_URL="$DATABASE_URL" \
               ghcr.io/binhphanbp/upnext-be:staging \
               ./node_modules/.bin/prisma migrate status 2>&1 || true)"
-            printf "%s\\n" "$MIGRATION_STATUS"
+            printf "%s\n" "$MIGRATION_STATUS"
 
-            if printf "%s" "$MIGRATION_STATUS" | grep -Fq "20260719090000_use_pgvector_for_cv_screening" \
-              && printf "%s" "$MIGRATION_STATUS" | grep -Fqi "failed"; then
-              echo "Recovering the failed deferred pgvector migration once..."
+            FAILED_MIGRATION="$(printf "%s" "$MIGRATION_STATUS" | sed -n "s/.*The \`\([^`]*\)\` migration.*failed.*/\1/p" | head -n 1)"
+            if [ -n "$FAILED_MIGRATION" ]; then
+              echo "Recovering failed migration: $FAILED_MIGRATION ..."
               docker run --rm \
                 --network container:upnext-backend-staging \
                 -e DATABASE_URL="$DATABASE_URL" \
                 ghcr.io/binhphanbp/upnext-be:staging \
                 ./node_modules/.bin/prisma migrate resolve \
-                --rolled-back 20260719090000_use_pgvector_for_cv_screening
+                --applied "$FAILED_MIGRATION" || \
+              docker run --rm \
+                --network container:upnext-backend-staging \
+                -e DATABASE_URL="$DATABASE_URL" \
+                ghcr.io/binhphanbp/upnext-be:staging \
+                ./node_modules/.bin/prisma migrate resolve \
+                --rolled-back "$FAILED_MIGRATION"
             else
-              echo "No failed deferred pgvector migration found; preserving the original deploy failure."
+              echo "No failed migration name matched; preserving the original deploy failure."
               exit 1
             fi
             /opt/upnext/scripts/deploy/deploy.sh staging backend'
