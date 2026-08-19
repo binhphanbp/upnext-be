@@ -348,4 +348,69 @@ describe('SubscriptionQuotaService', () => {
       expect(prisma.subscriptionUsage.create).not.toHaveBeenCalled();
     });
   });
+  // Partial unique index từ 20260819130000 cho phép tối đa một subscription active
+  // mỗi chủ sở hữu. Hai request đồng thời cùng cấp gói Free thì người thua nhận
+  // P2002 -- và trước bản sửa này, khách nhận 500 cho một tình huống bình thường.
+  describe('cuộc đua cấp gói Free', () => {
+    const freePlan = {
+      id: 'free-plan',
+      code: 'RECRUITER_BASIC',
+      price: 0,
+      durationDays: 30,
+      jobPostLimit: 0,
+      boostCreditLimit: 0,
+      talentContactLimit: 0,
+      features: [],
+    };
+
+    const raceError = () =>
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+        meta: { target: ['company_subscriptions_one_active_per_company_uq'] },
+      });
+
+    it('ngoài transaction: nhận bản ghi của người thắng, người dùng không thấy lỗi', async () => {
+      prisma.companySubscription.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ ...activeSubscription, id: 'sub-winner' });
+      prisma.subscriptionPlan.findFirst.mockResolvedValue(freePlan);
+      prisma.companySubscription.create.mockRejectedValue(raceError());
+
+      await expect(
+        service.getFeatureLimit('company-1', SubscriptionFeature.JOB_POST),
+      ).resolves.toEqual({ enabled: true, limit: 3 });
+    });
+
+    // Trong transaction thì KHÔNG tự chữa được: Postgres đã hủy transaction ngay tại
+    // unique violation, nên mọi truy vấn tiếp theo trên cùng tx đều lỗi. Chỉ đổi được
+    // thành 409 để client thử lại -- lần sau sẽ thấy bản ghi của người thắng.
+    it('trong transaction: đổi thành 409 chứ không cố đọc lại trên tx đã hủy', async () => {
+      const tx = buildMockPrisma();
+      tx.companySubscription.findFirst.mockResolvedValue(null);
+      tx.subscriptionPlan.findFirst.mockResolvedValue(freePlan);
+      tx.companySubscription.create.mockRejectedValue(raceError());
+
+      await expect(service.consume(asTx(tx), consumeInput)).rejects.toMatchObject({
+        response: { code: 'SUBSCRIPTION_ACTIVATION_RACE' },
+      });
+      // Không được đọc lại: lần findFirst duy nhất là lần kiểm ban đầu.
+      expect(tx.companySubscription.findFirst).toHaveBeenCalledTimes(1);
+    });
+
+    it('P2002 không phải cuộc đua này thì vẫn nổi lên nguyên trạng', async () => {
+      const other = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+        meta: { target: ['some_other_uq'] },
+      });
+      prisma.companySubscription.findFirst.mockResolvedValue(null);
+      prisma.subscriptionPlan.findFirst.mockResolvedValue(freePlan);
+      prisma.companySubscription.create.mockRejectedValue(other);
+
+      await expect(service.getFeatureLimit('company-1', SubscriptionFeature.JOB_POST)).rejects.toBe(
+        other,
+      );
+    });
+  });
 });

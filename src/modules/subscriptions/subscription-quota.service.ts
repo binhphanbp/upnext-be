@@ -7,6 +7,7 @@ import {
   SubscriptionUsageDirection,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { activeSubscriptionRaceError, isActiveSubscriptionRace } from './active-subscription-race';
 
 export type QuotaConsumeInput = {
   companyId: string;
@@ -339,10 +340,46 @@ export class SubscriptionQuotaService {
     });
 
     if (!subscription) {
-      return this.provisionFreeSubscription(client, companyId);
+      return this.provisionFreeOrAdoptWinner(client, companyId);
     }
 
     return subscription;
+  }
+
+  /**
+   * Hai request đồng thời cho cùng một công ty đều thấy "chưa có gói" và đều cấp
+   * gói Free; partial unique index chặn người thua bằng `P2002`, và nếu không ai
+   * xử lý thì khách nhận 500 cho một tình huống hoàn toàn bình thường.
+   *
+   * Cách chữa phụ thuộc việc đang ở trong transaction hay không, và đây là chỗ
+   * duy nhất biết được điều đó:
+   *
+   * - **Ngoài transaction** (đường đọc: `peek`, `getFeatureLimit`, ...): đọc lại
+   *   và dùng bản ghi của người thắng. Người dùng không thấy gì cả — đúng, vì
+   *   kết quả cuối cùng giống hệt như khi họ thắng.
+   * - **Trong transaction** (`consume`): Postgres đã **hủy** transaction ngay khi
+   *   unique violation xảy ra, nên mọi truy vấn tiếp theo trên cùng `tx` đều lỗi.
+   *   Không tự chữa được; chỉ đổi thành 409 để client thử lại — lần sau sẽ thấy
+   *   bản ghi của người thắng.
+   */
+  private async provisionFreeOrAdoptWinner(client: PrismaClientLike, companyId: string) {
+    try {
+      return await this.provisionFreeSubscription(client, companyId);
+    } catch (error) {
+      if (!isActiveSubscriptionRace(error)) throw error;
+      if (client !== this.prisma) throw activeSubscriptionRaceError();
+
+      const winner = await this.prisma.companySubscription.findFirst({
+        where: {
+          companyId,
+          status: SubscriptionStatus.ACTIVE,
+          expiredAt: { gt: new Date() },
+        },
+        orderBy: { startedAt: 'desc' },
+      });
+      if (winner) return winner;
+      throw activeSubscriptionRaceError();
+    }
   }
 
   /**
