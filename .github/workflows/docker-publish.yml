@@ -157,7 +157,7 @@ jobs:
               ./node_modules/.bin/prisma migrate status 2>&1 || true)"
             printf "%s\n" "$MIGRATION_STATUS"
 
-            FAILED_MIGRATION="$(printf "%s" "$MIGRATION_STATUS" | sed -n "s/.*The \`\([^`]*\)\` migration.*failed.*/\1/p" | head -n 1)"
+            FAILED_MIGRATION="$(printf "%s" "$MIGRATION_STATUS" | grep -F "migration started at" | grep -F "failed" | grep -oE "[0-9]{14}_[a-zA-Z0-9_]+" | head -n 1 || true)"
             if [ -n "$FAILED_MIGRATION" ]; then
               echo "Recovering failed migration: $FAILED_MIGRATION ..."
               docker run --rm \
