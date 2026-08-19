@@ -45,6 +45,23 @@ export class SubscriptionQuotaService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * Resolves the company's currently effective entitlement for read models.
+   *
+   * This intentionally uses the same reconciliation and free-plan provisioning
+   * path as quota enforcement. A recruiter must not see a misleading 404 simply
+   * because they have not consumed a metered feature yet or their previous plan
+   * expired between page loads.
+   */
+  async getActiveSubscription(companyId: string) {
+    const subscription = await this.resolveActiveSubscription(this.prisma, companyId);
+
+    return this.prisma.companySubscription.findUniqueOrThrow({
+      where: { id: subscription.id },
+      include: { plan: true },
+    });
+  }
+
+  /**
    * Cheap pre-check for guards: does the company's active plan expose this
    * feature at all? Deliberately does not touch counters -- it must not have
    * side effects, because a guard runs before the action is known to succeed.

@@ -15,6 +15,7 @@ import { AppConfig } from '../../common/config/env.validation';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { CandidateSandboxCheckoutDto } from './dto/candidate-sandbox-checkout.dto';
+import { RecruiterSandboxCheckoutDto } from '../company-subscriptions/dto/recruiter-sandbox-checkout.dto';
 
 const DAY_MS = 86_400_000;
 
@@ -186,6 +187,171 @@ export class SubscriptionLifecycleService {
     });
   }
 
+  /**
+   * Sandbox checkout for a recruiter's current company.  This deliberately
+   * mirrors the candidate lifecycle rather than using the legacy admin grant
+   * endpoint: the caller can only purchase a public recruiter plan for the
+   * company carried by their JWT, and every retry is idempotent.
+   */
+  async recruiterSandboxCheckout(
+    companyId: string,
+    actor: AuthenticatedUser,
+    dto: RecruiterSandboxCheckoutDto,
+  ) {
+    this.assertSandboxEnabled();
+
+    const plan = await this.prisma.subscriptionPlan.findFirst({
+      where: {
+        id: dto.planId,
+        audience: PlanAudience.RECRUITER,
+        status: SubscriptionStatus.ACTIVE,
+        isPublic: true,
+        price: { gt: 0 },
+      },
+      include: { features: true },
+    });
+    if (!plan) {
+      throw new NotFoundException({
+        code: 'SUBSCRIPTION_PLAN_NOT_AVAILABLE',
+        message: 'Gói đã chọn hiện không khả dụng cho nhà tuyển dụng.',
+      });
+    }
+
+    const now = new Date();
+    const snapshot: Prisma.InputJsonValue = {
+      code: plan.code,
+      name: plan.subscriptionName,
+      audience: plan.audience,
+      price: plan.price.toString(),
+      currency: 'VND',
+      durationDays: plan.durationDays,
+      features: plan.features.map((feature) => ({
+        feature: feature.feature,
+        enabled: feature.enabled,
+        limit: feature.limitValue,
+      })),
+    };
+
+    return this.prisma.$transaction(async (tx) => {
+      const checkout = await tx.subscriptionCheckout.upsert({
+        where: {
+          audience_ownerId_idempotencyKey: {
+            audience: PlanAudience.RECRUITER,
+            ownerId: companyId,
+            idempotencyKey: dto.idempotencyKey,
+          },
+        },
+        update: {},
+        create: {
+          audience: PlanAudience.RECRUITER,
+          ownerId: companyId,
+          subscriptionPlanId: plan.id,
+          planSnapshot: snapshot,
+          amount: plan.price,
+          currency: 'VND',
+          provider: 'SANDBOX',
+          idempotencyKey: dto.idempotencyKey,
+          actorType: actor.role,
+          actorId: actor.id,
+        },
+      });
+
+      if (checkout.subscriptionPlanId !== plan.id) {
+        throw new ConflictException({
+          code: 'IDEMPOTENCY_KEY_REUSED',
+          message: 'Khóa xác nhận này đã được dùng cho một gói khác. Hãy thử lại từ màn hình gói.',
+        });
+      }
+
+      const claimed = await tx.subscriptionCheckout.updateMany({
+        where: { id: checkout.id, status: SubscriptionCheckoutStatus.PENDING },
+        data: { status: SubscriptionCheckoutStatus.COMPLETED, completedAt: now },
+      });
+      if (!claimed.count) {
+        if (checkout.status === SubscriptionCheckoutStatus.CANCELLED) {
+          throw new ConflictException({
+            code: 'CHECKOUT_CANCELLED',
+            message: 'Yêu cầu nâng cấp này đã bị hủy.',
+          });
+        }
+        const completed = checkout.subscriptionId
+          ? await tx.companySubscription.findFirst({
+              where: { id: checkout.subscriptionId, companyId },
+              include: { plan: true },
+            })
+          : null;
+        if (!completed)
+          throw new ConflictException('Checkout is still being completed. Please retry.');
+        return { data: this.toSubscriptionResponse(completed, checkout.id), replayed: true };
+      }
+
+      const expiresAt = new Date(now.getTime() + plan.durationDays * DAY_MS);
+      await tx.companySubscription.updateMany({
+        where: { companyId, status: SubscriptionStatus.ACTIVE },
+        data: { status: SubscriptionStatus.INACTIVE },
+      });
+      const subscription = await tx.companySubscription.create({
+        data: {
+          companyId,
+          planId: plan.id,
+          jobPostLimit: plan.jobPostLimit,
+          boostCreditTotal: plan.boostCreditLimit,
+          talentContactLimit: plan.talentContactLimit,
+          startedAt: now,
+          expiredAt: expiresAt,
+          currentPeriodStart: now,
+          currentPeriodEnd: expiresAt,
+          source: 'SANDBOX_CHECKOUT',
+          planSnapshot: snapshot,
+          status: SubscriptionStatus.ACTIVE,
+        },
+        include: { plan: true },
+      });
+      await tx.subscriptionCheckout.update({
+        where: { id: checkout.id },
+        data: { subscriptionId: subscription.id },
+      });
+      if (plan.features.length) {
+        await tx.subscriptionQuotaCounter.createMany({
+          data: plan.features.map((feature) => ({
+            companySubscriptionId: subscription.id,
+            feature: feature.feature,
+            limitValue: feature.limitValue,
+            usedValue: 0,
+            periodStart: now,
+            periodEnd: expiresAt,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      await tx.subscriptionLifecycleEvent.createMany({
+        data: [
+          {
+            audience: PlanAudience.RECRUITER,
+            ownerId: companyId,
+            eventType: 'CHECKOUT_COMPLETED',
+            subscriptionPlanId: plan.id,
+            checkoutId: checkout.id,
+            actorType: actor.role,
+            actorId: actor.id,
+            metadata: { provider: 'SANDBOX', idempotencyKey: dto.idempotencyKey },
+          },
+          {
+            audience: PlanAudience.RECRUITER,
+            ownerId: companyId,
+            eventType: 'SUBSCRIPTION_ACTIVATED',
+            subscriptionPlanId: plan.id,
+            checkoutId: checkout.id,
+            actorType: actor.role,
+            actorId: actor.id,
+            metadata: { subscriptionId: subscription.id, source: 'SANDBOX_CHECKOUT' },
+          },
+        ],
+      });
+      return { data: this.toSubscriptionResponse(subscription, checkout.id), replayed: false };
+    });
+  }
+
   async requestCandidateCancellation(candidateProfileId: string, actor: AuthenticatedUser) {
     const subscription = await this.requireCandidateActiveSubscription(candidateProfileId);
     if (subscription.cancelAtPeriodEnd) return { data: this.toSubscriptionResponse(subscription) };
@@ -237,8 +403,62 @@ export class SubscriptionLifecycleService {
     return { data: this.toSubscriptionResponse(updated) };
   }
 
+  async requestRecruiterCancellation(companyId: string, actor: AuthenticatedUser) {
+    const subscription = await this.requireRecruiterActiveSubscription(companyId);
+    if (subscription.cancelAtPeriodEnd) return { data: this.toSubscriptionResponse(subscription) };
+    const now = new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const value = await tx.companySubscription.update({
+        where: { id: subscription.id },
+        data: { cancelAtPeriodEnd: true, cancelRequestedAt: now },
+        include: { plan: true },
+      });
+      await tx.subscriptionLifecycleEvent.create({
+        data: {
+          audience: PlanAudience.RECRUITER,
+          ownerId: companyId,
+          eventType: 'CANCELLATION_REQUESTED',
+          subscriptionPlanId: value.planId,
+          actorType: actor.role,
+          actorId: actor.id,
+          metadata: { subscriptionId: value.id, effectiveAt: value.expiredAt.toISOString() },
+        },
+      });
+      return value;
+    });
+    return { data: this.toSubscriptionResponse(updated) };
+  }
+
+  async revokeRecruiterCancellation(companyId: string, actor: AuthenticatedUser) {
+    const subscription = await this.requireRecruiterActiveSubscription(companyId);
+    if (!subscription.cancelAtPeriodEnd) return { data: this.toSubscriptionResponse(subscription) };
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const value = await tx.companySubscription.update({
+        where: { id: subscription.id },
+        data: { cancelAtPeriodEnd: false, cancelRequestedAt: null },
+        include: { plan: true },
+      });
+      await tx.subscriptionLifecycleEvent.create({
+        data: {
+          audience: PlanAudience.RECRUITER,
+          ownerId: companyId,
+          eventType: 'CANCELLATION_REVOKED',
+          subscriptionPlanId: value.planId,
+          actorType: actor.role,
+          actorId: actor.id,
+          metadata: { subscriptionId: value.id },
+        },
+      });
+      return value;
+    });
+    return { data: this.toSubscriptionResponse(updated) };
+  }
+
   private assertSandboxEnabled() {
-    if (!this.config.get('subscriptionSandboxCheckoutEnabled')) {
+    if (
+      this.config.get('appEnv') === 'production' ||
+      !this.config.get('subscriptionSandboxCheckoutEnabled')
+    ) {
       throw new ForbiddenException({
         code: 'SUBSCRIPTION_SANDBOX_DISABLED',
         message: 'Tính năng nâng cấp gói đang được chuẩn bị. Vui lòng thử lại sau.',
@@ -260,6 +480,25 @@ export class SubscriptionLifecycleService {
       throw new NotFoundException({
         code: 'NO_ACTIVE_SUBSCRIPTION',
         message: 'Bạn chưa có gói đang hiệu lực.',
+      });
+    }
+    return subscription;
+  }
+
+  private async requireRecruiterActiveSubscription(companyId: string) {
+    const subscription = await this.prisma.companySubscription.findFirst({
+      where: {
+        companyId,
+        status: SubscriptionStatus.ACTIVE,
+        expiredAt: { gt: new Date() },
+      },
+      orderBy: { startedAt: 'desc' },
+      include: { plan: true },
+    });
+    if (!subscription) {
+      throw new NotFoundException({
+        code: 'NO_ACTIVE_SUBSCRIPTION',
+        message: 'Công ty chưa có gói đang hiệu lực.',
       });
     }
     return subscription;
