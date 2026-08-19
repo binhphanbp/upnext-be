@@ -124,8 +124,19 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
-    AI_MAX_RUNS_PER_DAY: z.coerce.number().int().positive().default(50),
-    AI_MAX_TOKENS_PER_DAY: z.coerce.number().int().positive().default(200_000),
+    // Cầu dao chi phí AI, KHÔNG phải hạn mức gói. Hạn mức người dùng thấy là quota
+    // `AI_COPILOT_RUN` trong `plan_features`; hai ngưỡng dưới đây phải luôn **cao hơn
+    // hạn mức mỗi chu kỳ của gói cao nhất**, nếu không người đã trả tiền sẽ bị chặn
+    // bởi một giới hạn thứ hai không có trong bảng giá. Xem `AiBudgetService`.
+    //
+    // Gói cao nhất hiện tại (CANDIDATE_PRO) cho 100 lượt/chu kỳ, mà một người có thể
+    // dùng hết trong một ngày một cách hoàn toàn hợp lệ. Ngưỡng cũ 50 lượt/ngày nằm
+    // DƯỚI mức đó, tức người dùng Pro bị chặn ở lượt thứ 51 dù còn 49 lượt trong gói.
+    AI_MAX_RUNS_PER_DAY: z.coerce.number().int().positive().default(300),
+    // 300 lượt × ~10.000 token/lượt. Đây là ngưỡng có ích thật: quota gói đã chặn số
+    // lượt, nên cầu dao chủ yếu để bắt một lượt phình token bất thường hoặc một
+    // `plan_features` bị đặt `limitValue = null` ngoài ý muốn.
+    AI_MAX_TOKENS_PER_DAY: z.coerce.number().int().positive().default(3_000_000),
     GOOGLE_CLIENT_ID: optionalCredentialSchema,
     GOOGLE_CLIENT_SECRET: optionalCredentialSchema,
     APP_BACKEND_URL: z.string().url().default('http://localhost:3001'),
