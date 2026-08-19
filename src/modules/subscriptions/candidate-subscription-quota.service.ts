@@ -41,6 +41,23 @@ export class CandidateSubscriptionQuotaService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Reserve one candidate entitlement outside a wider database transaction.
+   *
+   * AI calls are necessarily asynchronous and must never keep a database
+   * transaction open while a provider streams. This small wrapper preserves
+   * the atomic counter + ledger write, while callers can compensate with
+   * `reverseUsage` if the external operation fails before delivering a result.
+   */
+  async reserve(input: CandidateQuotaConsumeInput) {
+    return this.prisma.$transaction((tx) => this.consume(tx, input));
+  }
+
+  /** Reverse a reservation made by `reserve`, exactly once. */
+  async reverseUsage(usageId: string, reason: string) {
+    return this.prisma.$transaction((tx) => this.reverse(tx, usageId, reason));
+  }
+
   async consume(tx: Prisma.TransactionClient, input: CandidateQuotaConsumeInput) {
     const quantity = input.quantity ?? 1;
     if (!Number.isSafeInteger(quantity) || quantity <= 0) {

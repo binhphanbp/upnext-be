@@ -16,6 +16,7 @@ import { AiRunTrackerService } from './copilot/ai-run-tracker.service';
 import { LLM_PROVIDER, LlmProviderPort } from './ports/llm-provider.port';
 import { EMBEDDING_PROVIDER, EmbeddingProviderPort } from './ports/embedding-provider.port';
 import { ToolRegistryService } from './tools/tool-registry.service';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 /**
  * Module AI theo ADR-001.
@@ -28,6 +29,7 @@ import { ToolRegistryService } from './tools/tool-registry.service';
  * không được export để giữ đúng ranh giới ADR §5.1.
  */
 @Module({
+  imports: [SubscriptionsModule],
   controllers: [AiCopilotController],
   providers: [
     GeminiLlmAdapter,
