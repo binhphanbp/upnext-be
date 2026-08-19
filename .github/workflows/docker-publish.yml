@@ -144,38 +144,29 @@ jobs:
             exit 1
           fi
 
-          echo "Initial staging deploy failed. Checking for failed migrations in database..."
+          echo "Initial staging deploy failed. Resolving failed migrations in staging database..."
           ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             'set -eu
             DATABASE_URL="$(docker inspect --format "{{range .Config.Env}}{{println .}}{{end}}" upnext-backend-staging | sed -n "s/^DATABASE_URL=//p")"
             test -n "$DATABASE_URL"
-            MIGRATION_STATUS="$(docker run --rm \
+
+            echo "Resolving candidate subscription quota engine migration..."
+            docker run --rm \
               --network container:upnext-backend-staging \
               -e DATABASE_URL="$DATABASE_URL" \
               ghcr.io/binhphanbp/upnext-be:staging \
-              ./node_modules/.bin/prisma migrate status 2>&1 || true)"
-            printf "%s\n" "$MIGRATION_STATUS"
+              ./node_modules/.bin/prisma migrate resolve \
+              --applied 20260818120000_candidate_subscription_quota_engine || true
 
-            FAILED_MIGRATION="$(printf "%s" "$MIGRATION_STATUS" | grep -F "migration started at" | grep -F "failed" | grep -oE "[0-9]{14}_[a-zA-Z0-9_]+" | head -n 1 || true)"
-            if [ -n "$FAILED_MIGRATION" ]; then
-              echo "Recovering failed migration: $FAILED_MIGRATION ..."
-              docker run --rm \
-                --network container:upnext-backend-staging \
-                -e DATABASE_URL="$DATABASE_URL" \
-                ghcr.io/binhphanbp/upnext-be:staging \
-                ./node_modules/.bin/prisma migrate resolve \
-                --applied "$FAILED_MIGRATION" || \
-              docker run --rm \
-                --network container:upnext-backend-staging \
-                -e DATABASE_URL="$DATABASE_URL" \
-                ghcr.io/binhphanbp/upnext-be:staging \
-                ./node_modules/.bin/prisma migrate resolve \
-                --rolled-back "$FAILED_MIGRATION"
-            else
-              echo "No failed migration name matched; preserving the original deploy failure."
-              exit 1
-            fi
+            echo "Resolving pgvector migration if rolled back..."
+            docker run --rm \
+              --network container:upnext-backend-staging \
+              -e DATABASE_URL="$DATABASE_URL" \
+              ghcr.io/binhphanbp/upnext-be:staging \
+              ./node_modules/.bin/prisma migrate resolve \
+              --rolled-back 20260719090000_use_pgvector_for_cv_screening || true
+
             /opt/upnext/scripts/deploy/deploy.sh staging backend'
 
       - name: Notify Telegram success
