@@ -143,6 +143,10 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    SUBSCRIPTION_SANDBOX_CHECKOUT_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     UPLOAD_ROOT: z
       .string()
       .trim()
@@ -270,6 +274,7 @@ export type AppConfig = {
   chatApplicationEnabled: boolean;
   chatOutreachEnabled: boolean;
   chatSupportEnabled: boolean;
+  subscriptionSandboxCheckoutEnabled: boolean;
   firebaseProjectId?: string;
   firebaseClientEmail?: string;
   firebasePrivateKey?: string;
@@ -335,6 +340,7 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     chatApplicationEnabled: parsed.CHAT_APPLICATION_ENABLED,
     chatOutreachEnabled: parsed.CHAT_OUTREACH_ENABLED,
     chatSupportEnabled: parsed.CHAT_SUPPORT_ENABLED,
+    subscriptionSandboxCheckoutEnabled: parsed.SUBSCRIPTION_SANDBOX_CHECKOUT_ENABLED,
     firebaseProjectId: parsed.FIREBASE_PROJECT_ID,
     firebaseClientEmail: parsed.FIREBASE_CLIENT_EMAIL,
     firebasePrivateKey: parsed.FIREBASE_PRIVATE_KEY,

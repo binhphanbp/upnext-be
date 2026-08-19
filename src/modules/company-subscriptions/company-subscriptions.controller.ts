@@ -13,10 +13,14 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 export class CompanySubscriptionsController {
   constructor(private readonly subscriptionsService: CompanySubscriptionsService) {}
 
-  @ApiOperation({ summary: 'Đăng ký gói dịch vụ mới (Cho phép Admin hoặc Recruiter)' })
+  @ApiOperation({
+    summary: 'Admin cấp gói thủ công',
+    description:
+      'Checkout tự phục vụ không đi qua endpoint legacy này. Recruiter không thể tự kích hoạt gói hoặc chọn công ty khác.',
+  })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ActorType.ADMIN, ActorType.RECRUITER)
+  @Roles(ActorType.ADMIN)
   @Post()
   subscribe(@CurrentUser() user: AuthenticatedUser, @Body() dto: SubscribeCompanyDto) {
     return this.subscriptionsService.subscribe(user, dto);

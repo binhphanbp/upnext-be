@@ -241,6 +241,15 @@ enum SubscriptionStatus {
   CANCELLED @map("cancelled")
 }
 
+/// A sandbox checkout is deliberately separate from an invoice.  It gives the
+/// product a safe, idempotent purchase lifecycle before a real payment
+/// provider is introduced.
+enum SubscriptionCheckoutStatus {
+  PENDING   @map("pending")
+  COMPLETED @map("completed")
+  CANCELLED @map("cancelled")
+}
+
 enum PaymentMethod {
   STRIPE @map("stripe")
   MOMO   @map("momo")
@@ -1800,6 +1809,7 @@ model SubscriptionPlan {
   candidateSubscriptions CandidateSubscription[]
   invoices               Invoice[]
   features               PlanFeature[]
+  checkouts              SubscriptionCheckout[]
 
   @@index([audience, isPublic, status])
   @@map("subscription_plans")
@@ -1839,6 +1849,12 @@ model CompanySubscription {
   /// plan can still reset allowances every cycle.
   currentPeriodStart DateTime?          @map("current_period_start")
   currentPeriodEnd   DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd  Boolean            @default(false) @map("cancel_at_period_end")
+  cancelRequestedAt  DateTime?          @map("cancel_requested_at")
+  /// FREE_PROVISION, SANDBOX_CHECKOUT, ADMIN_GRANT or LEGACY.  This remains a
+  /// string so new sources do not require a database enum migration.
+  source             String             @default("LEGACY") @db.VarChar(50)
+  planSnapshot       Json?              @map("plan_snapshot")
   status             SubscriptionStatus @default(ACTIVE)
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
@@ -1867,6 +1883,10 @@ model CandidateSubscription {
   expiredAt          DateTime           @map("expired_at")
   currentPeriodStart DateTime?          @map("current_period_start")
   currentPeriodEnd   DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd  Boolean            @default(false) @map("cancel_at_period_end")
+  cancelRequestedAt  DateTime?          @map("cancel_requested_at")
+  source             String             @default("LEGACY") @db.VarChar(50)
+  planSnapshot       Json?              @map("plan_snapshot")
   status             SubscriptionStatus @default(ACTIVE)
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
@@ -1879,6 +1899,58 @@ model CandidateSubscription {
   @@index([candidateProfileId, status])
   @@index([expiredAt])
   @@map("candidate_subscriptions")
+}
+
+/// Generic ownership intentionally avoids coupling a checkout to both the
+/// company and candidate tables.  `ownerId` is the company id for RECRUITER
+/// and candidate profile id for CANDIDATE; authorization is always resolved
+/// by the service before querying this record.
+model SubscriptionCheckout {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  audience           PlanAudience
+  ownerId            String                     @map("owner_id") @db.Uuid
+  subscriptionPlanId String                     @map("subscription_plan_id") @db.Uuid
+  planSnapshot       Json                       @map("plan_snapshot")
+  amount             Decimal                    @db.Decimal(12, 2)
+  currency           String                     @default("VND") @db.VarChar(10)
+  status             SubscriptionCheckoutStatus @default(PENDING)
+  provider           String                     @default("SANDBOX") @db.VarChar(50)
+  idempotencyKey     String                     @map("idempotency_key") @db.VarChar(180)
+  actorType          ActorType?                 @map("actor_type")
+  actorId            String?                    @map("actor_id") @db.Uuid
+  subscriptionId     String?                    @map("subscription_id") @db.Uuid
+  completedAt        DateTime?                  @map("completed_at")
+  cancelledAt        DateTime?                  @map("cancelled_at")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+
+  subscriptionPlan SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id], onDelete: Restrict)
+
+  @@unique([audience, ownerId, idempotencyKey])
+  @@index([audience, ownerId, status])
+  @@index([subscriptionPlanId])
+  @@index([audience, ownerId, subscriptionId])
+  @@map("subscription_checkouts")
+}
+
+/// Append-only lifecycle evidence.  It is intentionally not a replacement for
+/// quota ledgers: this answers "why is this plan active?", while usage rows
+/// answer "where was an allowance spent?".
+model SubscriptionLifecycleEvent {
+  id                 String       @id @default(uuid()) @db.Uuid
+  audience           PlanAudience
+  ownerId            String       @map("owner_id") @db.Uuid
+  eventType          String       @map("event_type") @db.VarChar(80)
+  subscriptionPlanId String?      @map("subscription_plan_id") @db.Uuid
+  checkoutId         String?      @map("checkout_id") @db.Uuid
+  actorType          ActorType?   @map("actor_type")
+  actorId            String?      @map("actor_id") @db.Uuid
+  metadata           Json?
+  createdAt          DateTime     @default(now()) @map("created_at")
+
+  @@index([audience, ownerId, createdAt])
+  @@index([checkoutId])
+  @@map("subscription_lifecycle_events")
 }
 
 /// Per-period materialised counter for a candidate entitlement. The same
@@ -1897,8 +1969,8 @@ model CandidateSubscriptionQuotaCounter {
 
   candidateSubscription CandidateSubscription @relation(fields: [candidateSubscriptionId], references: [id], onDelete: Cascade)
 
-  @@unique([candidateSubscriptionId, feature, periodStart])
-  @@index([candidateSubscriptionId, feature])
+  @@unique([candidateSubscriptionId, feature, periodStart], map: "candidate_sub_quota_counter_period_uq")
+  @@index([candidateSubscriptionId, feature], map: "candidate_sub_quota_counter_subscription_feature_idx")
   @@map("candidate_subscription_quota_counters")
 }
 
@@ -1913,8 +1985,8 @@ model CandidateSubscriptionUsage {
   direction               SubscriptionUsageDirection
   referenceType           String                     @map("reference_type") @db.VarChar(80)
   referenceId             String                     @map("reference_id") @db.Uuid
-  idempotencyKey          String                     @unique @map("idempotency_key") @db.VarChar(180)
-  reversedUsageId         String?                    @unique @map("reversed_usage_id") @db.Uuid
+  idempotencyKey          String                     @unique(map: "candidate_sub_usage_idempotency_key_uq") @map("idempotency_key") @db.VarChar(180)
+  reversedUsageId         String?                    @unique(map: "candidate_sub_usage_reversed_usage_id_uq") @map("reversed_usage_id") @db.Uuid
   createdAt               DateTime                   @default(now()) @map("created_at")
 
   candidateSubscription CandidateSubscription       @relation(fields: [candidateSubscriptionId], references: [id], onDelete: Restrict)
@@ -1922,8 +1994,8 @@ model CandidateSubscriptionUsage {
   reversedUsage         CandidateSubscriptionUsage? @relation("CandidateSubscriptionUsageReversal", fields: [reversedUsageId], references: [id], onDelete: SetNull)
   reversal              CandidateSubscriptionUsage? @relation("CandidateSubscriptionUsageReversal")
 
-  @@index([candidateProfileId, feature, createdAt])
-  @@index([candidateSubscriptionId, feature, createdAt])
+  @@index([candidateProfileId, feature, createdAt], map: "candidate_sub_usage_profile_feature_created_idx")
+  @@index([candidateSubscriptionId, feature, createdAt], map: "candidate_sub_usage_subscription_feature_created_idx")
   @@map("candidate_subscription_usages")
 }
 
