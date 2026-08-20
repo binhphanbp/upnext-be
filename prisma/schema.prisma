@@ -239,6 +239,10 @@ enum SubscriptionStatus {
   INACTIVE  @map("inactive")
   EXPIRED   @map("expired")
   CANCELLED @map("cancelled")
+  /// Chỉ dùng cho `SubscriptionPlan.status` -- một gói đã ngưng bán, giữ lại vì có
+  /// subscription/invoice tham chiếu (`onDelete: Restrict`), không bao giờ hiện trên
+  /// trang giá. Không dùng cho `CompanySubscription`/`CandidateSubscription`.
+  ARCHIVED  @map("archived")
 }
 
 /// A sandbox checkout is deliberately separate from an invoice.  It gives the

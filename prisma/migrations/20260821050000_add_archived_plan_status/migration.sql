@@ -1,0 +1,14 @@
+-- D3a (KE-HOACH-SUBSCRIPTION-THUC-THI.md mục 19): thêm giá trị `archived` cho
+-- `SubscriptionStatus` để lưu 4 gói recruiter cũ (BASIC/STANDARD/PREMIUM/LEGACY sau khi
+-- gộp về 2 bậc) mà không xóa -- có subscription/invoice tham chiếu (`onDelete: Restrict`).
+--
+-- `SubscriptionStatus` dùng chung cho `SubscriptionPlan.status`,
+-- `CompanySubscription.status` và `CandidateSubscription.status`; `archived` chỉ có ý
+-- nghĩa cho plan (giống `inactive` đã dùng riêng cho `RECRUITER_LEGACY` từ trước, không
+-- bao giờ gán cho một subscription của khách).
+--
+-- Tách riêng migration này (chỉ ADD VALUE) khỏi migration seed data theo sau: Postgres
+-- không cho dùng giá trị enum mới thêm trong CÙNG transaction đã thêm nó. Prisma áp mỗi
+-- migration.sql trong một transaction riêng, nên giá trị `archived` chỉ sẵn dùng được ở
+-- migration kế tiếp.
+ALTER TYPE "SubscriptionStatus" ADD VALUE 'archived';
