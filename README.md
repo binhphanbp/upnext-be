@@ -100,6 +100,23 @@ prisma/
   seed.ts
 ```
 
+## Agent Tooling
+
+This repo declares the [Superpowers](https://github.com/obra/superpowers) Claude
+Code plugin in `.claude/settings.json`, but that file only records intent —
+Claude Code does not auto-install a plugin just because a repo declares it. After
+cloning, run once per machine:
+
+```bash
+claude plugin marketplace add obra/superpowers-marketplace
+claude plugin install superpowers@superpowers-marketplace --scope project
+```
+
+Skip this and `claude plugin list` will show the plugin as `failed to load` inside
+this repo. Not using Claude Code, or don't want the plugin? Nothing to do — it has
+no effect on the build or runtime.
+
+
 ## Team Baseline
 
 Before opening a pull request, run:
