@@ -55,6 +55,7 @@ import { InterviewRemindersModule } from './modules/interview-reminders/intervie
 import { ConversationsModule } from './modules/conversations/conversations.module';
 import { OutboxModule } from './modules/outbox/outbox.module';
 import { TalentOutreachModule } from './modules/talent-outreach/talent-outreach.module';
+import { TalentPoolModule } from './modules/talent-pool/talent-pool.module';
 import { SupportCasesModule } from './modules/support-cases/support-cases.module';
 import { ReputationModule } from './modules/reputation/reputation.module';
 import { HiringReportsModule } from './modules/hiring-reports/hiring-reports.module';
@@ -127,6 +128,7 @@ import { JobPostAiModule } from './modules/job-post-ai/job-post-ai.module';
     OutboxModule,
     ConversationsModule,
     TalentOutreachModule,
+    TalentPoolModule,
     SupportCasesModule,
     CvScreeningModule,
     AiModule,

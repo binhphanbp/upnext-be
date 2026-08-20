@@ -97,4 +97,35 @@ export class CandidateProfileService {
       },
     });
   }
+
+  /**
+   * Đúng yêu cầu §13.2 kế hoạch nghiệp vụ: ứng viên xem được ai đã mở hồ sơ
+   * mình. `CvPoolUnlock` là nguồn sự thật duy nhất -- không có bảng ghi log
+   * thứ hai cho việc này.
+   */
+  async findViewers(candidateAccountId: string) {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { candidateAccountId },
+      select: { id: true },
+    });
+    if (!profile) {
+      throw new NotFoundException('Không tìm thấy hồ sơ ứng viên');
+    }
+
+    const unlocks = await this.prisma.cvPoolUnlock.findMany({
+      where: { candidateProfileId: profile.id },
+      select: {
+        createdAt: true,
+        company: { select: { id: true, name: true, logoFile: { select: { publicUrl: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return unlocks.map((row) => ({
+      companyId: row.company.id,
+      companyName: row.company.name,
+      companyLogoUrl: row.company.logoFile?.publicUrl ?? null,
+      viewedAt: row.createdAt,
+    }));
+  }
 }
