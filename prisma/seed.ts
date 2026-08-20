@@ -2320,9 +2320,15 @@ async function main() {
 
   const adminUser = seededAdmins['SUPER_ADMIN'];
 
+  // D3a (KE-HOACH-SUBSCRIPTION-THUC-THI.md mục 19/22) gộp catalog recruiter về
+  // Free/Pro. `RECRUITER_BASIC`/`STANDARD`/`PREMIUM`/`LEGACY` không còn được seed
+  // ở đây: DB thật đã đổi `RECRUITER_BASIC` -> `RECRUITER_FREE` và archive ba mã
+  // còn lại (giữ nguyên trên DB đã có lịch sử, không xóa -- nhưng một DB HOÀN
+  // TOÀN MỚI không cần tái tạo bốn gói cũ đó). Số dưới đây khớp đúng giá trị
+  // đang chạy thật để `upsert` là no-op trên DB đã tồn tại, không ghi đè.
   const plans = {
-    basic: await prisma.subscriptionPlan.upsert({
-      where: { code: 'RECRUITER_BASIC' },
+    free: await prisma.subscriptionPlan.upsert({
+      where: { code: 'RECRUITER_FREE' },
       update: {
         subscriptionName: 'Basic Trial',
         price: new Prisma.Decimal(0),
@@ -2337,101 +2343,52 @@ async function main() {
         jobPostLimit: 3,
         status: 'ACTIVE',
         isPublic: true,
+        sortOrder: 0,
         createdByAdminId: adminUser.id,
       },
       create: {
-        code: 'RECRUITER_BASIC',
+        code: 'RECRUITER_FREE',
         subscriptionName: 'Basic Trial',
         price: new Prisma.Decimal(0),
         description: 'Gói dùng thử miễn phí dành cho nhà tuyển dụng mới.',
-        // Gói miễn phí là gói được cấp tự động, và mỗi lần nó hết hạn thì một
-        // subscription mới được cấp với bộ đếm về 0 -- tức durationDays chính là chu
-        // kỳ reset hạn mức của gói miễn phí. Ở 14 ngày, hạn mức AI của gói miễn phí
-        // được làm mới hơn hai lần mỗi tháng, gấp đôi mức bảng giá công bố. 30 ngày
-        // khớp với mọi gói còn lại và với phía ứng viên (CANDIDATE_FREE).
         durationDays: 30,
         boostCreditLimit: 0,
         jobPostLimit: 3,
         status: 'ACTIVE',
         isPublic: true,
+        sortOrder: 0,
         createdByAdminId: adminUser.id,
       },
     }),
-    standard: await prisma.subscriptionPlan.upsert({
-      where: { code: 'RECRUITER_STANDARD' },
+    // `is_public=false` có chủ đích (mục 19): D3b (đo COGS AI thật) chưa xong,
+    // nên gói này tồn tại để xây schema/enforcement, chưa được công khai bán.
+    pro: await prisma.subscriptionPlan.upsert({
+      where: { code: 'RECRUITER_PRO' },
       update: {
-        subscriptionName: 'Standard Plan',
-        price: new Prisma.Decimal(490000),
-        description: 'Gói tiêu chuẩn phù hợp cho doanh nghiệp vừa và nhỏ.',
-        durationDays: 30,
-        boostCreditLimit: 3,
-        jobPostLimit: 10,
-        status: 'ACTIVE',
-        isPublic: true,
-        createdByAdminId: adminUser.id,
-      },
-      create: {
-        code: 'RECRUITER_STANDARD',
-        subscriptionName: 'Standard Plan',
-        price: new Prisma.Decimal(490000),
-        description: 'Gói tiêu chuẩn phù hợp cho doanh nghiệp vừa và nhỏ.',
-        durationDays: 30,
-        boostCreditLimit: 3,
-        jobPostLimit: 10,
-        status: 'ACTIVE',
-        isPublic: true,
-        createdByAdminId: adminUser.id,
-      },
-    }),
-    premium: await prisma.subscriptionPlan.upsert({
-      where: { code: 'RECRUITER_PREMIUM' },
-      update: {
-        subscriptionName: 'Premium Plan',
+        subscriptionName: 'Pro',
         price: new Prisma.Decimal(1490000),
-        description: 'Gói nâng cao không giới hạn cho các tập đoàn lớn.',
+        description: 'Gói Pro -- giá/limit AI đang chờ D3b (đo COGS thật) trước khi công khai.',
         durationDays: 30,
         boostCreditLimit: 10,
         jobPostLimit: 30,
+        talentContactLimit: 250,
         status: 'ACTIVE',
-        isPublic: true,
+        isPublic: false,
+        sortOrder: 1,
         createdByAdminId: adminUser.id,
       },
       create: {
-        code: 'RECRUITER_PREMIUM',
-        subscriptionName: 'Premium Plan',
+        code: 'RECRUITER_PRO',
+        subscriptionName: 'Pro',
         price: new Prisma.Decimal(1490000),
-        description: 'Gói nâng cao không giới hạn cho các tập đoàn lớn.',
+        description: 'Gói Pro -- giá/limit AI đang chờ D3b (đo COGS thật) trước khi công khai.',
         durationDays: 30,
         boostCreditLimit: 10,
         jobPostLimit: 30,
+        talentContactLimit: 250,
         status: 'ACTIVE',
-        isPublic: true,
-        createdByAdminId: adminUser.id,
-      },
-    }),
-    customInactive: await prisma.subscriptionPlan.upsert({
-      where: { code: 'RECRUITER_LEGACY' },
-      update: {
-        subscriptionName: 'Legacy Plan',
-        price: new Prisma.Decimal(99000),
-        description: 'Gói dịch vụ cũ đã ngưng cung cấp.',
-        durationDays: 7,
-        boostCreditLimit: 0,
-        jobPostLimit: 1,
-        status: 'INACTIVE',
         isPublic: false,
-        createdByAdminId: adminUser.id,
-      },
-      create: {
-        code: 'RECRUITER_LEGACY',
-        subscriptionName: 'Legacy Plan',
-        price: new Prisma.Decimal(99000),
-        description: 'Gói dịch vụ cũ đã ngưng cung cấp.',
-        durationDays: 7,
-        boostCreditLimit: 0,
-        jobPostLimit: 1,
-        status: 'INACTIVE',
-        isPublic: false,
+        sortOrder: 1,
         createdByAdminId: adminUser.id,
       },
     }),
@@ -2504,6 +2461,45 @@ async function main() {
       },
     }),
   };
+
+  // D3a/D1 (mục 14/17/19): số Free/Pro thật đã đo/chốt cho 8 feature key
+  // recruiter, khớp đúng giá trị đang chạy thật để seed trên DB mới không lệch
+  // với DB đã tồn tại. `ai_cv_matching`/`ai_jd_generate` vẫn là số cũ từ seed
+  // gốc (chưa qua D3b) -- giữ nguyên ở đây để có gì đó dùng thử AI local, không
+  // phải giá đã chốt. `urgent_label` không còn code nào tiêu (mục 20) nhưng đã
+  // có giá trị thật trên DB từ trước, giữ để seed khớp, không phải vì còn dùng.
+  const recruiterPlanFeatures: Array<{
+    planId: string;
+    feature: string;
+    limitValue: number;
+  }> = [
+    { planId: plans.free.id, feature: SubscriptionFeature.JOB_POST, limitValue: 1 },
+    { planId: plans.free.id, feature: SubscriptionFeature.FEATURED_JOB, limitValue: 0 },
+    { planId: plans.free.id, feature: SubscriptionFeature.URGENT_LABEL, limitValue: 3 },
+    { planId: plans.free.id, feature: SubscriptionFeature.CV_POOL_VIEW, limitValue: 0 },
+    { planId: plans.free.id, feature: SubscriptionFeature.TALENT_CONTACT, limitValue: 0 },
+    { planId: plans.free.id, feature: SubscriptionFeature.HR_SEAT, limitValue: 1 },
+    { planId: plans.free.id, feature: SubscriptionFeature.AI_CV_MATCHING, limitValue: 150 },
+    { planId: plans.free.id, feature: SubscriptionFeature.AI_JD_GENERATE, limitValue: 5 },
+    { planId: plans.pro.id, feature: SubscriptionFeature.JOB_POST, limitValue: 30 },
+    { planId: plans.pro.id, feature: SubscriptionFeature.FEATURED_JOB, limitValue: 10 },
+    { planId: plans.pro.id, feature: SubscriptionFeature.URGENT_LABEL, limitValue: 30 },
+    { planId: plans.pro.id, feature: SubscriptionFeature.CV_POOL_VIEW, limitValue: 500 },
+    { planId: plans.pro.id, feature: SubscriptionFeature.TALENT_CONTACT, limitValue: 250 },
+    { planId: plans.pro.id, feature: SubscriptionFeature.HR_SEAT, limitValue: 10 },
+    { planId: plans.pro.id, feature: SubscriptionFeature.AI_CV_MATCHING, limitValue: 1500 },
+    { planId: plans.pro.id, feature: SubscriptionFeature.AI_JD_GENERATE, limitValue: 150 },
+  ];
+
+  await Promise.all(
+    recruiterPlanFeatures.map(({ planId, feature, limitValue }) =>
+      prisma.planFeature.upsert({
+        where: { planId_feature: { planId, feature } },
+        update: { enabled: true, limitValue },
+        create: { planId, feature, enabled: true, limitValue },
+      }),
+    ),
+  );
 
   // Quota policy belongs to the plan catalogue, not to Copilot code. Adding a
   // future candidate AI capability therefore only needs a PlanFeature row.
@@ -5319,11 +5315,11 @@ async function main() {
   // --- Công ty Alpha ---
   const alphaActiveSub = await prisma.companySubscription.create({
     data: {
-      planId: plans.premium.id,
+      planId: plans.pro.id,
       companyId: alphaCompany.id,
-      jobPostLimit: plans.premium.jobPostLimit,
+      jobPostLimit: plans.pro.jobPostLimit,
       jobPostUsed: 5,
-      boostCreditTotal: plans.premium.boostCreditLimit,
+      boostCreditTotal: plans.pro.boostCreditLimit,
       boostCreditUsed: 2,
       startedAt: addDays(now, -15),
       expiredAt: addDays(now, 15),
@@ -5332,10 +5328,10 @@ async function main() {
   });
   await prisma.invoice.create({
     data: {
-      subscriptionPlanId: plans.premium.id,
+      subscriptionPlanId: plans.pro.id,
       companyId: alphaCompany.id,
-      invoiceCode: 'INV-ALPHA-PREMIUM',
-      amount: plans.premium.price,
+      invoiceCode: 'INV-ALPHA-PRO',
+      amount: plans.pro.price,
       paymentMethod: 'STRIPE',
       paymentStatus: 'PAID',
       paidAt: addDays(now, -2),
@@ -5344,11 +5340,11 @@ async function main() {
 
   await prisma.companySubscription.create({
     data: {
-      planId: plans.standard.id,
+      planId: plans.pro.id,
       companyId: alphaCompany.id,
-      jobPostLimit: plans.standard.jobPostLimit,
+      jobPostLimit: plans.pro.jobPostLimit,
       jobPostUsed: 3,
-      boostCreditTotal: plans.standard.boostCreditLimit,
+      boostCreditTotal: plans.pro.boostCreditLimit,
       boostCreditUsed: 3,
       startedAt: addDays(now, -45),
       expiredAt: addDays(now, -15),
@@ -5357,10 +5353,10 @@ async function main() {
   });
   await prisma.invoice.create({
     data: {
-      subscriptionPlanId: plans.standard.id,
+      subscriptionPlanId: plans.pro.id,
       companyId: alphaCompany.id,
-      invoiceCode: 'INV-ALPHA-STANDARD-HIST',
-      amount: plans.standard.price,
+      invoiceCode: 'INV-ALPHA-PRO-HIST',
+      amount: plans.pro.price,
       paymentMethod: 'STRIPE',
       paymentStatus: 'PAID',
       paidAt: addDays(now, -45),
@@ -5445,11 +5441,11 @@ async function main() {
   // --- Công ty Beta ---
   await prisma.companySubscription.create({
     data: {
-      planId: plans.standard.id,
+      planId: plans.pro.id,
       companyId: betaCompany.id,
-      jobPostLimit: plans.standard.jobPostLimit,
+      jobPostLimit: plans.pro.jobPostLimit,
       jobPostUsed: 4,
-      boostCreditTotal: plans.standard.boostCreditLimit,
+      boostCreditTotal: plans.pro.boostCreditLimit,
       boostCreditUsed: 1,
       startedAt: addDays(now, -8),
       expiredAt: addDays(now, 22),
@@ -5458,10 +5454,10 @@ async function main() {
   });
   await prisma.invoice.create({
     data: {
-      subscriptionPlanId: plans.standard.id,
+      subscriptionPlanId: plans.pro.id,
       companyId: betaCompany.id,
-      invoiceCode: 'INV-BETA-STANDARD',
-      amount: plans.standard.price,
+      invoiceCode: 'INV-BETA-PRO',
+      amount: plans.pro.price,
       paymentMethod: 'MOMO',
       paymentStatus: 'PAID',
       paidAt: addDays(now, -8),
@@ -5469,10 +5465,10 @@ async function main() {
   });
   await prisma.invoice.create({
     data: {
-      subscriptionPlanId: plans.premium.id,
+      subscriptionPlanId: plans.pro.id,
       companyId: betaCompany.id,
-      invoiceCode: 'INV-BETA-PENDING-PREMIUM',
-      amount: plans.premium.price,
+      invoiceCode: 'INV-BETA-PENDING-PRO',
+      amount: plans.pro.price,
       paymentStatus: 'PENDING',
     },
   });
@@ -5480,11 +5476,11 @@ async function main() {
   // --- Công ty Gamma ---
   await prisma.companySubscription.create({
     data: {
-      planId: plans.basic.id,
+      planId: plans.free.id,
       companyId: gammaCompany.id,
-      jobPostLimit: plans.basic.jobPostLimit,
+      jobPostLimit: plans.free.jobPostLimit,
       jobPostUsed: 3,
-      boostCreditTotal: plans.basic.boostCreditLimit,
+      boostCreditTotal: plans.free.boostCreditLimit,
       boostCreditUsed: 0,
       startedAt: addDays(now, -30),
       expiredAt: addDays(now, -16),
@@ -5493,10 +5489,10 @@ async function main() {
   });
   await prisma.invoice.create({
     data: {
-      subscriptionPlanId: plans.basic.id,
+      subscriptionPlanId: plans.free.id,
       companyId: gammaCompany.id,
-      invoiceCode: 'INV-GAMMA-BASIC-EXP',
-      amount: plans.basic.price,
+      invoiceCode: 'INV-GAMMA-FREE-EXP',
+      amount: plans.free.price,
       paymentMethod: 'SEPAY',
       paymentStatus: 'PAID',
       paidAt: addDays(now, -30),
@@ -5506,11 +5502,11 @@ async function main() {
   // --- Công ty Delta ---
   await prisma.companySubscription.create({
     data: {
-      planId: plans.basic.id,
+      planId: plans.free.id,
       companyId: deltaCompany.id,
-      jobPostLimit: plans.basic.jobPostLimit,
+      jobPostLimit: plans.free.jobPostLimit,
       jobPostUsed: 3,
-      boostCreditTotal: plans.basic.boostCreditLimit,
+      boostCreditTotal: plans.free.boostCreditLimit,
       boostCreditUsed: 0,
       startedAt: addDays(now, -5),
       expiredAt: addDays(now, 9),
@@ -5519,10 +5515,10 @@ async function main() {
   });
   await prisma.invoice.create({
     data: {
-      subscriptionPlanId: plans.basic.id,
+      subscriptionPlanId: plans.free.id,
       companyId: deltaCompany.id,
-      invoiceCode: 'INV-DELTA-BASIC',
-      amount: plans.basic.price,
+      invoiceCode: 'INV-DELTA-FREE',
+      amount: plans.free.price,
       paymentMethod: 'SEPAY',
       paymentStatus: 'PAID',
       paidAt: addDays(now, -5),
@@ -5530,10 +5526,10 @@ async function main() {
   });
   await prisma.invoice.create({
     data: {
-      subscriptionPlanId: plans.standard.id,
+      subscriptionPlanId: plans.pro.id,
       companyId: deltaCompany.id,
-      invoiceCode: 'INV-DELTA-FAILED-STANDARD',
-      amount: plans.standard.price,
+      invoiceCode: 'INV-DELTA-FAILED-PRO',
+      amount: plans.pro.price,
       paymentMethod: 'MOMO',
       paymentStatus: 'FAILED',
     },
@@ -5901,10 +5897,10 @@ async function main() {
         adminId: financeAdmin.id,
         action: 'CREATE_SUBSCRIPTION_PLAN',
         targetType: 'SUBSCRIPTION_PLAN',
-        targetId: plans.premium.id,
+        targetId: plans.pro.id,
         ipAddress: '192.168.1.88',
         oldValue: Prisma.DbNull,
-        newValue: JSON.stringify({ subscriptionName: 'Premium Plan', price: 1490000 }),
+        newValue: JSON.stringify({ subscriptionName: 'Pro', price: 1490000 }),
         createdAt: addDays(now, -15),
       },
       {
