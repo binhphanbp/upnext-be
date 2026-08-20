@@ -6,13 +6,17 @@ on:
   pull_request:
     branches: [main, dev]
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   quality:
     runs-on: ubuntu-latest
 
     services:
       postgres:
-        image: postgres:17-alpine
+        image: pgvector/pgvector:0.8.5-pg17-bookworm
         env:
           POSTGRES_USER: upnext
           POSTGRES_PASSWORD: upnext
@@ -27,14 +31,50 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://upnext:upnext@localhost:5432/upnext_test?schema=public
-      JWT_ACCESS_SECRET: ci-secret-change-me
+      JWT_ACCESS_SECRET: ci-jwt-access-secret-that-is-at-least-32-characters
       JWT_ACCESS_EXPIRES_IN: 15m
+      APP_ENV: staging
       APP_FRONTEND_URL: https://staging.upnext.works
       CORS_ORIGIN: https://upnext.works,https://staging.upnext.works
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine trusted deployment baseline
+        id: migration-baseline
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          DEPLOYMENT_BRANCH="$GITHUB_REF_NAME"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            DEPLOYMENT_BRANCH="$PR_BASE_BRANCH"
+          fi
+
+          BASE_SHA="$(bash scripts/get-last-successful-deployment-sha.sh "$DEPLOYMENT_BRANCH")"
+          if ! git merge-base --is-ancestor "$BASE_SHA" "$GITHUB_SHA"; then
+            echo "The last successful deployment is not an ancestor of this commit. Rebase before deploying." >&2
+            exit 1
+          fi
+
+          echo "sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Reject rewritten Prisma migrations
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.migration-baseline.outputs.sha }}
+        run: |
+          if [ -z "$BASE_SHA" ]; then
+            echo "No successful deployment baseline is available; refuse to validate migration history." >&2
+            exit 1
+          fi
+
+          bash scripts/check-prisma-migration-history.sh "$BASE_SHA" "$GITHUB_SHA"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -50,6 +90,12 @@ jobs:
 
       - name: Generate Prisma Client
         run: pnpm prisma:generate
+
+      - name: Apply Prisma migrations
+        run: pnpm prisma:deploy
+
+      - name: Verify Prisma migration status
+        run: pnpm exec prisma migrate status
 
       - name: Lint
         run: pnpm lint
