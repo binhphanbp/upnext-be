@@ -4,6 +4,7 @@ import { GeminiJobPostService } from './gemini-job-post.service';
 import { SalaryResearchService } from './salary-research.service';
 import { JobPostAiController } from './job-post-ai.controller';
 import { JobPostAiService } from './job-post-ai.service';
+import { AiOperationCacheService } from './ai-operation-cache.service';
 import { JobPostSalaryInsightService } from './job-post-salary-insight.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ConfigService } from '@nestjs/config';
@@ -33,6 +34,7 @@ import {
   imports: [CvScreeningModule, SubscriptionsModule],
   controllers: [JobPostAiController],
   providers: [
+    AiOperationCacheService,
     GeminiJobPostExtractionAdapter,
     HttpJobPostExtractionAdapter,
     GeminiJobPostGenerationAdapter,

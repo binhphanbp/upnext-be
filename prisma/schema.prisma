@@ -2047,6 +2047,29 @@ model AiUsageLog {
   @@map("ai_usage_logs")
 }
 
+/// Kết quả của một thao tác AI, lưu theo idempotency key để một retry của client
+/// KHÔNG gọi lại model.
+///
+/// Quota đã idempotent từ trước, nhưng chi phí API thì không: `consume()` trả
+/// `{ replayed: true }` khi key trùng, rồi caller vẫn chạy `run()` -- tức người dùng
+/// không bị trừ quota hai lần nhưng UpNext vẫn trả tiền token hai lần. Bảng này là
+/// chỗ `loadResult(prior)` mà khuôn `consume()` ở §9.2 kế hoạch nghiệp vụ để trống.
+///
+/// Có `expiresAt` vì payload là dữ liệu tạm, không phải sổ sách: nó chỉ cần sống đủ
+/// lâu để phục vụ một lần retry. Dọn theo kiểu cơ hội lúc ghi, nên không cần cron.
+model AiOperationResult {
+  id             String   @id @default(uuid()) @db.Uuid
+  idempotencyKey String   @unique @map("idempotency_key") @db.VarChar(180)
+  /// Ví dụ 'job_post_ai.generate' -- để đối soát và để biết payload có hình gì.
+  operation      String   @db.VarChar(60)
+  payload        Json
+  expiresAt      DateTime @map("expires_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("ai_operation_results")
+}
+
 model Invoice {
   id                 String         @id @default(uuid()) @db.Uuid
   subscriptionPlanId String         @map("subscription_plan_id") @db.Uuid
