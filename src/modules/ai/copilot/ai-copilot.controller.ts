@@ -22,7 +22,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { ActorType, AiConversationContext, SubscriptionFeature } from '@prisma/client';
+import { ActorType, AiConversationContext } from '@prisma/client';
+import { SubscriptionFeature } from '../../subscriptions/feature-registry';
 import { randomUUID } from 'node:crypto';
 import { Request, Response } from 'express';
 import { AuthenticatedUser, CurrentUser } from '../../../common/decorators/current-user.decorator';

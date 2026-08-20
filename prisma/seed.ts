@@ -26,10 +26,10 @@ import {
   ProfileVisibility,
   SalaryPeriod,
   SkillPriority,
-  SubscriptionFeature,
   WorkingModel,
 } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { SubscriptionFeature } from '../src/modules/subscriptions/feature-registry';
 import { randomUUID, createHash } from 'node:crypto';
 import { hash } from 'bcryptjs';
 import 'dotenv/config';

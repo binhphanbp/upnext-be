@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SubscriptionFeature } from '@prisma/client';
+import { SubscriptionFeature } from '../../subscriptions/feature-registry';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,

@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
-import { SubscriptionFeature } from '@prisma/client';
 import * as mammoth from 'mammoth';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
+import { SubscriptionFeature } from '../subscriptions/feature-registry';
 import { AiOperationCacheService } from './ai-operation-cache.service';
 import { GenerateJobPostDraftDto } from './dto/generate-job-post-draft.dto';
 import {

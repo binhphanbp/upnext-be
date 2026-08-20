@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import { SubscriptionFeature } from '@prisma/client';
+import { SubscriptionFeature } from '../../modules/subscriptions/feature-registry';
 
 export const REQUIRES_FEATURE_KEY = 'requiresFeature';
 

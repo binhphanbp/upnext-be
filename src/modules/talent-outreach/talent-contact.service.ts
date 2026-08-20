@@ -18,7 +18,6 @@ import {
   MessageType,
   ModerationStatus,
   ProfileVisibility,
-  SubscriptionFeature,
   SubscriptionStatus,
   TalentContactAttemptOutcome,
   TalentContactStatus,
@@ -29,6 +28,7 @@ import { OutboxService } from '../outbox/outbox.service';
 import { MessageService } from '../conversations/services/message.service';
 import { ConversationRealtimeService } from '../conversations/services/conversation-realtime.service';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
+import { SubscriptionFeature } from '../subscriptions/feature-registry';
 import { CreateTalentContactDto } from './dto/create-talent-contact.dto';
 import { TalentContactActionDto } from './dto/talent-contact-action.dto';
 import { UpdateContactPreferenceDto } from './dto/update-contact-preference.dto';

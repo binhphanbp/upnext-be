@@ -10,11 +10,11 @@ import {
   CvScreeningRunStatus,
   EducationLevel,
   Prisma,
-  SubscriptionFeature,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { isJobPostAccessibleToRecruiter } from '../../common/authorization/job-post-access';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
+import { SubscriptionFeature } from '../subscriptions/feature-registry';
 import { RunCvScreeningDto } from './dto/run-cv-screening.dto';
 import {
   estimateGeminiCostVnd,

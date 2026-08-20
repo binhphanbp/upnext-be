@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
-import { AiConversationContext, SubscriptionFeature } from '@prisma/client';
+import { AiConversationContext } from '@prisma/client';
+import { SubscriptionFeature } from '../../subscriptions/feature-registry';
 import { CandidateSubscriptionQuotaService } from '../../subscriptions/candidate-subscription-quota.service';
 import { CandidateContextAssembler } from '../context/candidate-context.assembler';
 import { AiActionsService } from './ai-actions.service';

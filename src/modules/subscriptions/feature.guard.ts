@@ -1,9 +1,10 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ActorType, SubscriptionFeature } from '@prisma/client';
+import { ActorType } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { REQUIRES_FEATURE_KEY } from '../../common/decorators/requires-feature.decorator';
 import { SubscriptionQuotaService } from './subscription-quota.service';
+import { SubscriptionFeature } from './feature-registry';
 
 @Injectable()
 export class FeatureGuard implements CanActivate {

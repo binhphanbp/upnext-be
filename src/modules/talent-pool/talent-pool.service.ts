@@ -3,11 +3,11 @@ import {
   CandidateContactPreferenceStatus,
   JobSearchStatus,
   ProfileVisibility,
-  SubscriptionFeature,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
+import { SubscriptionFeature } from '../subscriptions/feature-registry';
 import { SearchTalentPoolDto } from './dto/search-talent-pool.dto';
 
 /**

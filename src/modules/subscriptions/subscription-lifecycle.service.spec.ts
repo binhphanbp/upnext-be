@@ -4,13 +4,13 @@ import {
   ActorType,
   PlanAudience,
   SubscriptionCheckoutStatus,
-  SubscriptionFeature,
   SubscriptionStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CandidateSandboxCheckoutDto } from './dto/candidate-sandbox-checkout.dto';
 import { RecruiterSandboxCheckoutDto } from '../company-subscriptions/dto/recruiter-sandbox-checkout.dto';
 import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
+import { SubscriptionFeature } from './feature-registry';
 
 const actor = {
   id: '11111111-1111-1111-1111-111111111111',

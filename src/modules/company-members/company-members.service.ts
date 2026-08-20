@@ -12,7 +12,6 @@ import {
   ActorType,
   CompanyVerificationStatus,
   AccountStatus,
-  SubscriptionFeature,
 } from '@prisma/client';
 import { EmailService } from '../../common/email/email.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -22,6 +21,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { AuthService } from '../auth/auth.service';
 import { AcceptInvitationAndSetPasswordDto } from './dto/accept-invitation-and-set-password.dto';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
+import { SubscriptionFeature } from '../subscriptions/feature-registry';
 
 @Injectable()
 export class CompanyMembersService {
