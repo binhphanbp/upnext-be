@@ -1,5 +1,6 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { JobBoostStatus, JobBoostType, JobStatus, SubscriptionFeature } from '@prisma/client';
+import { JobBoostStatus, JobBoostType, JobStatus } from '@prisma/client';
+import { SubscriptionFeature } from '../subscriptions/feature-registry';
 import { randomUUID } from 'node:crypto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';

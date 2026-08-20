@@ -3,7 +3,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { SetPlanFeaturesDto } from './dto/set-plan-features.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
-import { PlanAudience, Prisma, SubscriptionFeature, SubscriptionStatus } from '@prisma/client';
+import { PlanAudience, Prisma, SubscriptionStatus } from '@prisma/client';
+import { SubscriptionFeature } from '../subscriptions/feature-registry';
 @Injectable()
 export class SubscriptionPlansService {
   constructor(private readonly prisma: PrismaService) {}

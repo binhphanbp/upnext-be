@@ -2,12 +2,12 @@ import { ConflictException, ForbiddenException, Injectable, Logger } from '@nest
 import {
   PlanAudience,
   Prisma,
-  SubscriptionFeature,
   SubscriptionStatus,
   SubscriptionUsageDirection,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { activeSubscriptionRaceError, isActiveSubscriptionRace } from './active-subscription-race';
+import { SubscriptionFeature } from './feature-registry';
 
 export type CandidateQuotaConsumeInput = {
   candidateProfileId: string;
@@ -19,7 +19,9 @@ export type CandidateQuotaConsumeInput = {
 };
 
 export type CandidateQuotaSnapshot = {
-  feature: SubscriptionFeature;
+  /** Read straight off `PlanFeature.feature` -- not narrowed to `SubscriptionFeature`
+   * because the column is a plain VarChar(60), not a closed enum (D2). */
+  feature: string;
   enabled: boolean;
   limit: number | null;
   used: number;

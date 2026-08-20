@@ -416,17 +416,12 @@ enum SupportAssignmentAction {
   UNASSIGN @map("unassign")
 }
 
-enum SubscriptionFeature {
-  JOB_POST       @map("job_post")
-  FEATURED_JOB   @map("featured_job")
-  URGENT_LABEL   @map("urgent_label")
-  CV_POOL_VIEW   @map("cv_pool_view")
-  TALENT_CONTACT @map("talent_contact")
-  AI_CV_MATCHING @map("ai_cv_matching")
-  AI_JD_GENERATE @map("ai_jd_generate")
-  AI_COPILOT_RUN @map("ai_copilot_run")
-  HR_SEAT        @map("hr_seat")
-}
+// `SubscriptionFeature` was a Prisma enum here (D2,
+// KE-HOACH-SUBSCRIPTION-THUC-THI.md mục 18). Every `feature` column below is
+// now `VarChar(60)`; the closed list of valid keys lives in
+// `src/modules/subscriptions/feature-registry.ts` instead, so adding a
+// capability (e.g. upcoming B2C AI keys) is a data change, not a migration
+// touching six tables.
 
 enum PlanAudience {
   RECRUITER @map("recruiter")
@@ -1829,14 +1824,14 @@ model SubscriptionPlan {
 /// Per-plan quota definition. Replaces the hard-coded *Limit columns so adding a
 /// metered feature is a data change, not a migration.
 model PlanFeature {
-  id         String              @id @default(uuid()) @db.Uuid
-  planId     String              @map("plan_id") @db.Uuid
-  feature    SubscriptionFeature
-  enabled    Boolean             @default(true)
+  id         String   @id @default(uuid()) @db.Uuid
+  planId     String   @map("plan_id") @db.Uuid
+  feature    String   @db.VarChar(60)
+  enabled    Boolean  @default(true)
   /// null = unlimited. 0 = feature present but no allowance.
-  limitValue Int?                @map("limit_value")
-  createdAt  DateTime            @default(now()) @map("created_at")
-  updatedAt  DateTime            @updatedAt @map("updated_at")
+  limitValue Int?     @map("limit_value")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   plan SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
@@ -1968,15 +1963,15 @@ model SubscriptionLifecycleEvent {
 /// conditional-update approach as recruiter quota counters keeps concurrent
 /// Copilot requests from overspending a limited allowance.
 model CandidateSubscriptionQuotaCounter {
-  id                      String              @id @default(uuid()) @db.Uuid
-  candidateSubscriptionId String              @map("candidate_subscription_id") @db.Uuid
-  feature                 SubscriptionFeature
-  limitValue              Int?                @map("limit_value")
-  usedValue               Int                 @default(0) @map("used_value")
-  periodStart             DateTime            @map("period_start")
-  periodEnd               DateTime            @map("period_end")
-  createdAt               DateTime            @default(now()) @map("created_at")
-  updatedAt               DateTime            @updatedAt @map("updated_at")
+  id                      String   @id @default(uuid()) @db.Uuid
+  candidateSubscriptionId String   @map("candidate_subscription_id") @db.Uuid
+  feature                 String   @db.VarChar(60)
+  limitValue              Int?     @map("limit_value")
+  usedValue               Int      @default(0) @map("used_value")
+  periodStart             DateTime @map("period_start")
+  periodEnd               DateTime @map("period_end")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
 
   candidateSubscription CandidateSubscription @relation(fields: [candidateSubscriptionId], references: [id], onDelete: Cascade)
 
@@ -1991,7 +1986,7 @@ model CandidateSubscriptionUsage {
   id                      String                     @id @default(uuid()) @db.Uuid
   candidateSubscriptionId String                     @map("candidate_subscription_id") @db.Uuid
   candidateProfileId      String                     @map("candidate_profile_id") @db.Uuid
-  feature                 SubscriptionFeature
+  feature                 String                     @db.VarChar(60)
   quantity                Int
   direction               SubscriptionUsageDirection
   referenceType           String                     @map("reference_type") @db.VarChar(80)
@@ -2015,16 +2010,16 @@ model CandidateSubscriptionUsage {
 /// race-safe without a row lock. A new period is a new row, so resetting
 /// allowances needs no scheduled job.
 model SubscriptionQuotaCounter {
-  id                    String              @id @default(uuid()) @db.Uuid
-  companySubscriptionId String              @map("company_subscription_id") @db.Uuid
-  feature               SubscriptionFeature
+  id                    String   @id @default(uuid()) @db.Uuid
+  companySubscriptionId String   @map("company_subscription_id") @db.Uuid
+  feature               String   @db.VarChar(60)
   /// Mirrored from PlanFeature at period start; null = unlimited.
-  limitValue            Int?                @map("limit_value")
-  usedValue             Int                 @default(0) @map("used_value")
-  periodStart           DateTime            @map("period_start")
-  periodEnd             DateTime            @map("period_end")
-  createdAt             DateTime            @default(now()) @map("created_at")
-  updatedAt             DateTime            @updatedAt @map("updated_at")
+  limitValue            Int?     @map("limit_value")
+  usedValue             Int      @default(0) @map("used_value")
+  periodStart           DateTime @map("period_start")
+  periodEnd             DateTime @map("period_end")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   companySubscription CompanySubscription @relation(fields: [companySubscriptionId], references: [id], onDelete: Cascade)
 
@@ -2036,20 +2031,20 @@ model SubscriptionQuotaCounter {
 /// Raw AI spend ledger. Needed to verify the margin argument the pricing
 /// proposal is built on (plan price minus real token cost).
 model AiUsageLog {
-  id            String              @id @default(uuid()) @db.Uuid
-  feature       SubscriptionFeature
-  companyId     String?             @map("company_id") @db.Uuid
-  actorType     ActorType?          @map("actor_type")
-  actorId       String?             @map("actor_id") @db.Uuid
-  modelName     String              @map("model_name") @db.VarChar(120)
-  inputTokens   Int?                @map("input_tokens")
-  outputTokens  Int?                @map("output_tokens")
+  id            String     @id @default(uuid()) @db.Uuid
+  feature       String     @db.VarChar(60)
+  companyId     String?    @map("company_id") @db.Uuid
+  actorType     ActorType? @map("actor_type")
+  actorId       String?    @map("actor_id") @db.Uuid
+  modelName     String     @map("model_name") @db.VarChar(120)
+  inputTokens   Int?       @map("input_tokens")
+  outputTokens  Int?       @map("output_tokens")
   /// Estimated cost in VND; nullable because token counts are not always returned.
-  costEstimate  Decimal?            @map("cost_estimate") @db.Decimal(12, 4)
-  referenceType String?             @map("reference_type") @db.VarChar(80)
-  referenceId   String?             @map("reference_id") @db.Uuid
-  succeeded     Boolean             @default(true)
-  createdAt     DateTime            @default(now()) @map("created_at")
+  costEstimate  Decimal?   @map("cost_estimate") @db.Decimal(12, 4)
+  referenceType String?    @map("reference_type") @db.VarChar(80)
+  referenceId   String?    @map("reference_id") @db.Uuid
+  succeeded     Boolean    @default(true)
+  createdAt     DateTime   @default(now()) @map("created_at")
 
   company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
@@ -2735,7 +2730,7 @@ model SubscriptionUsage {
   id                    String                     @id @default(uuid()) @db.Uuid
   companySubscriptionId String                     @map("company_subscription_id") @db.Uuid
   companyId             String                     @map("company_id") @db.Uuid
-  feature               SubscriptionFeature
+  feature               String                     @db.VarChar(60)
   quantity              Int                        @default(1)
   direction             SubscriptionUsageDirection @default(CONSUME)
   referenceType         String                     @map("reference_type") @db.VarChar(80)

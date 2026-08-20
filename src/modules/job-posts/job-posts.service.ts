@@ -12,10 +12,10 @@ import {
   Prisma,
   ModerationStatus,
   ActorType,
-  SubscriptionFeature,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { SubscriptionFeature } from '../subscriptions/feature-registry';
 import { CreateJobPostDto } from './dto/create-job-post.dto';
 import { ApproveJobPostDto } from './dto/approve-job-post.dto';
 import { RejectJobPostDto } from './dto/reject-job-post.dto';

@@ -1,5 +1,6 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
-import { Prisma, SubscriptionFeature, SubscriptionUsageDirection } from '@prisma/client';
+import { Prisma, SubscriptionUsageDirection } from '@prisma/client';
+import { SubscriptionFeature } from './feature-registry';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubscriptionQuotaService } from './subscription-quota.service';
