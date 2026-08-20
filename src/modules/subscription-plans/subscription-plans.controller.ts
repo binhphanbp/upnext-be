@@ -37,7 +37,17 @@ export class SubscriptionPlansController {
     return this.plansService.create(user.id, dto);
   }
 
-  @ApiOperation({ summary: 'Lấy danh sách tất cả gói dịch vụ' })
+  /**
+   * Admin-only on purpose: `findAll()` returns every plan regardless of
+   * `status`/`isPublic`, including drafts and retired plans -- full price and
+   * feature limits included. There is a separate, safe, unauthenticated route
+   * for anyone who just needs the plans that are actually on sale:
+   * `GET /subscription-plans/public`.
+   */
+  @ApiOperation({ summary: 'Lấy danh sách tất cả gói dịch vụ (Chỉ dành cho Admin)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN)
   @Get()
   findAll() {
     return this.plansService.findAll();
@@ -54,7 +64,14 @@ export class SubscriptionPlansController {
     return this.plansService.findPublic(audience ?? PlanAudience.RECRUITER);
   }
 
-  @ApiOperation({ summary: 'Lấy thông tin chi tiết một gói dịch vụ' })
+  /** Same reasoning as `findAll()` above: a draft/retired plan's full price and
+   * feature limits should not be readable by guessing or enumerating a UUID.
+   * No frontend caller currently uses this route directly -- callers that need
+   * a single plan's public data go through `findPublic()`. */
+  @ApiOperation({ summary: 'Lấy thông tin chi tiết một gói dịch vụ (Chỉ dành cho Admin)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN)
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.plansService.findOne(id);
