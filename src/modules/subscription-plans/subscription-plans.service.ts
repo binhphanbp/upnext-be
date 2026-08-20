@@ -8,17 +8,38 @@ import { PlanAudience, Prisma, SubscriptionFeature, SubscriptionStatus } from '@
 export class SubscriptionPlansService {
   constructor(private readonly prisma: PrismaService) {}
   async create(adminId: string, dto: CreateSubscriptionPlanDto) {
-    const existing = await this.prisma.subscriptionPlan.findFirst({
-      where: {
-        subscriptionName: dto.subscriptionName,
-      },
+    const audience = dto.audience ?? PlanAudience.RECRUITER;
+
+    // Trùng tên chỉ tính TRONG CÙNG audience: "Miễn phí" tồn tại hợp lệ ở cả hai
+    // phía bảng giá, và chặn nó là chặn đúng một danh mục hợp lý.
+    const sameName = await this.prisma.subscriptionPlan.findFirst({
+      where: { subscriptionName: dto.subscriptionName, audience },
     });
-    if (existing) {
-      throw new ConflictException('Subscription plan name already exists');
+    if (sameName) {
+      throw new ConflictException({
+        code: 'PLAN_NAME_TAKEN',
+        message: `Đã có gói tên "${dto.subscriptionName}" cho ${audience}`,
+      });
     }
+
+    // `code` có unique constraint ở DB. Kiểm trước để trả lỗi đọc được thay vì để
+    // Prisma ném P2002 ra ngoài dưới dạng 500.
+    if (dto.code) {
+      const sameCode = await this.prisma.subscriptionPlan.findUnique({
+        where: { code: dto.code },
+      });
+      if (sameCode) {
+        throw new ConflictException({
+          code: 'PLAN_CODE_TAKEN',
+          message: `Mã gói "${dto.code}" đã được dùng`,
+        });
+      }
+    }
+
     return this.prisma.subscriptionPlan.create({
       data: {
         ...dto,
+        audience,
         price: new Prisma.Decimal(dto.price),
         createdByAdminId: adminId,
       },
@@ -106,7 +127,9 @@ export class SubscriptionPlansService {
     await this.findOne(id); // Kiểm tra xem gói có tồn tại không
     const updateData: Prisma.SubscriptionPlanUpdateInput = {
       ...dto,
-      ...(dto.price ? { price: new Prisma.Decimal(dto.price) } : {}),
+      // `dto.price !== undefined`, KHÔNG phải `dto.price ?`: giá 0 là falsy, nên cách
+      // viết cũ âm thầm bỏ qua mọi lần hạ một gói về miễn phí.
+      ...(dto.price !== undefined ? { price: new Prisma.Decimal(dto.price) } : {}),
     };
     return this.prisma.subscriptionPlan.update({
       where: { id },
