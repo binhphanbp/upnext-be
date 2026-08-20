@@ -61,7 +61,12 @@ describe('GeminiJobPostService', () => {
           specializations: ['Backend'],
         },
       ),
-    ).resolves.toEqual({ draft: generatedDraft, modelName: 'gemini-2.5-flash' });
+    ).resolves.toEqual({
+      draft: generatedDraft,
+      modelName: 'gemini-2.5-flash',
+      inputTokens: 120,
+      outputTokens: 80,
+    });
 
     expect(generateStructured).toHaveBeenCalledTimes(1);
     expect(generateStructured).toHaveBeenCalledWith(
@@ -104,7 +109,12 @@ describe('GeminiJobPostService', () => {
           specializations: ['Backend'],
         },
       ),
-    ).resolves.toEqual({ draft: generatedDraft, modelName: 'upnext-ai/gemini-2.5-flash' });
+    ).resolves.toEqual({
+      draft: generatedDraft,
+      modelName: 'upnext-ai/gemini-2.5-flash',
+      inputTokens: 180,
+      outputTokens: 90,
+    });
 
     expect(extractStructured).toHaveBeenCalledWith(
       expect.objectContaining({

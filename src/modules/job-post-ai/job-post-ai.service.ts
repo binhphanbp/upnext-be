@@ -1,9 +1,11 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
+import { ActorType } from '@prisma/client';
 import * as mammoth from 'mammoth';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { SubscriptionFeature } from '../subscriptions/feature-registry';
+import { estimateGeminiCostVnd } from '../cv-screening/gemini-scoring.service';
 import { AiOperationCacheService } from './ai-operation-cache.service';
 import { GenerateJobPostDraftDto } from './dto/generate-job-post-draft.dto';
 import {
@@ -39,6 +41,8 @@ type LoadedContext = {
 
 @Injectable()
 export class JobPostAiService {
+  private readonly logger = new Logger(JobPostAiService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly gemini: GeminiJobPostService,
@@ -77,7 +81,9 @@ export class JobPostAiService {
    * (key sinh phía server, không cache). Frontend gửi được key nào thì key đó bắt đầu
    * được bảo vệ, không cần đổi đồng loạt.
    */
-  private async withJdCredit<T>(
+  private async withJdCredit<
+    T extends { modelName: string; inputTokens: number; outputTokens: number },
+  >(
     recruiterId: string,
     companyId: string,
     operation: string,
@@ -139,6 +145,7 @@ export class JobPostAiService {
       if (clientRequestId) {
         await this.cache.write(idempotencyKey, operation, result);
       }
+      await this.recordAiUsage(usage.id, companyId, recruiterId, result);
       return result;
     } catch (error) {
       // Chỉ hoàn lượt vừa tiêu. Với `replayed` thì lượt đã được hoàn hoặc đã tính từ
@@ -147,6 +154,45 @@ export class JobPostAiService {
         .$transaction((tx) => this.quota.reverse(tx, usage.id, 'ai-call-failed'))
         .catch(() => undefined);
       throw error;
+    }
+  }
+
+  /**
+   * Records what the Gemini call actually cost, same purpose as
+   * `cv-screening.service.ts`'s `recordAiUsage` -- real token spend is the only
+   * way to eventually replace `PRICE_TBD` with a measured number (D3b). Never
+   * lets a logging failure affect the response the recruiter is waiting on.
+   */
+  private async recordAiUsage(
+    usageId: string,
+    companyId: string,
+    recruiterId: string,
+    result: { modelName: string; inputTokens: number; outputTokens: number },
+  ) {
+    try {
+      await this.prisma.aiUsageLog.create({
+        data: {
+          feature: SubscriptionFeature.AI_JD_GENERATE,
+          companyId,
+          actorType: ActorType.RECRUITER,
+          actorId: recruiterId,
+          modelName: result.modelName,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+          costEstimate: result.modelName.startsWith('gemini-')
+            ? estimateGeminiCostVnd(result.inputTokens, result.outputTokens)
+            : null,
+          referenceType: 'JOB_POST_AI',
+          referenceId: usageId,
+          succeeded: true,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to record AI usage for quota usage ${usageId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 
