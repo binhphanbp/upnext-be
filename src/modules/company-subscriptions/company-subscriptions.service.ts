@@ -9,6 +9,10 @@ import { SubscribeCompanyDto } from './dto/subscribe-company.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ActorType, PlanAudience, Prisma, SubscriptionStatus } from '@prisma/client';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
+import {
+  activeSubscriptionRaceError,
+  isActiveSubscriptionRace,
+} from '../subscriptions/active-subscription-race';
 
 @Injectable()
 export class CompanySubscriptionsService {
@@ -107,7 +111,14 @@ export class CompanySubscriptionsService {
       return subscription;
     };
 
-    return transaction ? activate(transaction) : this.prisma.$transaction(activate);
+    // Admin grant cũng đụng cùng partial unique index nếu có hai lần gán đồng thời.
+    // Khi caller đưa transaction của họ vào thì để lỗi propagate -- transaction đó
+    // đã bị Postgres hủy, và chủ của nó mới biết cách xử lý.
+    if (transaction) return activate(transaction);
+    return this.prisma.$transaction(activate).catch((error: unknown) => {
+      if (isActiveSubscriptionRace(error)) throw activeSubscriptionRaceError();
+      throw error;
+    });
   }
 
   async getActiveSubscription(companyId: string) {

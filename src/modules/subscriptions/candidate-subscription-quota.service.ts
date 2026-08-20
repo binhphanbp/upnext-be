@@ -7,6 +7,7 @@ import {
   SubscriptionUsageDirection,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { activeSubscriptionRaceError, isActiveSubscriptionRace } from './active-subscription-race';
 
 export type CandidateQuotaConsumeInput = {
   candidateProfileId: string;
@@ -250,7 +251,40 @@ export class CandidateSubscriptionQuotaService {
       },
       orderBy: { startedAt: 'desc' },
     });
-    return subscription ?? this.provisionFreeSubscription(client, candidateProfileId);
+    return subscription ?? this.provisionFreeOrAdoptWinner(client, candidateProfileId);
+  }
+
+  /**
+   * Hai request đồng thời cho cùng một ứng viên đều thấy "chưa có gói" và đều cấp
+   * gói Free; partial unique index chặn người thua bằng `P2002`, và nếu không ai
+   * xử lý thì khách nhận 500 cho một tình huống hoàn toàn bình thường.
+   *
+   * Cách chữa phụ thuộc việc đang ở trong transaction hay không:
+   *
+   * - **Ngoài transaction** (đường đọc): đọc lại và dùng bản ghi của người thắng.
+   *   Người dùng không thấy gì cả — kết quả cuối cùng giống hệt như khi họ thắng.
+   * - **Trong transaction** (`consume`/`reserve`): Postgres đã **hủy** transaction
+   *   ngay khi unique violation xảy ra, nên không truy vấn lại được trên cùng
+   *   `tx`. Chỉ đổi thành 409 để client thử lại; lần sau sẽ thấy bản ghi kia.
+   */
+  private async provisionFreeOrAdoptWinner(client: PrismaClientLike, candidateProfileId: string) {
+    try {
+      return await this.provisionFreeSubscription(client, candidateProfileId);
+    } catch (error) {
+      if (!isActiveSubscriptionRace(error)) throw error;
+      if (client !== this.prisma) throw activeSubscriptionRaceError();
+
+      const winner = await this.prisma.candidateSubscription.findFirst({
+        where: {
+          candidateProfileId,
+          status: SubscriptionStatus.ACTIVE,
+          expiredAt: { gt: new Date() },
+        },
+        orderBy: { startedAt: 'desc' },
+      });
+      if (winner) return winner;
+      throw activeSubscriptionRaceError();
+    }
   }
 
   /**
