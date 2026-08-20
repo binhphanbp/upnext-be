@@ -284,6 +284,14 @@ enum JobBoostStatus {
   CANCELLED @map("cancelled")
 }
 
+/// Hai nhãn UI khác nhau ("Nổi bật" vs "Tuyển gấp"), dùng chung một hạn mức
+/// `featured_job` -- `urgent_label` không có feature key riêng, theo quyết
+/// định đã chốt ở mục 14 kế hoạch nghiệp vụ.
+enum JobBoostType {
+  FEATURED @map("featured")
+  URGENT   @map("urgent")
+}
+
 enum CompanyMemberStatus {
   ACTIVE  @map("active")
   INVITED @map("invited")
@@ -2099,6 +2107,7 @@ model JobBoost {
   companySubscriptionId String         @map("company_subscription_id") @db.Uuid
   jobPostId             String         @map("job_post_id") @db.Uuid
   companyId             String         @map("company_id") @db.Uuid
+  type                  JobBoostType   @default(FEATURED)
   status                JobBoostStatus @default(SCHEDULED)
   creditCost            Int            @map("credit_cost")
   startsAt              DateTime       @map("starts_at")
