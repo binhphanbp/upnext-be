@@ -27,6 +27,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 import { AdminPermissions } from '../../common/decorators/admin-permissions.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AllowWhenRestricted } from '../../common/decorators/allow-when-restricted.decorator';
@@ -34,6 +35,7 @@ import { AdminPermissionsGuard } from '../auth/guards/admin-permissions.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { RestrictedModeGuard } from '../auth/guards/restricted-mode.guard';
+import { UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { documentUploadOptions, imageUploadOptions } from '../../common/upload/multer-options';
 import { CompaniesService } from './companies.service';
@@ -403,7 +405,8 @@ export class CompaniesController {
     description: 'Trích xuất thông tin thành công.',
   })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, UserThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 600_000 } })
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post(':id/scan-license')
   @UseInterceptors(FileInterceptor('file', documentUploadOptions))
@@ -438,7 +441,8 @@ export class CompaniesController {
     description: 'Trích xuất thông tin thành công.',
   })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, UserThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 600_000 } })
   @Roles(ActorType.RECRUITER, ActorType.ADMIN)
   @Post('scan-license')
   @UseInterceptors(FileInterceptor('file', documentUploadOptions))
