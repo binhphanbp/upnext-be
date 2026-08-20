@@ -8,6 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   packages: write
 
@@ -15,8 +16,89 @@ env:
   IMAGE_NAME: ghcr.io/binhphanbp/upnext-be
 
 jobs:
+  migration-safety:
+    name: Validate Prisma migration safety
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.5-pg17-bookworm
+        env:
+          POSTGRES_USER: upnext
+          POSTGRES_PASSWORD: upnext
+          POSTGRES_DB: upnext_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U upnext -d upnext_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://upnext:upnext@localhost:5432/upnext_test?schema=public
+      JWT_ACCESS_SECRET: ci-jwt-access-secret-that-is-at-least-32-characters
+      JWT_ACCESS_EXPIRES_IN: 15m
+      APP_ENV: staging
+      APP_FRONTEND_URL: https://staging.upnext.works
+      CORS_ORIGIN: https://upnext.works,https://staging.upnext.works
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Determine trusted deployment baseline
+        id: migration-baseline
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          BASE_SHA="$(bash scripts/get-last-successful-deployment-sha.sh "$GITHUB_REF_NAME")"
+          if ! git merge-base --is-ancestor "$BASE_SHA" "$GITHUB_SHA"; then
+            echo "The last successful deployment is not an ancestor of this commit. Rebase before deploying." >&2
+            exit 1
+          fi
+
+          echo "sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Reject rewritten Prisma migrations
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.migration-baseline.outputs.sha }}
+        run: |
+          if [ -z "$BASE_SHA" ]; then
+            echo "No successful deployment baseline is available; refuse to build an image." >&2
+            exit 1
+          fi
+
+          bash scripts/check-prisma-migration-history.sh "$BASE_SHA" "$GITHUB_SHA"
+
+      - name: Generate Prisma Client
+        run: pnpm prisma:generate
+
+      - name: Apply Prisma migrations
+        run: pnpm prisma:deploy
+
+      - name: Verify Prisma migration status
+        run: pnpm exec prisma migrate status
+
   build-and-push:
     runs-on: ubuntu-latest
+    needs: migration-safety
 
     steps:
       - name: Checkout
@@ -104,7 +186,7 @@ jobs:
   deploy:
     name: Deploy backend
     runs-on: ubuntu-latest
-    needs: smoke-test
+    needs: [smoke-test, migration-safety]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref_name == 'dev' || github.ref_name == 'main')
     concurrency:
       group: deploy-backend-${{ github.ref_name }}
@@ -144,30 +226,24 @@ jobs:
             exit 1
           fi
 
-          echo "Initial staging deploy failed. Resolving failed migrations in staging database..."
+          echo "Initial staging deploy failed. Prisma migration history will not be changed automatically."
+          set +e
           ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             'set -eu
             DATABASE_URL="$(docker inspect --format "{{range .Config.Env}}{{println .}}{{end}}" upnext-backend-staging | sed -n "s/^DATABASE_URL=//p")"
             test -n "$DATABASE_URL"
 
-            echo "Resolving candidate subscription quota engine migration..."
             docker run --rm \
               --network container:upnext-backend-staging \
               -e DATABASE_URL="$DATABASE_URL" \
               ghcr.io/binhphanbp/upnext-be:staging \
-              ./node_modules/.bin/prisma migrate resolve \
-              --applied 20260818120000_candidate_subscription_quota_engine || true
+              ./node_modules/.bin/prisma migrate status'
+          migration_status=$?
+          set -e
 
-            echo "Resolving pgvector migration if rolled back..."
-            docker run --rm \
-              --network container:upnext-backend-staging \
-              -e DATABASE_URL="$DATABASE_URL" \
-              ghcr.io/binhphanbp/upnext-be:staging \
-              ./node_modules/.bin/prisma migrate resolve \
-              --rolled-back 20260719090000_use_pgvector_for_cv_screening || true
-
-            /opt/upnext/scripts/deploy/deploy.sh staging backend'
+          echo "Prisma migration diagnostics exited with status ${migration_status}."
+          exit 1
 
       - name: Notify Telegram success
         if: success()
