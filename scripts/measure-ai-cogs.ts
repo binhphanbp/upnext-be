@@ -156,17 +156,34 @@ async function runCvMatching(
   const { runId } = await service.startRun(recruiterId, { jobPostId, limit: n });
   process.stdout.write(`  [cv_matching] Đã tạo run ${runId}, đang chờ xử lý xong...\n`);
 
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 5_000));
+  // xử lý chạy qua setImmediate() trong CHÍNH process này (không phải job
+  // queue riêng) -- nếu vòng lặp này bỏ cuộc và process thoát (process.exit ở
+  // main()), phần đang chấm điểm CHẾT GIỮA ĐƯỜNG, kẹt ở status=processing mãi
+  // (đã tự đi vào vết này khi viết script: run kẹt ở 8/100 sau khi polling hết
+  // giờ). concurrency=1 có chủ đích (né rate limit Gemini) nên tốc độ thật
+  // ~60-90s/CV -- N=100 cần khoảng 2 giờ. Timeout ở đây phải đủ dài để process
+  // luôn sống tới khi xử lý xong, không phải một giới hạn an toàn ngắn.
+  const POLL_INTERVAL_MS = 15_000;
+  const MAX_ATTEMPTS = 720; // 720 * 15s = 3 giờ, đủ margin cho N=100 ở concurrency=1
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     const run = await service.getRun(recruiterId, runId);
-    process.stdout.write(
-      `  [cv_matching] ${run.status} -- đã xử lý ${run.processedCount}/${run.totalApplications}, lỗi ${run.failedCount}\n`,
-    );
+    if (attempt % 4 === 0) {
+      process.stdout.write(
+        `  [cv_matching] ${run.status} -- đã xử lý ${run.processedCount}/${run.totalApplications}, lỗi ${run.failedCount}\n`,
+      );
+    }
     if (run.status === 'COMPLETED' || run.status === 'FAILED' || run.status === 'PARTIAL_FAILED') {
+      process.stdout.write(
+        `  [cv_matching] Xong: ${run.status} -- ${run.processedCount}/${run.totalApplications}, lỗi ${run.failedCount}\n`,
+      );
       return;
     }
   }
-  process.stdout.write('  [cv_matching] Quá thời gian chờ (10 phút) -- kiểm tra run bằng tay.\n');
+  process.stdout.write(
+    `  [cv_matching] Quá ${MAX_ATTEMPTS * POLL_INTERVAL_MS / 3_600_000} giờ chờ -- kiểm tra run ${runId} bằng tay ` +
+      `(CHÚ Ý: nếu process này thoát trong khi run chưa xong, phần đang xử lý sẽ kẹt ở status=processing).\n`,
+  );
 }
 
 async function runCopilot(
@@ -185,7 +202,14 @@ async function runCopilot(
 
   const conversations = app.get(AiConversationsService);
   const copilot = app.get(AiCopilotService);
-  const conversation = await conversations.createForCandidate(
+
+  // Mỗi lượt ghi 2 tin nhắn (user + assistant); MAX_MESSAGES_PER_CONVERSATION=100
+  // (ai-conversations.service.ts) nên một hội thoại chỉ chịu được ~50 lượt trước
+  // khi appendUserMessage() ném lỗi -- không phải lỗi Gemini, lỗi ở chính script
+  // này khi n lớn dùng chung một conversation. Xoay vòng conversation mới mỗi 40
+  // lượt (80 tin nhắn, còn dư margin) để n=100+ vẫn chạy hết.
+  const ITERATIONS_PER_CONVERSATION = 40;
+  let conversation = await conversations.createForCandidate(
     profile.id,
     AiConversationContext.GENERAL,
     null,
@@ -196,6 +220,15 @@ async function runCopilot(
   let ok = 0;
   let failed = 0;
   for (let i = 0; i < n; i += 1) {
+    if (i > 0 && i % ITERATIONS_PER_CONVERSATION === 0) {
+      conversation = await conversations.createForCandidate(
+        profile.id,
+        AiConversationContext.GENERAL,
+        null,
+        'vi',
+      );
+      process.stdout.write(`  [copilot] Đã tạo conversation mới ${conversation.id}\n`);
+    }
     const prompt = SAMPLE_COPILOT_PROMPTS[i % SAMPLE_COPILOT_PROMPTS.length];
     try {
       await conversations.appendUserMessage(conversation.id, prompt);
