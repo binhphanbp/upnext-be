@@ -28,6 +28,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { MessageService } from '../conversations/services/message.service';
 import { ConversationRealtimeService } from '../conversations/services/conversation-realtime.service';
+import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { CreateTalentContactDto } from './dto/create-talent-contact.dto';
 import { TalentContactActionDto } from './dto/talent-contact-action.dto';
 import { UpdateContactPreferenceDto } from './dto/update-contact-preference.dto';
@@ -43,6 +44,7 @@ export class TalentContactService {
     private readonly messages: MessageService,
     private readonly realtime: ConversationRealtimeService,
     private readonly config: ConfigService,
+    private readonly quota: SubscriptionQuotaService,
   ) {}
 
   async create(dto: CreateTalentContactDto, user: AuthenticatedUser) {
@@ -69,12 +71,6 @@ export class TalentContactService {
         orderBy: { startedAt: 'desc' },
       });
       if (!subscription) throw new ConflictException('An active subscription is required');
-      // Outreach is no longer capped by the plan. The counter is still bumped so
-      // usage reporting stays accurate, but running out never blocks a contact.
-      await tx.companySubscription.updateMany({
-        where: { id: subscription.id },
-        data: { talentContactUsed: { increment: 1 } },
-      });
 
       let request = await tx.talentContactRequest.findUnique({
         where: {
@@ -175,17 +171,13 @@ export class TalentContactService {
             include: { conversation: true },
           });
 
-      const usage = await tx.subscriptionUsage.create({
-        data: {
-          companySubscriptionId: subscription.id,
-          companyId: user.companyId!,
-          feature: SubscriptionFeature.TALENT_CONTACT,
-          quantity: 1,
-          referenceType: 'TALENT_CONTACT_REQUEST',
-          referenceId: request.id,
-          idempotencyKey,
-          createdByRecruiterId: user.id,
-        },
+      const { usage } = await this.quota.consume(tx, {
+        companyId: user.companyId!,
+        feature: SubscriptionFeature.TALENT_CONTACT,
+        referenceType: 'TALENT_CONTACT_REQUEST',
+        referenceId: request.id,
+        idempotencyKey,
+        createdByRecruiterId: user.id,
       });
       const intro = await tx.message.create({
         data: {

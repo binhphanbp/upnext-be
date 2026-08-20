@@ -5,9 +5,10 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { EmailService } from '../../common/email/email.service';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth/auth.service';
-import { ActorType } from '@prisma/client';
+import { ActorType, CompanyMemberStatus, CompanyVerificationStatus, SubscriptionFeature } from '@prisma/client';
 import { ForbiddenException } from '@nestjs/common';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 
 describe('CompanyMembersService', () => {
   let service: CompanyMembersService;
@@ -20,6 +21,7 @@ describe('CompanyMembersService', () => {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
@@ -28,6 +30,7 @@ describe('CompanyMembersService', () => {
     recruiterAccount: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
     },
@@ -52,6 +55,10 @@ describe('CompanyMembersService', () => {
     signAccessToken: jest.fn().mockReturnValue('token'),
   };
 
+  const quotaMock = {
+    getFeatureLimit: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
@@ -61,6 +68,7 @@ describe('CompanyMembersService', () => {
         { provide: EmailService, useValue: emailServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
         { provide: AuthService, useValue: authServiceMock },
+        { provide: SubscriptionQuotaService, useValue: quotaMock },
       ],
     }).compile();
 
@@ -172,6 +180,93 @@ describe('CompanyMembersService', () => {
           id: 'other-account-id',
         }),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('inviteMember - hr_seat quota', () => {
+    const currentUser: AuthenticatedUser = {
+      id: 'owner-account-id',
+      email: 'owner@company.com',
+      role: ActorType.RECRUITER,
+      companyId: 'company-id',
+      permissions: [],
+    };
+
+    const invitingMember = {
+      id: 'owner-member-id',
+      recruiterAccountId: 'owner-account-id',
+      companyId: 'company-id',
+      role: { id: 'owner-role-id', code: 'OWNER', name: 'Owner' },
+    };
+
+    const verifiedCompany = {
+      id: 'company-id',
+      name: 'Acme',
+      taxCode: '123',
+      address: 'HN',
+      verificationStatus: CompanyVerificationStatus.VERIFIED,
+    };
+
+    const hrRole = { id: 'hr-role-id', code: 'HR', companyId: null };
+
+    const dto = { email: 'new-hire@example.com', roleId: 'hr-role-id' };
+
+    function primeHappyPathMocks() {
+      prismaMock.companyMember.findFirst
+        .mockResolvedValueOnce(invitingMember) // permission check
+        .mockResolvedValueOnce(null); // duplicate-invite check
+      prismaMock.company.findUnique.mockResolvedValue(verifiedCompany);
+      prismaMock.recruiterAccount.findUnique.mockResolvedValue(null);
+      prismaMock.recruiterRole.findUnique.mockResolvedValue(hrRole);
+      prismaMock.recruiterAccount.create.mockResolvedValue({
+        id: 'new-account-id',
+        email: dto.email,
+        companyId: null,
+      });
+      prismaMock.companyMember.create.mockResolvedValue({
+        id: 'new-member-id',
+        invitedEmail: dto.email,
+        recruiterAccount: { id: 'new-account-id', email: dto.email },
+        role: { id: 'hr-role-id', code: 'HR', name: 'HR' },
+      });
+    }
+
+    it('rejects the invite once occupied seats reach the plan limit', async () => {
+      primeHappyPathMocks();
+      quotaMock.getFeatureLimit.mockResolvedValue({ enabled: true, limit: 2 });
+      prismaMock.companyMember.count.mockResolvedValue(2);
+
+      await expect(service.inviteMember('company-id', dto, currentUser)).rejects.toMatchObject({
+        response: { code: 'QUOTA_EXHAUSTED', feature: SubscriptionFeature.HR_SEAT },
+      });
+      expect(prismaMock.companyMember.count).toHaveBeenCalledWith({
+        where: {
+          companyId: 'company-id',
+          status: { in: [CompanyMemberStatus.ACTIVE, CompanyMemberStatus.INVITED] },
+        },
+      });
+      expect(prismaMock.companyMember.create).not.toHaveBeenCalled();
+    });
+
+    it('allows the invite when occupied seats are under the plan limit', async () => {
+      primeHappyPathMocks();
+      quotaMock.getFeatureLimit.mockResolvedValue({ enabled: true, limit: 2 });
+      prismaMock.companyMember.count.mockResolvedValue(1);
+
+      const result = await service.inviteMember('company-id', dto, currentUser);
+
+      expect(result.id).toBe('new-member-id');
+      expect(prismaMock.companyMember.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects the invite when the plan does not include hr_seat at all', async () => {
+      primeHappyPathMocks();
+      quotaMock.getFeatureLimit.mockResolvedValue({ enabled: false, limit: null });
+
+      await expect(service.inviteMember('company-id', dto, currentUser)).rejects.toMatchObject({
+        response: { code: 'FEATURE_NOT_IN_PLAN', feature: SubscriptionFeature.HR_SEAT },
+      });
+      expect(prismaMock.companyMember.create).not.toHaveBeenCalled();
     });
   });
 });

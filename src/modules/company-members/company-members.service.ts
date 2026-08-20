@@ -11,7 +11,8 @@ import {
   CompanyMemberStatus,
   ActorType,
   CompanyVerificationStatus,
-  AccountStatus,
+  AccountStatus,
+  SubscriptionFeature,
 } from '@prisma/client';
 import { EmailService } from '../../common/email/email.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -20,6 +21,7 @@ import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { AuthService } from '../auth/auth.service';
 import { AcceptInvitationAndSetPasswordDto } from './dto/accept-invitation-and-set-password.dto';
+import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 
 @Injectable()
 export class CompanyMembersService {
@@ -29,7 +31,8 @@ export class CompanyMembersService {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
-    private readonly authService: AuthService,
+    private readonly authService: AuthService,
+    private readonly quota: SubscriptionQuotaService,
   ) {}
 
   // ─── Members ─────────────────────────────────────────────────────────────
@@ -185,6 +188,38 @@ export class CompanyMembersService {
         throw new ConflictException(
           'Company already has an Owner. You cannot invite another Owner.',
         );
+      }
+    }
+
+    // hr_seat is a CONCURRENT-style limit: a ceiling on how many seats may exist
+    // at once, not a per-period credit. Removing a member frees the seat
+    // immediately, so this counts live occupancy directly instead of metering
+    // through `quota.consume()`.
+    if (currentUser.role !== ActorType.ADMIN) {
+      const seatQuota = await this.quota.getFeatureLimit(companyId, SubscriptionFeature.HR_SEAT);
+      if (!seatQuota.enabled) {
+        throw new ForbiddenException({
+          code: 'FEATURE_NOT_IN_PLAN',
+          message: 'Your current plan does not include additional HR seats.',
+          feature: SubscriptionFeature.HR_SEAT,
+        });
+      }
+      if (seatQuota.limit !== null) {
+        const occupiedSeats = await this.prisma.companyMember.count({
+          where: {
+            companyId,
+            status: { in: [CompanyMemberStatus.ACTIVE, CompanyMemberStatus.INVITED] },
+          },
+        });
+        if (occupiedSeats >= seatQuota.limit) {
+          throw new ForbiddenException({
+            code: 'QUOTA_EXHAUSTED',
+            message: `Đã đạt giới hạn ${seatQuota.limit} thành viên của gói hiện tại.`,
+            feature: SubscriptionFeature.HR_SEAT,
+            limit: seatQuota.limit,
+            used: occupiedSeats,
+          });
+        }
       }
     }
 
