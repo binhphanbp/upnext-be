@@ -18,6 +18,7 @@ describe('AiCopilotService — business orchestration', () => {
   const finalizeAssistantMessage = jest.fn();
   const propose = jest.fn();
   const createRun = jest.fn();
+  const createAiUsageLog = jest.fn();
 
   const llm = {
     modelName: 'test-model',
@@ -36,7 +37,10 @@ describe('AiCopilotService — business orchestration', () => {
     finalizeAssistantMessage,
   } as unknown as AiConversationsService;
   const actions = { propose } as unknown as AiActionsService;
-  const prisma = { aIRun: { create: createRun } } as unknown as PrismaService;
+  const prisma = {
+    aIRun: { create: createRun },
+    aiUsageLog: { create: createAiUsageLog },
+  } as unknown as PrismaService;
 
   let service: AiCopilotService;
 
@@ -61,6 +65,7 @@ describe('AiCopilotService — business orchestration', () => {
     labelFor.mockImplementation((_role: ActorType, name: string) => name);
     finalizeAssistantMessage.mockResolvedValue(undefined);
     createRun.mockResolvedValue(undefined);
+    createAiUsageLog.mockResolvedValue(undefined);
     streamText.mockImplementation(async function* () {
       yield { kind: 'text' as const, text: 'A grounded answer.' };
       yield { kind: 'usage' as const, inputTokens: 7, outputTokens: 4 };
@@ -85,6 +90,29 @@ describe('AiCopilotService — business orchestration', () => {
     expect(finalizeAssistantMessage).toHaveBeenCalledWith(
       expect.objectContaining({ status: AiRunStatus.COMPLETED, content: 'A grounded answer.' }),
     );
+  });
+
+  it('ghi AiUsageLog cho lượt Copilot đã hoàn tất, tổng token router + answer (D3c)', async () => {
+    generateStructured.mockResolvedValue({
+      value: { intent: 'GENERAL_GUIDANCE', toolCalls: [] },
+      inputTokens: 3,
+      outputTokens: 2,
+    });
+
+    await collect(service.run(input()));
+
+    expect(createAiUsageLog).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        feature: 'ai_copilot_run',
+        companyId: null,
+        actorId: 'candidate-profile-1',
+        modelName: 'test-model',
+        inputTokens: 10,
+        outputTokens: 6,
+        referenceType: 'AI_COPILOT_RUN',
+        succeeded: true,
+      }),
+    });
   });
 
   it('emits tool_start before awaiting the tool result', async () => {

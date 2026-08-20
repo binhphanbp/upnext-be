@@ -2,6 +2,8 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ActorType, AiConversationContext, AiRunStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { SubscriptionFeature } from '../../subscriptions/feature-registry';
+import { estimateGeminiCostVnd } from '../../cv-screening/gemini-scoring.service';
 import {
   AI_INTENTS,
   AiCard,
@@ -842,6 +844,28 @@ UNTRUSTED_DOCUMENT>>>`;
           blockedToolCount: args.blockedToolCount,
           status: args.status,
           errorCode: args.errorCode,
+        },
+      });
+
+      // `AIRun` above covers latency/tool-call telemetry but has no
+      // `costEstimate`/`companyId` -- doesn't serve the COGS-per-feature purpose
+      // `AiUsageLog` exists for (D3c, KE-HOACH-SUBSCRIPTION-THUC-THI.md mục 20).
+      // A candidate run never has a companyId, unlike the recruiter-side features.
+      await this.prisma.aiUsageLog.create({
+        data: {
+          feature: SubscriptionFeature.AI_COPILOT_RUN,
+          companyId: null,
+          actorType: ActorType.CANDIDATE,
+          actorId: args.input.candidateProfileId,
+          modelName: this.llm.modelName,
+          inputTokens: args.inputTokens,
+          outputTokens: args.outputTokens,
+          costEstimate: this.llm.modelName.startsWith('gemini-')
+            ? estimateGeminiCostVnd(args.inputTokens, args.outputTokens)
+            : null,
+          referenceType: 'AI_COPILOT_RUN',
+          referenceId: args.traceId,
+          succeeded: args.status === AiRunStatus.COMPLETED || args.status === AiRunStatus.PARTIAL,
         },
       });
     } catch (error) {

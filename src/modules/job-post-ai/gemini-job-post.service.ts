@@ -96,6 +96,8 @@ export type RawJobPostDraft = {
 export type JobPostDraftResult = {
   draft: RawJobPostDraft;
   modelName: string;
+  inputTokens: number;
+  outputTokens: number;
 };
 
 @Injectable()
@@ -207,6 +209,8 @@ ${JSON.stringify(facts)}`;
       return {
         draft: this.normalizeDraft(response.value),
         modelName: response.modelName,
+        inputTokens: response.inputTokens,
+        outputTokens: response.outputTokens,
       };
     });
   }
@@ -261,6 +265,8 @@ ${
       return {
         draft: this.normalizeDraft(response.value),
         modelName: response.modelName,
+        inputTokens: response.inputTokens,
+        outputTokens: response.outputTokens,
       };
     });
   }

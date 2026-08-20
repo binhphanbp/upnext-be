@@ -53,6 +53,7 @@ describe('JobPostAiService', () => {
     skill: { findMany: jest.Mock };
     specialization: { findMany: jest.Mock };
     subscriptionUsage: { findUnique: jest.Mock };
+    aiUsageLog: { create: jest.Mock };
     $transaction?: jest.Mock;
   };
   let gemini: {
@@ -72,10 +73,15 @@ describe('JobPostAiService', () => {
       skill: { findMany: jest.fn().mockResolvedValue(context.skills) },
       specialization: { findMany: jest.fn().mockResolvedValue(context.specializations) },
       subscriptionUsage: { findUnique: jest.fn().mockResolvedValue({ reversal: null }) },
+      aiUsageLog: { create: jest.fn().mockResolvedValue(undefined) },
     };
     gemini = {
-      generateDraft: jest.fn().mockResolvedValue({ draft: rawDraft, modelName: 'gemini-test' }),
-      extractDraft: jest.fn().mockResolvedValue({ draft: rawDraft, modelName: 'gemini-test' }),
+      generateDraft: jest
+        .fn()
+        .mockResolvedValue({ draft: rawDraft, modelName: 'gemini-test', inputTokens: 500, outputTokens: 300 }),
+      extractDraft: jest
+        .fn()
+        .mockResolvedValue({ draft: rawDraft, modelName: 'gemini-test', inputTokens: 500, outputTokens: 300 }),
     };
     quota = {
       consume: jest
@@ -125,6 +131,43 @@ describe('JobPostAiService', () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it('ghi AiUsageLog thật với token/model từ Gemini, gắn referenceId theo quota usage (D3b)', async () => {
+    await service.generate('recruiter-1', {
+      title: 'Senior React Developer',
+      outputLanguage: JobPostOutputLanguage.VI,
+      presentationStyle: JobPostPresentationStyle.SKILL_FOCUSED,
+    });
+
+    expect(prisma.aiUsageLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        feature: 'ai_jd_generate',
+        companyId: 'company-1',
+        actorId: 'recruiter-1',
+        modelName: 'gemini-test',
+        inputTokens: 500,
+        outputTokens: 300,
+        referenceType: 'JOB_POST_AI',
+        referenceId: 'usage-1',
+        succeeded: true,
+      }),
+    });
+  });
+
+  it('không ghi AiUsageLog khi Gemini lỗi (không có token thật để đo)', async () => {
+    gemini.generateDraft.mockRejectedValue(new Error('model unavailable'));
+
+    await expect(
+      service.generate('recruiter-1', {
+        title: 'Senior React Developer',
+        outputLanguage: JobPostOutputLanguage.VI,
+        presentationStyle: JobPostPresentationStyle.SKILL_FOCUSED,
+      }),
+    ).rejects.toThrow('model unavailable');
+
+    expect(prisma.aiUsageLog.create).not.toHaveBeenCalled();
+    expect(quota.reverse).toHaveBeenCalled();
   });
 
   it('rejects selected catalog IDs that do not exist', async () => {
