@@ -93,7 +93,7 @@ export class JobPostAiController {
   @ApiOperation({ summary: 'Tách dữ liệu có cấu trúc từ nội dung JD được dán' })
   @ApiCreatedResponse({ description: 'Đã tách JD thành bản nháp.' })
   extractText(@CurrentUser() user: AuthenticatedUser, @Body() dto: ExtractJobPostDraftDto) {
-    return this.service.extractText(user.id, dto.text);
+    return this.service.extractText(user.id, dto.text, dto.clientRequestId);
   }
 
   @Post('extract-file')
@@ -110,11 +110,23 @@ export class JobPostAiController {
           format: 'binary',
           description: 'PDF, DOCX, TXT, JPG, PNG hoặc WEBP; tối đa 8 MB.',
         },
+        clientRequestId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Khóa của client cho lần bấm này. Gửi kèm để một lần retry không bị trừ ' +
+            'thêm lượt AI và không quét lại file bằng model.',
+        },
       },
     },
   })
   @ApiOperation({ summary: 'Quét file JD và trả về bản nháp có cấu trúc' })
-  extractFile(@CurrentUser() user: AuthenticatedUser, @UploadedFile() file?: JobPostAiUploadFile) {
-    return this.service.extractFile(user.id, file);
+  extractFile(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file?: JobPostAiUploadFile,
+    // multipart nên khóa đi kèm dưới dạng form field, không phải JSON body.
+    @Body('clientRequestId') clientRequestId?: string,
+  ) {
+    return this.service.extractFile(user.id, file, clientRequestId);
   }
 }

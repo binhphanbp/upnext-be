@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { JobPostOutputLanguage, JobPostPresentationStyle } from './dto/generate-job-post-draft.dto';
 import { GeminiJobPostService, RawJobPostDraft } from './gemini-job-post.service';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
+import { AiOperationCacheService } from './ai-operation-cache.service';
 import { JobPostAiService } from './job-post-ai.service';
 
 describe('JobPostAiService', () => {
@@ -58,6 +59,7 @@ describe('JobPostAiService', () => {
     extractDraft: jest.Mock;
   };
   let quota: { consume: jest.Mock; reverse: jest.Mock };
+  let cache: { read: jest.Mock; write: jest.Mock; isStillInFlight: jest.Mock };
   let service: JobPostAiService;
 
   beforeEach(() => {
@@ -74,8 +76,15 @@ describe('JobPostAiService', () => {
       extractDraft: jest.fn().mockResolvedValue({ draft: rawDraft, modelName: 'gemini-test' }),
     };
     quota = {
-      consume: jest.fn().mockResolvedValue({ usage: { id: 'usage-1' }, replayed: false }),
+      consume: jest
+        .fn()
+        .mockResolvedValue({ usage: { id: 'usage-1', createdAt: new Date() }, replayed: false }),
       reverse: jest.fn().mockResolvedValue({}),
+    };
+    cache = {
+      read: jest.fn().mockResolvedValue(null),
+      write: jest.fn().mockResolvedValue(undefined),
+      isStillInFlight: jest.fn().mockReturnValue(false),
     };
     // The AI credit is taken around the Gemini call, so the fake transaction just
     // hands the mocked client straight to the callback.
@@ -85,6 +94,7 @@ describe('JobPostAiService', () => {
       prisma as unknown as PrismaService,
       gemini as unknown as GeminiJobPostService,
       quota as unknown as SubscriptionQuotaService,
+      cache as unknown as AiOperationCacheService,
     );
   });
 
@@ -193,5 +203,86 @@ describe('JobPostAiService', () => {
     );
 
     expect(response.draft.jobCategoryId).toBeNull();
+  });
+  // Trước bản này, key idempotency sinh bằng randomUUID() PHÍA SERVER, nên mỗi request
+  // là một key mới: bấm "Tạo JD" hai lần trừ hai lượt quota VÀ trả tiền token hai lần
+  // cho cùng một kết quả. Ba test dưới đây khóa ba trạng thái của key từ client.
+  describe('idempotency theo clientRequestId', () => {
+    const dto = {
+      title: 'Senior React Developer',
+      requiredSkillIds: [],
+      outputLanguage: JobPostOutputLanguage.VI,
+      presentationStyle: JobPostPresentationStyle.SKILL_FOCUSED,
+      clientRequestId: '9f1c6b1e-4a2f-4c3a-9c1d-2b7f5a0e8d31',
+    } as Parameters<JobPostAiService['generate']>[1];
+
+    it('lần đầu: tiêu quota, gọi model, lưu kết quả', async () => {
+      await service.generate('recruiter-1', dto);
+
+      expect(quota.consume).toHaveBeenCalledTimes(1);
+      expect(gemini.generateDraft).toHaveBeenCalledTimes(1);
+      expect(cache.write).toHaveBeenCalledWith(
+        expect.stringContaining('9f1c6b1e'),
+        'job_post_ai.generate',
+        expect.objectContaining({ modelName: 'gemini-test' }),
+      );
+    });
+
+    // Đây là điểm chính của cả PR: retry sau khi đã xong KHÔNG được gọi lại model.
+    it('retry sau khi đã xong: trả cache, KHÔNG gọi model và KHÔNG tiêu quota', async () => {
+      const first = await service.generate('recruiter-1', dto);
+      // Cache lưu OUTPUT THÔ của model, không lưu response đã hậu xử lý: thứ tốn tiền
+      // là lời gọi model, còn map tên sang ID danh mục thì rẻ và deterministic. Chạy
+      // lại hậu xử lý còn có lợi -- nếu danh mục đổi thì mapping được làm mới.
+      cache.read.mockResolvedValue({ draft: rawDraft, modelName: 'gemini-test' });
+      quota.consume.mockClear();
+      gemini.generateDraft.mockClear();
+
+      const second = await service.generate('recruiter-1', dto);
+
+      expect(second).toEqual(first);
+      expect(gemini.generateDraft).not.toHaveBeenCalled();
+      expect(quota.consume).not.toHaveBeenCalled();
+    });
+
+    it('bấm hai lần trong lúc lần đầu đang chạy: 409, không gọi model lần hai', async () => {
+      quota.consume.mockResolvedValue({
+        usage: { id: 'usage-1', createdAt: new Date() },
+        replayed: true,
+      });
+      cache.isStillInFlight.mockReturnValue(true);
+
+      await expect(service.generate('recruiter-1', dto)).rejects.toMatchObject({
+        response: { code: 'AI_OPERATION_IN_PROGRESS' },
+      });
+      expect(gemini.generateDraft).not.toHaveBeenCalled();
+    });
+
+    // Nếu luôn trả 409 cho nhánh replayed thì một lần gọi chết giữa đường sẽ làm người
+    // dùng mất vĩnh viễn lượt đã trả. Quá ân hạn thì gọi lại model, nhưng không tiêu
+    // thêm quota -- lượt đó đã được tính từ lần trước.
+    it('lần trước đã chết: gọi lại model nhưng không tiêu thêm quota', async () => {
+      quota.consume.mockResolvedValue({
+        usage: { id: 'usage-1', createdAt: new Date('2026-01-01T00:00:00.000Z') },
+        replayed: true,
+      });
+      cache.isStillInFlight.mockReturnValue(false);
+
+      await service.generate('recruiter-1', dto);
+
+      expect(gemini.generateDraft).toHaveBeenCalledTimes(1);
+      // consume được gọi nhưng trả replayed -> không có lượt mới nào bị trừ.
+      expect(quota.consume).toHaveBeenCalledTimes(1);
+    });
+
+    it('không có clientRequestId: giữ nguyên hành vi cũ, không đọc và không ghi cache', async () => {
+      const { clientRequestId: _omitted, ...withoutKey } = dto as { clientRequestId?: string };
+
+      await service.generate('recruiter-1', withoutKey as typeof dto);
+
+      expect(cache.read).not.toHaveBeenCalled();
+      expect(cache.write).not.toHaveBeenCalled();
+      expect(gemini.generateDraft).toHaveBeenCalledTimes(1);
+    });
   });
 });

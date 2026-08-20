@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { SubscriptionFeature } from '@prisma/client';
 import * as mammoth from 'mammoth';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
+import { AiOperationCacheService } from './ai-operation-cache.service';
 import { GenerateJobPostDraftDto } from './dto/generate-job-post-draft.dto';
 import {
   GeminiJobPostService,
@@ -42,37 +43,93 @@ export class JobPostAiService {
     private readonly prisma: PrismaService,
     private readonly gemini: GeminiJobPostService,
     private readonly quota: SubscriptionQuotaService,
+    private readonly cache: AiOperationCacheService,
   ) {}
 
   /**
-   * Charges one AI JD credit around a Gemini call.
+   * Charges one AI JD credit around a Gemini call, at most once per client request.
    *
    * Unlike a database action there is nothing to put in the same transaction as
    * the model call, so the allowance is taken up front -- otherwise concurrent
    * requests could all pass a pre-check and overshoot the plan. If the call then
    * fails the credit is handed straight back, so a recruiter is never charged
    * for output they did not get.
+   *
+   * ## Vì sao cần `clientRequestId`
+   *
+   * Trước đây key idempotency được sinh bằng `randomUUID()` **phía server**, tức mỗi
+   * request là một key mới. Bấm "Tạo JD" hai lần, hoặc client tự retry khi mạng chậm,
+   * sẽ **trừ hai lượt quota và trả tiền token hai lần** cho một kết quả.
+   *
+   * Với key từ client, có đúng ba trạng thái, và mỗi trạng thái phải xử lý khác nhau:
+   *
+   * | Tình huống | Dấu hiệu | Xử lý |
+   * |---|---|---|
+   * | Lần đầu | chưa có usage, chưa có cache | Tiêu quota, gọi model, lưu kết quả |
+   * | Retry sau khi đã xong | có cache còn hiệu lực | Trả cache, **không** gọi model |
+   * | Bấm hai lần / lần trước chết | có usage, không có cache | Còn trong thời gian ân hạn thì 409; quá hạn thì coi như lần trước đã chết và gọi lại model, **không** tiêu thêm quota |
+   *
+   * Nhánh cuối là chỗ đáng nói: nếu luôn trả 409 thì một lần gọi chết giữa đường sẽ
+   * làm người dùng mất vĩnh viễn lượt đã trả; nếu luôn gọi lại model thì mất đúng số
+   * tiền mà cache sinh ra để tiết kiệm.
+   *
+   * `clientRequestId` là **không bắt buộc**: khi thiếu, hành vi giống hệt trước đây
+   * (key sinh phía server, không cache). Frontend gửi được key nào thì key đó bắt đầu
+   * được bảo vệ, không cần đổi đồng loạt.
    */
   private async withJdCredit<T>(
     recruiterId: string,
     companyId: string,
+    operation: string,
+    clientRequestId: string | undefined,
     run: () => Promise<T>,
   ): Promise<T> {
-    const operationId = randomUUID();
-    const { usage } = await this.prisma.$transaction((tx) =>
+    const idempotencyKey = clientRequestId
+      ? `jd-ai:${companyId}:${clientRequestId}`
+      : `jd-ai:${randomUUID()}`;
+
+    if (clientRequestId) {
+      const cached = await this.cache.read<T>(idempotencyKey);
+      if (cached !== null) return cached;
+    }
+
+    const { usage, replayed } = await this.prisma.$transaction((tx) =>
       this.quota.consume(tx, {
         companyId,
         feature: SubscriptionFeature.AI_JD_GENERATE,
         referenceType: 'JOB_POST_AI',
-        referenceId: operationId,
-        idempotencyKey: `jd-ai:${operationId}`,
+        referenceId: randomUUID(),
+        idempotencyKey,
         createdByRecruiterId: recruiterId,
       }),
     );
 
+    // Quota đã tiêu cho key này mà cache trống: hoặc một request song song đang gọi
+    // model, hoặc lần trước đã chết. Đọc lại cache một lần nữa trước khi quyết định --
+    // request kia có thể vừa ghi xong trong lúc mình đang tiêu quota.
+    if (replayed) {
+      const cached = await this.cache.read<T>(idempotencyKey);
+      if (cached !== null) return cached;
+
+      if (this.cache.isStillInFlight(usage.createdAt)) {
+        throw new ConflictException({
+          code: 'AI_OPERATION_IN_PROGRESS',
+          message: 'Yêu cầu này đang được xử lý. Vui lòng đợi kết quả thay vì gửi lại.',
+        });
+      }
+      // Quá ân hạn: lần trước coi như đã chết. Gọi lại model nhưng KHÔNG tiêu thêm
+      // quota -- người dùng đã trả cho lượt này rồi.
+    }
+
     try {
-      return await run();
+      const result = await run();
+      if (clientRequestId) {
+        await this.cache.write(idempotencyKey, operation, result);
+      }
+      return result;
     } catch (error) {
+      // Chỉ hoàn lượt vừa tiêu. Với `replayed` thì lượt đã được hoàn hoặc đã tính từ
+      // lần trước, và `reverse()` vốn idempotent nên gọi lại cũng không trừ hai lần.
       await this.prisma
         .$transaction((tx) => this.quota.reverse(tx, usage.id, 'ai-call-failed'))
         .catch(() => undefined);
@@ -104,34 +161,39 @@ export class JobPostAiService {
       'kỹ năng ưu tiên',
     );
 
-    const raw = await this.withJdCredit(recruiterId, context.company.id, () =>
-      this.gemini.generateDraft(
-        {
-          title: dto.title.trim(),
-          jobCategoryName: category?.name,
-          experienceLevelName: experienceLevel?.name,
-          employmentTypeName: employmentType?.name,
-          requiredSkillNames: requiredSkills.map((skill) => skill.name),
-          preferredSkillNames: preferredSkills.map((skill) => skill.name),
-          keywords: this.cleanKeywords(dto.keywords),
-          yearsOfExperience: dto.yearsOfExperience?.trim(),
-          companyName: context.company.name,
-          companyDescription: this.toPromptText(
-            dto.companyDescription || context.company.description || '',
-          ),
-          companyBenefits: this.toPromptText(context.company.benefits || ''),
-          companyWorkingDays: context.company.workingDays || undefined,
-          productOrDomain: dto.productOrDomain?.trim(),
-          roleObjective: dto.roleObjective?.trim(),
-          teamContext: dto.teamContext?.trim(),
-          languageRequirement: dto.languageRequirement?.trim(),
-          workMode: dto.workMode,
-          outputLanguage: dto.outputLanguage,
-          presentationStyle: dto.presentationStyle,
-          hints: dto.hints?.trim(),
-        },
-        this.toCatalogNames(context),
-      ),
+    const raw = await this.withJdCredit(
+      recruiterId,
+      context.company.id,
+      'job_post_ai.generate',
+      dto.clientRequestId,
+      () =>
+        this.gemini.generateDraft(
+          {
+            title: dto.title.trim(),
+            jobCategoryName: category?.name,
+            experienceLevelName: experienceLevel?.name,
+            employmentTypeName: employmentType?.name,
+            requiredSkillNames: requiredSkills.map((skill) => skill.name),
+            preferredSkillNames: preferredSkills.map((skill) => skill.name),
+            keywords: this.cleanKeywords(dto.keywords),
+            yearsOfExperience: dto.yearsOfExperience?.trim(),
+            companyName: context.company.name,
+            companyDescription: this.toPromptText(
+              dto.companyDescription || context.company.description || '',
+            ),
+            companyBenefits: this.toPromptText(context.company.benefits || ''),
+            companyWorkingDays: context.company.workingDays || undefined,
+            productOrDomain: dto.productOrDomain?.trim(),
+            roleObjective: dto.roleObjective?.trim(),
+            teamContext: dto.teamContext?.trim(),
+            languageRequirement: dto.languageRequirement?.trim(),
+            workMode: dto.workMode,
+            outputLanguage: dto.outputLanguage,
+            presentationStyle: dto.presentationStyle,
+            hints: dto.hints?.trim(),
+          },
+          this.toCatalogNames(context),
+        ),
     );
 
     return this.toResponse('generated', raw, context, {
@@ -143,38 +205,48 @@ export class JobPostAiService {
     });
   }
 
-  async extractText(recruiterId: string, sourceText: string) {
+  async extractText(recruiterId: string, sourceText: string, clientRequestId?: string) {
     const context = await this.loadContext(recruiterId);
-    const raw = await this.withJdCredit(recruiterId, context.company.id, () =>
-      this.gemini.extractDraft(
-        {
-          sourceText,
-          sourceLabel: 'nội dung được dán trực tiếp',
-          companyName: context.company.name,
-        },
-        this.toCatalogNames(context),
-      ),
+    const raw = await this.withJdCredit(
+      recruiterId,
+      context.company.id,
+      'job_post_ai.extract_text',
+      clientRequestId,
+      () =>
+        this.gemini.extractDraft(
+          {
+            sourceText,
+            sourceLabel: 'nội dung được dán trực tiếp',
+            companyName: context.company.name,
+          },
+          this.toCatalogNames(context),
+        ),
     );
 
     return this.toResponse('extracted', raw, context);
   }
 
-  async extractFile(recruiterId: string, file?: JobPostAiUploadFile) {
+  async extractFile(recruiterId: string, file?: JobPostAiUploadFile, clientRequestId?: string) {
     if (!file) {
       throw new BadRequestException('Vui lòng chọn file JD cần quét');
     }
 
     const context = await this.loadContext(recruiterId);
     const source = await this.prepareFile(file);
-    const raw = await this.withJdCredit(recruiterId, context.company.id, () =>
-      this.gemini.extractDraft(
-        {
-          ...source,
-          sourceLabel: file.originalname,
-          companyName: context.company.name,
-        },
-        this.toCatalogNames(context),
-      ),
+    const raw = await this.withJdCredit(
+      recruiterId,
+      context.company.id,
+      'job_post_ai.extract_file',
+      clientRequestId,
+      () =>
+        this.gemini.extractDraft(
+          {
+            ...source,
+            sourceLabel: file.originalname,
+            companyName: context.company.name,
+          },
+          this.toCatalogNames(context),
+        ),
     );
 
     return this.toResponse('extracted', raw, context);

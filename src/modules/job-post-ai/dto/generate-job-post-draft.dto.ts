@@ -147,4 +147,15 @@ export class GenerateJobPostDraftDto {
   @MaxLength(1500)
   @IsOptional()
   hints?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Khóa của client cho lần bấm này (UUID). Gửi kèm để một lần retry không bị trừ ' +
+      'thêm lượt AI và không gọi lại model. Thiếu thì mỗi request được coi là một ' +
+      'thao tác mới.',
+    example: '9f1c6b1e-4a2f-4c3a-9c1d-2b7f5a0e8d31',
+  })
+  @IsUUID()
+  @IsOptional()
+  clientRequestId?: string;
 }
