@@ -46,4 +46,16 @@ export class CandidateProfileController {
   updateMe(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateCandidateProfileDto) {
     return this.candidateProfileService.updateMe(user.id, dto);
   }
+
+  @Get('me/viewers')
+  @ApiOperation({
+    summary: 'Xem ai đã mở thông tin liên hệ của mình trong kho CV',
+    description: 'Nguồn dữ liệu: mỗi lần một nhà tuyển dụng mở khóa hồ sơ trong kho CV.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Thiếu hoặc mã thông báo Bearer không hợp lệ.' })
+  @ApiForbiddenResponse({ description: 'Chỉ ứng viên mới có thể gọi endpoint này.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy hồ sơ ứng viên.' })
+  findViewers(@CurrentUser() user: AuthenticatedUser) {
+    return this.candidateProfileService.findViewers(user.id);
+  }
 }

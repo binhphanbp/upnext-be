@@ -499,6 +499,7 @@ model CandidateProfile {
   applicationAiScores   ApplicationAiScore[]
   contactPreference     CandidateContactPreference?
   companyBlocks         CompanyCandidateBlock[]
+  cvPoolUnlocks         CvPoolUnlock[]
   talentRecommendations TalentRecommendation[]
   talentContactRequests TalentContactRequest[]
   aiConversations       AIConversation[]
@@ -894,6 +895,7 @@ model Company {
   cvScreeningRuns          CvScreeningRun[]
   conversations            Conversation[]
   candidateBlocks          CompanyCandidateBlock[]
+  cvPoolUnlocks            CvPoolUnlock[]
   talentRecommendationRuns TalentRecommendationRun[]
   talentContactRequests    TalentContactRequest[]
   supportCases             SupportCase[]
@@ -981,6 +983,7 @@ model RecruiterAccount {
   jobPostAccessRevocations JobPostAccessRevocation[]
   talentRecommendationRuns TalentRecommendationRun[]
   talentContactAttempts    TalentContactAttempt[]
+  cvPoolUnlocks            CvPoolUnlock[]
   createdSupportCases      SupportCase[]                 @relation("SupportCaseCreatedByRecruiter")
   hiringResultReports      HiringResultReport[]
   reportsFiled             Report[]
@@ -2484,6 +2487,26 @@ model ApplicationAssignment {
 // =========================
 // Talent recommendation and outreach
 // =========================
+
+/// Ghi lại một lần recruiter "mở khóa" thông tin liên hệ đầy đủ của một hồ sơ
+/// trong kho CV. Mở một lần thì xem lại miễn phí -- `@@unique` là cơ chế duy
+/// nhất cần để tra "đã mở chưa" trước khi trừ `cv_pool_view`, và cũng là nguồn
+/// sự thật cho câu hỏi §13.2: "ứng viên xem được ai đã mở hồ sơ mình".
+model CvPoolUnlock {
+  id                    String   @id @default(uuid()) @db.Uuid
+  companyId             String   @map("company_id") @db.Uuid
+  candidateProfileId    String   @map("candidate_profile_id") @db.Uuid
+  unlockedByRecruiterId String   @map("unlocked_by_recruiter_id") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  company             Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidateProfile    CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  unlockedByRecruiter RecruiterAccount @relation(fields: [unlockedByRecruiterId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, candidateProfileId])
+  @@index([candidateProfileId, createdAt])
+  @@map("cv_pool_unlocks")
+}
 
 model CandidateContactPreference {
   candidateProfileId String                           @id @map("candidate_profile_id") @db.Uuid
