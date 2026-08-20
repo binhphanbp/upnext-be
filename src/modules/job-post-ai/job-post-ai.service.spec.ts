@@ -52,6 +52,7 @@ describe('JobPostAiService', () => {
     experienceLevel: { findMany: jest.Mock };
     skill: { findMany: jest.Mock };
     specialization: { findMany: jest.Mock };
+    subscriptionUsage: { findUnique: jest.Mock };
     $transaction?: jest.Mock;
   };
   let gemini: {
@@ -70,6 +71,7 @@ describe('JobPostAiService', () => {
       experienceLevel: { findMany: jest.fn().mockResolvedValue(context.experienceLevels) },
       skill: { findMany: jest.fn().mockResolvedValue(context.skills) },
       specialization: { findMany: jest.fn().mockResolvedValue(context.specializations) },
+      subscriptionUsage: { findUnique: jest.fn().mockResolvedValue({ reversal: null }) },
     };
     gemini = {
       generateDraft: jest.fn().mockResolvedValue({ draft: rawDraft, modelName: 'gemini-test' }),
@@ -282,6 +284,22 @@ describe('JobPostAiService', () => {
 
       expect(cache.read).not.toHaveBeenCalled();
       expect(cache.write).not.toHaveBeenCalled();
+      expect(gemini.generateDraft).toHaveBeenCalledTimes(1);
+    });
+    // `reverse()` giữ lại dòng CONSUME (sổ chỉ ghi thêm), nên một lần gọi model thất
+    // bại vẫn để lại key đã dùng. Nếu chỉ xét thời gian thì lần bấm lại ngay sau đó
+    // bị chẩn đoán sai là "đang chạy" -- người dùng vừa thấy thông báo lỗi, bấm thử
+    // lại, và nhận "yêu cầu đang được xử lý".
+    it('lần trước THẤT BẠI và đã hoàn lượt: cho chạy lại ngay, không báo đang xử lý', async () => {
+      quota.consume.mockResolvedValue({
+        usage: { id: 'usage-1', createdAt: new Date() },
+        replayed: true,
+      });
+      cache.isStillInFlight.mockReturnValue(true);
+      prisma.subscriptionUsage.findUnique.mockResolvedValue({ reversal: { id: 'reversal-1' } });
+
+      await service.generate('recruiter-1', dto);
+
       expect(gemini.generateDraft).toHaveBeenCalledTimes(1);
     });
   });

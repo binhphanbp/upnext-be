@@ -111,7 +111,20 @@ export class JobPostAiService {
       const cached = await this.cache.read<T>(idempotencyKey);
       if (cached !== null) return cached;
 
-      if (this.cache.isStillInFlight(usage.createdAt)) {
+      // `reverse()` ghi thêm một dòng REVERSAL và GIỮ dòng CONSUME -- sổ chỉ ghi
+      // thêm. Nên một lần gọi model thất bại vẫn để lại key đã dùng, và nếu chỉ xét
+      // thời gian thì lần bấm lại ngay sau đó bị chẩn đoán sai là "đang chạy".
+      //
+      // Có dòng REVERSAL nghĩa là lần trước đã KẾT THÚC và lượt đã được hoàn. Đó
+      // không phải đang chạy, cũng không phải chết giữa đường: chạy lại được, và
+      // KHÔNG tiêu thêm lượt -- đúng nguyên tắc §9.4, lỗi của hệ thống thì người
+      // dùng không phải trả.
+      const refunded = await this.prisma.subscriptionUsage.findUnique({
+        where: { id: usage.id },
+        select: { reversal: { select: { id: true } } },
+      });
+
+      if (!refunded?.reversal && this.cache.isStillInFlight(usage.createdAt)) {
         throw new ConflictException({
           code: 'AI_OPERATION_IN_PROGRESS',
           message: 'Yêu cầu này đang được xử lý. Vui lòng đợi kết quả thay vì gửi lại.',
