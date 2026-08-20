@@ -54,7 +54,9 @@ import { ListAdminJobPostsQueryDto } from './dto/list-admin-job-posts-query.dto'
 import { UpdateJobPostDto } from './dto/update-job-post.dto';
 import { UpdateJobPostMemberAccessDto } from './dto/update-job-post-member-access.dto';
 import { PublicJobPostQueryDto } from './dto/public-job-post-query.dto';
+import { CreateJobBoostDto } from './dto/create-job-boost.dto';
 import { JobPostsService } from './job-posts.service';
+import { JobBoostService } from './job-boost.service';
 
 @ApiTags('Job - Posts')
 @Controller('job-posts')
@@ -446,7 +448,45 @@ export class JobPostsController {
 @ApiTags('Job - Posts')
 @Controller('recruiter/job-posts')
 export class RecruiterJobPostsController {
-  constructor(private readonly jobPostsService: JobPostsService) {}
+  constructor(
+    private readonly jobPostsService: JobPostsService,
+    private readonly jobBoostService: JobBoostService,
+  ) {}
+
+  @ApiOperation({
+    summary: 'Đẩy tin tuyển dụng',
+    description:
+      'Tiêu một lượt featured_job, đẩy tin nổi bật/tuyển gấp trong 7 ngày. Chỉ áp dụng cho ' +
+      'tin đang hiển thị công khai và chưa có lượt đẩy nào còn hiệu lực.',
+  })
+  @ApiCreatedResponse({ description: 'Đã tạo lượt đẩy tin.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
+  @Roles(ActorType.RECRUITER)
+  @Post(':id/boost')
+  createBoost(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: CreateJobBoostDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.jobBoostService.createBoost(id, user, dto.type);
+  }
+
+  @ApiOperation({
+    summary: 'Hủy một lượt đẩy tin trước khi hết hạn',
+    description: 'Hoàn lại lượt featured_job vì thời gian đã mua chưa dùng hết.',
+  })
+  @ApiOkResponse({ description: 'Đã hủy lượt đẩy tin.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
+  @Roles(ActorType.RECRUITER)
+  @Post('boosts/:boostId/cancel')
+  cancelBoost(
+    @Param('boostId', new ParseUUIDPipe()) boostId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.jobBoostService.cancelBoost(boostId, user);
+  }
 
   @ApiOperation({
     summary: 'Danh sách thành viên có quyền truy cập tin tuyển dụng',

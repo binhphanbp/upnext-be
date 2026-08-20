@@ -7,6 +7,7 @@ import {
 import {
   CompanyVerificationStatus,
   CompanyStatus,
+  JobBoostStatus,
   JobStatus,
   Prisma,
   ModerationStatus,
@@ -907,6 +908,14 @@ export class JobPostsService {
         },
       },
       jobPostSpecializations: { include: { specialization: true } },
+      // Chỉ để FE gắn nhãn "Nổi bật"/"Tuyển gấp" -- không đổi `orderBy` của
+      // danh sách chính. `take: 1` vì `createBoost()` không cho hai boost
+      // ACTIVE/SCHEDULED chạy song song trên cùng một tin.
+      boosts: {
+        where: { status: JobBoostStatus.ACTIVE },
+        select: { type: true, endsAt: true },
+        take: 1,
+      },
     } satisfies Prisma.JobPostInclude;
   }
 
