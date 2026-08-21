@@ -1886,6 +1886,31 @@ async function cleanHomeSeedData() {
     },
   });
 
+  // `SubscriptionUsage.companySubscriptionId` is onDelete: Restrict -- any usage
+  // ledger row from real feature testing (job boost, talent contact, AI JD/CV
+  // matching, ...) blocks deleting the subscription it belongs to unless it is
+  // cleared first. Prisma issues this as one multi-row DELETE, so the
+  // self-referencing `reversedUsage`/`reversal` pair (also Restrict) is safe as
+  // long as both sides match the same WHERE and get removed together.
+  await prisma.subscriptionUsage.deleteMany({
+    where: {
+      company: {
+        OR: [
+          {
+            taxCode: {
+              startsWith: SEED_TAX_CODE_PREFIX,
+            },
+          },
+          {
+            id: {
+              in: realCompanyIds,
+            },
+          },
+        ],
+      },
+    },
+  });
+
   await prisma.companySubscription.deleteMany({
     where: {
       company: {
