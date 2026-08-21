@@ -138,6 +138,102 @@ describe('CvVersionsService', () => {
     expect(result.version).toMatchObject({ id: 'version-2', versionNo: 2 });
   });
 
+  describe('attachRenderedPdf', () => {
+    const candidateUser: AuthenticatedUser = {
+      id: 'candidate-id',
+      email: 'candidate@upnext.dev',
+      role: ActorType.CANDIDATE,
+      permissions: [],
+    };
+    const renderedPdf = {
+      buffer: Buffer.from('%PDF-1.4 rendered'),
+      mimetype: 'application/pdf',
+      originalname: 'Product Data Analyst.pdf',
+      size: 17,
+    };
+    const builderVersion = {
+      id: 'version-id',
+      cvId: 'cv-id',
+      sourceFileId: null,
+      contentJson: { personalInfo: { fullName: 'UpNext Candidate' } },
+      cv: {
+        source: CvSource.BUILDER,
+        candidateProfile: { candidateAccountId: 'candidate-id' },
+      },
+    };
+
+    it('đính kèm PDF vào phiên bản Builder chưa có file', async () => {
+      prismaMock.cVVersion.findUnique.mockResolvedValue(builderVersion);
+      prismaMock.fileAsset.create.mockResolvedValue({ id: 'file-id' });
+      prismaMock.cVVersion.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      prismaMock.cVVersion.findUniqueOrThrow = jest
+        .fn()
+        .mockResolvedValue({ id: 'version-id', sourceFileId: 'file-id' });
+
+      const result = await service.attachRenderedPdf('version-id', renderedPdf, candidateUser);
+
+      expect(prismaMock.fileAsset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ ownerId: 'cv-id', mimeType: 'application/pdf' }),
+        }),
+      );
+      // The claim must be conditional, otherwise a second tab overwrites the snapshot
+      // an application already points at.
+      expect(prismaMock.cVVersion.updateMany).toHaveBeenCalledWith({
+        where: { id: 'version-id', sourceFileId: null },
+        data: { sourceFileId: 'file-id' },
+      });
+      expect(result).toMatchObject({ sourceFileId: 'file-id' });
+    });
+
+    it('từ chối khi phiên bản đã có file PDF', async () => {
+      prismaMock.cVVersion.findUnique.mockResolvedValue({
+        ...builderVersion,
+        sourceFileId: 'existing-file',
+      });
+
+      await expect(
+        service.attachRenderedPdf('version-id', renderedPdf, candidateUser),
+      ).rejects.toThrow(ConflictException);
+
+      expect(prismaMock.fileAsset.create).not.toHaveBeenCalled();
+    });
+
+    it('từ chối phiên bản của CV không phải Builder', async () => {
+      prismaMock.cVVersion.findUnique.mockResolvedValue({
+        ...builderVersion,
+        cv: { ...builderVersion.cv, source: CvSource.UPLOAD },
+      });
+
+      await expect(
+        service.attachRenderedPdf('version-id', renderedPdf, candidateUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('không cho ứng viên khác đính kèm PDF vào CV không thuộc mình', async () => {
+      prismaMock.cVVersion.findUnique.mockResolvedValue({
+        ...builderVersion,
+        cv: { ...builderVersion.cv, candidateProfile: { candidateAccountId: 'someone-else' } },
+      });
+
+      await expect(
+        service.attachRenderedPdf('version-id', renderedPdf, candidateUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('từ chối file không phải PDF trước cả khi đọc phiên bản', async () => {
+      await expect(
+        service.attachRenderedPdf(
+          'version-id',
+          { ...renderedPdf, buffer: Buffer.from('not a pdf') },
+          candidateUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.cVVersion.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
   it('không cho upload phiên bản CV khi thiếu file PDF', async () => {
     prismaMock.cV.findUnique.mockResolvedValue({ id: 'cv-id' });
 

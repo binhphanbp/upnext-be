@@ -41,6 +41,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { CvVersionsService } from './cv-versions.service';
 import { UploadCvVersionDto } from './dto/upload-cv-version.dto';
 import { CreateBuilderCvVersionDto } from './dto/create-builder-cv-version.dto';
+import { AttachRenderedCvPdfDto } from './dto/attach-rendered-cv-pdf.dto';
 import { CvVersion, CvVersionList } from './entities/cv.entity';
 
 type UploadedFile = {
@@ -96,6 +97,33 @@ export class CvVersionsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.cvVersionsService.createBuilderVersion(cvId, dto, user);
+  }
+
+  @Post('cv-versions/:id/rendered-pdf')
+  // Rasterising a CV is cheap for the client and writes up to 10MB per call here,
+  // so keep the same order of magnitude as the plain CV upload route.
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
+  @UseInterceptors(FileInterceptor('file', pdfUploadOptions))
+  @ApiOperation({
+    summary: 'Đính kèm PDF đã kết xuất cho một phiên bản CV Builder',
+    description:
+      'CV Builder chỉ lưu `contentJson`, nên phiên bản Builder không có file để tải xuống. ' +
+      'Client kết xuất đúng bản CV đang hiển thị thành PDF rồi gọi endpoint này. ' +
+      'Chỉ ghi được một lần: phiên bản đã có file sẽ trả về 409.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID của phiên bản CV Builder' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ type: AttachRenderedCvPdfDto })
+  @ApiCreatedResponse({ type: CvVersion, description: 'Đã đính kèm PDF cho phiên bản CV.' })
+  @ApiBadRequestResponse({ description: 'File PDF hoặc phiên bản CV không hợp lệ.' })
+  @ApiConflictResponse({ description: 'Phiên bản CV này đã có file PDF.' })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy phiên bản CV.' })
+  attachRenderedPdf(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @UploadedFile() file: UploadedFile,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cvVersionsService.attachRenderedPdf(id, file, user);
   }
 
   @Get('cvs/:cvId/versions')

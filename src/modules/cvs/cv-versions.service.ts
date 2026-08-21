@@ -206,6 +206,106 @@ export class CvVersionsService {
     }
   }
 
+  /**
+   * Attaches a client-rendered PDF to a Builder version so the snapshot becomes a
+   * real downloadable file.
+   *
+   * Builder versions only ever carried `contentJson`, so `prepareDownload` had no
+   * bytes to serve and every "Tải xuống" on a Builder CV fell through to the
+   * plain-text fallback (or a 404). The Builder document is laid out in the
+   * browser, and the API has no HTML renderer, so the client rasterises the same
+   * snapshot it displays and posts it here.
+   *
+   * The attachment is write-once: a version is an immutable snapshot that
+   * applications point at, so an existing `sourceFile` is never replaced.
+   */
+  async attachRenderedPdf(
+    versionId: string,
+    file: UploadedFile | undefined,
+    user: AuthenticatedUser,
+  ) {
+    this.ensurePdfFile(file);
+
+    const version = await this.prisma.cVVersion.findUnique({
+      where: { id: versionId },
+      select: {
+        id: true,
+        cvId: true,
+        sourceFileId: true,
+        contentJson: true,
+        cv: {
+          select: {
+            source: true,
+            candidateProfile: { select: { candidateAccountId: true } },
+          },
+        },
+      },
+    });
+
+    if (!version) throw new NotFoundException('Không tìm thấy phiên bản CV');
+
+    if (
+      user.role !== ActorType.CANDIDATE ||
+      version.cv.candidateProfile?.candidateAccountId !== user.id
+    ) {
+      throw new ForbiddenException('Bạn không có quyền chỉnh sửa CV này');
+    }
+    if (version.cv.source !== CvSource.BUILDER) {
+      throw new BadRequestException('Chỉ CV tạo bằng CV Builder mới đính kèm PDF theo cách này');
+    }
+    if (!this.isNonEmptyObject(version.contentJson)) {
+      throw new BadRequestException('Phiên bản CV này không có nội dung Builder để kết xuất');
+    }
+    if (version.sourceFileId) {
+      throw new ConflictException({
+        code: 'CV_VERSION_FILE_EXISTS',
+        message: 'Phiên bản CV này đã có file PDF',
+      });
+    }
+
+    const savedFile = await this.saveCvFile(version.cvId, file);
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const sourceFile = await tx.fileAsset.create({
+          data: {
+            ownerType: 'cv',
+            ownerId: version.cvId,
+            purpose: FilePurpose.CV,
+            visibility: FileVisibility.PRIVATE,
+            storageKey: savedFile.storageKey,
+            originalName: file.originalname,
+            mimeType: 'application/pdf',
+            sizeBytes: BigInt(file.size),
+          },
+        });
+
+        // Guard on `sourceFileId: null` so two tabs finishing the same render
+        // cannot both claim the version — the loser leaves an orphan asset row
+        // rather than overwriting a snapshot an application already references.
+        const claimed = await tx.cVVersion.updateMany({
+          where: { id: versionId, sourceFileId: null },
+          data: { sourceFileId: sourceFile.id },
+        });
+
+        if (claimed.count !== 1) {
+          throw new ConflictException({
+            code: 'CV_VERSION_FILE_EXISTS',
+            message: 'Phiên bản CV này đã có file PDF',
+          });
+        }
+
+        return tx.cVVersion.findUniqueOrThrow({
+          where: { id: versionId },
+          select: this.defaultSelect,
+        });
+      });
+    } catch (error) {
+      this.handleKnownError(error);
+      throw error;
+    }
+  }
+
   async findAll(cvId: string, query: PaginationQueryDto, user: AuthenticatedUser) {
     await this.authorizeCvAccess(cvId, user);
 
@@ -563,7 +663,12 @@ export class CvVersionsService {
     return (latestVersion?.versionNo ?? 0) + 1;
   }
 
-  private isNonEmptyObject(value: Record<string, unknown>) {
+  /**
+   * Also narrows a stored `contentJson` (typed as `Prisma.JsonValue`, so it may be
+   * a scalar, an array or JSON `null`) down to an actual populated object.
+   */
+  private isNonEmptyObject(value: unknown): value is Record<string, unknown> {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
     return Object.keys(value).length > 0;
   }
 
