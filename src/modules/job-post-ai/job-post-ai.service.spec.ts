@@ -1,11 +1,40 @@
+/**
+ * Chỉ mock phần I/O (`extractPdfText`), giữ nguyên logic cổng thật
+ * (`hasUsableTextLayer`, `isUsableExtractedText`) để test này kiểm đúng quyết định
+ * "dùng text layer hay gọi vision". Bản thân pdfjs không chạy được dưới Jest: nó
+ * dựng worker bằng dynamic import mà VM CJS của Jest từ chối.
+ */
+const extractPdfTextMock = jest.fn();
+
+jest.mock('./document-text', () => ({
+  ...jest.requireActual<Record<string, unknown>>('./document-text'),
+  extractPdfText: (...args: unknown[]) => extractPdfTextMock(...args) as unknown,
+}));
+
 import { BadRequestException } from '@nestjs/common';
 import { EducationLevel, SalaryPeriod } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { UnreadablePdfError, countLetters } from './document-text';
 import { JobPostOutputLanguage, JobPostPresentationStyle } from './dto/generate-job-post-draft.dto';
 import { GeminiJobPostService, RawJobPostDraft } from './gemini-job-post.service';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { AiOperationCacheService } from './ai-operation-cache.service';
-import { JobPostAiService } from './job-post-ai.service';
+import { JobPostAiService, JobPostAiUploadFile } from './job-post-ai.service';
+
+/** Một đoạn JD tiếng Việt thật, đủ để vượt mọi ngưỡng của cổng text-layer. */
+const REAL_JD_VI = `
+Mô tả công việc
+Chúng tôi đang tuyển Backend Engineer cho đội sản phẩm tại Hà Nội.
+Ứng viên sẽ phát triển API bằng NestJS, làm việc với PostgreSQL và Redis.
+
+Yêu cầu
+- Tối thiểu 2 năm kinh nghiệm với Node.js hoặc NestJS
+- Kỹ năng giao tiếp tốt, chủ động trong công việc
+
+Quyền lợi
+- Mức lương 20.000.000 - 30.000.000 VND, thương lượng theo năng lực
+- Phúc lợi đầy đủ theo quy định, review lương hai lần mỗi năm
+`;
 
 describe('JobPostAiService', () => {
   const context = {
@@ -344,6 +373,118 @@ describe('JobPostAiService', () => {
       await service.generate('recruiter-1', dto);
 
       expect(gemini.generateDraft).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /**
+   * Thang đọc file, và bất biến đi kèm: mọi thứ fail một cách xác định ở đây đều
+   * xảy ra TRƯỚC `withJdCredit`, nên recruiter không bị trừ lượt cho một file mà
+   * hệ thống chưa từng gửi cho model. Vì vậy gần như mọi ca dưới đây đều assert
+   * `quota.consume` không được gọi -- đó là điểm chính, không phải chi tiết phụ.
+   */
+  describe('thang đọc file khi import JD', () => {
+    const pdf = (name = 'jd.pdf'): JobPostAiUploadFile => ({
+      // Chữ ký %PDF- là thứ `prepareFile` kiểm trước khi chạm tới pdfjs.
+      buffer: Buffer.from('%PDF-1.7 nội dung giả, pdfjs đã được mock'),
+      mimetype: 'application/pdf',
+      originalname: name,
+      size: 42,
+    });
+
+    function pdfPages(texts: string[]) {
+      const pages = texts.map((text, index) => ({
+        num: index + 1,
+        text,
+        letters: countLetters(text),
+      }));
+      return { pageCount: pages.length, pages, text: texts.join('\n') };
+    }
+
+    beforeEach(() => {
+      extractPdfTextMock.mockReset();
+    });
+
+    it('PDF có text layer: gửi text cho model và KHÔNG gửi file', async () => {
+      extractPdfTextMock.mockResolvedValue(pdfPages([REAL_JD_VI]));
+
+      await service.extractFile('recruiter-1', pdf());
+
+      const source = gemini.extractDraft.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(source.sourceText).toContain('Mô tả công việc');
+      expect(source.file).toBeUndefined();
+    });
+
+    it('PDF scan: rơi xuống vision model với base64', async () => {
+      extractPdfTextMock.mockResolvedValue(pdfPages(['', '']));
+
+      await service.extractFile('recruiter-1', pdf());
+
+      const source = gemini.extractDraft.mock.calls[0]?.[0] as {
+        file?: { mimeType: string; base64Data: string };
+        sourceText?: string;
+      };
+      expect(source.sourceText).toBeUndefined();
+      expect(source.file?.mimeType).toBe('application/pdf');
+      expect(source.file?.base64Data.length).toBeGreaterThan(0);
+    });
+
+    it('PDF đặt mật khẩu: báo lỗi và KHÔNG trừ lượt', async () => {
+      extractPdfTextMock.mockRejectedValue(new UnreadablePdfError('password'));
+
+      await expect(service.extractFile('recruiter-1', pdf())).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(quota.consume).not.toHaveBeenCalled();
+      expect(gemini.extractDraft).not.toHaveBeenCalled();
+    });
+
+    it('PDF hỏng: báo lỗi và KHÔNG trừ lượt', async () => {
+      extractPdfTextMock.mockRejectedValue(new UnreadablePdfError('corrupt'));
+
+      await expect(service.extractFile('recruiter-1', pdf())).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(quota.consume).not.toHaveBeenCalled();
+    });
+
+    it('ảnh đổi tên thành .pdf: chặn ngay ở chữ ký, KHÔNG trừ lượt', async () => {
+      // `file.mimetype` do client khai nên fileFilter của Multer không phát hiện được.
+      const disguised: JobPostAiUploadFile = {
+        buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]),
+        mimetype: 'application/pdf',
+        originalname: 'jd.pdf',
+        size: 6,
+      };
+
+      await expect(service.extractFile('recruiter-1', disguised)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(extractPdfTextMock).not.toHaveBeenCalled();
+      expect(quota.consume).not.toHaveBeenCalled();
+    });
+
+    it('lỗi lạ từ thư viện đọc PDF: rơi xuống vision thay vì làm chết request', async () => {
+      // Một bug trong pdfjs không được phép làm chết endpoint vốn chạy tốt bằng vision.
+      extractPdfTextMock.mockRejectedValue(new TypeError('worker setup blew up'));
+
+      await service.extractFile('recruiter-1', pdf());
+
+      const source = gemini.extractDraft.mock.calls[0]?.[0] as { file?: unknown };
+      expect(source.file).toBeDefined();
+    });
+
+    it('TXT quá ngắn: vẫn báo lỗi trước khi trừ lượt', async () => {
+      const tooShort: JobPostAiUploadFile = {
+        buffer: Buffer.from('JD ngắn'),
+        mimetype: 'text/plain',
+        originalname: 'jd.txt',
+        size: 7,
+      };
+
+      await expect(service.extractFile('recruiter-1', tooShort)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(quota.consume).not.toHaveBeenCalled();
     });
   });
 });

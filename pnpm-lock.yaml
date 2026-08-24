@@ -50,9 +50,6 @@ importers:
       '@scalar/nestjs-api-reference':
         specifier: ^1.2.2
         version: 1.2.2
-      '@types/pdf-parse':
-        specifier: ^1.1.5
-        version: 1.1.5
       bcryptjs:
         specifier: latest
         version: 3.0.3
@@ -1677,9 +1674,6 @@ packages:
 
   '@types/passport@1.0.17':
     resolution: {integrity: sha512-aciLyx+wDwT2t2/kJGJR2AEeBz0nJU4WuRX04Wu9Dqc5lSUtwu0WERPHYsLhF9PtseiAMPBGNUOtFjxZ56prsg==}
-
-  '@types/pdf-parse@1.1.5':
-    resolution: {integrity: sha512-kBfrSXsloMnUJOKi25s3+hRmkycHfLK6A09eRGqF/N8BkQoPUmaCr+q8Cli5FnfohEz/rsv82zAiPz/LXtOGhA==}
 
   '@types/pg@8.20.0':
     resolution: {integrity: sha512-bEPFOaMAHTEP1EzpvHTbmwR8UsFyHSKsRisLIHVMXnpNefSbGA1bD6CVy+qKjGSqmZqNqBDV2azOBo8TgkcVow==}
@@ -6731,10 +6725,6 @@ snapshots:
   '@types/passport@1.0.17':
     dependencies:
       '@types/express': 5.0.6
-
-  '@types/pdf-parse@1.1.5':
-    dependencies:
-      '@types/node': 26.1.1
 
   '@types/pg@8.20.0':
     dependencies:

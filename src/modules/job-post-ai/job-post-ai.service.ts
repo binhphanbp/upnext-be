@@ -3,10 +3,12 @@ import { ActorType } from '@prisma/client';
 import * as mammoth from 'mammoth';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { hasPdfHeader } from '../../common/upload/cv-file-validation';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { SubscriptionFeature } from '../subscriptions/feature-registry';
 import { estimateGeminiCostVnd } from '../cv-screening/gemini-scoring.service';
 import { AiOperationCacheService } from './ai-operation-cache.service';
+import { UnreadablePdfError, extractPdfText, hasUsableTextLayer } from './document-text';
 import { GenerateJobPostDraftDto } from './dto/generate-job-post-draft.dto';
 import {
   GeminiJobPostService,
@@ -366,6 +368,13 @@ export class JobPostAiService {
     };
   }
 
+  /**
+   * Thang đọc tài liệu, rẻ trước đắt sau: TXT/DOCX → text layer của PDF → vision model.
+   *
+   * Toàn bộ hàm này chạy **trước** `withJdCredit`, nên mọi thứ fail một cách xác
+   * định ở đây đều không trừ lượt của recruiter. Đó là tính chất phải giữ khi thêm
+   * bước mới, không phải hệ quả tình cờ.
+   */
   private async prepareFile(file: JobPostAiUploadFile) {
     if (file.mimetype === 'text/plain') {
       const sourceText = file.buffer.toString('utf8').trim();
@@ -382,12 +391,68 @@ export class JobPostAiService {
       return { sourceText };
     }
 
+    if (file.mimetype === 'application/pdf') {
+      // `file.mimetype` do client khai, nên một ảnh đổi tên thành .pdf vẫn qua được
+      // fileFilter của Multer. Kiểm chữ ký trước thì recruiter nhận đúng thông điệp
+      // "file không phải PDF" thay vì để vision model nhận sai mimeType rồi báo là
+      // nội dung không đọc được.
+      if (!hasPdfHeader(file.buffer)) {
+        throw new BadRequestException('File không phải là tài liệu PDF hợp lệ.');
+      }
+
+      const sourceText = await this.readPdfTextLayer(file);
+      if (sourceText) return { sourceText };
+    }
+
     return {
       file: {
         mimeType: file.mimetype,
         base64Data: file.buffer.toString('base64'),
       },
     };
+  }
+
+  /**
+   * Đọc text layer của PDF, trả `null` nếu nên để vision model xử lý.
+   *
+   * Phần lớn JD thật là PDF export từ Word/Google Docs/Canva/TopCV, tức đã mang
+   * sẵn text layer. Lấy text đó ra là đọc đúng bytes có trong file — chính xác và
+   * mất khoảng 90ms — thay vì gửi ảnh từng trang cho model đoán lại, vốn tốn
+   * khoảng một bậc độ lớn số token và 10–20s.
+   *
+   * Chỉ hai lỗi được báo lại cho recruiter, vì chỉ hai lỗi đó họ sửa được. Mọi lỗi
+   * khác được ghi log rồi trả `null`: một bug trong thư viện đọc PDF không được
+   * phép làm chết một endpoint vốn đang chạy tốt bằng đường vision.
+   */
+  private async readPdfTextLayer(file: JobPostAiUploadFile): Promise<string | null> {
+    try {
+      const extracted = await extractPdfText(file.buffer);
+      const letters = extracted.pages.reduce((sum, page) => sum + page.letters, 0);
+
+      if (hasUsableTextLayer(extracted)) {
+        // Con số này là thứ duy nhất chứng minh được bước OCR có đáng xây hay không.
+        this.logger.log(
+          `jd import path=text-layer pages=${extracted.pageCount} letters=${letters}`,
+        );
+        return extracted.text.trim();
+      }
+
+      this.logger.log(`jd import path=vision pages=${extracted.pageCount} letters=${letters}`);
+      return null;
+    } catch (error) {
+      if (error instanceof UnreadablePdfError) {
+        throw new BadRequestException(
+          error.reason === 'password'
+            ? 'File PDF được đặt mật khẩu. Vui lòng tải lên bản không khoá hoặc dán nội dung JD.'
+            : 'File PDF bị lỗi hoặc không đọc được. Vui lòng kiểm tra lại file.',
+        );
+      }
+
+      this.logger.warn(
+        `jd import path=vision pdf-text-layer-failed ${error instanceof Error ? error.name : 'unknown'}`,
+      );
+      return null;
+    }
   }
 
   private ensureUsefulText(sourceText: string) {
