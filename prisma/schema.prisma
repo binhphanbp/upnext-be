@@ -150,6 +150,8 @@ enum FilePurpose {
   CERTIFICATE      @map("certificate")
   POST_THUMBNAIL   @map("post_thumbnail")
   POST_COVER       @map("post_cover")
+  POST_CONTENT     @map("post_content")
+  POST_SOCIAL      @map("post_social")
   REPORT_EVIDENCE  @map("report_evidence")
   APPEAL_EVIDENCE  @map("appeal_evidence")
   OTHER            @map("other")
@@ -703,6 +705,7 @@ model FileAsset {
   companyBusinessLicenses Company[]           @relation("CompanyBusinessLicenseFile")
   postThumbnails          Post[]              @relation("PostThumbnailFile")
   postCoverImages         Post[]              @relation("PostCoverImageFile")
+  socialPostImages        Post[]              @relation("PostSocialImageFile")
   reportEvidences         Report[]            @relation("ReportEvidenceFile")
   appealEvidences         Appeal[]            @relation("AppealEvidenceFile")
   messageAttachments      MessageAttachment[]
@@ -1564,33 +1567,58 @@ model CompanyReview {
 // =========================
 
 model Post {
-  id               String     @id @default(uuid()) @db.Uuid
-  thumbnailFileId  String?    @map("thumbnail_file_id") @db.Uuid
-  coverImageFileId String?    @map("cover_image_file_id") @db.Uuid
-  categoryId       String?    @map("category_id") @db.Uuid
-  adminId          String?    @map("admin_id") @db.Uuid
-  title            String     @db.VarChar(255)
-  slug             String     @unique @db.VarChar(280)
-  content          String     @db.Text
-  status           PostStatus @default(DRAFT)
-  type             PostType   @default(BLOG)
-  metaTitle        String?    @map("meta_title") @db.VarChar(255)
-  metaDescription  String?    @map("meta_description") @db.Text
-  metaKeywords     String?    @map("meta_keywords") @db.VarChar(500)
-  viewCount        Int        @default(0) @map("view_count")
-  createdAt        DateTime   @default(now()) @map("created_at")
-  updatedAt        DateTime   @updatedAt @map("updated_at")
+  id                String     @id @default(uuid()) @db.Uuid
+  thumbnailFileId   String?    @map("thumbnail_file_id") @db.Uuid
+  coverImageFileId  String?    @map("cover_image_file_id") @db.Uuid
+  socialImageFileId String?    @map("social_image_file_id") @db.Uuid
+  categoryId        String?    @map("category_id") @db.Uuid
+  adminId           String?    @map("admin_id") @db.Uuid
+  title             String     @db.VarChar(255)
+  slug              String     @unique @db.VarChar(280)
+  content           String     @db.Text
+  excerpt           String?    @db.VarChar(500)
+  status            PostStatus @default(DRAFT)
+  type              PostType   @default(BLOG)
+  metaTitle         String?    @map("meta_title") @db.VarChar(255)
+  metaDescription   String?    @map("meta_description") @db.Text
+  metaKeywords      String?    @map("meta_keywords") @db.VarChar(500)
+  focusKeyword      String?    @map("focus_keyword") @db.VarChar(120)
+  canonicalUrl      String?    @map("canonical_url") @db.VarChar(500)
+  isIndexable       Boolean    @default(true) @map("is_indexable")
+  isFollowable      Boolean    @default(true) @map("is_followable")
+  thumbnailAlt      String?    @map("thumbnail_alt") @db.VarChar(255)
+  coverImageAlt     String?    @map("cover_image_alt") @db.VarChar(255)
+  socialImageAlt    String?    @map("social_image_alt") @db.VarChar(255)
+  socialTitle       String?    @map("social_title") @db.VarChar(255)
+  socialDescription String?    @map("social_description") @db.VarChar(500)
+  publishedAt       DateTime?  @map("published_at")
+  viewCount         Int        @default(0) @map("view_count")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
 
-  thumbnailFile  FileAsset?    @relation("PostThumbnailFile", fields: [thumbnailFileId], references: [id], onDelete: SetNull)
-  coverImageFile FileAsset?    @relation("PostCoverImageFile", fields: [coverImageFileId], references: [id], onDelete: SetNull)
-  category       PostCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  admin          AdminUser?    @relation(fields: [adminId], references: [id], onDelete: SetNull)
-  postTags       PostTag[]
+  thumbnailFile   FileAsset?        @relation("PostThumbnailFile", fields: [thumbnailFileId], references: [id], onDelete: SetNull)
+  coverImageFile  FileAsset?        @relation("PostCoverImageFile", fields: [coverImageFileId], references: [id], onDelete: SetNull)
+  socialImageFile FileAsset?        @relation("PostSocialImageFile", fields: [socialImageFileId], references: [id], onDelete: SetNull)
+  category        PostCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  admin           AdminUser?        @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  postTags        PostTag[]
+  slugHistory     PostSlugHistory[]
 
   @@index([categoryId])
   @@index([status, type])
   @@index([status, createdAt])
   @@map("posts")
+}
+
+model PostSlugHistory {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  slug      String   @unique @db.VarChar(200)
+  createdAt DateTime @default(now()) @map("created_at")
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@map("post_slug_history")
 }
 
 model PostCategory {

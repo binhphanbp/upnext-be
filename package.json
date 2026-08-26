@@ -73,6 +73,7 @@
     "prisma": "7.8.0",
     "reflect-metadata": "latest",
     "rxjs": "latest",
+    "sanitize-html": "2.15.0",
     "socket.io": "4.8.1",
     "tsx": "latest",
     "zod": "latest"
@@ -91,6 +92,7 @@
     "@types/passport-google-oauth20": "^2.0.17",
     "@types/passport-jwt": "latest",
     "@types/pg": "latest",
+    "@types/sanitize-html": "^2.16.1",
     "@typescript-eslint/eslint-plugin": "latest",
     "@typescript-eslint/parser": "latest",
     "eslint": "latest",

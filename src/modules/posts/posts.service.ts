@@ -1,5 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PostStatus, PostType, Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { slugify } from '../../common/utils/slugify';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -8,76 +14,80 @@ import { ListPublicPostsQueryDto } from './dto/list-public-posts-query.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { CreatePostCategoryDto, UpdatePostCategoryDto } from './dto/category-dto';
 import { CreateTagDto, UpdateTagDto } from './dto/tag-dto';
+import { PublishPostDto } from './dto/publish-post.dto';
+import { normalizePostSlug, PostSlugService } from './post-slug.service';
+import { sanitizePostHtml, validateDraft, validatePublish } from './post-content.policy';
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly postSlugService: PostSlugService,
+  ) {}
 
   async create(adminId: string, dto: CreatePostDto) {
-    // Validate post category if categoryId is provided
-    if (dto.categoryId) {
-      const category = await this.prisma.postCategory.findUnique({
-        where: { id: dto.categoryId },
-      });
-      if (!category) {
-        throw new NotFoundException('Post category not found');
-      }
-    }
+    const content = sanitizePostHtml(dto.content ?? '');
+    const title = dto.title?.trim() ?? '';
+    const status = dto.status ?? PostStatus.DRAFT;
+    const id = randomUUID();
+    const slug = normalizePostSlug(dto.slug ?? title) || `draft-${id}`;
 
-    // Validate tags if tagIds are provided
-    if (dto.tagIds && dto.tagIds.length > 0) {
-      const tagsCount = await this.prisma.tag.count({
-        where: { id: { in: dto.tagIds } },
-      });
-      if (tagsCount !== dto.tagIds.length) {
-        throw new BadRequestException('One or more tags not found');
-      }
-    }
-
-    // Generate unique slug
-    const uniqueSuffix = Date.now().toString(36);
-    const slug = `${slugify(dto.title)}-${uniqueSuffix}`;
-
-    return this.prisma.post.create({
-      data: {
-        title: dto.title,
+    if (status === PostStatus.PUBLISHED) {
+      validatePublish({
+        title,
         slug,
-        content: dto.content,
-        status: dto.status ?? PostStatus.DRAFT,
-        type: dto.type ?? PostType.BLOG,
-        adminId,
-        categoryId: dto.categoryId ?? null,
-        thumbnailFileId: dto.thumbnailFileId ?? null,
-        coverImageFileId: dto.coverImageFileId ?? null,
-        metaTitle: dto.metaTitle ?? null,
-        metaDescription: dto.metaDescription ?? null,
-        metaKeywords: dto.metaKeywords ?? null,
-        viewCount: dto.viewCount ?? 0,
-        postTags:
-          dto.tagIds && dto.tagIds.length > 0
-            ? {
-                create: dto.tagIds.map((tagId) => ({ tagId })),
-              }
+        content,
+        excerpt: dto.excerpt,
+        categoryId: dto.categoryId,
+        thumbnailFileId: dto.thumbnailFileId,
+        coverImageFileId: dto.coverImageFileId,
+        thumbnailAlt: dto.thumbnailAlt,
+        coverImageAlt: dto.coverImageAlt,
+        metaTitle: dto.metaTitle,
+        metaDescription: dto.metaDescription,
+        canonicalUrl: dto.canonicalUrl,
+      });
+    } else {
+      validateDraft({ title, content });
+    }
+
+    await this.postSlugService.assertAvailable(slug);
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.assertRelations(tx, dto);
+      return tx.post.create({
+        data: {
+          id,
+          title,
+          slug,
+          content,
+          status,
+          publishedAt: status === PostStatus.PUBLISHED ? new Date() : null,
+          type: dto.type ?? PostType.BLOG,
+          adminId,
+          categoryId: dto.categoryId ?? null,
+          thumbnailFileId: dto.thumbnailFileId ?? null,
+          coverImageFileId: dto.coverImageFileId ?? null,
+          socialImageFileId: dto.socialImageFileId ?? null,
+          excerpt: dto.excerpt ?? null,
+          thumbnailAlt: dto.thumbnailAlt ?? null,
+          coverImageAlt: dto.coverImageAlt ?? null,
+          socialImageAlt: dto.socialImageAlt ?? null,
+          metaTitle: dto.metaTitle ?? null,
+          metaDescription: dto.metaDescription ?? null,
+          metaKeywords: dto.metaKeywords ?? null,
+          focusKeyword: dto.focusKeyword ?? null,
+          canonicalUrl: dto.canonicalUrl ?? null,
+          isIndexable: dto.isIndexable ?? true,
+          isFollowable: dto.isFollowable ?? true,
+          socialTitle: dto.socialTitle ?? null,
+          socialDescription: dto.socialDescription ?? null,
+          postTags: dto.tagIds?.length
+            ? { create: dto.tagIds.map((tagId) => ({ tagId })) }
             : undefined,
-      },
-      include: {
-        category: true,
-        admin: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            avatarUrl: true,
-          },
         },
-        thumbnailFile: true,
-        coverImageFile: true,
-        postTags: {
-          include: {
-            tag: true,
-          },
-        },
-      },
+        include: this.postInclude,
+      });
     });
   }
 
@@ -124,6 +134,7 @@ export class PostsService {
           },
           thumbnailFile: true,
           coverImageFile: true,
+          socialImageFile: true,
           postTags: {
             include: {
               tag: true,
@@ -158,10 +169,7 @@ export class PostsService {
       ...(query.categorySlug
         ? {
             category: {
-              OR: [
-                { slug: query.categorySlug },
-                { parent: { slug: query.categorySlug } },
-              ],
+              OR: [{ slug: query.categorySlug }, { parent: { slug: query.categorySlug } }],
             },
           }
         : {}),
@@ -338,6 +346,7 @@ export class PostsService {
         },
         thumbnailFile: true,
         coverImageFile: true,
+        socialImageFile: true,
         postTags: {
           include: {
             tag: true,
@@ -354,80 +363,189 @@ export class PostsService {
   }
 
   async update(id: string, dto: UpdatePostDto) {
-    const post = await this.findOne(id);
+    return this.prisma.$transaction(async (tx) => {
+      const post = await this.findPostForEdit(tx, id);
+      this.assertFresh(post.updatedAt, dto.expectedUpdatedAt);
+      const content = dto.content === undefined ? post.content : sanitizePostHtml(dto.content);
+      const title = dto.title === undefined ? post.title : dto.title.trim();
+      validateDraft({ title, content });
+      const slug = dto.slug === undefined ? post.slug : normalizePostSlug(dto.slug);
+      if (!slug) {
+        throw new BadRequestException({ fieldErrors: { slug: 'Slug must not be empty.' } });
+      }
+      if (slug !== post.slug) {
+        await this.postSlugService.assertAvailable(slug, id);
+        await this.postSlugService.recordPreviousSlug(tx, id, post.slug);
+      }
+      await this.assertRelations(tx, dto);
+      if (dto.tagIds !== undefined) {
+        await tx.postTag.deleteMany({ where: { postId: id } });
+        if (dto.tagIds.length) {
+          await tx.postTag.createMany({ data: dto.tagIds.map((tagId) => ({ postId: id, tagId })) });
+        }
+      }
+      if (dto.status === PostStatus.PUBLISHED) {
+        validatePublish({
+          title,
+          slug,
+          content,
+          excerpt: dto.excerpt === undefined ? post.excerpt : dto.excerpt,
+          categoryId: dto.categoryId === undefined ? post.categoryId : dto.categoryId,
+          thumbnailFileId: dto.thumbnailFileId === undefined ? post.thumbnailFileId : dto.thumbnailFileId,
+          coverImageFileId: dto.coverImageFileId === undefined ? post.coverImageFileId : dto.coverImageFileId,
+          thumbnailAlt: dto.thumbnailAlt === undefined ? post.thumbnailAlt : dto.thumbnailAlt,
+          coverImageAlt: dto.coverImageAlt === undefined ? post.coverImageAlt : dto.coverImageAlt,
+          metaTitle: dto.metaTitle === undefined ? post.metaTitle : dto.metaTitle,
+          metaDescription: dto.metaDescription === undefined ? post.metaDescription : dto.metaDescription,
+          canonicalUrl: dto.canonicalUrl === undefined ? post.canonicalUrl : dto.canonicalUrl,
+        });
+      }
 
-    // Generate new slug if title changes
-    let slug = post.slug;
-    if (dto.title && dto.title !== post.title) {
-      const uniqueSuffix = Date.now().toString(36);
-      slug = `${slugify(dto.title)}-${uniqueSuffix}`;
-    }
-
-    // Validate post category if categoryId is updated
-    if (dto.categoryId) {
-      const category = await this.prisma.postCategory.findUnique({
-        where: { id: dto.categoryId },
+      const result = await tx.post.updateMany({
+        where: { id, updatedAt: post.updatedAt },
+        data: {
+          title,
+          slug,
+          content,
+          type: dto.type,
+          status: dto.status === undefined ? undefined : dto.status,
+          publishedAt:
+            dto.status === PostStatus.PUBLISHED && !post.publishedAt
+              ? new Date()
+              : undefined,
+          categoryId: dto.categoryId === undefined ? undefined : dto.categoryId,
+          thumbnailFileId: dto.thumbnailFileId === undefined ? undefined : dto.thumbnailFileId,
+          coverImageFileId: dto.coverImageFileId === undefined ? undefined : dto.coverImageFileId,
+          socialImageFileId:
+            dto.socialImageFileId === undefined ? undefined : dto.socialImageFileId,
+          excerpt: dto.excerpt,
+          thumbnailAlt: dto.thumbnailAlt,
+          coverImageAlt: dto.coverImageAlt,
+          socialImageAlt: dto.socialImageAlt,
+          metaTitle: dto.metaTitle,
+          metaDescription: dto.metaDescription,
+          metaKeywords: dto.metaKeywords,
+          focusKeyword: dto.focusKeyword,
+          canonicalUrl: dto.canonicalUrl,
+          isIndexable: dto.isIndexable,
+          isFollowable: dto.isFollowable,
+          socialTitle: dto.socialTitle,
+          socialDescription: dto.socialDescription,
+        },
       });
+      this.assertUpdated(result.count);
+      return this.findUpdatedPost(tx, id);
+    });
+  }
+
+  async preview(id: string) {
+    const post = await this.findOne(id);
+    return { post, canonicalSlug: post.slug };
+  }
+
+  async slugAvailability(slug: string, excludePostId?: string) {
+    const canonicalSlug = normalizePostSlug(slug);
+    if (!canonicalSlug) {
+      return { available: false, canonicalSlug };
+    }
+    try {
+      await this.postSlugService.assertAvailable(canonicalSlug, excludePostId);
+      return { available: true, canonicalSlug };
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        return { available: false, canonicalSlug };
+      }
+      throw error;
+    }
+  }
+
+  async publish(id: string, dto: PublishPostDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const post = await this.findPostForEdit(tx, id);
+      this.assertFresh(post.updatedAt, dto.expectedUpdatedAt);
+      const content = sanitizePostHtml(post.content);
+      validatePublish({ ...post, content });
+      const result = await tx.post.updateMany({
+        where: { id, updatedAt: post.updatedAt },
+        data: {
+          content,
+          status: PostStatus.PUBLISHED,
+          publishedAt: post.publishedAt ?? new Date(),
+        },
+      });
+      this.assertUpdated(result.count);
+      return this.findUpdatedPost(tx, id);
+    });
+  }
+
+  async archive(id: string, dto: PublishPostDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const post = await this.findPostForEdit(tx, id);
+      this.assertFresh(post.updatedAt, dto.expectedUpdatedAt);
+      const result = await tx.post.updateMany({
+        where: { id, updatedAt: post.updatedAt },
+        data: { status: PostStatus.ARCHIVED },
+      });
+      this.assertUpdated(result.count);
+      return this.findUpdatedPost(tx, id);
+    });
+  }
+
+  private readonly postInclude = {
+    category: true,
+    admin: {
+      select: { id: true, fullName: true, email: true, avatarUrl: true },
+    },
+    thumbnailFile: true,
+    coverImageFile: true,
+    socialImageFile: true,
+    postTags: { include: { tag: true } },
+  } satisfies Prisma.PostInclude;
+
+  private async findPostForEdit(tx: Prisma.TransactionClient, id: string) {
+    const post = await tx.post.findUnique({ where: { id } });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+    return post;
+  }
+
+  private assertFresh(updatedAt: Date, expectedUpdatedAt: string): void {
+    if (updatedAt.getTime() !== new Date(expectedUpdatedAt).getTime()) {
+      throw new ConflictException('This post was updated by another editor. Reload and try again.');
+    }
+  }
+
+  private assertUpdated(count: number): void {
+    if (count !== 1) {
+      throw new ConflictException('This post was updated by another editor. Reload and try again.');
+    }
+  }
+
+  private async findUpdatedPost(tx: Prisma.TransactionClient, id: string) {
+    const post = await tx.post.findUnique({ where: { id }, include: this.postInclude });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+    return post;
+  }
+
+  private async assertRelations(
+    tx: Prisma.TransactionClient,
+    dto: Pick<CreatePostDto, 'categoryId' | 'tagIds'>,
+  ): Promise<void> {
+    if (dto.categoryId) {
+      const category = await tx.postCategory.findUnique({ where: { id: dto.categoryId } });
       if (!category) {
         throw new NotFoundException('Post category not found');
       }
     }
-
-    // Validate and update tags if tagIds are updated
-    if (dto.tagIds) {
-      if (dto.tagIds.length > 0) {
-        const tagsCount = await this.prisma.tag.count({
-          where: { id: { in: dto.tagIds } },
-        });
-        if (tagsCount !== dto.tagIds.length) {
-          throw new BadRequestException('One or more tags not found');
-        }
+    if (dto.tagIds?.length) {
+      const tagsCount = await tx.tag.count({ where: { id: { in: dto.tagIds } } });
+      if (tagsCount !== new Set(dto.tagIds).size) {
+        throw new BadRequestException('One or more tags not found');
       }
-      // Delete existing post-tag links first
-      await this.prisma.postTag.deleteMany({
-        where: { postId: id },
-      });
     }
-
-    return this.prisma.post.update({
-      where: { id },
-      data: {
-        title: dto.title,
-        slug,
-        content: dto.content,
-        status: dto.status,
-        type: dto.type,
-        categoryId: dto.categoryId === undefined ? undefined : dto.categoryId,
-        thumbnailFileId: dto.thumbnailFileId === undefined ? undefined : dto.thumbnailFileId,
-        coverImageFileId: dto.coverImageFileId === undefined ? undefined : dto.coverImageFileId,
-        metaTitle: dto.metaTitle,
-        metaDescription: dto.metaDescription,
-        metaKeywords: dto.metaKeywords,
-        postTags: dto.tagIds
-          ? {
-              create: dto.tagIds.map((tagId) => ({ tagId })),
-            }
-          : undefined,
-      },
-      include: {
-        category: true,
-        admin: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            avatarUrl: true,
-          },
-        },
-        thumbnailFile: true,
-        coverImageFile: true,
-        postTags: {
-          include: {
-            tag: true,
-          },
-        },
-      },
-    });
   }
 
   async remove(id: string) {

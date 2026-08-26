@@ -24,17 +24,21 @@ import {
 import { ActorType } from '@prisma/client';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AdminPermissions } from '../../common/decorators/admin-permissions.decorator';
+import { AdminPermissionsGuard } from '../auth/guards/admin-permissions.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreatePostDto } from './dto/create-post.dto';
 import { ListAdminPostsQueryDto } from './dto/list-admin-posts-query.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
+import { PublishPostDto } from './dto/publish-post.dto';
 import { PostsService } from './posts.service';
 
 @ApiTags('Admin - Posts')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, AdminPermissionsGuard)
 @Roles(ActorType.ADMIN)
+@AdminPermissions('posts:manage')
 @Controller('admin/posts')
 export class AdminPostsController {
   constructor(private readonly postsService: PostsService) {}
@@ -70,6 +74,30 @@ export class AdminPostsController {
   @ApiForbiddenResponse({ description: 'Chỉ Admin mới được phép thực hiện hành động này.' })
   getTags() {
     return this.postsService.getTags();
+  }
+
+  @Get('slug-availability')
+  @ApiOperation({ summary: 'Kiá»ƒm tra slug cÃ³ sáºµn sÃ ng' })
+  slugAvailability(@Query('slug') slug: string, @Query('excludePostId') excludePostId?: string) {
+    return this.postsService.slugAvailability(slug, excludePostId);
+  }
+
+  @Get(':id/preview')
+  @ApiOperation({ summary: 'Xem trÆ°á»›c bÃ i viáº¿t cho Admin' })
+  preview(@Param('id', ParseUUIDPipe) id: string) {
+    return this.postsService.preview(id);
+  }
+
+  @Post(':id/publish')
+  @ApiOperation({ summary: 'Xuáº¥t báº£n bÃ i viáº¿t' })
+  publish(@Param('id', ParseUUIDPipe) id: string, @Body() dto: PublishPostDto) {
+    return this.postsService.publish(id, dto);
+  }
+
+  @Post(':id/archive')
+  @ApiOperation({ summary: 'LÆ°u trá»¯ bÃ i viáº¿t' })
+  archive(@Param('id', ParseUUIDPipe) id: string, @Body() dto: PublishPostDto) {
+    return this.postsService.archive(id, dto);
   }
 
   @Get(':id')
