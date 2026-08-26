@@ -72,6 +72,15 @@ describe('PostSlugService.assertAvailable', () => {
 
     await expect(service.assertAvailable('current-slug', 'post-1')).resolves.toBeUndefined();
   });
+
+  it('still rejects a historical slug when excluding its current post', async () => {
+    const { service, prisma } = createService();
+    prisma.postSlugHistory.findUnique.mockImplementation(async ({ where }) =>
+      where.slug === 'old-slug' ? { id: 'history-1' } : null,
+    );
+
+    await expect(service.assertAvailable('old-slug', 'post-1')).rejects.toThrow(ConflictException);
+  });
 });
 
 describe('PostSlugService.resolvePublicSlug', () => {
