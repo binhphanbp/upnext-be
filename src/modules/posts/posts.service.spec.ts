@@ -38,7 +38,10 @@ function createService(post = basePost()) {
     post: {
       create: jest.fn().mockResolvedValue(post),
       findUnique: jest.fn().mockResolvedValue(post),
+      findMany: jest.fn().mockResolvedValue([post]),
+      count: jest.fn().mockResolvedValue(1),
       update: jest.fn().mockResolvedValue(post),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findFirst: jest.fn().mockResolvedValue(null),
     },
     postCategory: {
@@ -56,6 +59,11 @@ function createService(post = basePost()) {
     $transaction: jest.fn(async (callback: (transaction: typeof tx) => Promise<unknown>) =>
       callback(tx),
     ),
+    post: {
+      findUnique: jest.fn().mockResolvedValue(post),
+      findMany: jest.fn().mockResolvedValue([post]),
+      count: jest.fn().mockResolvedValue(1),
+    },
   };
   const slugService = {
     assertAvailable: jest.fn().mockResolvedValue(undefined),
@@ -101,6 +109,37 @@ describe('PostsService editorial workflow', () => {
     );
   });
 
+  it('includes social images in editorial reads and workflow responses', async () => {
+    const { service, prisma, tx } = createService(
+      basePost({ socialImageFile: { id: 'social-file-1', url: 'https://cdn.example/social.png' } }),
+    );
+
+    await service.findOne(postId);
+    await service.findAllForAdmin({ page: 1, limit: 20 });
+    await service.create(adminId, { title: 'Social image draft', content: '<p>Outline</p>' });
+    await service.update(postId, { expectedUpdatedAt: currentUpdatedAt.toISOString() });
+    await service.publish(postId, { expectedUpdatedAt: currentUpdatedAt.toISOString() });
+    await service.archive(postId, { expectedUpdatedAt: currentUpdatedAt.toISOString() });
+
+    expect(prisma.post.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ include: expect.objectContaining({ socialImageFile: true }) }),
+    );
+    expect(tx.post.create).toHaveBeenCalledWith(
+      expect.objectContaining({ include: expect.objectContaining({ socialImageFile: true }) }),
+    );
+    expect(prisma.post.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ include: expect.objectContaining({ socialImageFile: true }) }),
+    );
+    expect(
+      tx.post.findUnique.mock.calls.filter(([arguments_]) => arguments_.include !== undefined),
+    ).toHaveLength(3);
+    expect(
+      tx.post.findUnique.mock.calls
+        .filter(([arguments_]) => arguments_.include !== undefined)
+        .every(([arguments_]) => arguments_.include.socialImageFile === true),
+    ).toBe(true);
+  });
+
   it('rejects an autosave when the editor timestamp is stale', async () => {
     const { service, tx } = createService();
 
@@ -129,6 +168,55 @@ describe('PostsService editorial workflow', () => {
     expect(tx.postTag.createMany).toHaveBeenCalledWith({ data: [{ postId, tagId }] });
   });
 
+  it('writes an autosave only when the loaded timestamp still matches', async () => {
+    const { service, tx } = createService();
+
+    await service.update(postId, {
+      expectedUpdatedAt: currentUpdatedAt.toISOString(),
+      title: 'A race-safe editor title',
+    });
+
+    expect(tx.post.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: postId, updatedAt: currentUpdatedAt },
+        data: expect.objectContaining({ title: 'A race-safe editor title' }),
+      }),
+    );
+  });
+
+  it('publishes only when the loaded timestamp still matches', async () => {
+    const { service, tx } = createService();
+
+    await service.publish(postId, { expectedUpdatedAt: currentUpdatedAt.toISOString() });
+
+    expect(tx.post.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: postId, updatedAt: currentUpdatedAt },
+        data: expect.objectContaining({ status: PostStatus.PUBLISHED }),
+      }),
+    );
+  });
+
+  it('archives only when the loaded timestamp still matches', async () => {
+    const { service, tx } = createService();
+
+    await service.archive(postId, { expectedUpdatedAt: currentUpdatedAt.toISOString() });
+
+    expect(tx.post.updateMany).toHaveBeenCalledWith({
+      where: { id: postId, updatedAt: currentUpdatedAt },
+      data: { status: PostStatus.ARCHIVED },
+    });
+  });
+
+  it('reports a conflict when a concurrent publish wins the conditional write', async () => {
+    const { service, tx } = createService();
+    tx.post.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.publish(postId, { expectedUpdatedAt: currentUpdatedAt.toISOString() }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
   it('preserves the first publication time when publishing an already published post', async () => {
     const existingPublishedPost = basePost({
       status: PostStatus.PUBLISHED,
@@ -138,7 +226,7 @@ describe('PostsService editorial workflow', () => {
 
     await service.publish(postId, { expectedUpdatedAt: currentUpdatedAt.toISOString() });
 
-    expect(tx.post.update).toHaveBeenCalledWith(
+    expect(tx.post.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           status: PostStatus.PUBLISHED,
@@ -155,11 +243,11 @@ describe('PostsService editorial workflow', () => {
     await service.archive(postId, { expectedUpdatedAt: currentUpdatedAt.toISOString() });
     await service.publish(postId, { expectedUpdatedAt: currentUpdatedAt.toISOString() });
 
-    expect(tx.post.update).toHaveBeenNthCalledWith(
+    expect(tx.post.updateMany).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ data: expect.objectContaining({ status: PostStatus.ARCHIVED }) }),
     );
-    expect(tx.post.update).toHaveBeenNthCalledWith(
+    expect(tx.post.updateMany).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         data: expect.objectContaining({

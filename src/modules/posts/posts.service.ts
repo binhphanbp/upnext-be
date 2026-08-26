@@ -113,6 +113,7 @@ export class PostsService {
           },
           thumbnailFile: true,
           coverImageFile: true,
+          socialImageFile: true,
           postTags: {
             include: {
               tag: true,
@@ -324,6 +325,7 @@ export class PostsService {
         },
         thumbnailFile: true,
         coverImageFile: true,
+        socialImageFile: true,
         postTags: {
           include: {
             tag: true,
@@ -361,8 +363,8 @@ export class PostsService {
           await tx.postTag.createMany({ data: dto.tagIds.map((tagId) => ({ postId: id, tagId })) });
         }
       }
-      return tx.post.update({
-        where: { id },
+      const result = await tx.post.updateMany({
+        where: { id, updatedAt: post.updatedAt },
         data: {
           title,
           slug,
@@ -387,8 +389,9 @@ export class PostsService {
           socialTitle: dto.socialTitle,
           socialDescription: dto.socialDescription,
         },
-        include: this.postInclude,
       });
+      this.assertUpdated(result.count);
+      return this.findUpdatedPost(tx, id);
     });
   }
 
@@ -419,15 +422,16 @@ export class PostsService {
       this.assertFresh(post.updatedAt, dto.expectedUpdatedAt);
       const content = sanitizePostHtml(post.content);
       validatePublish({ ...post, content });
-      return tx.post.update({
-        where: { id },
+      const result = await tx.post.updateMany({
+        where: { id, updatedAt: post.updatedAt },
         data: {
           content,
           status: PostStatus.PUBLISHED,
           publishedAt: post.publishedAt ?? new Date(),
         },
-        include: this.postInclude,
       });
+      this.assertUpdated(result.count);
+      return this.findUpdatedPost(tx, id);
     });
   }
 
@@ -435,11 +439,12 @@ export class PostsService {
     return this.prisma.$transaction(async (tx) => {
       const post = await this.findPostForEdit(tx, id);
       this.assertFresh(post.updatedAt, dto.expectedUpdatedAt);
-      return tx.post.update({
-        where: { id },
+      const result = await tx.post.updateMany({
+        where: { id, updatedAt: post.updatedAt },
         data: { status: PostStatus.ARCHIVED },
-        include: this.postInclude,
       });
+      this.assertUpdated(result.count);
+      return this.findUpdatedPost(tx, id);
     });
   }
 
@@ -450,6 +455,7 @@ export class PostsService {
     },
     thumbnailFile: true,
     coverImageFile: true,
+    socialImageFile: true,
     postTags: { include: { tag: true } },
   } satisfies Prisma.PostInclude;
 
@@ -465,6 +471,20 @@ export class PostsService {
     if (updatedAt.getTime() !== new Date(expectedUpdatedAt).getTime()) {
       throw new ConflictException('This post was updated by another editor. Reload and try again.');
     }
+  }
+
+  private assertUpdated(count: number): void {
+    if (count !== 1) {
+      throw new ConflictException('This post was updated by another editor. Reload and try again.');
+    }
+  }
+
+  private async findUpdatedPost(tx: Prisma.TransactionClient, id: string) {
+    const post = await tx.post.findUnique({ where: { id }, include: this.postInclude });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+    return post;
   }
 
   private async assertRelations(
