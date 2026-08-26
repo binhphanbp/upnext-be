@@ -68,7 +68,7 @@ describe('AiCopilotService — business orchestration', () => {
     createAiUsageLog.mockResolvedValue(undefined);
     streamText.mockImplementation(async function* () {
       yield { kind: 'text' as const, text: 'A grounded answer.' };
-      yield { kind: 'usage' as const, inputTokens: 7, outputTokens: 4 };
+      yield { kind: 'usage' as const, inputTokens: 7, outputTokens: 4, modelName: 'test-model' };
     });
   });
 

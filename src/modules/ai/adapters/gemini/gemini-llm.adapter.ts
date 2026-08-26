@@ -197,7 +197,7 @@ export class GeminiLlmAdapter implements LlmProviderPort {
         }
       }
 
-      yield { kind: 'usage', inputTokens, outputTokens };
+      yield { kind: 'usage', inputTokens, outputTokens, modelName: this.modelName };
     } finally {
       release();
     }

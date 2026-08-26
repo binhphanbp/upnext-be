@@ -115,6 +115,10 @@ export class HttpLlmAdapter implements LlmProviderPort {
               kind: 'usage',
               inputTokens: Number(payload.inputTokens),
               outputTokens: Number(payload.outputTokens),
+              // upnext-ai always sends the real model that served this call in this
+              // frame (see `UsageChunk.model` in its own /stream contract). Falling
+              // back to the adapter's own label only guards a malformed frame.
+              modelName: typeof payload.model === 'string' ? payload.model : this.modelName,
             };
           }
         } else if (frame.event === 'error') {
