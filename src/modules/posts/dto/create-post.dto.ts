@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { PostType } from '@prisma/client';
+import { PostStatus, PostType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsArray,
@@ -16,6 +16,11 @@ const nullableUuid = () =>
   Transform(({ value }: { value: unknown }) => (value === '' ? null : value));
 
 export class CreatePostDto {
+  @ApiPropertyOptional({ enum: PostStatus, default: PostStatus.DRAFT })
+  @IsOptional()
+  @IsEnum(PostStatus)
+  status?: PostStatus;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

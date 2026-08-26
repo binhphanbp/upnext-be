@@ -28,9 +28,29 @@ export class PostsService {
   async create(adminId: string, dto: CreatePostDto) {
     const content = sanitizePostHtml(dto.content ?? '');
     const title = dto.title?.trim() ?? '';
-    validateDraft({ title, content });
+    const status = dto.status ?? PostStatus.DRAFT;
     const id = randomUUID();
     const slug = normalizePostSlug(dto.slug ?? title) || `draft-${id}`;
+
+    if (status === PostStatus.PUBLISHED) {
+      validatePublish({
+        title,
+        slug,
+        content,
+        excerpt: dto.excerpt,
+        categoryId: dto.categoryId,
+        thumbnailFileId: dto.thumbnailFileId,
+        coverImageFileId: dto.coverImageFileId,
+        thumbnailAlt: dto.thumbnailAlt,
+        coverImageAlt: dto.coverImageAlt,
+        metaTitle: dto.metaTitle,
+        metaDescription: dto.metaDescription,
+        canonicalUrl: dto.canonicalUrl,
+      });
+    } else {
+      validateDraft({ title, content });
+    }
+
     await this.postSlugService.assertAvailable(slug);
 
     return this.prisma.$transaction(async (tx) => {
@@ -41,7 +61,8 @@ export class PostsService {
           title,
           slug,
           content,
-          status: PostStatus.DRAFT,
+          status,
+          publishedAt: status === PostStatus.PUBLISHED ? new Date() : null,
           type: dto.type ?? PostType.BLOG,
           adminId,
           categoryId: dto.categoryId ?? null,
@@ -363,6 +384,23 @@ export class PostsService {
           await tx.postTag.createMany({ data: dto.tagIds.map((tagId) => ({ postId: id, tagId })) });
         }
       }
+      if (dto.status === PostStatus.PUBLISHED) {
+        validatePublish({
+          title,
+          slug,
+          content,
+          excerpt: dto.excerpt === undefined ? post.excerpt : dto.excerpt,
+          categoryId: dto.categoryId === undefined ? post.categoryId : dto.categoryId,
+          thumbnailFileId: dto.thumbnailFileId === undefined ? post.thumbnailFileId : dto.thumbnailFileId,
+          coverImageFileId: dto.coverImageFileId === undefined ? post.coverImageFileId : dto.coverImageFileId,
+          thumbnailAlt: dto.thumbnailAlt === undefined ? post.thumbnailAlt : dto.thumbnailAlt,
+          coverImageAlt: dto.coverImageAlt === undefined ? post.coverImageAlt : dto.coverImageAlt,
+          metaTitle: dto.metaTitle === undefined ? post.metaTitle : dto.metaTitle,
+          metaDescription: dto.metaDescription === undefined ? post.metaDescription : dto.metaDescription,
+          canonicalUrl: dto.canonicalUrl === undefined ? post.canonicalUrl : dto.canonicalUrl,
+        });
+      }
+
       const result = await tx.post.updateMany({
         where: { id, updatedAt: post.updatedAt },
         data: {
@@ -370,6 +408,11 @@ export class PostsService {
           slug,
           content,
           type: dto.type,
+          status: dto.status === undefined ? undefined : dto.status,
+          publishedAt:
+            dto.status === PostStatus.PUBLISHED && !post.publishedAt
+              ? new Date()
+              : undefined,
           categoryId: dto.categoryId === undefined ? undefined : dto.categoryId,
           thumbnailFileId: dto.thumbnailFileId === undefined ? undefined : dto.thumbnailFileId,
           coverImageFileId: dto.coverImageFileId === undefined ? undefined : dto.coverImageFileId,
