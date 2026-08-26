@@ -116,6 +116,11 @@ export class AiCopilotService {
     let intent: string | null = null;
     let inputTokens = 0;
     let outputTokens = 0;
+    // Overwritten by the answer stream's own `usage` chunk, which carries the
+    // model that actually served the call. `this.llm.modelName` is only a
+    // static fallback-adapter label and never reflects that -- see
+    // `LlmStreamChunk`'s doc comment.
+    let modelName = this.llm.modelName;
     let blockedToolCount = 0;
     const toolCalls: AiToolCall[] = [];
     const citations: AiCitation[] = [];
@@ -296,6 +301,7 @@ export class AiCopilotService {
         if (chunk.kind === 'usage') {
           inputTokens += chunk.inputTokens;
           outputTokens += chunk.outputTokens;
+          modelName = chunk.modelName;
           continue;
         }
         content += chunk.text;
@@ -363,6 +369,7 @@ export class AiCopilotService {
         suggestions,
         inputTokens,
         outputTokens,
+        modelName,
         latencyMs,
         blockedToolCount,
         errorCode,
@@ -375,7 +382,7 @@ export class AiCopilotService {
           data: {
             messageId: assistant.id,
             meta: {
-              model: this.llm.modelName,
+              model: modelName,
               promptVersion: CANDIDATE_ANSWER_PROMPT_VERSION,
               latencyMs,
               inputTokens,
@@ -804,6 +811,7 @@ UNTRUSTED_DOCUMENT>>>`;
     suggestions: string[];
     inputTokens: number;
     outputTokens: number;
+    modelName: string;
     latencyMs: number;
     blockedToolCount: number;
     errorCode: AiErrorCode | null;
@@ -820,7 +828,7 @@ UNTRUSTED_DOCUMENT>>>`;
         cards: args.cards,
         toolCalls: args.toolCalls,
         suggestions: args.suggestions,
-        modelName: this.llm.modelName,
+        modelName: args.modelName,
         promptVersion: `${CANDIDATE_ROUTER_PROMPT_VERSION}+${CANDIDATE_ANSWER_PROMPT_VERSION}`,
         inputTokens: args.inputTokens,
         outputTokens: args.outputTokens,
@@ -835,7 +843,7 @@ UNTRUSTED_DOCUMENT>>>`;
           actorId: args.input.candidateProfileId,
           feature: 'candidate_copilot_chat',
           intent: args.intent,
-          modelName: this.llm.modelName,
+          modelName: args.modelName,
           promptVersion: `${CANDIDATE_ROUTER_PROMPT_VERSION}+${CANDIDATE_ANSWER_PROMPT_VERSION}`,
           inputTokens: args.inputTokens,
           outputTokens: args.outputTokens,
@@ -857,10 +865,10 @@ UNTRUSTED_DOCUMENT>>>`;
           companyId: null,
           actorType: ActorType.CANDIDATE,
           actorId: args.input.candidateProfileId,
-          modelName: this.llm.modelName,
+          modelName: args.modelName,
           inputTokens: args.inputTokens,
           outputTokens: args.outputTokens,
-          costEstimate: this.llm.modelName.startsWith('gemini-')
+          costEstimate: args.modelName.startsWith('gemini-')
             ? estimateGeminiCostVnd(args.inputTokens, args.outputTokens)
             : null,
           referenceType: 'AI_COPILOT_RUN',

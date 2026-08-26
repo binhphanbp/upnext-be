@@ -51,10 +51,15 @@ export type TextStreamRequest = {
  * Chunk cuối cùng luôn là `usage`. Trả usage qua stream thay vì qua giá trị
  * return của generator để chỗ tiêu thụ dùng `for await` bình thường được — giá
  * trị return của async generator rất dễ bị bỏ quên.
+ *
+ * `modelName` trên chunk này là model THẬT đã phục vụ lượt gọi — khác với
+ * `LlmProviderPort.modelName` của một adapter fallback, chỉ là nhãn tĩnh ghép
+ * cả hai provider lúc khởi tạo và không phản ánh model nào đã thực sự trả
+ * lời. Orchestrator phải ghi `ai_runs`/`ai_usage_logs` bằng giá trị này.
  */
 export type LlmStreamChunk =
   | { kind: 'text'; text: string }
-  | { kind: 'usage'; inputTokens: number; outputTokens: number };
+  | { kind: 'usage'; inputTokens: number; outputTokens: number; modelName: string };
 
 export interface LlmProviderPort {
   /** Tên model thật đang dùng — ghi vào `ai_runs` để tái lập kết quả. */
