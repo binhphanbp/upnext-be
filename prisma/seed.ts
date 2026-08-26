@@ -1930,7 +1930,11 @@ async function cleanHomeSeedData() {
     },
   });
 
-  // Only delete seed subscription plans that have no dependent subscriptions or invoices
+  // Only delete seed subscription plans that have no dependent subscriptions or invoices.
+  // `candidateSubscriptions` was missing here -- a plan with a real candidate subscription
+  // (e.g. from exercising the candidate side this session) still matched this filter and
+  // Prisma tried to delete it anyway, hitting `candidate_subscriptions_plan_id_fkey`
+  // (onDelete: Restrict) instead of being skipped like the company-side case already was.
   await prisma.subscriptionPlan.deleteMany({
     where: {
       createdByAdmin: {
@@ -1939,6 +1943,7 @@ async function cleanHomeSeedData() {
         },
       },
       companySubscriptions: { none: {} },
+      candidateSubscriptions: { none: {} },
       invoices: { none: {} },
     },
   });
@@ -2385,20 +2390,24 @@ async function main() {
         createdByAdminId: adminUser.id,
       },
     }),
-    // `is_public=false` có chủ đích (mục 19): D3b (đo COGS AI thật) chưa xong,
-    // nên gói này tồn tại để xây schema/enforcement, chưa được công khai bán.
+    // D3b đã chốt (mục 24, 26/08/2026): COGS thật của `ai_cv_matching` đo được
+    // 174,63đ/lượt (n=104), vượt ngưỡng riêng 15% ở limit 1500 cũ (261.945đ so
+    // với trần 223.500đ = 15% × giá). Chốt bằng cách giảm limit xuống 1250
+    // (218.288đ, nằm dưới trần) và giữ giá 1.490.000đ. Không đổi giá vì tổng
+    // AI COGS toàn gói vẫn chỉ 15,4% doanh thu, xa dưới trần 60%. Đủ điều
+    // kiện public.
     pro: await prisma.subscriptionPlan.upsert({
       where: { code: 'RECRUITER_PRO' },
       update: {
         subscriptionName: 'Pro',
         price: new Prisma.Decimal(1490000),
-        description: 'Gói Pro -- giá/limit AI đang chờ D3b (đo COGS thật) trước khi công khai.',
+        description: 'Gói Pro cho nhà tuyển dụng: đăng tin, boost, kho CV và AI hỗ trợ tuyển dụng.',
         durationDays: 30,
         boostCreditLimit: 10,
         jobPostLimit: 30,
         talentContactLimit: 250,
         status: 'ACTIVE',
-        isPublic: false,
+        isPublic: true,
         sortOrder: 1,
         createdByAdminId: adminUser.id,
       },
@@ -2406,13 +2415,13 @@ async function main() {
         code: 'RECRUITER_PRO',
         subscriptionName: 'Pro',
         price: new Prisma.Decimal(1490000),
-        description: 'Gói Pro -- giá/limit AI đang chờ D3b (đo COGS thật) trước khi công khai.',
+        description: 'Gói Pro cho nhà tuyển dụng: đăng tin, boost, kho CV và AI hỗ trợ tuyển dụng.',
         durationDays: 30,
         boostCreditLimit: 10,
         jobPostLimit: 30,
         talentContactLimit: 250,
         status: 'ACTIVE',
-        isPublic: false,
+        isPublic: true,
         sortOrder: 1,
         createdByAdminId: adminUser.id,
       },
@@ -2489,10 +2498,12 @@ async function main() {
 
   // D3a/D1 (mục 14/17/19): số Free/Pro thật đã đo/chốt cho 8 feature key
   // recruiter, khớp đúng giá trị đang chạy thật để seed trên DB mới không lệch
-  // với DB đã tồn tại. `ai_cv_matching`/`ai_jd_generate` vẫn là số cũ từ seed
-  // gốc (chưa qua D3b) -- giữ nguyên ở đây để có gì đó dùng thử AI local, không
-  // phải giá đã chốt. `urgent_label` không còn code nào tiêu (mục 20) nhưng đã
-  // có giá trị thật trên DB từ trước, giữ để seed khớp, không phải vì còn dùng.
+  // với DB đã tồn tại. `ai_jd_generate` vẫn là số cũ từ seed gốc (chưa cần
+  // chỉnh, COGS đo được nằm sâu dưới trần). `ai_cv_matching` limit Pro đã
+  // giảm từ 1500 xuống 1250 theo D3b (mục 24, 26/08/2026) để COGS thật
+  // (174,63đ/lượt) nằm dưới trần 15%/tính năng ở giá 1.490.000đ. `urgent_label`
+  // không còn code nào tiêu (mục 20) nhưng đã có giá trị thật trên DB từ
+  // trước, giữ để seed khớp, không phải vì còn dùng.
   const recruiterPlanFeatures: Array<{
     planId: string;
     feature: string;
@@ -2512,7 +2523,7 @@ async function main() {
     { planId: plans.pro.id, feature: SubscriptionFeature.CV_POOL_VIEW, limitValue: 500 },
     { planId: plans.pro.id, feature: SubscriptionFeature.TALENT_CONTACT, limitValue: 250 },
     { planId: plans.pro.id, feature: SubscriptionFeature.HR_SEAT, limitValue: 10 },
-    { planId: plans.pro.id, feature: SubscriptionFeature.AI_CV_MATCHING, limitValue: 1500 },
+    { planId: plans.pro.id, feature: SubscriptionFeature.AI_CV_MATCHING, limitValue: 1250 },
     { planId: plans.pro.id, feature: SubscriptionFeature.AI_JD_GENERATE, limitValue: 150 },
   ];
 
