@@ -68,13 +68,16 @@ export function sanitizePostHtml(html: string): string {
     allowedSchemes: ['http', 'https', 'mailto'],
     allowProtocolRelative: false,
     transformTags: {
-      a: (tagName, attributes) => ({
-        tagName,
-        attribs:
-          attributes.target === '_blank'
-            ? { ...attributes, rel: 'noopener noreferrer' }
+      a: (tagName, attributes) => {
+        const opensInNewTab = attributes.target?.toLowerCase() === '_blank';
+
+        return {
+          tagName,
+          attribs: opensInNewTab
+            ? { ...attributes, target: '_blank', rel: 'noopener noreferrer' }
             : attributes,
-      }),
+        };
+      },
     },
   });
 }

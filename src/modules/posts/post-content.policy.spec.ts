@@ -63,6 +63,12 @@ describe('sanitizePostHtml', () => {
       '<a href="https://upnext.works" target="_blank" rel="noopener noreferrer">UpNext</a>',
     );
   });
+
+  it('normalizes case variants of _blank before adding safe rel values', () => {
+    expect(sanitizePostHtml('<a href="https://upnext.works" target="_BLANK">UpNext</a>')).toBe(
+      '<a href="https://upnext.works" target="_blank" rel="noopener noreferrer">UpNext</a>',
+    );
+  });
 });
 
 describe('countPostWords', () => {
