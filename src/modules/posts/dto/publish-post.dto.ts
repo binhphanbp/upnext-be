@@ -1,9 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { PartialType } from '@nestjs/swagger';
 import { IsDateString, IsNotEmpty } from 'class-validator';
-import { CreatePostDto } from './create-post.dto';
 
-export class UpdatePostDto extends PartialType(CreatePostDto) {
+export class PublishPostDto {
   @ApiProperty()
   @IsDateString()
   @IsNotEmpty()
