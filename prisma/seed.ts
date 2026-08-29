@@ -8315,6 +8315,197 @@ async function seedRichPosts(adminId: string, seedReferenceDate: Date) {
     demoPostsWithImages++;
   }
 
+  // Seed 20 In-depth technical articles
+  try {
+    // Bộ 20 bài viết cũ đã bị thay thế — dọn sạch trước khi seed lại để
+    // tránh còn sót bài "mồ côi" không nằm trong bộ dữ liệu mới.
+    const legacyDeepTechSlugs = [
+      'kien-truc-microservices-chuan-enterprise-nestjs-kafka-clean-architecture-2026',
+      'xay-dung-he-thong-rag-langchain-llama-3-postgresql-pgvector',
+      'toi-uu-hieu-nang-nextjs-16-app-router-server-actions-ppr-view-transitions',
+      'trien-khai-kubernetes-production-terraform-helm-argocd-gitops',
+      'bi-quyet-toi-uu-hoa-postgresql-he-thong-trieu-record-indexes-partitioning',
+      'cam-nang-phong-van-system-design-senior-tech-lead',
+      'bao-mat-toan-dien-web-api-oauth2-oidc-refresh-token-rotation-rate-limiting',
+      'bao-cao-thi-truong-tuyen-dung-dai-luong-it-2026',
+      'quan-ly-state-toan-dien-react-zustand-tanstack-query-server-state',
+      'toi-uu-hoa-docker-image-sieu-nhe-nodejs-go-multi-stage-distroless',
+      'mau-cv-lap-trinh-vien-chuan-ats-2026-project-highlight-impact',
+      'lam-chu-concurrency-golang-goroutines-channels-mutex-100k-rps',
+      'he-thong-hang-doi-cache-da-tang-redis-bullmq-websocket-realtime',
+      'chien-luoc-kiem-thu-toan-dien-vitest-testcontainers-playwright',
+      'xay-dung-doi-ngu-ky-thuat-dinh-cao-1-on-1-code-review-thang-tien',
+      'xay-dung-thuong-hieu-tuyen-dung-cong-nghe-tech-employer-branding-senior',
+      'so-sanh-kien-truc-mobile-app-2026-flutter-vs-react-native',
+      'bi-quyet-cat-giam-40-phan-tram-chi-phi-aws-cloud-spot-graviton',
+      'ung-dung-ai-tu-dong-hoa-phong-van-ung-vien-ai-mock-interview',
+      'upnext-platform-nang-tam-tuyen-dung-it-viet-nam-ai-matching',
+    ];
+    const legacyDeepTechPosts = await prisma.post.findMany({
+      where: { slug: { in: legacyDeepTechSlugs } },
+      select: { id: true, thumbnailFileId: true, coverImageFileId: true },
+    });
+    for (const legacy of legacyDeepTechPosts) {
+      await prisma.postTag.deleteMany({ where: { postId: legacy.id } });
+      await prisma.postSlugHistory.deleteMany({ where: { postId: legacy.id } });
+      await prisma.post.delete({ where: { id: legacy.id } });
+      const legacyFileIds = [legacy.thumbnailFileId, legacy.coverImageFileId].filter(
+        (id): id is string => Boolean(id),
+      );
+      if (legacyFileIds.length) {
+        await prisma.fileAsset.deleteMany({ where: { id: { in: legacyFileIds } } });
+      }
+    }
+
+    const deepTechDataPath = path.join(__dirname, 'data', 'deep_tech_posts.json');
+    const DEEP_TECH_POSTS: Array<{
+      title: string;
+      slug: string;
+      categorySlug: string;
+      tagSlugs: string[];
+      thumbnailUrl?: string;
+      coverUrl?: string;
+      excerpt: string;
+      viewCount: number;
+      publishedAt: string;
+      metaTitle: string;
+      metaDescription: string;
+      metaKeywords: string;
+      focusKeyword: string;
+      content: string;
+    }> = JSON.parse(fs.readFileSync(deepTechDataPath, 'utf-8'));
+
+    for (const pData of DEEP_TECH_POSTS) {
+      let cat = await prisma.postCategory.findUnique({ where: { slug: pData.categorySlug } });
+      if (!cat) cat = await prisma.postCategory.findFirst();
+
+      // Ảnh bìa AI thực tế được lưu tại uploads/posts/covers/<slug>.<ext>.
+      const coverExt = (pData.coverUrl?.split('.').pop() || 'png').toLowerCase();
+      const coverMime = coverExt === 'jpg' || coverExt === 'jpeg' ? 'image/jpeg' : 'image/png';
+      const localCoverPath = path.join(uploadRoot, 'posts', 'covers', `${pData.slug}.${coverExt}`);
+      const coverSizeBytes = fs.existsSync(localCoverPath)
+        ? fs.statSync(localCoverPath).size
+        : 450000;
+
+      const existingDeepPost = await prisma.post.findUnique({
+        where: { slug: pData.slug },
+        select: { id: true, thumbnailFileId: true, coverImageFileId: true },
+      });
+      if (existingDeepPost) {
+        const oldIds = [existingDeepPost.thumbnailFileId, existingDeepPost.coverImageFileId].filter(
+          (id): id is string => Boolean(id),
+        );
+        if (oldIds.length) {
+          await prisma.post.update({
+            where: { id: existingDeepPost.id },
+            data: { thumbnailFileId: null, coverImageFileId: null },
+          });
+          await prisma.fileAsset.deleteMany({ where: { id: { in: oldIds } } });
+        }
+      }
+
+      let thumbnailFile: { id: string } | null = null;
+      if (pData.thumbnailUrl) {
+        thumbnailFile = await prisma.fileAsset.create({
+          data: {
+            id: randomUUID(),
+            ownerType: 'admin',
+            ownerId: admin.id,
+            purpose: FilePurpose.POST_THUMBNAIL,
+            visibility: FileVisibility.PUBLIC,
+            storageKey: `posts/covers/${pData.slug}.${coverExt}`,
+            originalName: `${pData.slug}-thumb.${coverExt}`,
+            mimeType: coverMime,
+            sizeBytes: BigInt(coverSizeBytes),
+            publicUrl: pData.thumbnailUrl,
+          },
+        });
+      }
+
+      let coverFile: { id: string } | null = null;
+      if (pData.coverUrl) {
+        coverFile = await prisma.fileAsset.create({
+          data: {
+            id: randomUUID(),
+            ownerType: 'admin',
+            ownerId: admin.id,
+            purpose: FilePurpose.POST_COVER,
+            visibility: FileVisibility.PUBLIC,
+            storageKey: `posts/covers/${pData.slug}.${coverExt}`,
+            originalName: `${pData.slug}-cover.${coverExt}`,
+            mimeType: coverMime,
+            sizeBytes: BigInt(coverSizeBytes),
+            publicUrl: pData.coverUrl,
+          },
+        });
+      }
+
+      const post = await prisma.post.upsert({
+        where: { slug: pData.slug },
+        update: {
+          title: pData.title,
+          content: pData.content,
+          excerpt: pData.excerpt,
+          status: PostStatus.PUBLISHED,
+          type: PostType.BLOG,
+          categoryId: cat?.id ?? null,
+          adminId: admin.id,
+          thumbnailFileId: thumbnailFile?.id ?? undefined,
+          coverImageFileId: coverFile?.id ?? undefined,
+          metaTitle: pData.metaTitle,
+          metaDescription: pData.metaDescription,
+          metaKeywords: pData.metaKeywords,
+          focusKeyword: pData.focusKeyword,
+          viewCount: pData.viewCount,
+          publishedAt: new Date(pData.publishedAt),
+        },
+        create: {
+          id: randomUUID(),
+          title: pData.title,
+          slug: pData.slug,
+          content: pData.content,
+          excerpt: pData.excerpt,
+          status: PostStatus.PUBLISHED,
+          type: PostType.BLOG,
+          categoryId: cat?.id ?? null,
+          adminId: admin.id,
+          thumbnailFileId: thumbnailFile?.id ?? null,
+          coverImageFileId: coverFile?.id ?? null,
+          metaTitle: pData.metaTitle,
+          metaDescription: pData.metaDescription,
+          metaKeywords: pData.metaKeywords,
+          focusKeyword: pData.focusKeyword,
+          viewCount: pData.viewCount,
+          publishedAt: new Date(pData.publishedAt),
+        },
+      });
+
+      if (Array.isArray(pData.tagSlugs)) {
+        await prisma.postTag.deleteMany({ where: { postId: post.id } });
+        for (const tSlug of pData.tagSlugs) {
+          let tag = await prisma.tag.findUnique({ where: { slug: tSlug } });
+          if (!tag) {
+            tag = await prisma.tag.create({
+              data: {
+                id: randomUUID(),
+                name: tSlug.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+                slug: tSlug,
+              },
+            });
+          }
+          await prisma.postTag.create({
+            data: { postId: post.id, tagId: tag.id },
+          });
+        }
+      }
+    }
+    console.log(
+      `✅ Đã nạp thành công ${DEEP_TECH_POSTS.length} bài viết kỹ thuật & tuyển dụng siêu chuyên sâu (DEEP_TECH_POSTS)!`,
+    );
+  } catch (err) {
+    console.warn('Could not seed deep tech posts:', err);
+  }
+
   console.log(
     `\n✅ Đã khởi tạo thành công ${countCreated} bài viết cùng FileAsset thumbnail JPEG thực tế (${appBackendUrl}/uploads/posts/\${slug}-${POST_IMAGE_SEED_VERSION}.jpg) cho cả 3 danh mục cha!`,
   );
