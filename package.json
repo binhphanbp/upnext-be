@@ -26,6 +26,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio --browser none",
     "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:seed-deep-posts": "tsx prisma/seed-deep-posts.ts",
     "prisma:seed-job-status-samples": "tsx scripts/seed-job-post-status-samples.ts",
     "prisma:seed-company-photos": "tsx scripts/backfill-company-photos.ts",
     "generate:company-workplace-images": "tsx scripts/generate-company-workplace-images.ts",
