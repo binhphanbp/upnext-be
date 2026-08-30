@@ -4,7 +4,6 @@ import { InvoicesService } from './invoices.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CompanySubscriptionsService } from '../company-subscriptions/company-subscriptions.service';
 import { ActorType, PaymentStatus } from '@prisma/client';
-import { ForbiddenException } from '@nestjs/common';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 describe('InvoicesService', () => {
