@@ -39,10 +39,10 @@ export class UpsertPaymentConfigDto {
 
   @ApiPropertyOptional({
     description:
-      'API Key dùng để xác thực webhook từ SePay. Để trống nếu không muốn đổi key hiện tại.',
+      'Secret Key dùng để xác thực chữ ký HMAC-SHA256 của webhook SePay (khớp đúng Secret Key ở bước "Bảo mật" khi tạo webhook trên dashboard SePay). Để trống nếu không muốn đổi secret hiện tại.',
   })
   @IsString()
   @IsOptional()
   @MaxLength(255)
-  webhookApiKey?: string;
+  webhookSecret?: string;
 }

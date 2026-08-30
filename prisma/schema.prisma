@@ -2134,7 +2134,9 @@ model Invoice {
 
 /// Cấu hình 1 cổng thanh toán, quản lý qua trang admin "Cấu hình thanh toán"
 /// thay vì env var -- mỗi provider (SEPAY, PAYPAL, ...) có tối đa 1 dòng.
-/// `webhookApiKey` không bao giờ được trả nguyên vẹn qua API (chỉ dạng mask).
+/// `webhookSecret` không bao giờ được trả nguyên vẹn qua API (chỉ dạng mask).
+/// Với SEPAY đây là secret dùng để verify chữ ký HMAC-SHA256 của webhook
+/// (không phải "API key" theo nghĩa gọi API SePay -- SePay chỉ gọi vào mình).
 model PaymentGatewayConfig {
   id               String        @id @default(uuid()) @db.Uuid
   provider         PaymentMethod @unique
@@ -2143,7 +2145,7 @@ model PaymentGatewayConfig {
   bankBin          String?       @map("bank_bin") @db.VarChar(20)
   accountNumber    String?       @map("account_number") @db.VarChar(50)
   accountName      String?       @map("account_name") @db.VarChar(150)
-  webhookApiKey    String?       @map("webhook_api_key") @db.VarChar(255)
+  webhookSecret    String?       @map("webhook_secret") @db.VarChar(255)
   updatedByAdminId String?       @map("updated_by_admin_id") @db.Uuid
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")

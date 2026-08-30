@@ -1,9 +1,15 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { PaymentMethod } from '@prisma/client';
 import { InvoicesService } from '../invoices/invoices.service';
 import { PaymentConfigService } from './payment-config.service';
 import { SepayWebhookPayload } from './dto/sepay-webhook-payload.dto';
+
+// SePay retries a webhook it thinks failed; without a bound on how old a
+// signed timestamp can be, a captured request replays successfully forever.
+// 5 minutes matches SePay's own documented tolerance
+// (https://developer.sepay.vn/en/sepay-webhooks/xac-thuc).
+const SIGNATURE_TOLERANCE_SECONDS = 300;
 
 // Banks routinely mangle the transfer content SePay reports in `content`:
 // hyphens/spaces get dropped, extra bank boilerplate gets prepended or
@@ -21,22 +27,52 @@ export class SepayWebhookService {
     private readonly invoicesService: InvoicesService,
   ) {}
 
-  async verifyApiKey(authorizationHeader: string | undefined): Promise<void> {
-    const expectedKey = await this.paymentConfigService.getWebhookApiKey(PaymentMethod.SEPAY);
-    if (!expectedKey) {
+  /**
+   * Verifies SePay's HMAC-SHA256 webhook signature per
+   * https://developer.sepay.vn/en/sepay-webhooks/xac-thuc:
+   *   - `X-SePay-Signature: sha256=<hex>` over the literal bytes
+   *     `${timestamp}.${raw_body}`, keyed with the configured secret.
+   *   - `X-SePay-Timestamp` must be within 5 minutes of "now" (replay
+   *     protection) -- a signature never expires on its own otherwise.
+   *
+   * `rawBody` must be the exact bytes Express received (see the `verify`
+   * callback on the global json() parser in main.ts) -- signing is over raw
+   * bytes, not a re-serialized `JSON.stringify(parsedBody)`, which can differ
+   * in key order/whitespace/unicode escaping and never match.
+   */
+  async verifySignature(
+    rawBody: Buffer,
+    signatureHeader: string | undefined,
+    timestampHeader: string | undefined,
+  ): Promise<void> {
+    const secret = await this.paymentConfigService.getWebhookSecret(PaymentMethod.SEPAY);
+    if (!secret) {
       throw new UnauthorizedException('SePay is not configured');
     }
+    if (!signatureHeader || !timestampHeader) {
+      throw new UnauthorizedException('Missing SePay signature headers');
+    }
 
-    const expected = `Apikey ${expectedKey}`;
-    const provided = authorizationHeader ?? '';
+    const timestamp = Number(timestampHeader);
+    if (!Number.isFinite(timestamp)) {
+      throw new UnauthorizedException('Invalid SePay timestamp header');
+    }
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (Math.abs(nowSeconds - timestamp) > SIGNATURE_TOLERANCE_SECONDS) {
+      throw new UnauthorizedException('SePay webhook timestamp outside the allowed window');
+    }
+
+    const signedPayload = Buffer.concat([Buffer.from(`${timestamp}.`, 'utf-8'), rawBody]);
+    const expectedHex = createHmac('sha256', secret).update(signedPayload).digest('hex');
+    const expected = `sha256=${expectedHex}`;
 
     const expectedBuf = Buffer.from(expected);
-    const providedBuf = Buffer.from(provided);
+    const providedBuf = Buffer.from(signatureHeader);
     const matches =
       expectedBuf.length === providedBuf.length && timingSafeEqual(expectedBuf, providedBuf);
 
     if (!matches) {
-      throw new UnauthorizedException('Invalid webhook API key');
+      throw new UnauthorizedException('Invalid SePay webhook signature');
     }
   }
 

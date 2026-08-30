@@ -20,14 +20,14 @@ export type AdminPaymentConfig = {
   accountNumber: string | null;
   accountName: string | null;
   /** Never the real secret -- last 4 chars only, or null if none is set. */
-  webhookApiKeyMasked: string | null;
+  webhookSecretMasked: string | null;
   webhookUrl: string;
 };
 
-function maskApiKey(key: string | null): string | null {
-  if (!key) return null;
-  if (key.length <= 4) return '••••';
-  return `••••${key.slice(-4)}`;
+function maskSecret(secret: string | null): string | null {
+  if (!secret) return null;
+  if (secret.length <= 4) return '••••';
+  return `••••${secret.slice(-4)}`;
 }
 
 @Injectable()
@@ -55,7 +55,7 @@ export class PaymentConfigService {
       bankBin: config?.bankBin ?? null,
       accountNumber: config?.accountNumber ?? null,
       accountName: config?.accountName ?? null,
-      webhookApiKeyMasked: maskApiKey(config?.webhookApiKey ?? null),
+      webhookSecretMasked: maskSecret(config?.webhookSecret ?? null),
       webhookUrl: this.webhookUrlFor(provider),
     };
   }
@@ -83,9 +83,9 @@ export class PaymentConfigService {
   }
 
   /** Only used internally by the webhook handler -- never exposed via an API response. */
-  async getWebhookApiKey(provider: PaymentMethod): Promise<string | null> {
+  async getWebhookSecret(provider: PaymentMethod): Promise<string | null> {
     const config = await this.prisma.paymentGatewayConfig.findUnique({ where: { provider } });
-    return config?.webhookApiKey ?? null;
+    return config?.webhookSecret ?? null;
   }
 
   async upsert(
@@ -93,11 +93,11 @@ export class PaymentConfigService {
     dto: UpsertPaymentConfigDto,
     adminId: string,
   ): Promise<AdminPaymentConfig> {
-    // A blank webhookApiKey means "leave it as-is" -- an admin editing the
+    // A blank webhookSecret means "leave it as-is" -- an admin editing the
     // bank account should not be forced to re-paste the secret every time.
-    const webhookApiKeyUpdate =
-      dto.webhookApiKey && dto.webhookApiKey.trim().length > 0
-        ? { webhookApiKey: dto.webhookApiKey.trim() }
+    const webhookSecretUpdate =
+      dto.webhookSecret && dto.webhookSecret.trim().length > 0
+        ? { webhookSecret: dto.webhookSecret.trim() }
         : {};
 
     await this.prisma.paymentGatewayConfig.upsert({
@@ -109,7 +109,7 @@ export class PaymentConfigService {
         accountNumber: dto.accountNumber,
         accountName: dto.accountName,
         updatedByAdminId: adminId,
-        ...webhookApiKeyUpdate,
+        ...webhookSecretUpdate,
       },
       create: {
         provider,
@@ -119,7 +119,7 @@ export class PaymentConfigService {
         accountNumber: dto.accountNumber,
         accountName: dto.accountName,
         updatedByAdminId: adminId,
-        ...webhookApiKeyUpdate,
+        ...webhookSecretUpdate,
       },
     });
 

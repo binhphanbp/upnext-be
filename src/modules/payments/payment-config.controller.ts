@@ -33,7 +33,7 @@ export class PaymentConfigController {
   @ApiOperation({
     summary: 'Cập nhật cấu hình 1 cổng thanh toán (Admin)',
     description:
-      'Để trống webhookApiKey nếu không muốn đổi key hiện tại -- key thật không bao giờ được trả về, chỉ trả bản mask.',
+      'Để trống webhookSecret nếu không muốn đổi secret hiện tại -- secret thật không bao giờ được trả về, chỉ trả bản mask.',
   })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
