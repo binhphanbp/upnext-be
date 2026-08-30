@@ -62,7 +62,20 @@ async function bootstrap() {
   );
 
   // Limit request body size to mitigate large-payload DoS.
-  app.use(json({ limit: '1mb' }));
+  //
+  // `verify` stashes the exact raw bytes on `req.rawBody` before Express
+  // parses them into `req.body` -- the SePay webhook's HMAC-SHA256 signature
+  // is computed over those literal bytes, and re-serializing the parsed JSON
+  // object to check it (different key order, whitespace, unicode escaping)
+  // produces a different byte sequence and a signature that never matches.
+  app.use(
+    json({
+      limit: '1mb',
+      verify: (req: Request & { rawBody?: Buffer }, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
   app.use(urlencoded({ extended: true, limit: '1mb' }));
   app.enableCors({
     origin: config.getOrThrow<string[]>('corsOrigins'),

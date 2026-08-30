@@ -32,14 +32,32 @@ export class CompanySubscriptionsService {
     if (!dto.companyId) {
       throw new BadRequestException('companyId is required for admin');
     }
-    const targetCompanyId = dto.companyId;
 
+    return this.activatePlanForCompany(dto.companyId, dto.planId, 'ADMIN_GRANT', transaction);
+  }
+
+  /**
+   * Core "give this company an active subscription to this plan" transaction --
+   * shared by every legitimate activation path: admin manual grant (`subscribe`
+   * above), a recruiter's invoice being marked paid, and the SePay webhook.
+   * Deliberately takes no `AuthenticatedUser`: by the time a caller reaches
+   * here, authorization has already been decided (admin role check, invoice
+   * ownership check, or a verified payment-gateway webhook) -- re-checking a
+   * role here would wrongly reject the invoice/webhook paths, which have no
+   * admin user in context.
+   */
+  async activatePlanForCompany(
+    companyId: string,
+    planId: string,
+    source: string,
+    transaction?: Prisma.TransactionClient,
+  ) {
     const client = transaction ?? this.prisma;
-    const company = await client.company.findUnique({ where: { id: targetCompanyId } });
+    const company = await client.company.findUnique({ where: { id: companyId } });
     if (!company) throw new NotFoundException('Company not found');
 
     const plan = await client.subscriptionPlan.findUnique({
-      where: { id: dto.planId },
+      where: { id: planId },
       include: { features: true },
     });
     if (!plan) throw new NotFoundException('Subscription plan not found');
@@ -56,7 +74,7 @@ export class CompanySubscriptionsService {
     const activate = async (tx: Prisma.TransactionClient) => {
       await tx.companySubscription.updateMany({
         where: {
-          companyId: targetCompanyId,
+          companyId,
           status: SubscriptionStatus.ACTIVE,
         },
         data: {
@@ -67,7 +85,7 @@ export class CompanySubscriptionsService {
       const subscription = await tx.companySubscription.create({
         data: {
           planId: plan.id,
-          companyId: targetCompanyId,
+          companyId,
           jobPostLimit: plan.jobPostLimit,
           boostCreditTotal: plan.boostCreditLimit,
           talentContactLimit: plan.talentContactLimit,
@@ -75,7 +93,7 @@ export class CompanySubscriptionsService {
           expiredAt: expiredAt,
           currentPeriodStart: now,
           currentPeriodEnd: expiredAt,
-          source: 'ADMIN_GRANT',
+          source,
           planSnapshot: {
             code: plan.code,
             name: plan.subscriptionName,
@@ -111,7 +129,7 @@ export class CompanySubscriptionsService {
       return subscription;
     };
 
-    // Admin grant cũng đụng cùng partial unique index nếu có hai lần gán đồng thời.
+    // Activation cũng đụng cùng partial unique index nếu có hai lần gán đồng thời.
     // Khi caller đưa transaction của họ vào thì để lỗi propagate -- transaction đó
     // đã bị Postgres hủy, và chủ của nó mới biết cách xử lý.
     if (transaction) return activate(transaction);
