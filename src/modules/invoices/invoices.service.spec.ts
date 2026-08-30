@@ -31,6 +31,10 @@ describe('InvoicesService', () => {
 
   const subscriptionServiceMock = {
     subscribe: jest.fn(),
+    // The paid-invoice path no longer goes through `subscribe` (which is the
+    // admin-grant entry point). It calls the shared activation transaction
+    // directly, so the mock has to expose that too.
+    activatePlanForCompany: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -83,6 +87,37 @@ describe('InvoicesService', () => {
   });
 
   describe('pay', () => {
+    it('refuses a recruiter self-confirming a SePay transfer', async () => {
+      // SePay is webhook-verified, so "I paid" from the recruiter proves nothing.
+      // Only the webhook (or an admin override) may settle a SEPAY invoice.
+      const user: AuthenticatedUser = {
+        id: 'recruiter-id',
+        email: 'recruiter@fpt.com',
+        role: ActorType.RECRUITER,
+        companyId: 'fpt-company-id',
+        permissions: [],
+      };
+
+      prismaMock.invoice.findUnique.mockResolvedValue({
+        id: 'inv-1',
+        invoiceCode: 'INV-1',
+        companyId: 'fpt-company-id',
+        subscriptionPlanId: 'plan-1',
+        amount: '490000',
+        paymentStatus: PaymentStatus.PENDING,
+      });
+
+      // Assert on the message, not just the type: the company-ownership check
+      // above this one throws ForbiddenException too, so the type alone would
+      // let this test pass for the wrong reason.
+      await expect(service.pay('inv-1', user, { paymentMethod: 'SEPAY' })).rejects.toThrow(
+        /SePay/,
+      );
+
+      expect(prismaMock.invoice.update).not.toHaveBeenCalled();
+      expect(subscriptionServiceMock.activatePlanForCompany).not.toHaveBeenCalled();
+    });
+
     it('allows recruiter to pay invoice for their company and activates subscription', async () => {
       const user: AuthenticatedUser = {
         id: 'recruiter-id',
@@ -105,16 +140,19 @@ describe('InvoicesService', () => {
       prismaMock.invoice.update.mockResolvedValue({
         ...mockInvoice,
         paymentStatus: PaymentStatus.PAID,
-        paymentMethod: 'SEPAY',
+        paymentMethod: 'PAYPAL',
         paidAt: new Date(),
       });
 
-      const result = await service.pay('inv-1', user, { paymentMethod: 'SEPAY' });
+      // PAYPAL stays self-confirmable: it has no webhook verifying the transfer,
+      // unlike SEPAY (covered by the test above).
+      const result = await service.pay('inv-1', user, { paymentMethod: 'PAYPAL' });
 
       expect(prismaMock.invoice.update).toHaveBeenCalled();
-      expect(subscriptionServiceMock.subscribe).toHaveBeenCalledWith(
-        user,
-        { planId: 'plan-1', companyId: 'fpt-company-id' },
+      expect(subscriptionServiceMock.activatePlanForCompany).toHaveBeenCalledWith(
+        'fpt-company-id',
+        'plan-1',
+        expect.any(String),
         expect.anything(),
       );
       expect(result.paymentStatus).toBe(PaymentStatus.PAID);
@@ -140,8 +178,10 @@ describe('InvoicesService', () => {
 
       prismaMock.invoice.findUnique.mockResolvedValue(mockInvoice);
 
+      // Same reason as above: pin the message so this proves the ownership
+      // check fired, not the SePay one.
       await expect(service.pay('inv-1', user, { paymentMethod: 'SEPAY' })).rejects.toThrow(
-        ForbiddenException,
+        /permission to view this invoice/,
       );
     });
   });
