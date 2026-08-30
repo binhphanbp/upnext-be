@@ -10,6 +10,8 @@ export type PublicSepayConfig = {
   bankBin: string | null;
   accountNumber: string | null;
   accountName: string | null;
+  /** Prepend to the invoice code in the transfer content (e.g. "TKPUPN" for a SePay Virtual Account). */
+  contentPrefix: string | null;
 };
 
 export type AdminPaymentConfig = {
@@ -19,9 +21,16 @@ export type AdminPaymentConfig = {
   bankBin: string | null;
   accountNumber: string | null;
   accountName: string | null;
+  contentPrefix: string | null;
   /** Never the real secret -- last 4 chars only, or null if none is set. */
   webhookSecretMasked: string | null;
   webhookUrl: string;
+};
+
+/** Only what the webhook handler needs to verify + match a request -- never exposed via an API response. */
+export type WebhookVerificationConfig = {
+  webhookSecret: string | null;
+  contentPrefix: string | null;
 };
 
 function maskSecret(secret: string | null): string | null {
@@ -55,6 +64,7 @@ export class PaymentConfigService {
       bankBin: config?.bankBin ?? null,
       accountNumber: config?.accountNumber ?? null,
       accountName: config?.accountName ?? null,
+      contentPrefix: config?.contentPrefix ?? null,
       webhookSecretMasked: maskSecret(config?.webhookSecret ?? null),
       webhookUrl: this.webhookUrlFor(provider),
     };
@@ -71,6 +81,7 @@ export class PaymentConfigService {
         bankBin: null,
         accountNumber: null,
         accountName: null,
+        contentPrefix: null,
       };
     }
     return {
@@ -79,13 +90,17 @@ export class PaymentConfigService {
       bankBin: config.bankBin,
       accountNumber: config.accountNumber,
       accountName: config.accountName,
+      contentPrefix: config.contentPrefix,
     };
   }
 
   /** Only used internally by the webhook handler -- never exposed via an API response. */
-  async getWebhookSecret(provider: PaymentMethod): Promise<string | null> {
+  async getWebhookVerificationConfig(provider: PaymentMethod): Promise<WebhookVerificationConfig> {
     const config = await this.prisma.paymentGatewayConfig.findUnique({ where: { provider } });
-    return config?.webhookSecret ?? null;
+    return {
+      webhookSecret: config?.webhookSecret ?? null,
+      contentPrefix: config?.contentPrefix ?? null,
+    };
   }
 
   async upsert(
@@ -108,6 +123,7 @@ export class PaymentConfigService {
         bankBin: dto.bankBin,
         accountNumber: dto.accountNumber,
         accountName: dto.accountName,
+        contentPrefix: dto.contentPrefix,
         updatedByAdminId: adminId,
         ...webhookSecretUpdate,
       },
@@ -118,6 +134,7 @@ export class PaymentConfigService {
         bankBin: dto.bankBin,
         accountNumber: dto.accountNumber,
         accountName: dto.accountName,
+        contentPrefix: dto.contentPrefix,
         updatedByAdminId: adminId,
         ...webhookSecretUpdate,
       },

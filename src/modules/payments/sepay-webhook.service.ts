@@ -45,7 +45,9 @@ export class SepayWebhookService {
     signatureHeader: string | undefined,
     timestampHeader: string | undefined,
   ): Promise<void> {
-    const secret = await this.paymentConfigService.getWebhookSecret(PaymentMethod.SEPAY);
+    const { webhookSecret: secret } = await this.paymentConfigService.getWebhookVerificationConfig(
+      PaymentMethod.SEPAY,
+    );
     if (!secret) {
       throw new UnauthorizedException('SePay is not configured');
     }
@@ -83,6 +85,24 @@ export class SepayWebhookService {
     }
 
     const content = payload.content ?? payload.description ?? '';
+
+    // Bank accounts shared with personal use (or a SePay Virtual Account
+    // sharing one physical account across multiple purposes) can receive
+    // transfers that have nothing to do with an invoice. When a content
+    // prefix is configured (e.g. "TKPUPN" for a SePay VA), require it in the
+    // content before treating anything as a payment -- otherwise a friend's
+    // unrelated transfer that happens to mention "INV" in its note could get
+    // matched against a real invoice.
+    const { contentPrefix } = await this.paymentConfigService.getWebhookVerificationConfig(
+      PaymentMethod.SEPAY,
+    );
+    if (contentPrefix && !content.toLowerCase().includes(contentPrefix.toLowerCase())) {
+      this.logger.warn(
+        `SePay webhook: content "${content}" is missing the required prefix "${contentPrefix}", ignoring`,
+      );
+      return { handled: false, reason: 'content_prefix_missing' };
+    }
+
     const match = INVOICE_CODE_PATTERN.exec(content);
     if (!match) {
       this.logger.warn(`SePay webhook: could not find an invoice code in content "${content}"`);

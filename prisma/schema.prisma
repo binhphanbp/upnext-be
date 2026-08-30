@@ -2145,6 +2145,11 @@ model PaymentGatewayConfig {
   bankBin          String?       @map("bank_bin") @db.VarChar(20)
   accountNumber    String?       @map("account_number") @db.VarChar(50)
   accountName      String?       @map("account_name") @db.VarChar(150)
+  /// Bắt buộc phải xuất hiện trong nội dung chuyển khoản, đứng trước mã hoá
+  /// đơn (vd "TKPUPN" khi dùng tính năng Virtual Account của SePay -- "TKP"
+  /// là tiền tố cố định của SePay, "UPN" là mã VA do admin tự đặt). Để trống
+  /// nếu tài khoản ngân hàng không dùng VA.
+  contentPrefix    String?       @map("content_prefix") @db.VarChar(20)
   webhookSecret    String?       @map("webhook_secret") @db.VarChar(255)
   updatedByAdminId String?       @map("updated_by_admin_id") @db.Uuid
   createdAt        DateTime      @default(now()) @map("created_at")

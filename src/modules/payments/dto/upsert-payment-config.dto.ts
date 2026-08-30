@@ -39,6 +39,16 @@ export class UpsertPaymentConfigDto {
 
   @ApiPropertyOptional({
     description:
+      'Bắt buộc phải xuất hiện trong nội dung chuyển khoản, đứng trước mã hoá đơn -- dùng khi ngân hàng có cấu hình Virtual Account (VA) trên SePay (vd "TKPUPN": TKP là tiền tố cố định của SePay, UPN là mã VA tự đặt). Để trống nếu tài khoản không dùng VA.',
+    example: 'TKPUPN',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  contentPrefix?: string;
+
+  @ApiPropertyOptional({
+    description:
       'Secret Key dùng để xác thực chữ ký HMAC-SHA256 của webhook SePay (khớp đúng Secret Key ở bước "Bảo mật" khi tạo webhook trên dashboard SePay). Để trống nếu không muốn đổi secret hiện tại.',
   })
   @IsString()
