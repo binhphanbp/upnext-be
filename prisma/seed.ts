@@ -18,6 +18,7 @@ import {
   JobSearchStatus,
   JobStatus,
   ModerationStatus,
+  PaymentMethod,
   PostStatus,
   PostType,
   PlanAudience,
@@ -2426,6 +2427,40 @@ async function main() {
         createdByAdminId: adminUser.id,
       },
     }),
+    // Gói giá rẻ chỉ để tự tay test hết luồng thanh toán SePay thật (checkout,
+    // quét QR, webhook xác nhận, kích hoạt) mà không phải chuyển số tiền lớn.
+    // isPublic: true để nó hiện thật trên trang pricing -- tắt/archive gói này
+    // sau khi test xong, đừng để khách thật nhìn thấy "Gói Test".
+    recruiterTest: await prisma.subscriptionPlan.upsert({
+      where: { code: 'RECRUITER_TEST' },
+      update: {
+        subscriptionName: 'Gói Test 5.000đ',
+        price: new Prisma.Decimal(5000),
+        description:
+          'Gói giá rẻ chỉ dùng để kiểm thử luồng thanh toán -- không dùng cho khách thật.',
+        durationDays: 3,
+        jobPostLimit: 1,
+        status: 'ACTIVE',
+        isPublic: true,
+        highlightLabel: 'TEST',
+        sortOrder: 99,
+        createdByAdminId: adminUser.id,
+      },
+      create: {
+        code: 'RECRUITER_TEST',
+        subscriptionName: 'Gói Test 5.000đ',
+        price: new Prisma.Decimal(5000),
+        description:
+          'Gói giá rẻ chỉ dùng để kiểm thử luồng thanh toán -- không dùng cho khách thật.',
+        durationDays: 3,
+        jobPostLimit: 1,
+        status: 'ACTIVE',
+        isPublic: true,
+        highlightLabel: 'TEST',
+        sortOrder: 99,
+        createdByAdminId: adminUser.id,
+      },
+    }),
     candidateFree: await prisma.subscriptionPlan.upsert({
       where: { code: 'CANDIDATE_FREE' },
       update: {
@@ -2495,6 +2530,18 @@ async function main() {
       },
     }),
   };
+
+  // Đảm bảo trang admin "Cấu hình thanh toán" luôn có sẵn 1 dòng SePay để
+  // load/sửa ngay lần đầu vào (thay vì 404 trên DB mới tinh). Tắt sẵn
+  // (isEnabled: false) và để trống bank info/API key -- admin tự điền qua UI.
+  await prisma.paymentGatewayConfig.upsert({
+    where: { provider: PaymentMethod.SEPAY },
+    update: {},
+    create: {
+      provider: PaymentMethod.SEPAY,
+      isEnabled: false,
+    },
+  });
 
   // D3a/D1 (mục 14/17/19): số Free/Pro thật đã đo/chốt cho 8 feature key
   // recruiter, khớp đúng giá trị đang chạy thật để seed trên DB mới không lệch

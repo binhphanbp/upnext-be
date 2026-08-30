@@ -42,6 +42,7 @@ import { SubscriptionPlansModule } from './modules/subscription-plans/subscripti
 import { CompanySubscriptionsModule } from './modules/company-subscriptions/company-subscriptions.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { InterviewsModule } from './modules/interviews/interviews.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -121,6 +122,7 @@ import { JobPostAiModule } from './modules/job-post-ai/job-post-ai.module';
     CompanySubscriptionsModule,
     SubscriptionsModule,
     InvoicesModule,
+    PaymentsModule,
     InterviewsModule,
     HealthModule,
     SearchKeywordModule,

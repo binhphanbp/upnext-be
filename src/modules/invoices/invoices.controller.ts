@@ -14,10 +14,10 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
-  @ApiOperation({ summary: 'Tạo hóa đơn thủ công (Admin)' })
+  @ApiOperation({ summary: 'Tạo hóa đơn (Admin hoặc Recruiter)' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ActorType.ADMIN)
+  @Roles(ActorType.ADMIN, ActorType.RECRUITER)
   @Post()
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateInvoiceDto) {
     return this.invoicesService.create(user, dto);
@@ -43,11 +43,11 @@ export class InvoicesController {
 
   @ApiOperation({
     summary: 'Xác nhận thanh toán hóa đơn (Kích hoạt dịch vụ)',
-    description: 'Chỉ admin được xác nhận một hóa đơn thủ công đã thanh toán.',
+    description: 'Admin hoặc Recruiter (cho hóa đơn của công ty mình) xác nhận thanh toán.',
   })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ActorType.ADMIN)
+  @Roles(ActorType.ADMIN, ActorType.RECRUITER)
   @Post(':id/pay')
   pay(
     @Param('id', ParseUUIDPipe) id: string,
