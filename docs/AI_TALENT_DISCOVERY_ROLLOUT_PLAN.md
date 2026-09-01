@@ -126,6 +126,25 @@ Khi candidate rút consent, ẩn profile hoặc block company, mọi recommendat
 
 Candidate có thể tự nguyện gửi link/email/SĐT sau khi đã chấp nhận trò chuyện. UpNext không tự reveal bất kỳ trường nào trong số đó.
 
+### 5.3. CV gốc và bản CV ẩn danh
+
+**CV gốc là dữ liệu mật của candidate, không phải dữ liệu recruiter được xem trong Talent Discovery.** Chỉ chặn nút download hoặc vẽ ô đen đè lên PDF là không đủ: text layer, hyperlink, filename, metadata, ảnh/QR, copy-paste và OCR vẫn có thể làm lộ thông tin.
+
+Vì vậy v1 áp dụng hai lớp rõ ràng:
+
+| Thành phần | Quy tắc bắt buộc |
+| --- | --- |
+| CV gốc (`original CV`) | Chỉ candidate và các luồng nội bộ được phân quyền hợp lệ sử dụng. Không cấp signed URL, preview URL, document id, filename, thumbnail hay API response cho recruiter qua Talent Discovery. |
+| Hồ sơ/CV ẩn danh (`anonymous CV`) | Nếu recruiter cần xem sâu hơn card, backend tạo **bản dẫn xuất mới** từ structured fields đã allow-list và đã generalize; không chỉnh sửa/đè chữ trên file gốc. Không download trong v1. |
+
+Nội dung hợp lệ của bản ẩn danh chỉ gồm: job family/headline chung, skills chuẩn hóa, experience band, công nghệ, loại vai trò/trách nhiệm đã tổng quát hóa, working model, city cấp tỉnh/thành và các reason/gap theo Job Post. Ví dụ, `Senior Engineer tại Công ty X, dự án Y cho khách hàng Z` phải trở thành `Senior Engineer, nền tảng SaaS, 3–5 năm kinh nghiệm`; không giữ tên tổ chức, tên dự án, mốc thời gian chính xác hay text tự do chưa duyệt.
+
+Renderer phải dựng HTML/PDF mới hoàn toàn từ `AnonymousCandidateView` đã được server validate, flatten text và loại bỏ link/annotation, metadata, form fields, hidden layer, image, QR/barcode và attachment. Không dùng PDF redaction overlay, không proxy file gốc, không truyền raw parsed text vào client. Bất kỳ đoạn CV nào không map được vào schema allow-list đều bị bỏ, không được “cố che” rồi hiển thị.
+
+Trước khi publish bản dẫn xuất, worker chạy kiểm tra nhiều lớp: regex PII (email/phone/URL/social handle), detector tên/địa chỉ theo locale, OCR trên trang render, kiểm tra PDF text/link/metadata và regression fixtures với PDF/DOCX/image CV. Phát hiện nghi ngờ thì fail closed: không phát hành document, chỉ giữ card an toàn và tạo security event để xử lý. Candidate phải thấy chính xác preview recruiter thấy và có thể tắt riêng quyền xem anonymous CV mà không cần rút toàn bộ consent Discovery.
+
+`anonymousCvId` nếu cần là opaque, scoped theo recommendation/run, TTL ngắn, chỉ stream sau authorization server-side; không được là CV/source id. Với v1 beta, có thể tắt hoàn toàn document preview và chỉ phát hành card/hồ sơ structured ẩn danh cho đến khi pipeline render-redact vượt toàn bộ privacy test.
+
 ## 6. Luồng recruiter và candidate
 
 ### 6.1. Recruiter tạo Discovery
@@ -152,6 +171,7 @@ Candidate có thể tự nguyện gửi link/email/SĐT sau khi đã chấp nh�
 - Thêm report/block trực tiếp trong invitation/chat; block có hiệu lực ngay với cả recommendation và outreach tương lai.
 - Không trả profile identifier cho client. Action sau đó dùng `recommendationId` hoặc opaque `candidateRef`, server tự resolve và re-check quyền.
 - `CV_POOL_VIEW` hiện trả liên hệ trực tiếp phải được đổi trước launch: v1 chỉ cho xem profile ẩn danh chi tiết, hoặc tắt endpoint unlock cũ. Nếu vẫn giữ direct reveal cho sản phẩm khác, phải có consent `DIRECT_CONTACT_ALLOWED` riêng và Discovery candidates tuyệt đối không dùng được đường đó.
+- Không có nút `Xem CV gốc`, `Tải CV`, `Mở file` hay preview dùng source URL trong Discovery. CTA duy nhất (nếu Candidate cho phép) là `Xem hồ sơ ẩn danh`; mọi lần xem phải qua authorization, audit và policy current-state.
 
 ## 7. Matching architecture
 
@@ -248,6 +268,7 @@ Idempotency-Key: <uuid>
 ```text
 GET  /api/v1/recruiter/talent-discovery-runs/:runId
 GET  /api/v1/recruiter/talent-discovery-runs/:runId/recommendations
+GET  /api/v1/recruiter/talent-recommendations/:recommendationId/anonymous-profile
 POST /api/v1/recruiter/talent-recommendations/:recommendationId/contact-requests
 GET  /api/v1/recruiter/talent-discovery-runs?jobPostId=...&page=...&limit=...
 ```
@@ -272,6 +293,8 @@ Recommendation response chỉ có field ẩn danh, ví dụ:
 
 Không trả score thô, candidate profile/account/CV identifier hay PII. Mọi endpoint detail/contact nhận `recommendationId`; server validate run ownership, candidate eligibility hiện tại và policy chặn trước khi trả kết quả.
 
+`GET .../anonymous-profile` trả structured anonymous profile hoặc short-lived stream của bản dẫn xuất đã render; không trả source document, signed URL, filename, original MIME type hoặc raw extracted text. Endpoint mặc định có thể trả `403 ANONYMOUS_CV_NOT_ENABLED` nếu candidate không bật quyền xem sâu hoặc beta chưa mở document preview.
+
 ### Candidate
 
 ```text
@@ -289,6 +312,7 @@ Thêm/chỉnh các model theo hướng additive migration:
 
 ```text
 CandidateTalentDiscoveryPreference
+AnonymousCandidateView / AnonymousCvArtifact
 TalentDiscoveryIndex
 TalentDiscoveryRun
 TalentDiscoveryRecommendation
@@ -298,6 +322,8 @@ TalentContactRequest.source / recommendationId
 
 Các bản ghi recommendation trong database có thể giữ foreign key nội bộ `candidateProfileId` để join, nhưng serializer recruiter tuyệt đối không gửi value này. Mỗi run lưu job snapshot, scoring config/version, candidate eligibility checked-at và masking policy version.
 
+`AnonymousCandidateView` chỉ lưu structured, allow-listed/redacted fields và policy/version/source revision; không copy nguyên `parsedText`. Nếu có `AnonymousCvArtifact`, artifact phải là derived file đã render, encrypted at rest, TTL/cleanup riêng, không có public object key và không chung storage URL với source CV. Candidate revocation, profile visibility change hoặc source revision phải invalidate artifact ngay.
+
 Audit event tối thiểu:
 
 ```text
@@ -305,6 +331,7 @@ DISCOVERY_CONSENT_GRANTED / REVOKED
 DISCOVERY_RUN_CREATED / COMPLETED / FAILED
 RECOMMENDATION_VIEWED
 ANONYMOUS_PROFILE_VIEWED
+ANONYMOUS_CV_RENDERED / BLOCKED_BY_REDACTION / INVALIDATED
 CONTACT_REQUESTED / ACCEPTED / DECLINED / BLOCKED / EXPIRED
 ```
 
@@ -317,16 +344,17 @@ Không log raw request payload chứa CV, contact data hoặc model prompt. Rete
 1. Viết migration cho preference/index/run/recommendation/audit attribution; không xóa lịch sử hiện có.
 2. Tạo discovery consent service, candidate preview và immediate revocation gate.
 3. Tách `DiscoveryTextBuilder`/sanitizer khỏi `buildCvText`; tạo tests phủ email, phone, URL, name, address, file name và raw parsed CV không xuất hiện trong discovery text/provider request.
-4. Xây indexer một index/candidate và pgvector repository có hard filter trong SQL.
-5. Thay/rework `TalentRecommendationService`: async queue, idempotency, feature quota, rerank, threshold, snapshot và projection ẩn danh.
-6. Cứng hóa authorization/IDOR: recruiter chỉ action bằng recommendation id thuộc company/run của mình; re-check candidate state ở every read/action.
-7. Nối contact request với recommendation và giữ toàn bộ trao đổi trong conversation; thay policy direct contact unlock trước launch.
-8. Thêm API Swagger, errors, outbox, metrics/alerts và admin audit/read-only tools.
+4. Xây `AnonymousCandidateView` allow-list và render pipeline server-side; source CV không được dùng như preview. Re-render derived artifact, strip metadata/link/image/hidden layer, OCR/PII scan và fail closed khi không chắc chắn.
+5. Xây indexer một index/candidate và pgvector repository có hard filter trong SQL.
+6. Thay/rework `TalentRecommendationService`: async queue, idempotency, feature quota, rerank, threshold, snapshot và projection ẩn danh.
+7. Cứng hóa authorization/IDOR: recruiter chỉ action bằng recommendation id thuộc company/run của mình; re-check candidate state ở every read/action.
+8. Nối contact request với recommendation và giữ toàn bộ trao đổi trong conversation; thay policy direct contact unlock trước launch.
+9. Thêm API Swagger, errors, outbox, metrics/alerts và admin audit/read-only tools.
 
 ### `upnext-frontend`
 
 1. Thêm candidate consent page, preview masked profile, revoke/block settings và copy minh bạch.
-2. Thêm recruiter flow tại Job Post: quota banner, generate/poll/retry, card ẩn danh, reason/gap, invitation composer và invitation state.
+2. Thêm recruiter flow tại Job Post: quota banner, generate/poll/retry, card ẩn danh, reason/gap, `Xem hồ sơ ẩn danh` (nếu được phép), invitation composer và invitation state; tuyệt đối không có raw CV/download action.
 3. Thêm workspace `Ứng viên đề xuất` chỉ như inbox conversation; không biến chat tab thành nơi list PII.
 4. Không render raw candidate ID, file URL hoặc contact field trong state/devtools/analytics; typed API contract phải không có PII.
 5. Thêm UI states: không đủ entitlement, index đang cập nhật, không đủ candidate, candidate vừa opt-out, contact quota hết, rate limited và API failure.
@@ -348,6 +376,8 @@ V1 không cần tạo một service AI mới nếu backend embedding provider hi
 ### Privacy và authorization
 
 - Snapshot/API/frontend payload không chứa name, email, phone, address, avatar, link, file URL/id, profile/account/CV id, raw parsed text hoặc source file name.
+- Recruiter không thể tìm/preview/download CV gốc bằng recommendation id, opaque ref, artifact id, guessed storage key, browser cache hay URL từng cấp; mọi attempt trả 403/404 và được audit phù hợp.
+- Anonymous CV render không có text layer/hyperlink/metadata/attachment/image/QR chứa PII; regex + OCR + manual fixture review pass trước beta. Câu/field không xác định an toàn phải bị bỏ (fail closed).
 - Recruiter đổi recommendation id/run id/company id để truy cập candidate khác đều trả 404/403 không làm lộ tồn tại data.
 - Candidate revoke consent/hide profile/block company giữa lúc run đang xử lý: result không được trả/contact được.
 - Endpoint Talent Pool unlock không thể dùng recommendation reference để lấy direct contact.
