@@ -12,7 +12,7 @@ Job Boost là **vị trí tuyển dụng được tài trợ trong 7 ngày**, kh
 
 | Chính sách | Quyết định triển khai |
 | --- | --- |
-| Gói Free | Không có lượt Boost. |
+| Gói Free | 1 lượt Boost / chu kỳ 30 ngày để trải nghiệm giá trị thực tế. |
 | Gói Pro | 10 lượt Boost / chu kỳ 30 ngày. |
 | Đơn vị tiêu | 1 lượt = 1 tin được tài trợ tối đa 7 ngày. |
 | Cộng dồn | Không cộng dồn credit qua chu kỳ hoặc sau khi gói hết hạn. |
@@ -33,7 +33,7 @@ Job Boost là **vị trí tuyển dụng được tài trợ trong 7 ngày**, kh
   - `POST /api/v1/recruiter/job-posts/:id/boost`
   - `POST /api/v1/recruiter/job-posts/boosts/:boostId/cancel`
 - Một lượt đang có thời hạn cố định 7 ngày, dùng quota `featured_job`; cron kết thúc Boost hết hạn mỗi 10 phút.
-- Seed local xác định `RECRUITER_PRO` có `featured_job = 10`, `RECRUITER_FREE` có `featured_job = 0`.
+- Seed local xác định `RECRUITER_PRO` có `featured_job = 10`. Khi triển khai v1, `RECRUITER_FREE` phải có `featured_job = 1` để doanh nghiệp được trải nghiệm Boost trước khi nâng cấp.
 
 ### Chưa hoàn tất hoặc sai với sản phẩm cần bán
 
@@ -182,7 +182,7 @@ JobBoostDeliveryEvent
 - `PlanFeature(featured_job)` là source of truth cho số credit.
 - API billing/read model phải trả `used`, `remaining`, `periodStart`, `periodEnd` từ `SubscriptionQuotaService.peek()`, không tính từ legacy fields.
 - Có migration idempotent đảm bảo:
-  - `RECRUITER_FREE`: `featured_job` enabled, limit `0`.
+  - `RECRUITER_FREE`: `featured_job` enabled, limit `1`.
   - `RECRUITER_PRO`: `featured_job` enabled, limit `10`.
   - scalar legacy `boost_credit_limit` được đồng bộ chỉ để tương thích response cũ, không dùng để authorize.
 - Không chạy `prisma db seed` để sửa staging/prod: seed không phải migration vận hành và có thể thay đổi dữ liệu không liên quan.
@@ -293,7 +293,7 @@ Trước khi test UI, làm theo thứ tự này:
 ### Backend
 
 - Job không thuộc company, DRAFT, CLOSED, hidden, rejected, expired và deleted đều bị từ chối.
-- Free 0 credit, Pro hết credit, Pro có credit, entitlement disabled, subscription expired.
+- Free có đúng 1 credit mỗi chu kỳ, Free đã dùng hết credit, Pro hết credit, Pro có credit, entitlement disabled, subscription expired.
 - Retry cùng Idempotency-Key không tiêu thêm credit; cùng key khác payload bị từ chối.
 - Hai request song song cùng job: chỉ một Boost và một usage consume tồn tại.
 - Hai job khác nhau tiêu quota song song không vượt giới hạn.
@@ -363,7 +363,7 @@ Release chỉ được coi là hoàn tất khi mọi điều sau đúng:
 
 ## 13. Thứ tự thực hiện khuyến nghị
 
-1. **P0 — sửa dữ liệu/cấu hình staging Pro**: đây là blocker để quyền lợi Boost có thể được mua.
+1. **P0 — sửa dữ liệu/cấu hình staging Free/Pro**: Free phải có 1 Boost để trải nghiệm và Pro phải mua được với 10 Boost.
 2. **P0 — backend integrity**: idempotency, unique live Boost, lifecycle và quota read model.
 3. **P0 — recruiter UX**: khởi tạo Boost và hiển thị trạng thái/quota thật.
 4. **P0 — sponsored delivery + disclosure**: đây mới là phần làm Boost tạo thêm reach.
