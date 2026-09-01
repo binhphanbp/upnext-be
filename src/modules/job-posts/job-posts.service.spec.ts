@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { NotificationsService } from '../notifications/notifications.service';
-import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { JobPostsService } from './job-posts.service';
 import { ActorType, CompanyVerificationStatus, JobStatus, ModerationStatus } from '@prisma/client';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
@@ -11,6 +10,9 @@ describe('JobPostsService', () => {
   let service: JobPostsService;
 
   const prismaMock: any = {
+    company: {
+      findUnique: jest.fn(),
+    },
     recruiterAccount: {
       findUnique: jest.fn(),
     },
@@ -42,16 +44,8 @@ describe('JobPostsService', () => {
     createNotification: jest.fn(),
   };
 
-  const quotaMock: any = {
-    consume: jest.fn().mockResolvedValue({ usage: { id: 'usage-1' }, replayed: false }),
-    reverse: jest.fn(),
-    getFeatureLimit: jest.fn(),
-  };
-
   beforeEach(async () => {
     jest.clearAllMocks();
-    quotaMock.getFeatureLimit.mockResolvedValue({ enabled: true, limit: null });
-    prismaMock.jobPost.count = jest.fn().mockResolvedValue(0);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -63,10 +57,6 @@ describe('JobPostsService', () => {
         {
           provide: NotificationsService,
           useValue: notificationsServiceMock,
-        },
-        {
-          provide: SubscriptionQuotaService,
-          useValue: quotaMock,
         },
       ],
     }).compile();
@@ -82,7 +72,7 @@ describe('JobPostsService', () => {
     const recruiter = { id: 'recruiter-id', role: ActorType.RECRUITER } as AuthenticatedUser;
     const dto = { title: 'Senior React Developer', description: 'Mô tả công việc.' };
 
-    it('lets a verified company create a draft without a business licence file on record', async () => {
+    it('lets a verified company create a draft without a business licence file or subscription quota', async () => {
       prismaMock.recruiterAccount.findUnique.mockResolvedValue({
         id: 'recruiter-id',
         company: {
@@ -503,6 +493,36 @@ describe('JobPostsService', () => {
   });
 
   describe('updateStatus', () => {
+    it('lets a verified, reputable company publish a draft without an active subscription', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({
+        id: 'job-id',
+        createdByRecruiterId: 'recruiter-id',
+        companyId: 'company-id',
+        status: JobStatus.DRAFT,
+        moderationStatus: ModerationStatus.APPROVED,
+      });
+      prismaMock.company.findUnique.mockResolvedValue({
+        verificationStatus: CompanyVerificationStatus.VERIFIED,
+        reputationScore: '100',
+      });
+      prismaMock.jobPost.update.mockResolvedValue({ id: 'job-id', status: JobStatus.PUBLISHED });
+
+      await expect(
+        service.updateStatus('job-id', 'recruiter-id', JobStatus.PUBLISHED),
+      ).resolves.toEqual({ id: 'job-id', status: JobStatus.PUBLISHED });
+
+      expect(prismaMock.company.findUnique).toHaveBeenCalledWith({
+        where: { id: 'company-id' },
+        select: { verificationStatus: true, reputationScore: true },
+      });
+      expect(prismaMock.jobPost.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'job-id' },
+          data: expect.objectContaining({ status: JobStatus.PUBLISHED }),
+        }),
+      );
+    });
+
     it('rejects publishing a job post that is neither DRAFT nor CLOSED', async () => {
       prismaMock.jobPost.findFirst.mockResolvedValue({
         id: 'job-id',
@@ -570,38 +590,4 @@ describe('JobPostsService', () => {
       expect(result.jobPost.isHidden).toBe(true);
     });
   });
-
-  describe('assertJobPostQuota', () => {
-    it('throws ForbiddenException when feature is disabled', async () => {
-      quotaMock.getFeatureLimit.mockResolvedValue({ enabled: false, limit: null });
-
-      await expect(service.assertJobPostQuota('company-id')).rejects.toThrow(
-        'Gói dịch vụ hiện tại của bạn không hỗ trợ tạo hoặc đăng tin tuyển dụng',
-      );
-    });
-
-    it('throws ForbiddenException with QUOTA_EXHAUSTED when active job count reaches limit', async () => {
-      quotaMock.getFeatureLimit.mockResolvedValue({ enabled: true, limit: 3 });
-      prismaMock.jobPost.count.mockResolvedValue(3);
-
-      await expect(service.assertJobPostQuota('company-id')).rejects.toThrow(
-        'Bạn đã sử dụng hết số lượng tin đăng tuyển dụng (3/3)',
-      );
-    });
-
-    it('allows when active job count is below limit', async () => {
-      quotaMock.getFeatureLimit.mockResolvedValue({ enabled: true, limit: 3 });
-      prismaMock.jobPost.count.mockResolvedValue(2);
-
-      await expect(service.assertJobPostQuota('company-id')).resolves.not.toThrow();
-    });
-
-    it('allows when quota is unlimited (limit: null)', async () => {
-      quotaMock.getFeatureLimit.mockResolvedValue({ enabled: true, limit: null });
-      prismaMock.jobPost.count.mockResolvedValue(100);
-
-      await expect(service.assertJobPostQuota('company-id')).resolves.not.toThrow();
-    });
-  });
 });
-

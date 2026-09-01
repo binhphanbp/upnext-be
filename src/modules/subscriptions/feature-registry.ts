@@ -16,12 +16,14 @@ export type FeatureAudience = 'RECRUITER' | 'CANDIDATE';
 export interface FeatureDefinition {
   key: string;
   /** METERED: `consume()` drains a per-period counter. CONCURRENT: enforcement
-   * counts live rows against the limit instead (e.g. active job posts, seats). */
+   * counts live rows against the limit instead (e.g. HR seats). */
   type: FeatureType;
   audience: FeatureAudience;
 }
 
 export const FEATURES = {
+  /** Platform entitlement kept in the catalogue for API compatibility. It is
+   * deliberately never enforced as a quota or concurrent limit. */
   JOB_POST: { key: 'job_post', type: 'CONCURRENT', audience: 'RECRUITER' },
   /** Also covers `URGENT` boosts -- `JobBoostService` always consumes this key
    * regardless of `JobBoost.type` (mục 15.2 của plan doc). */

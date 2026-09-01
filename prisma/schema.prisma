@@ -1838,6 +1838,7 @@ model SubscriptionPlan {
 
   boostCreditLimit   Int                @default(0) @map("boost_credit_limit")
   status             SubscriptionStatus @default(ACTIVE)
+  /// Legacy snapshot only. Recruiter job posts are a platform entitlement and are never capped.
   jobPostLimit       Int                @default(0) @map("job_post_limit")
   talentContactLimit Int                @default(0) @map("talent_contact_limit")
   createdAt          DateTime           @default(now()) @map("created_at")
@@ -1876,6 +1877,7 @@ model CompanySubscription {
   id                 String             @id @default(uuid()) @db.Uuid
   planId             String             @map("plan_id") @db.Uuid
   companyId          String             @map("company_id") @db.Uuid
+  /// Legacy snapshot fields retained for historical subscriptions; no longer used for access control.
   jobPostLimit       Int                @map("job_post_limit")
   jobPostUsed        Int                @default(0) @map("job_post_used")
   boostCreditTotal   Int                @default(0) @map("boost_credit_total")
