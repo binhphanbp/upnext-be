@@ -94,7 +94,8 @@ async function main() {
       website: 'https://toandev.vn',
       description:
         'Toàn Dev Company là công ty công nghệ chuyên phát triển sản phẩm SaaS cho thị trường tuyển dụng.',
-      benefits: 'Lương thưởng cạnh tranh, bảo hiểm đầy đủ, review lương 2 lần/năm, làm việc hybrid.',
+      benefits:
+        'Lương thưởng cạnh tranh, bảo hiểm đầy đủ, review lương 2 lần/năm, làm việc hybrid.',
       companySize: '50-100',
       workingDays: 'Thứ 2 - Thứ 6',
       verificationStatus: CompanyVerificationStatus.VERIFIED,
@@ -156,7 +157,7 @@ async function main() {
         subscriptionName: 'Premium',
         price: 2_000_000,
         durationDays: 30,
-        jobPostLimit: 50,
+        jobPostLimit: 0,
         boostCreditLimit: 10,
         status: SubscriptionStatus.ACTIVE,
       },
@@ -170,7 +171,7 @@ async function main() {
       id: uid(6),
       planId: plan.id,
       companyId: company.id,
-      jobPostLimit: 50,
+      jobPostLimit: 0,
       jobPostUsed: 0,
       boostCreditTotal: 10,
       startedAt: now,
@@ -437,7 +438,9 @@ async function main() {
         scheduledEndAt: new Date(interviewDate.getTime() + 60 * 60 * 1000),
         meetingUrl: type === InterviewType.ONLINE ? 'https://meet.google.com/toandev-mock' : null,
         location:
-          type === InterviewType.ONSITE ? '123 ÄÆ°á»ng Nguyá»…n Huá»‡, Quáº­n 1, TP. Há»“ ChÃ­ Minh' : null,
+          type === InterviewType.ONSITE
+            ? '123 ÄÆ°á»ng Nguyá»…n Huá»‡, Quáº­n 1, TP. Há»“ ChÃ­ Minh'
+            : null,
         recruiterNote: 'Phá»ng váº¥n vÃ²ng 1 vá»›i recruiter.',
         candidateNote: null,
         status: InterviewStatus.SCHEDULED,

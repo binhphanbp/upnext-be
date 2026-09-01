@@ -10,6 +10,9 @@ export class SubscriptionPlansService {
   constructor(private readonly prisma: PrismaService) {}
   async create(adminId: string, dto: CreateSubscriptionPlanDto) {
     const audience = dto.audience ?? PlanAudience.RECRUITER;
+    // This column predates the feature catalogue. Job posting is now a platform
+    // entitlement for every recruiter, so never persist a new per-plan cap.
+    const { jobPostLimit: _deprecatedJobPostLimit, ...planDto } = dto;
 
     // Trùng tên chỉ tính TRONG CÙNG audience: "Miễn phí" tồn tại hợp lệ ở cả hai
     // phía bảng giá, và chặn nó là chặn đúng một danh mục hợp lý.
@@ -39,10 +42,22 @@ export class SubscriptionPlansService {
 
     return this.prisma.subscriptionPlan.create({
       data: {
-        ...dto,
+        ...planDto,
         audience,
-        price: new Prisma.Decimal(dto.price),
+        price: new Prisma.Decimal(planDto.price),
+        jobPostLimit: 0,
         createdByAdminId: adminId,
+        ...(audience === PlanAudience.RECRUITER
+          ? {
+              features: {
+                create: {
+                  feature: SubscriptionFeature.JOB_POST,
+                  enabled: true,
+                  limitValue: null,
+                },
+              },
+            }
+          : {}),
       },
     });
   }
@@ -87,10 +102,21 @@ export class SubscriptionPlansService {
    * save rather than a diff.
    */
   async setFeatures(id: string, dto: SetPlanFeaturesDto) {
-    await this.findOne(id);
+    const plan = await this.findOne(id);
+    const features =
+      plan.audience === PlanAudience.RECRUITER
+        ? [
+            ...dto.features.filter((feature) => feature.feature !== SubscriptionFeature.JOB_POST),
+            {
+              feature: SubscriptionFeature.JOB_POST,
+              enabled: true,
+              limitValue: null,
+            },
+          ]
+        : dto.features;
 
     const seen = new Set<SubscriptionFeature>();
-    for (const feature of dto.features) {
+    for (const feature of features) {
       if (seen.has(feature.feature)) {
         throw new ConflictException(`Duplicate feature in payload: ${feature.feature}`);
       }
@@ -102,7 +128,7 @@ export class SubscriptionPlansService {
         where: { planId: id, feature: { notIn: [...seen] } },
       });
 
-      for (const feature of dto.features) {
+      for (const feature of features) {
         await tx.planFeature.upsert({
           where: { planId_feature: { planId: id, feature: feature.feature } },
           update: {
@@ -126,11 +152,12 @@ export class SubscriptionPlansService {
   }
   async update(id: string, dto: UpdateSubscriptionPlanDto) {
     await this.findOne(id); // Kiểm tra xem gói có tồn tại không
+    const { jobPostLimit: _deprecatedJobPostLimit, ...planDto } = dto;
     const updateData: Prisma.SubscriptionPlanUpdateInput = {
-      ...dto,
+      ...planDto,
       // `dto.price !== undefined`, KHÔNG phải `dto.price ?`: giá 0 là falsy, nên cách
       // viết cũ âm thầm bỏ qua mọi lần hạ một gói về miễn phí.
-      ...(dto.price !== undefined ? { price: new Prisma.Decimal(dto.price) } : {}),
+      ...(planDto.price !== undefined ? { price: new Prisma.Decimal(planDto.price) } : {}),
     };
     return this.prisma.subscriptionPlan.update({
       where: { id },

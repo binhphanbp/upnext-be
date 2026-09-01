@@ -3,15 +3,31 @@ import { PlanAudience, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { SubscriptionPlansService } from './subscription-plans.service';
+import { SubscriptionFeature } from '../subscriptions/feature-registry';
 
 function buildPrisma() {
+  const planFeature = {
+    deleteMany: jest.fn(),
+    upsert: jest.fn(),
+  };
+  const subscriptionPlan = {
+    findFirst: jest.fn().mockResolvedValue(null),
+    findUnique: jest.fn().mockResolvedValue(null),
+    findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'plan-1', features: [] }),
+    create: jest.fn().mockResolvedValue({ id: 'plan-1' }),
+    update: jest.fn().mockResolvedValue({ id: 'plan-1' }),
+  };
   return {
-    subscriptionPlan: {
-      findFirst: jest.fn().mockResolvedValue(null),
-      findUnique: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockResolvedValue({ id: 'plan-1' }),
-      update: jest.fn().mockResolvedValue({ id: 'plan-1' }),
-    },
+    subscriptionPlan,
+    planFeature,
+    $transaction: jest.fn(
+      (
+        callback: (tx: {
+          planFeature: typeof planFeature;
+          subscriptionPlan: typeof subscriptionPlan;
+        }) => unknown,
+      ) => callback({ planFeature, subscriptionPlan }),
+    ),
   };
 }
 
@@ -60,6 +76,25 @@ describe('SubscriptionPlansService', () => {
       expect(prisma.subscriptionPlan.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ audience: PlanAudience.RECRUITER }),
+        }),
+      );
+    });
+
+    it('luôn tạo quyền đăng tin không giới hạn cho gói recruiter mới', async () => {
+      await service.create('admin-1', { ...baseDto, jobPostLimit: 99 });
+
+      expect(prisma.subscriptionPlan.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            jobPostLimit: 0,
+            features: {
+              create: {
+                feature: SubscriptionFeature.JOB_POST,
+                enabled: true,
+                limitValue: null,
+              },
+            },
+          }),
         }),
       );
     });
@@ -126,6 +161,47 @@ describe('SubscriptionPlansService', () => {
 
       const [[call]] = prisma.subscriptionPlan.update.mock.calls as [[{ data: object }]];
       expect(call.data).not.toHaveProperty('price');
+    });
+
+    it('bỏ qua jobPostLimit legacy được gửi từ API', async () => {
+      await service.update('plan-1', { jobPostLimit: 99 });
+
+      const [[call]] = prisma.subscriptionPlan.update.mock.calls as [[{ data: object }]];
+      expect(call.data).not.toHaveProperty('jobPostLimit');
+    });
+  });
+
+  describe('setFeatures', () => {
+    beforeEach(() => {
+      prisma.subscriptionPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        audience: PlanAudience.RECRUITER,
+        features: [],
+      });
+    });
+
+    it('forces job posting to stay enabled and unlimited for recruiter plans', async () => {
+      await service.setFeatures('plan-1', {
+        features: [
+          { feature: SubscriptionFeature.JOB_POST, enabled: false, limitValue: 1 },
+          { feature: SubscriptionFeature.AI_JD_GENERATE, enabled: true, limitValue: 5 },
+        ],
+      });
+
+      expect(prisma.planFeature.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            planId_feature: { planId: 'plan-1', feature: SubscriptionFeature.JOB_POST },
+          },
+          update: { enabled: true, limitValue: null },
+          create: {
+            planId: 'plan-1',
+            feature: SubscriptionFeature.JOB_POST,
+            enabled: true,
+            limitValue: null,
+          },
+        }),
+      );
     });
   });
 });

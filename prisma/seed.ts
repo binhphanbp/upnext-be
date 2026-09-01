@@ -2371,7 +2371,7 @@ async function main() {
         // khớp với mọi gói còn lại và với phía ứng viên (CANDIDATE_FREE).
         durationDays: 30,
         boostCreditLimit: 0,
-        jobPostLimit: 3,
+        jobPostLimit: 0,
         status: 'ACTIVE',
         isPublic: true,
         sortOrder: 0,
@@ -2384,7 +2384,7 @@ async function main() {
         description: 'Gói dùng thử miễn phí dành cho nhà tuyển dụng mới.',
         durationDays: 30,
         boostCreditLimit: 0,
-        jobPostLimit: 3,
+        jobPostLimit: 0,
         status: 'ACTIVE',
         isPublic: true,
         sortOrder: 0,
@@ -2405,7 +2405,7 @@ async function main() {
         description: 'Gói Pro cho nhà tuyển dụng: đăng tin, boost, kho CV và AI hỗ trợ tuyển dụng.',
         durationDays: 30,
         boostCreditLimit: 10,
-        jobPostLimit: 30,
+        jobPostLimit: 0,
         talentContactLimit: 250,
         status: 'ACTIVE',
         isPublic: true,
@@ -2419,7 +2419,7 @@ async function main() {
         description: 'Gói Pro cho nhà tuyển dụng: đăng tin, boost, kho CV và AI hỗ trợ tuyển dụng.',
         durationDays: 30,
         boostCreditLimit: 10,
-        jobPostLimit: 30,
+        jobPostLimit: 0,
         talentContactLimit: 250,
         status: 'ACTIVE',
         isPublic: true,
@@ -2439,7 +2439,7 @@ async function main() {
         description:
           'Gói giá rẻ chỉ dùng để kiểm thử luồng thanh toán -- không dùng cho khách thật.',
         durationDays: 3,
-        jobPostLimit: 1,
+        jobPostLimit: 0,
         status: 'ACTIVE',
         isPublic: true,
         highlightLabel: 'TEST',
@@ -2453,7 +2453,7 @@ async function main() {
         description:
           'Gói giá rẻ chỉ dùng để kiểm thử luồng thanh toán -- không dùng cho khách thật.',
         durationDays: 3,
-        jobPostLimit: 1,
+        jobPostLimit: 0,
         status: 'ACTIVE',
         isPublic: true,
         highlightLabel: 'TEST',
@@ -2543,20 +2543,21 @@ async function main() {
     },
   });
 
-  // D3a/D1 (mục 14/17/19): số Free/Pro thật đã đo/chốt cho 8 feature key
+  // D3a/D1 (mục 14/17/19): số Free/Pro thật đã đo/chốt cho các feature key
   // recruiter, khớp đúng giá trị đang chạy thật để seed trên DB mới không lệch
   // với DB đã tồn tại. `ai_jd_generate` vẫn là số cũ từ seed gốc (chưa cần
   // chỉnh, COGS đo được nằm sâu dưới trần). `ai_cv_matching` limit Pro đã
   // giảm từ 1500 xuống 1250 theo D3b (mục 24, 26/08/2026) để COGS thật
   // (174,63đ/lượt) nằm dưới trần 15%/tính năng ở giá 1.490.000đ. `urgent_label`
   // không còn code nào tiêu (mục 20) nhưng đã có giá trị thật trên DB từ
-  // trước, giữ để seed khớp, không phải vì còn dùng.
+  // trước, giữ để seed khớp, không phải vì còn dùng. Job posting is deliberately
+  // unlimited on every recruiter tier so supply can grow independently of payment.
   const recruiterPlanFeatures: Array<{
     planId: string;
     feature: string;
-    limitValue: number;
+    limitValue: number | null;
   }> = [
-    { planId: plans.free.id, feature: SubscriptionFeature.JOB_POST, limitValue: 1 },
+    { planId: plans.free.id, feature: SubscriptionFeature.JOB_POST, limitValue: null },
     { planId: plans.free.id, feature: SubscriptionFeature.FEATURED_JOB, limitValue: 0 },
     { planId: plans.free.id, feature: SubscriptionFeature.URGENT_LABEL, limitValue: 3 },
     { planId: plans.free.id, feature: SubscriptionFeature.CV_POOL_VIEW, limitValue: 0 },
@@ -2564,7 +2565,7 @@ async function main() {
     { planId: plans.free.id, feature: SubscriptionFeature.HR_SEAT, limitValue: 1 },
     { planId: plans.free.id, feature: SubscriptionFeature.AI_CV_MATCHING, limitValue: 150 },
     { planId: plans.free.id, feature: SubscriptionFeature.AI_JD_GENERATE, limitValue: 5 },
-    { planId: plans.pro.id, feature: SubscriptionFeature.JOB_POST, limitValue: 30 },
+    { planId: plans.pro.id, feature: SubscriptionFeature.JOB_POST, limitValue: null },
     { planId: plans.pro.id, feature: SubscriptionFeature.FEATURED_JOB, limitValue: 10 },
     { planId: plans.pro.id, feature: SubscriptionFeature.URGENT_LABEL, limitValue: 30 },
     { planId: plans.pro.id, feature: SubscriptionFeature.CV_POOL_VIEW, limitValue: 500 },
@@ -2572,6 +2573,7 @@ async function main() {
     { planId: plans.pro.id, feature: SubscriptionFeature.HR_SEAT, limitValue: 10 },
     { planId: plans.pro.id, feature: SubscriptionFeature.AI_CV_MATCHING, limitValue: 1250 },
     { planId: plans.pro.id, feature: SubscriptionFeature.AI_JD_GENERATE, limitValue: 150 },
+    { planId: plans.recruiterTest.id, feature: SubscriptionFeature.JOB_POST, limitValue: null },
   ];
 
   await Promise.all(

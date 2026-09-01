@@ -113,9 +113,10 @@ export class CreateSubscriptionPlanDto {
   boostCreditLimit?: number;
 
   @ApiPropertyOptional({
-    description: 'Số lượng tin tuyển dụng tối đa được đăng',
+    description:
+      'Trường tương thích dữ liệu cũ, không còn áp dụng: mọi doanh nghiệp được đăng tin không giới hạn.',
     default: 0,
-    example: 10,
+    example: 0,
   })
   @IsInt()
   @Min(0)

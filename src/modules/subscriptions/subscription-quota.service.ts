@@ -70,6 +70,10 @@ export class SubscriptionQuotaService {
    * side effects, because a guard runs before the action is known to succeed.
    */
   async assertFeatureEnabled(companyId: string, feature: SubscriptionFeature) {
+    // Job posts are platform supply, not a subscription entitlement. Keep this
+    // policy at the shared boundary as a safeguard for any future guard.
+    if (feature === SubscriptionFeature.JOB_POST) return;
+
     const subscription = await this.resolveActiveSubscription(this.prisma, companyId);
     const planFeature = await this.prisma.planFeature.findUnique({
       where: { planId_feature: { planId: subscription.planId, feature } },
@@ -229,6 +233,11 @@ export class SubscriptionQuotaService {
    * the cycle rolls over.
    */
   async getFeatureLimit(companyId: string, feature: SubscriptionFeature) {
+    // Do not let legacy/malformed plan metadata turn posting into a paid quota.
+    if (feature === SubscriptionFeature.JOB_POST) {
+      return { enabled: true, limit: null };
+    }
+
     const subscription = await this.resolveActiveSubscription(this.prisma, companyId);
     const planFeature = await this.prisma.planFeature.findUnique({
       where: { planId_feature: { planId: subscription.planId, feature } },
@@ -256,13 +265,14 @@ export class SubscriptionQuotaService {
 
     return planFeatures.map((planFeature) => {
       const used = usedByFeature.get(planFeature.feature) ?? 0;
+      const isPlatformJobPosting = planFeature.feature === SubscriptionFeature.JOB_POST;
+      const limit = isPlatformJobPosting ? null : planFeature.limitValue;
       return {
         feature: planFeature.feature,
-        enabled: planFeature.enabled,
-        limit: planFeature.limitValue,
+        enabled: isPlatformJobPosting || planFeature.enabled,
+        limit,
         used,
-        remaining:
-          planFeature.limitValue === null ? null : Math.max(0, planFeature.limitValue - used),
+        remaining: limit === null ? null : Math.max(0, limit - used),
         periodStart,
         periodEnd,
       };

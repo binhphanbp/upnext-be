@@ -10,6 +10,7 @@ const asTx = (mock: unknown) => mock as Prisma.TransactionClient;
 
 const NOW = new Date('2026-07-31T00:00:00.000Z');
 const PERIOD_END = new Date('2026-08-30T00:00:00.000Z');
+const METERED_FEATURE = SubscriptionFeature.AI_JD_GENERATE;
 
 const activeSubscription = {
   id: 'sub-1',
@@ -33,7 +34,7 @@ function buildMockPrisma() {
     planFeature: {
       findUnique: jest.fn().mockResolvedValue({
         planId: 'plan-1',
-        feature: SubscriptionFeature.JOB_POST,
+        feature: METERED_FEATURE,
         enabled: true,
         limitValue: 3,
       }),
@@ -42,7 +43,7 @@ function buildMockPrisma() {
     subscriptionQuotaCounter: {
       upsert: jest.fn().mockResolvedValue({
         id: 'counter-1',
-        feature: SubscriptionFeature.JOB_POST,
+        feature: METERED_FEATURE,
         limitValue: 3,
         usedValue: 0,
       }),
@@ -65,10 +66,10 @@ function buildMockPrisma() {
 
 const consumeInput = {
   companyId: 'company-1',
-  feature: SubscriptionFeature.JOB_POST,
-  referenceType: 'JOB_POST',
+  feature: METERED_FEATURE,
+  referenceType: 'AI_JD_GENERATE',
   referenceId: '11111111-1111-1111-1111-111111111111',
-  idempotencyKey: 'job-post:company-1:req-1',
+  idempotencyKey: 'ai-jd-generate:company-1:req-1',
 };
 
 describe('SubscriptionQuotaService', () => {
@@ -110,7 +111,7 @@ describe('SubscriptionQuotaService', () => {
       expect(prisma.subscriptionUsage.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            feature: SubscriptionFeature.JOB_POST,
+            feature: METERED_FEATURE,
             quantity: 1,
             direction: SubscriptionUsageDirection.CONSUME,
             idempotencyKey: consumeInput.idempotencyKey,
@@ -152,13 +153,13 @@ describe('SubscriptionQuotaService', () => {
     it('does not gate an unlimited feature but still counts it', async () => {
       prisma.planFeature.findUnique.mockResolvedValue({
         planId: 'plan-1',
-        feature: SubscriptionFeature.JOB_POST,
+        feature: METERED_FEATURE,
         enabled: true,
         limitValue: null,
       });
       prisma.subscriptionQuotaCounter.upsert.mockResolvedValue({
         id: 'counter-1',
-        feature: SubscriptionFeature.JOB_POST,
+        feature: METERED_FEATURE,
         limitValue: null,
         usedValue: 999,
       });
@@ -226,12 +227,12 @@ describe('SubscriptionQuotaService', () => {
       id: 'usage-1',
       companySubscriptionId: 'sub-1',
       companyId: 'company-1',
-      feature: SubscriptionFeature.JOB_POST,
+      feature: METERED_FEATURE,
       quantity: 2,
       direction: SubscriptionUsageDirection.CONSUME,
-      referenceType: 'JOB_POST',
+      referenceType: 'AI_JD_GENERATE',
       referenceId: '11111111-1111-1111-1111-111111111111',
-      idempotencyKey: 'job-post:company-1:req-1',
+      idempotencyKey: 'ai-jd-generate:company-1:req-1',
       createdAt: NOW,
       reversal: null,
     };
@@ -291,18 +292,18 @@ describe('SubscriptionQuotaService', () => {
   describe('peek', () => {
     it('reports used/remaining per feature, treating a missing counter as unused', async () => {
       prisma.planFeature.findMany.mockResolvedValue([
-        { feature: SubscriptionFeature.JOB_POST, enabled: true, limitValue: 10 },
+        { feature: METERED_FEATURE, enabled: true, limitValue: 10 },
         { feature: SubscriptionFeature.AI_CV_MATCHING, enabled: true, limitValue: null },
         { feature: SubscriptionFeature.URGENT_LABEL, enabled: false, limitValue: 0 },
       ]);
       prisma.subscriptionQuotaCounter.findMany.mockResolvedValue([
-        { feature: SubscriptionFeature.JOB_POST, usedValue: 4 },
+        { feature: METERED_FEATURE, usedValue: 4 },
       ]);
 
       const snapshot = await service.peek('company-1');
 
       expect(snapshot).toEqual([
-        expect.objectContaining({ feature: SubscriptionFeature.JOB_POST, used: 4, remaining: 6 }),
+        expect.objectContaining({ feature: METERED_FEATURE, used: 4, remaining: 6 }),
         // unlimited -> remaining stays null rather than pretending to be a number
         expect.objectContaining({
           feature: SubscriptionFeature.AI_CV_MATCHING,
@@ -321,7 +322,7 @@ describe('SubscriptionQuotaService', () => {
   describe('assertFeatureEnabled', () => {
     it('passes when the plan includes the feature with an allowance', async () => {
       await expect(
-        service.assertFeatureEnabled('company-1', SubscriptionFeature.JOB_POST),
+        service.assertFeatureEnabled('company-1', METERED_FEATURE),
       ).resolves.toBeUndefined();
     });
 
@@ -342,7 +343,7 @@ describe('SubscriptionQuotaService', () => {
     });
 
     it('has no side effects -- a guard must not spend quota', async () => {
-      await service.assertFeatureEnabled('company-1', SubscriptionFeature.JOB_POST);
+      await service.assertFeatureEnabled('company-1', METERED_FEATURE);
 
       expect(prisma.subscriptionQuotaCounter.upsert).not.toHaveBeenCalled();
       expect(prisma.subscriptionQuotaCounter.updateMany).not.toHaveBeenCalled();
@@ -378,9 +379,10 @@ describe('SubscriptionQuotaService', () => {
       prisma.subscriptionPlan.findFirst.mockResolvedValue(freePlan);
       prisma.companySubscription.create.mockRejectedValue(raceError());
 
-      await expect(
-        service.getFeatureLimit('company-1', SubscriptionFeature.JOB_POST),
-      ).resolves.toEqual({ enabled: true, limit: 3 });
+      await expect(service.getFeatureLimit('company-1', METERED_FEATURE)).resolves.toEqual({
+        enabled: true,
+        limit: 3,
+      });
     });
 
     // Trong transaction thì KHÔNG tự chữa được: Postgres đã hủy transaction ngay tại
@@ -409,9 +411,40 @@ describe('SubscriptionQuotaService', () => {
       prisma.subscriptionPlan.findFirst.mockResolvedValue(freePlan);
       prisma.companySubscription.create.mockRejectedValue(other);
 
-      await expect(service.getFeatureLimit('company-1', SubscriptionFeature.JOB_POST)).rejects.toBe(
-        other,
-      );
+      await expect(service.getFeatureLimit('company-1', METERED_FEATURE)).rejects.toBe(other);
+    });
+  });
+
+  describe('platform job posting entitlement', () => {
+    it('is always enabled and unlimited without requiring a subscription or plan row', async () => {
+      await expect(
+        service.getFeatureLimit('company-1', SubscriptionFeature.JOB_POST),
+      ).resolves.toEqual({ enabled: true, limit: null });
+      await expect(
+        service.assertFeatureEnabled('company-1', SubscriptionFeature.JOB_POST),
+      ).resolves.toBeUndefined();
+
+      expect(prisma.companySubscription.findFirst).not.toHaveBeenCalled();
+      expect(prisma.planFeature.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('keeps a legacy job-post row unlimited in usage snapshots', async () => {
+      prisma.planFeature.findMany.mockResolvedValue([
+        { feature: SubscriptionFeature.JOB_POST, enabled: false, limitValue: 3 },
+      ]);
+      prisma.subscriptionQuotaCounter.findMany.mockResolvedValue([
+        { feature: SubscriptionFeature.JOB_POST, usedValue: 3 },
+      ]);
+
+      await expect(service.peek('company-1')).resolves.toEqual([
+        expect.objectContaining({
+          feature: SubscriptionFeature.JOB_POST,
+          enabled: true,
+          limit: null,
+          used: 3,
+          remaining: null,
+        }),
+      ]);
     });
   });
 });
