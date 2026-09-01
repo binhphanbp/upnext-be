@@ -7,6 +7,7 @@ import {
 import {
   CompanyVerificationStatus,
   CompanyStatus,
+  JobBoostEndedReason,
   JobBoostStatus,
   JobStatus,
   Prisma,
@@ -29,12 +30,14 @@ import { UpdateJobPostDto } from './dto/update-job-post.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { REPUTATION_CONFIG } from '../reputation/reputation.config';
 import { PublicJobPostQueryDto } from './dto/public-job-post-query.dto';
+import { JobBoostService } from './job-boost.service';
 
 @Injectable()
 export class JobPostsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly jobBoostService: JobBoostService,
   ) {}
 
   async create(user: AuthenticatedUser, createJobPostDto: CreateJobPostDto) {
@@ -55,6 +58,24 @@ export class JobPostsService {
     });
   }
 
+  /**
+   * Điều kiện "tin đang hiển thị công khai" -- dùng chung ở `findAll`,
+   * `findOne`, và `SponsoredJobsService` (sponsored-jobs.service.ts) để một
+   * tin bị ẩn/hết hạn/gỡ khỏi danh sách organic thì cũng biến mất khỏi khu
+   * tài trợ ngay lập tức, không cần một job riêng đồng bộ hai nơi.
+   */
+  publicJobEligibilityWhere(): Prisma.JobPostWhereInput {
+    return {
+      status: JobStatus.PUBLISHED,
+      moderationStatus: ModerationStatus.APPROVED,
+      publishedAt: { not: null },
+      deletedAt: null,
+      isHidden: false,
+      company: { status: CompanyStatus.ACTIVE },
+      OR: [{ expiredAt: null }, { expiredAt: { gte: new Date() } }],
+    };
+  }
+
   async findAll(query: PublicJobPostQueryDto = {}) {
     const keyword = query.keyword?.trim();
     const location = query.location?.trim();
@@ -62,13 +83,7 @@ export class JobPostsService {
 
     return this.prisma.jobPost.findMany({
       where: {
-        status: JobStatus.PUBLISHED,
-        moderationStatus: ModerationStatus.APPROVED,
-        publishedAt: { not: null },
-        deletedAt: null,
-        isHidden: false,
-        company: { status: CompanyStatus.ACTIVE },
-        OR: [{ expiredAt: null }, { expiredAt: { gte: new Date() } }],
+        ...this.publicJobEligibilityWhere(),
         ...(keyword
           ? {
               AND: [
@@ -118,16 +133,7 @@ export class JobPostsService {
 
   async findOne(id: string) {
     const jobPost = await this.prisma.jobPost.findFirst({
-      where: {
-        id,
-        status: JobStatus.PUBLISHED,
-        moderationStatus: ModerationStatus.APPROVED,
-        publishedAt: { not: null },
-        deletedAt: null,
-        isHidden: false,
-        company: { status: CompanyStatus.ACTIVE },
-        OR: [{ expiredAt: null }, { expiredAt: { gte: new Date() } }],
-      },
+      where: { id, ...this.publicJobEligibilityWhere() },
       include: this.publicJobPostInclude(),
     });
 
@@ -162,6 +168,7 @@ export class JobPostsService {
         status: JobStatus.CLOSED,
       },
     });
+    await this.jobBoostService.invalidateActiveBoostForJob(id, JobBoostEndedReason.JOB_CLOSED);
   }
 
   async updateStatus(id: string, recruiterId: string, status: JobStatus) {
@@ -196,11 +203,17 @@ export class JobPostsService {
       data.publishedAt = new Date();
     }
 
-    return this.prisma.jobPost.update({
+    const updated = await this.prisma.jobPost.update({
       where: { id },
       data,
       include: this.ownerJobPostInclude(),
     });
+
+    if (status === JobStatus.CLOSED) {
+      await this.jobBoostService.invalidateActiveBoostForJob(id, JobBoostEndedReason.JOB_CLOSED);
+    }
+
+    return updated;
   }
 
   async getCompanyJobPosts(recruiterId: string) {
@@ -524,6 +537,10 @@ export class JobPostsService {
       include: this.adminJobPostInclude(),
     });
 
+    if (dto.isHidden) {
+      await this.jobBoostService.invalidateActiveBoostForJob(id, JobBoostEndedReason.JOB_HIDDEN);
+    }
+
     const statusText = dto.isHidden ? 'ẩn' : 'hiển thị';
 
     return {
@@ -813,7 +830,9 @@ export class JobPostsService {
     // value-add services such as AI and Boost, never for access to supply jobs.
   }
 
-  private publicJobPostInclude() {
+  /** Public (not `private`): reused by `SponsoredJobsService` so a sponsored
+   * card and an organic card render from the exact same shape. */
+  publicJobPostInclude() {
     return {
       company: {
         select: {
@@ -881,7 +900,7 @@ export class JobPostsService {
     } satisfies Prisma.JobPostInclude;
   }
 
-  private locationSearchTerms(location: string) {
+  locationSearchTerms(location: string) {
     const normalized = location.toLowerCase();
     if (normalized === 'tất cả địa điểm') return [];
     if (
@@ -934,6 +953,13 @@ export class JobPostsService {
           applications: true,
           views: true,
         },
+      },
+      // Chỉ lấy lượt đẩy còn hiệu lực -- recruiter cần biết "tin này đang được
+      // đẩy không" ngay trên danh sách quản lý, không cần gọi thêm API.
+      boosts: {
+        where: { status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] } },
+        select: { id: true, type: true, status: true, startsAt: true, endsAt: true },
+        take: 1,
       },
     } satisfies Prisma.JobPostInclude;
   }

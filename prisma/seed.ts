@@ -2558,7 +2558,9 @@ async function main() {
     limitValue: number | null;
   }> = [
     { planId: plans.free.id, feature: SubscriptionFeature.JOB_POST, limitValue: null },
-    { planId: plans.free.id, feature: SubscriptionFeature.FEATURED_JOB, limitValue: 0 },
+    // 1, không phải 0 -- doanh nghiệp Free phải trải nghiệm được Job Boost để
+    // có động lực nâng cấp Pro (JOB_BOOST_ROLLOUT_PLAN.md mục 6.1).
+    { planId: plans.free.id, feature: SubscriptionFeature.FEATURED_JOB, limitValue: 1 },
     { planId: plans.free.id, feature: SubscriptionFeature.URGENT_LABEL, limitValue: 3 },
     { planId: plans.free.id, feature: SubscriptionFeature.CV_POOL_VIEW, limitValue: 0 },
     { planId: plans.free.id, feature: SubscriptionFeature.TALENT_CONTACT, limitValue: 0 },
@@ -5458,14 +5460,18 @@ async function main() {
     await prisma.jobBoost.create({
       data: {
         id: boost1Id,
+        idempotencyKey: `seed:job-boost:${boost1Id}`,
         createdByRecruiterId: alphaJobs[0].recruiterId,
         companySubscriptionId: alphaActiveSub.id,
         jobPostId: alphaJobs[0].id,
         companyId: alphaCompany.id,
         status: 'ENDED',
+        endedReason: 'EXPIRED',
         creditCost: 1,
         startsAt: addDays(now, -10),
         endsAt: addDays(now, -3),
+        firstImpressionAt: addDays(now, -10),
+        lastImpressionAt: addDays(now, -3),
         createdAt: addDays(now, -11),
         updatedAt: addDays(now, -3),
       },
@@ -5475,6 +5481,7 @@ async function main() {
     await prisma.jobBoost.create({
       data: {
         id: boost2Id,
+        idempotencyKey: `seed:job-boost:${boost2Id}`,
         createdByRecruiterId: alphaJobs[1].recruiterId,
         companySubscriptionId: alphaActiveSub.id,
         jobPostId: alphaJobs[1].id,
@@ -5483,6 +5490,9 @@ async function main() {
         creditCost: 1,
         startsAt: addDays(now, -5),
         endsAt: addDays(now, 5),
+        firstImpressionAt: addDays(now, -5),
+        lastImpressionAt: addDays(now, -1),
+        lastServedAt: addDays(now, -1),
         createdAt: addDays(now, -6),
         updatedAt: addDays(now, -5),
       },

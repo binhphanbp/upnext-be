@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Headers,
   HttpCode,
@@ -29,6 +30,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ActorType, JobStatus } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AdminPermissions } from '../../common/decorators/admin-permissions.decorator';
@@ -55,6 +57,8 @@ import { UpdateJobPostDto } from './dto/update-job-post.dto';
 import { UpdateJobPostMemberAccessDto } from './dto/update-job-post-member-access.dto';
 import { PublicJobPostQueryDto } from './dto/public-job-post-query.dto';
 import { CreateJobBoostDto } from './dto/create-job-boost.dto';
+import { ListJobBoostsQueryDto } from './dto/list-job-boosts-query.dto';
+import { JobBoostMetricsQueryDto } from './dto/job-boost-metrics-query.dto';
 import { JobPostsService } from './job-posts.service';
 import { JobBoostService } from './job-boost.service';
 
@@ -459,6 +463,13 @@ export class RecruiterJobPostsController {
       'Tiêu một lượt featured_job, đẩy tin nổi bật/tuyển gấp trong 7 ngày. Chỉ áp dụng cho ' +
       'tin đang hiển thị công khai và chưa có lượt đẩy nào còn hiệu lực.',
   })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description:
+      'UUID do client sinh một lần cho mỗi lượt bấm "Đẩy tin". Gửi lại y nguyên khi retry ' +
+      'mạng để không bị trừ quota hai lần cho cùng một hành động.',
+  })
   @ApiCreatedResponse({ description: 'Đã tạo lượt đẩy tin.' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
@@ -468,15 +479,35 @@ export class RecruiterJobPostsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: CreateJobBoostDto,
     @CurrentUser() user: AuthenticatedUser,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.jobBoostService.createBoost(id, user, dto.type);
+    // Client cũ chưa gửi header vẫn chạy được, nhưng mất bảo vệ retry-kép --
+    // fallback về một key ngẫu nhiên chỉ dùng được đúng một lần, không phải
+    // "không idempotent" mà là "idempotent với chính nó, không với client cũ".
+    return this.jobBoostService.createBoost(id, user, dto.type, idempotencyKey ?? randomUUID());
   }
 
   @ApiOperation({
-    summary: 'Hủy một lượt đẩy tin trước khi hết hạn',
-    description: 'Hoàn lại lượt featured_job vì thời gian đã mua chưa dùng hết.',
+    summary: 'Dừng một lượt đẩy tin trước khi hết hạn',
+    description:
+      'Hoàn lại lượt featured_job nếu boost chưa từng có impression; đã phân phối rồi thì ' +
+      'không hoàn dù dừng sớm (mục 4.3 kế hoạch nghiệp vụ).',
   })
-  @ApiOkResponse({ description: 'Đã hủy lượt đẩy tin.' })
+  @ApiOkResponse({ description: 'Đã dừng lượt đẩy tin.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
+  @Roles(ActorType.RECRUITER)
+  @Post('boosts/:boostId/stop')
+  stopBoost(
+    @Param('boostId', new ParseUUIDPipe()) boostId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.jobBoostService.stopBoost(boostId, user);
+  }
+
+  /** Alias giữ tương thích ngược cho client cũ đã tích hợp route `/cancel`. */
+  @ApiOperation({ summary: 'Dừng một lượt đẩy tin (alias của /stop)' })
+  @ApiOkResponse({ description: 'Đã dừng lượt đẩy tin.' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
   @Roles(ActorType.RECRUITER)
@@ -485,7 +516,33 @@ export class RecruiterJobPostsController {
     @Param('boostId', new ParseUUIDPipe()) boostId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.jobBoostService.cancelBoost(boostId, user);
+    return this.jobBoostService.stopBoost(boostId, user);
+  }
+
+  @ApiOperation({ summary: 'Lịch sử các lượt đẩy tin của công ty' })
+  @ApiOkResponse({ description: 'Danh sách boost, mới nhất trước.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
+  @Roles(ActorType.RECRUITER)
+  @Get('boosts')
+  listBoosts(@Query() query: ListJobBoostsQueryDto, @CurrentUser() user: AuthenticatedUser) {
+    if (!user.companyId) throw new ForbiddenException('Not associated with a company');
+    return this.jobBoostService.listForCompany(user.companyId, query);
+  }
+
+  @ApiOperation({ summary: 'Số liệu impression/click/save/application của một lượt đẩy tin' })
+  @ApiOkResponse({ description: 'Tổng hợp theo ngày và tổng cộng.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
+  @Roles(ActorType.RECRUITER)
+  @Get('boosts/:boostId/metrics')
+  getBoostMetrics(
+    @Param('boostId', new ParseUUIDPipe()) boostId: string,
+    @Query() query: JobBoostMetricsQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!user.companyId) throw new ForbiddenException('Not associated with a company');
+    return this.jobBoostService.getMetrics(boostId, user.companyId, query);
   }
 
   @ApiOperation({
