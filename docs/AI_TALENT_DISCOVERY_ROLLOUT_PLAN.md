@@ -22,7 +22,7 @@ Tên sản phẩm v1: **AI Talent Discovery** (gợi ý ứng viên phù hợp t
 | Đơn vị tính | 1 Discovery = snapshot match mới cho một Job Post. Xem lại snapshot không tốn lượt. Refresh chỉ tạo snapshot/charge mới khi job matching fingerprint đã đổi hoặc snapshot cũ hơn 7 ngày. |
 | Thời hạn snapshot | 30 ngày hoặc đến khi job/candidate không còn đủ điều kiện. |
 | Liên hệ | 1 credit `talent_contact` khi recruiter gửi lời mời; không hoàn chỉ vì candidate từ chối. |
-| Kênh liên lạc | Anonymous chat UpNext sau khi candidate chấp nhận. Không tự trả hay cho hai bên trao đổi email, SĐT, tên thật, CV file hoặc link cá nhân trong v1. |
+| Kênh liên lạc | Anonymous chat UpNext sau khi candidate chấp nhận. V1 không có product-level reveal/download/attachment; email, SĐT, link và handle theo pattern chuẩn bị chặn trước khi lưu. |
 | CV Pool cũ | `POST /talent-pool/:candidateProfileId/unlock` (trả direct contact) phải bị retire trước beta; Talent Pool nếu giữ lại chỉ được tạo invitation ẩn danh qua cùng policy Discovery. |
 | AI | Chỉ hỗ trợ tìm/giải thích mức phù hợp; không tự động reject, shortlist hay ra quyết định tuyển dụng. |
 | Dữ liệu nhạy cảm | Không đưa vào ranking hoặc hiển thị: giới tính, ngày sinh/tuổi, địa chỉ chính xác, ảnh, sức khỏe, quan điểm, nguồn gốc, dữ liệu nhận diện và thông tin liên hệ. |
@@ -35,7 +35,7 @@ Mức 10 × 30 cho Pro cho phép tối đa 300 **lượt gợi ý hồ sơ ẩn 
 2. Recruiter không được nhận `candidateProfileId`, tên thật, email, điện thoại, file CV gốc, link LinkedIn/GitHub/portfolio, địa chỉ chính xác hoặc parsed CV chưa che thông tin — kể cả qua chat, notification, analytics, realtime payload và cache.
 3. Không tồn tại đường vòng từ recommendation sang endpoint mở khóa liên hệ trực tiếp; legacy CV Pool direct unlock bị retire trước beta.
 4. Candidate chỉ nhận lời mời có Job Post và company verified còn hợp lệ; không có cold outreach vô ngữ cảnh.
-5. Sau accept, conversation vẫn dùng alias; v1 cấm trao đổi direct contact/link ngoài nền tảng. Nếu sau này muốn reveal, đó là một feature mới có consent, policy và review riêng — không mặc định kế thừa từ Discovery.
+5. Sau accept, conversation vẫn dùng alias; v1 không có direct-contact reveal/link/attachment và áp policy chặn pattern contact chuẩn. Nếu sau này muốn reveal, đó là một feature mới có consent, policy và review riêng — không mặc định kế thừa từ Discovery.
 6. Mọi lần xem, gợi ý, gửi lời mời, trả lời, block, vi phạm policy và revoke phải audit được.
 7. Mô hình không được dùng dữ liệu bảo vệ để xếp hạng, và recruiter luôn thấy lý do/gap có thể kiểm chứng thay vì “điểm AI” mơ hồ.
 
@@ -137,7 +137,7 @@ Candidate exposure cap v1: cùng một company chỉ được thấy cùng candi
 - Bất kỳ text tự do nào chưa qua sanitizer/redaction; text này có thể ẩn danh không đủ vì chứa PII hoặc fingerprint hiếm.
 - `candidateProfileId`, `candidateAccountId`, CV id/version id và signed download URL.
 
-V1 không hỗ trợ exchange tên thật, email, SĐT, link cá nhân hay attachment trong Talent Discovery chat. `ContactExchangePolicy` kiểm tra cả invitation và message; phát hiện contact/link thì chặn trước khi lưu, ghi audit với nội dung đã tối thiểu hóa và hướng người dùng tiếp tục trong UpNext. Candidate có thể decline/block bất cứ lúc nào. Bất kỳ cơ chế reveal tự nguyện/direct contact nào là phase mới, không thuộc phạm vi v1.
+V1 không có API/UI reveal tên thật, email, SĐT, link cá nhân hay attachment trong Talent Discovery chat. `ContactExchangePolicy` kiểm tra cả invitation và message; phát hiện phone/email/URL/handle/QR-like pattern chuẩn thì chặn trước khi lưu, ghi audit với nội dung đã tối thiểu hóa và hướng người dùng tiếp tục trong UpNext. Candidate có thể decline/block bất cứ lúc nào. Bất kỳ cơ chế reveal tự nguyện/direct contact nào là phase mới, không thuộc phạm vi v1.
 
 ### 5.3. CV gốc và bản CV ẩn danh
 
@@ -193,6 +193,12 @@ Trước khi publish bản dẫn xuất, worker chạy kiểm tra nhiều lớp:
 - Retire `POST /talent-pool/:candidateProfileId/unlock` trước beta, trả `410` có thông điệp migration và xóa CTA trên frontend. Talent Pool chỉ được mở lại sau v1 nếu dùng chính anonymous card + invitation contract; không có `DIRECT_CONTACT_ALLOWED` trong v1.
 - Không có nút `Xem CV gốc`, `Tải CV`, `Mở file` hay preview dùng source URL trong Discovery. CTA duy nhất (nếu Candidate cho phép) là `Xem hồ sơ ẩn danh`; mọi lần xem phải qua authorization, audit và policy current-state.
 - Conversation serializer riêng cho `TALENT_OUTREACH` phải bỏ candidate account/profile identifier và fullName/avatar khỏi REST, Socket.IO, notification, search index, analytics payload và frontend state. Không được tái dùng projection của application chat.
+
+### 6.4. Threat model thực tế của việc giữ trao đổi trên UpNext
+
+UpNext có thể **bảo đảm** rằng platform không tự lộ PII, CV nguồn hay direct-contact endpoint; có thể chặn message/attachment chứa những pattern contact chuẩn; và có thể audit/report/block vi phạm. Không hệ thống chat nào có thể bảo đảm tuyệt đối một người không gõ contact đã viết biến thể, mô tả danh tính gián tiếp hoặc chụp màn hình. Vì vậy v1 không được marketing là “không thể liên hệ ngoài UpNext”.
+
+Xử lý v1: dùng rule/PII classifier chạy trong trusted backend (không gửi message raw sang provider Discovery), chặn các pattern chắc chắn, cảnh báo/report cho pattern nghi ngờ, rate-limit repeat violation và cho admin review nội dung đã tối thiểu hóa theo retention policy. Các flow tạo giá trị cần thiết — messaging, status, scheduling/interview ở phase sau — phải được xây trong UpNext để không tạo lý do product-level cho direct contact. Candidate cố ý tự cung cấp thông tin ngoài nền tảng là hành vi người dùng, không phải dữ liệu platform reveal; phải có Terms/Privacy/abuse process xử lý riêng.
 
 ## 7. Matching architecture
 
@@ -485,7 +491,7 @@ Chỉ có thể gọi AI Talent Discovery là done khi:
 - Không có PII/direct identifier nào qua recruiter API, UI, anonymous conversation/realtime/notification, logs, embedding provider hoặc legacy CV Pool unlock.
 - Recruiter Pro dùng được quota thật; Free có trải nghiệm thử giới hạn; retry/concurrency không trừ sai.
 - Mọi kết quả đều gắn với Job Post hợp lệ, có reason/gap giải thích được và không dùng protected data.
-- Candidate chọn accept/decline/block; sau accept conversation vẫn alias-only và ContactExchangePolicy buộc trao đổi ở UpNext.
+- Candidate chọn accept/decline/block; sau accept conversation vẫn alias-only, platform không có direct-contact reveal và ContactExchangePolicy chặn pattern contact chuẩn.
 - Opt-out/block có hiệu lực với cả snapshot cũ và request mới ngay lập tức.
 - Precision@10/supply gate, staging E2E, security/contract tests, migration safety, observability và Legal/Privacy approval đều pass.
 
@@ -494,7 +500,7 @@ Chỉ có thể gọi AI Talent Discovery là done khi:
 1. **P0a – retire bypass:** xóa/tắt direct CV Pool unlock và kiểm chứng không còn source/API/CTA dẫn đến PII direct contact.
 2. **P0b – privacy foundation:** consent riêng, masked contract, discovery index không-PII, redacted-CV pipeline fail-closed và revocation.
 3. **P0c – backend integrity:** monthly entitlement, atomic quota/idempotency, job fingerprint, company-candidate window, candidate exposure cap, async matching/ranking.
-4. **P0d – anonymous in-platform outreach:** contact API từ recommendation, ContactExchangePolicy, anonymous conversation serializer/realtime/notification và candidate controls.
+4. **P0d – anonymous in-platform outreach:** contact API từ recommendation, ContactExchangePolicy/threat-model handling, anonymous conversation serializer/realtime/notification và candidate controls.
 5. **P0e – frontend end-to-end:** recruiter Discovery UI, candidate preview/exposure/revoke, alias-only chat, no direct unlock/download/contact-share UI.
 6. **P0f – quality and staging gate:** evaluation dataset, precision/supply threshold, privacy/contract test, staging E2E và observability. Chỉ sau đó mới bật beta.
 7. **P1 – quality/cost tuning sau beta:** calibration theo job family, COGS, reranker, reporting và admin support tooling; không hạ privacy/quality gate để tăng coverage.
@@ -504,7 +510,7 @@ Chỉ có thể gọi AI Talent Discovery là done khi:
 
 | Owner | Quyết định phải ký | Điều kiện pass |
 | --- | --- | --- |
-| Product | V1 là anonymous end-to-end: không identity reveal, không direct-contact exchange, profile detail đã bao gồm trong Discovery run. | UX/copy và pricing Free/Pro theo company/monthly cycle được duyệt. |
+| Product | V1 là anonymous end-to-end: không identity reveal/direct-contact feature/attachment; profile detail đã bao gồm trong Discovery run. | UX/copy nêu đúng giới hạn policy (không hứa ngăn được mọi hành vi người dùng) và pricing Free/Pro theo company/monthly cycle được duyệt. |
 | Engineering | Retire direct unlock; mô hình alias conversation, quota monthly, DB windows/exposure và API opaque được duyệt. | ADR ngắn cho mỗi thay đổi cross-cutting, migration plan additive và owner từng repo. |
 | Legal/Privacy | Consent copy, purpose, retention, provider egress, redaction/exposure policy và chat moderation được duyệt. | Không có raw CV/PII đi qua Discovery provider/client; candidate revoke/block policy xác nhận. |
 | Data/AI | Taxonomy, evaluation rubric/dataset consented và threshold beta được duyệt. | Precision@10, hard-rule and no-PII gates ở mục 7.4 đo được trước beta. |
