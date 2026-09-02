@@ -3,7 +3,7 @@ import { InvoicesService } from './invoices.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CompanySubscriptionsService } from '../company-subscriptions/company-subscriptions.service';
 import { AdminAuditLogService } from '../admin-users/admin-audit-log.service';
-import { ActorType, PaymentMethod, PaymentStatus } from '@prisma/client';
+import { ActorType, PaymentMethod, PaymentStatus, SubscriptionStatus } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 describe('InvoicesService', () => {
@@ -19,6 +19,7 @@ describe('InvoicesService', () => {
     invoice: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
@@ -26,6 +27,7 @@ describe('InvoicesService', () => {
       aggregate: jest.fn(),
     },
     companySubscription: {
+      findFirst: jest.fn(),
       updateMany: jest.fn(),
     },
     recruiterAccount: {
@@ -445,6 +447,126 @@ describe('InvoicesService', () => {
       await expect(
         service.refundInvoice('inv-pending', { reason: 'test' }, adminUser),
       ).rejects.toThrow(/Chỉ có thể hoàn tiền đối với hóa đơn đã thanh toán/);
+    });
+  });
+
+  describe('create', () => {
+    const recruiterUser: AuthenticatedUser = {
+      id: 'recruiter-1',
+      email: 'recruiter@fpt.com',
+      role: ActorType.RECRUITER,
+      companyId: 'comp-1',
+      permissions: [],
+    };
+
+    const paidPlan = {
+      id: 'plan-pro-id',
+      subscriptionName: 'Pro',
+      price: '1490000',
+      status: SubscriptionStatus.ACTIVE,
+    };
+
+    it('creates an invoice successfully when recruiter has no active paid plan', async () => {
+      prismaMock.company.findUnique.mockResolvedValue({ id: 'comp-1' });
+      prismaMock.subscriptionPlan.findUnique.mockResolvedValue(paidPlan);
+      prismaMock.companySubscription.findFirst.mockResolvedValue(null);
+      prismaMock.invoice.findFirst.mockResolvedValue(null);
+      prismaMock.invoice.create.mockResolvedValue({
+        id: 'new-inv-id',
+        invoiceCode: 'INV-20260903-1234',
+        paymentStatus: PaymentStatus.PENDING,
+        subscriptionPlan: paidPlan,
+      });
+
+      const result = await service.create(recruiterUser, { subscriptionPlanId: 'plan-pro-id' });
+      expect(result.id).toBe('new-inv-id');
+      expect(prismaMock.invoice.create).toHaveBeenCalled();
+    });
+
+    it('blocks recruiter when company already has active paid plan with > 3 days left', async () => {
+      const futureDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000); // 15 days left
+      prismaMock.company.findUnique.mockResolvedValue({ id: 'comp-1' });
+      prismaMock.subscriptionPlan.findUnique.mockResolvedValue(paidPlan);
+      prismaMock.companySubscription.findFirst.mockResolvedValue({
+        id: 'sub-active',
+        planId: 'plan-pro-id',
+        status: SubscriptionStatus.ACTIVE,
+        expiredAt: futureDate,
+        plan: paidPlan,
+      });
+
+      await expect(
+        service.create(recruiterUser, { subscriptionPlanId: 'plan-pro-id' }),
+      ).rejects.toMatchObject({
+        response: { code: 'SUBSCRIPTION_ALREADY_ACTIVE' },
+      });
+      expect(prismaMock.invoice.create).not.toHaveBeenCalled();
+    });
+
+    it('allows renewal invoice when company active plan has <= 3 days left', async () => {
+      const nearExpiryDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days left
+      prismaMock.company.findUnique.mockResolvedValue({ id: 'comp-1' });
+      prismaMock.subscriptionPlan.findUnique.mockResolvedValue(paidPlan);
+      prismaMock.companySubscription.findFirst.mockResolvedValue({
+        id: 'sub-active',
+        planId: 'plan-pro-id',
+        status: SubscriptionStatus.ACTIVE,
+        expiredAt: nearExpiryDate,
+        plan: paidPlan,
+      });
+      prismaMock.invoice.findFirst.mockResolvedValue(null);
+      prismaMock.invoice.create.mockResolvedValue({
+        id: 'renewal-inv-id',
+        invoiceCode: 'INV-RENEW-01',
+        paymentStatus: PaymentStatus.PENDING,
+        subscriptionPlan: paidPlan,
+      });
+
+      const result = await service.create(recruiterUser, { subscriptionPlanId: 'plan-pro-id' });
+      expect(result.id).toBe('renewal-inv-id');
+      expect(prismaMock.invoice.create).toHaveBeenCalled();
+    });
+
+    it('blocks mid-cycle change to a different paid plan', async () => {
+      const futureDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+      prismaMock.company.findUnique.mockResolvedValue({ id: 'comp-1' });
+      prismaMock.subscriptionPlan.findUnique.mockResolvedValue({
+        id: 'other-plan-id',
+        subscriptionName: 'Enterprise',
+        price: '5000000',
+        status: SubscriptionStatus.ACTIVE,
+      });
+      prismaMock.companySubscription.findFirst.mockResolvedValue({
+        id: 'sub-active',
+        planId: 'plan-pro-id',
+        status: SubscriptionStatus.ACTIVE,
+        expiredAt: futureDate,
+        plan: paidPlan,
+      });
+
+      await expect(
+        service.create(recruiterUser, { subscriptionPlanId: 'other-plan-id' }),
+      ).rejects.toMatchObject({
+        response: { code: 'SUBSCRIPTION_CHANGE_NOT_SUPPORTED' },
+      });
+      expect(prismaMock.invoice.create).not.toHaveBeenCalled();
+    });
+
+    it('reuses existing recent PENDING invoice instead of creating duplicate', async () => {
+      prismaMock.company.findUnique.mockResolvedValue({ id: 'comp-1' });
+      prismaMock.subscriptionPlan.findUnique.mockResolvedValue(paidPlan);
+      prismaMock.companySubscription.findFirst.mockResolvedValue(null);
+      const existingPending = {
+        id: 'existing-pending-inv-id',
+        invoiceCode: 'INV-PENDING-001',
+        paymentStatus: PaymentStatus.PENDING,
+        subscriptionPlan: paidPlan,
+      };
+      prismaMock.invoice.findFirst.mockResolvedValue(existingPending);
+
+      const result = await service.create(recruiterUser, { subscriptionPlanId: 'plan-pro-id' });
+      expect(result).toBe(existingPending);
+      expect(prismaMock.invoice.create).not.toHaveBeenCalled();
     });
   });
 });

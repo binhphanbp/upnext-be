@@ -72,6 +72,39 @@ export class CompanySubscriptionsService {
     const expiredAt = new Date(now.getTime() + plan.durationDays * 24 * 60 * 60 * 1000);
 
     const activate = async (tx: Prisma.TransactionClient) => {
+      const existingActive = await tx.companySubscription.findFirst({
+        where: {
+          companyId,
+          status: SubscriptionStatus.ACTIVE,
+          expiredAt: { gt: now },
+        },
+        orderBy: { startedAt: 'desc' },
+      });
+
+      // If already active on the same plan, extend the expiration date safely
+      if (existingActive && existingActive.planId === plan.id) {
+        const baseTime = Math.max(now.getTime(), existingActive.expiredAt.getTime());
+        const newExpiredAt = new Date(baseTime + plan.durationDays * 24 * 60 * 60 * 1000);
+
+        const updatedSub = await tx.companySubscription.update({
+          where: { id: existingActive.id },
+          data: {
+            expiredAt: newExpiredAt,
+            currentPeriodEnd: newExpiredAt,
+          },
+          include: {
+            plan: true,
+          },
+        });
+
+        await tx.subscriptionQuotaCounter.updateMany({
+          where: { companySubscriptionId: existingActive.id },
+          data: { periodEnd: newExpiredAt },
+        });
+
+        return updatedSub;
+      }
+
       await tx.companySubscription.updateMany({
         where: {
           companyId,
