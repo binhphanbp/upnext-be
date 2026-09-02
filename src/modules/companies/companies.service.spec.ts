@@ -7,6 +7,7 @@ import { EmailService } from '../../common/email/email.service';
 import { ReputationLedgerService } from '../reputation/reputation-ledger.service';
 import { CompaniesService } from './companies.service';
 import { COMPANY_LICENSE_EXTRACTION_PROVIDER } from './ports/company-license-extraction-provider.port';
+import { LLM_PROVIDER } from '../ai/ports/llm-provider.port';
 
 describe('CompaniesService', () => {
   let service: CompaniesService;
@@ -103,6 +104,15 @@ describe('CompaniesService', () => {
             modelName: 'stub',
             isConfigured: () => true,
             extractStructured: jest.fn(),
+          },
+        },
+        {
+          provide: LLM_PROVIDER,
+          useValue: {
+            modelName: 'stub',
+            isConfigured: () => true,
+            generateStructured: jest.fn(),
+            streamText: jest.fn(),
           },
         },
       ],
