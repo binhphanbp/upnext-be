@@ -1,0 +1,2 @@
+-- RenameForeignKey
+ALTER TABLE "candidate_subscription_quota_counters" RENAME CONSTRAINT "candidate_subscription_quota_counters_candidate_subscription_id" TO "candidate_subscription_quota_counters_candidate_subscripti_fkey";

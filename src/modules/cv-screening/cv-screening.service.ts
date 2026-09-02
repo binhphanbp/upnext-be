@@ -31,9 +31,9 @@ import { buildCvText, buildJobText, CV_TEXT_INCLUDE, JOB_TEXT_INCLUDE } from './
 // Gemini calls. Every application below this cap is scored -- there is no
 // semantic pre-filter, so nothing is silently dropped from a normal run.
 const MAX_APPLICATIONS_PER_RUN = 200;
-const GEMINI_BATCH_SIZE = 8;
-const GEMINI_BATCH_CONCURRENCY = 1;
-const GEMINI_FALLBACK_CONCURRENCY = 1;
+const GEMINI_BATCH_SIZE = 4;
+const GEMINI_BATCH_CONCURRENCY = 3;
+const GEMINI_FALLBACK_CONCURRENCY = 3;
 const SCORING_VERSION = 'cv-screening-v11-ai-gateway-vi';
 type TerminalCvScreeningRunStatus = Exclude<CvScreeningRunStatus, 'pending' | 'processing'>;
 
