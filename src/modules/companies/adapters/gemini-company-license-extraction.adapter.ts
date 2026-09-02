@@ -21,7 +21,7 @@ export class GeminiCompanyLicenseExtractionAdapter implements CompanyLicenseExtr
   private readonly logger = new Logger(GeminiCompanyLicenseExtractionAdapter.name);
   readonly modelName = LICENSE_MODEL;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   isConfigured(): boolean {
     return Boolean(this.apiKey());
