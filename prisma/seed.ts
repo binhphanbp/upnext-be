@@ -2587,15 +2587,31 @@ async function main() {
     }),
   };
 
-  // Đảm bảo trang admin "Cấu hình thanh toán" luôn có sẵn 1 dòng SePay để
-  // load/sửa ngay lần đầu vào (thay vì 404 trên DB mới tinh). Tắt sẵn
-  // (isEnabled: false) và để trống bank info/API key -- admin tự điền qua UI.
+  // Cấu hình sẵn SePay Test Mode / Sandbox để khi clone sang máy khác hoặc chạy seed
+  // là có thể test thanh toán và API Polling ngay lập tức mà không cần cấu hình lại thủ công.
+  const sepayDefaultToken = 'VUGF1QUHQ9G2QSDVYIBEIGZKATC73B2MW5O4CBLEV43VOFA0DWTENNYO6L8LYAOS';
   await prisma.paymentGatewayConfig.upsert({
     where: { provider: PaymentMethod.SEPAY },
-    update: {},
+    update: {
+      isEnabled: true,
+      bankName: 'TPBank (Test Mode)',
+      bankBin: '970423',
+      accountNumber: '10001291241',
+      accountName: 'PHAN QUOC DUY',
+      contentPrefix: '',
+      apiToken: sepayDefaultToken,
+      webhookSecret: sepayDefaultToken,
+    },
     create: {
       provider: PaymentMethod.SEPAY,
-      isEnabled: false,
+      isEnabled: true,
+      bankName: 'TPBank (Test Mode)',
+      bankBin: '970423',
+      accountNumber: '10001291241',
+      accountName: 'PHAN QUOC DUY',
+      contentPrefix: '',
+      apiToken: sepayDefaultToken,
+      webhookSecret: sepayDefaultToken,
     },
   });
 

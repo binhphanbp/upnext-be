@@ -36,7 +36,6 @@ export class SepayPollingService {
    */
   private getApiUrls(config: { bankName?: string | null; apiToken?: string | null }) {
     const isSandbox =
-      process.env.NODE_ENV !== 'production' ||
       config.bankName?.toLowerCase().includes('sandbox') ||
       config.bankName?.toLowerCase().includes('test') ||
       config.apiToken?.toLowerCase().includes('sandbox') ||
@@ -45,12 +44,12 @@ export class SepayPollingService {
     if (isSandbox) {
       return [
         'https://userapi-sandbox.sepay.vn/v2/transactions?per_page=50',
-        'https://my.sepay.vn/userapi/transactions/list?limit=50',
+        'https://userapi.sepay.vn/v2/transactions?per_page=50',
       ];
     }
     return [
       'https://userapi.sepay.vn/v2/transactions?per_page=50',
-      'https://my.sepay.vn/userapi/transactions/list?limit=50',
+      'https://userapi-sandbox.sepay.vn/v2/transactions?per_page=50',
     ];
   }
 
