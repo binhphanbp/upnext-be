@@ -213,7 +213,9 @@ export class SepayPollingService {
           this.logger.warn(`SePay API at ${url} responded with status ${response.status}`);
         }
       } catch (err: unknown) {
-        this.logger.warn(`Error querying SePay API at ${url}: ${err}`);
+        this.logger.warn(
+          `Error querying SePay API at ${url}: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
 

@@ -2483,40 +2483,6 @@ async function main() {
         createdByAdminId: adminUser.id,
       },
     }),
-    // Gói giá rẻ chỉ để tự tay test hết luồng thanh toán SePay thật (checkout,
-    // quét QR, webhook xác nhận, kích hoạt) mà không phải chuyển số tiền lớn.
-    // isPublic: true để nó hiện thật trên trang pricing -- tắt/archive gói này
-    // sau khi test xong, đừng để khách thật nhìn thấy "Gói Test".
-    recruiterTest: await prisma.subscriptionPlan.upsert({
-      where: { code: 'RECRUITER_TEST' },
-      update: {
-        subscriptionName: 'Gói Test 5.000đ',
-        price: new Prisma.Decimal(5000),
-        description:
-          'Gói giá rẻ chỉ dùng để kiểm thử luồng thanh toán -- không dùng cho khách thật.',
-        durationDays: 3,
-        jobPostLimit: 0,
-        status: 'ACTIVE',
-        isPublic: true,
-        highlightLabel: 'TEST',
-        sortOrder: 99,
-        createdByAdminId: adminUser.id,
-      },
-      create: {
-        code: 'RECRUITER_TEST',
-        subscriptionName: 'Gói Test 5.000đ',
-        price: new Prisma.Decimal(5000),
-        description:
-          'Gói giá rẻ chỉ dùng để kiểm thử luồng thanh toán -- không dùng cho khách thật.',
-        durationDays: 3,
-        jobPostLimit: 0,
-        status: 'ACTIVE',
-        isPublic: true,
-        highlightLabel: 'TEST',
-        sortOrder: 99,
-        createdByAdminId: adminUser.id,
-      },
-    }),
     candidateFree: await prisma.subscriptionPlan.upsert({
       where: { code: 'CANDIDATE_FREE' },
       update: {
@@ -2647,7 +2613,6 @@ async function main() {
     { planId: plans.pro.id, feature: SubscriptionFeature.HR_SEAT, limitValue: 10 },
     { planId: plans.pro.id, feature: SubscriptionFeature.AI_CV_MATCHING, limitValue: 1250 },
     { planId: plans.pro.id, feature: SubscriptionFeature.AI_JD_GENERATE, limitValue: 150 },
-    { planId: plans.recruiterTest.id, feature: SubscriptionFeature.JOB_POST, limitValue: null },
   ];
 
   await Promise.all(

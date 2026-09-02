@@ -44,7 +44,7 @@ export class SepayWebhookService {
     rawBody: Buffer,
     signatureHeader: string | undefined,
     timestampHeader: string | undefined,
-    authorizationHeader?: string | undefined,
+    authorizationHeader?: string,
   ): Promise<void> {
     const { webhookSecret: secret } = await this.paymentConfigService.getWebhookVerificationConfig(
       PaymentMethod.SEPAY,
