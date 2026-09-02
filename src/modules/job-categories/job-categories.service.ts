@@ -14,7 +14,16 @@ export class JobCategoriesService {
   }
 
   async findAll() {
-    return this.prisma.jobCategory.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
+    return this.prisma.jobCategory.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: {
+        _count: {
+          select: {
+            jobPosts: true,
+          },
+        },
+      },
+    });
   }
 
   async findOne(id: string) {

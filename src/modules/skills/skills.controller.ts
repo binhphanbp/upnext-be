@@ -43,6 +43,28 @@ export class SkillsController {
     return this.skillsService.createCategory(dto);
   }
 
+  @ApiOperation({ summary: 'Cập nhật danh mục kỹ năng (chỉ admin)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN)
+  @Patch('skill-categories/:id')
+  updateCategory(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: Partial<CreateSkillCategoryDto>,
+  ) {
+    return this.skillsService.updateCategory(id, dto);
+  }
+
+  @ApiOperation({ summary: 'Xóa danh mục kỹ năng (chỉ admin)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN)
+  @HttpCode(204)
+  @Delete('skill-categories/:id')
+  removeCategory(@Param('id', ParseUUIDPipe) id: string) {
+    return this.skillsService.removeCategory(id);
+  }
+
   @ApiOperation({ summary: 'Danh sách danh mục kỹ năng' })
   @Get('skill-categories')
   findAllCategories() {
@@ -50,6 +72,36 @@ export class SkillsController {
   }
 
   // ─── Skills ──────────────────────────────────────────────────────────────
+
+  @ApiOperation({ summary: 'Thống kê tổng quan dữ liệu kỹ năng & ngành nghề (chỉ admin)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN)
+  @Get('skills/stats')
+  getTaxonomyStats() {
+    return this.skillsService.getTaxonomyStats();
+  }
+
+  @ApiOperation({ summary: 'Quản lý danh sách kỹ năng cho Admin (phân trang, tìm kiếm, lọc)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN)
+  @Get('skills/admin')
+  findAdminSkills(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('isActive') isActive?: string,
+  ) {
+    return this.skillsService.findAdminSkills({
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      q,
+      categoryId,
+      isActive: isActive !== undefined && isActive !== '' ? isActive === 'true' : undefined,
+    });
+  }
 
   // Candidates add skills to their profile and recruiters to their job posts, so both may extend
   // the catalog — but only while signed in, and at a rate that rules out bulk insertion.

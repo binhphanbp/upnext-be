@@ -44,6 +44,7 @@ export class AuthService {
     companyId?: string | null;
     recruiterRoleId?: string | null;
     adminRoleId?: string | null;
+    tokenVersion?: number;
   }): Promise<LoginResponse> {
     const { id, role, ...payloadData } = user;
     const payload: JwtPayload = {
