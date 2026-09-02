@@ -63,6 +63,12 @@ type CachedResearch = {
 export class SalaryResearchService {
   private readonly logger = new Logger(SalaryResearchService.name);
   private readonly cache = new Map<string, CachedResearch>();
+  /**
+   * A cache only helps after a provider response has arrived. Keep concurrent callers for the
+   * same market profile on one promise as well, otherwise a double-click or two browser tabs can
+   * still fan out into duplicate paid Google-grounded searches.
+   */
+  private readonly inFlight = new Map<string, Promise<SalaryResearchResult | null>>();
 
   constructor(
     @Inject(GROUNDED_RESEARCH_PROVIDER)
@@ -82,6 +88,24 @@ export class SalaryResearchService {
       return null;
     }
 
+    const pending = this.inFlight.get(cacheKey);
+    if (pending) return pending;
+
+    const request = this.performResearch(cacheKey, input);
+    this.inFlight.set(cacheKey, request);
+
+    try {
+      return await request;
+    } finally {
+      // Do not remove a newer request if this method is ever changed to replace an entry.
+      if (this.inFlight.get(cacheKey) === request) this.inFlight.delete(cacheKey);
+    }
+  }
+
+  private async performResearch(
+    cacheKey: string,
+    input: SalaryResearchInput,
+  ): Promise<SalaryResearchResult | null> {
     try {
       const answer = await this.groundedResearch.generateGrounded({
         systemInstruction: SALARY_RESEARCH_PERSONA,
@@ -303,9 +327,21 @@ ${JSON.stringify(facts)}
     }
 
     const sources = evidence.sources;
-    const distinctSourceTitles = new Set(sources.map((source) => source.title.toLowerCase()));
+    const distinctSourceDomains = new Set(
+      sources.flatMap((source) => {
+        try {
+          // `www.` is not an independent publisher from the apex domain.
+          const hostname = new URL(source.url).hostname.toLowerCase().replace(/^www\./, '');
+          return hostname ? [hostname] : [];
+        } catch {
+          return [];
+        }
+      }),
+    );
     const searchQueries = evidence.searchQueries.slice(0, 8);
-    if (distinctSourceTitles.size < 2 || searchQueries.length === 0) {
+    // Multiple pages with different titles on one job board are useful corroboration, but they
+    // are not the two independent domains promised to recruiters in the product copy and prompt.
+    if (distinctSourceDomains.size < 2 || searchQueries.length === 0) {
       return null;
     }
 
@@ -313,9 +349,9 @@ ${JSON.stringify(facts)}
       ? (payload.confidence as 'LOW' | 'MEDIUM' | 'HIGH')
       : 'LOW';
     const confidence =
-      distinctSourceTitles.size >= 5 && requestedConfidence === 'HIGH'
+      distinctSourceDomains.size >= 5 && requestedConfidence === 'HIGH'
         ? 'HIGH'
-        : distinctSourceTitles.size >= 3 && requestedConfidence !== 'LOW'
+        : distinctSourceDomains.size >= 3 && requestedConfidence !== 'LOW'
           ? 'MEDIUM'
           : 'LOW';
 
@@ -370,6 +406,11 @@ ${JSON.stringify(facts)}
       category: input.jobCategoryName?.toLowerCase() ?? '',
       companyType: input.companyType?.toLowerCase() ?? '',
       companySize: input.companySize?.toLowerCase() ?? '',
+      // A title and a list of skills do not fully describe seniority or domain constraints. Keep
+      // the actual JD text in the cache identity so a finance-platform backend role cannot reuse
+      // an earlier generic backend answer merely because the visible selectors match.
+      description: this.plainText(input.description, 3_000).toLowerCase(),
+      requirements: this.plainText(input.requirements ?? '', 3_000).toLowerCase(),
       required: input.requiredSkillNames.map((item) => item.toLowerCase()).sort(),
       related: [...input.relatedSkillNames, ...input.skillKeywords]
         .map((item) => item.toLowerCase())
