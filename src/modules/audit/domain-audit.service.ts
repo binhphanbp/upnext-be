@@ -130,7 +130,8 @@ export class DomainAuditService {
     // biến chúng thành `null`), nên bỏ hẳn còn trung thực hơn là ghi `null`.
     if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
     if (typeof value === 'string') {
-      return redact(value).text.slice(0, MAX_STRING_LENGTH);
+      const withoutUrls = value.replace(/https?:\/\/[^\s<>"')]+/g, '[liên kết đã ẩn]');
+      return redact(withoutUrls).text.slice(0, MAX_STRING_LENGTH);
     }
     if (value instanceof Date) return value.toISOString();
     if (Array.isArray(value)) {

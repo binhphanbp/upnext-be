@@ -276,7 +276,9 @@ export class SubscriptionQuotaService {
     });
     const usedByFeatureAndPeriod = new Map(
       counters.map((counter) => [
-        `${counter.feature}:${counter.periodStart.getTime()}`,
+        counter.periodStart
+          ? `${counter.feature}:${counter.periodStart.getTime()}`
+          : counter.feature,
         counter.usedValue,
       ]),
     );
@@ -284,7 +286,9 @@ export class SubscriptionQuotaService {
     return planFeatures.map((planFeature) => {
       const window = windows.get(planFeature.feature)!;
       const used =
-        usedByFeatureAndPeriod.get(`${planFeature.feature}:${window.periodStart.getTime()}`) ?? 0;
+        usedByFeatureAndPeriod.get(`${planFeature.feature}:${window.periodStart.getTime()}`) ??
+        usedByFeatureAndPeriod.get(planFeature.feature) ??
+        0;
       const isPlatformJobPosting = planFeature.feature === SubscriptionFeature.JOB_POST;
       const limit = isPlatformJobPosting ? null : planFeature.limitValue;
       return {
