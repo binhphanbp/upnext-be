@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { AiKnowledgeDocumentStatus, AiKnowledgeSourceType, Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { OutboxService } from '../../outbox/outbox.service';
 import { redact } from '../context/pii-redactor';
 import {
   EMBEDDING_CACHE_KEY,
@@ -31,7 +32,22 @@ export class CandidateKnowledgeIndexerService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(EMBEDDING_PROVIDER) private readonly embeddings: EmbeddingProviderPort,
+    private readonly outbox: OutboxService,
   ) {}
+
+  async enqueue(input: CandidateKnowledgeUpsert) {
+    const content = redact(input.content).text.trim();
+    if (!input.title.trim() || !content)
+      throw new BadRequestException('Knowledge title and content are required');
+    const dedupeKey = `candidate-knowledge:index:${this.hash(`${input.sourceType}:${input.canonicalUrl}:${input.sourceVersion}:${content}`)}`;
+    return this.outbox.enqueue({
+      aggregateType: 'ai_knowledge_document',
+      aggregateId: randomUUID(),
+      eventType: 'candidate_knowledge.index',
+      dedupeKey,
+      payload: { ...input, content },
+    });
+  }
 
   async upsertPublished(input: CandidateKnowledgeUpsert) {
     const title = input.title.trim();
