@@ -245,6 +245,18 @@ jobs:
           echo "Prisma migration diagnostics exited with status ${migration_status}."
           exit 1
 
+      - name: Publish reviewed Candidate Assistant knowledge
+        run: |
+          if [ "${{ github.ref_name }}" = "dev" ]; then
+            SERVICE="upnext-backend-staging"
+          else
+            SERVICE="upnext-backend"
+          fi
+
+          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "docker exec ${SERVICE} node dist/commands/sync-candidate-knowledge.js"
+
       - name: Notify Telegram success
         if: success()
         env:

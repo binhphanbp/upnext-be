@@ -59,6 +59,15 @@ export class OutboxProcessorService {
     }
   }
 
+  /**
+   * Used by release-time catalog publishing. It reuses the same atomic claim,
+   * retry and error persistence as the cron worker, but never drains unrelated
+   * business events while a deployment is validating its own catalog entries.
+   */
+  async processByIds(ids: readonly string[]) {
+    for (const id of new Set(ids)) await this.processOne(id);
+  }
+
   private async processOne(id: string) {
     const claimed = await this.prisma.outboxEvent.updateMany({
       where: { id, status: OutboxStatus.PENDING },
