@@ -1545,8 +1545,7 @@ export class ApplicationsService {
     });
 
     const recipientEmail = application.candidateProfile?.account?.email;
-    const recipientName =
-      application.candidateProfile?.account?.fullName || 'Ứng viên';
+    const recipientName = application.candidateProfile?.account?.fullName || 'Ứng viên';
 
     if (status === ApplicationStatus.OFFERED && recipientEmail) {
       void this.emailService

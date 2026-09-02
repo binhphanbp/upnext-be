@@ -374,7 +374,7 @@ describe('CvScreeningService.startRun -- embedding pre-filter', () => {
     );
   });
 
-  it("an explicit request limit overrides every configured default", async () => {
+  it('an explicit request limit overrides every configured default', async () => {
     const { service, prisma, embedding } = buildService();
     prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({ defaultTopN: 2 });
     embedding.rankCvEmbeddings.mockResolvedValue([]);
@@ -426,7 +426,11 @@ describe('CvScreeningService.reuseFreshScores -- re-weighting cached scores', ()
       { key: 'skills', summary: '', items: [{ key: 'required-skills', awardedScore: 40 }] },
       { key: 'experience', summary: '', items: [{ key: 'relevant-years', awardedScore: 15 }] },
       { key: 'projects', summary: '', items: [{ key: 'project-relevance', awardedScore: 0 }] },
-      { key: 'education', summary: '', items: [{ key: 'education-level-match', awardedScore: 10 }] },
+      {
+        key: 'education',
+        summary: '',
+        items: [{ key: 'education-level-match', awardedScore: 10 }],
+      },
     ],
   };
 

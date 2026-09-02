@@ -16,8 +16,6 @@ export type ResolvedScreeningConfig = {
   mustHaveCriteria: string[];
   niceToHaveCriteria: string[];
   customPrompt: string | null;
-  passingScore: number | null;
-  defaultTopN: number | null;
 };
 
 /** The raw shape of both config tables (company + job post override). Every
@@ -31,8 +29,6 @@ export type ScreeningConfigRow = {
   mustHaveCriteria?: Prisma.JsonValue | null;
   niceToHaveCriteria?: Prisma.JsonValue | null;
   customPrompt?: string | null;
-  passingScore?: number | null;
-  defaultTopN?: number | null;
 };
 
 export const WEIGHT_STEP = 5;
@@ -56,8 +52,6 @@ export const SYSTEM_DEFAULT_SCREENING_CONFIG: ResolvedScreeningConfig = {
   mustHaveCriteria: [],
   niceToHaveCriteria: [],
   customPrompt: null,
-  passingScore: null,
-  defaultTopN: null,
 };
 
 export function referenceMaxScore(key: CvScoringCriterionBreakdown['key']): number {
@@ -104,8 +98,6 @@ export function resolveScreeningConfig(
       readCriteria(company?.niceToHaveCriteria) ??
       SYSTEM_DEFAULT_SCREENING_CONFIG.niceToHaveCriteria,
     customPrompt: firstDefined(jobPost?.customPrompt, company?.customPrompt),
-    passingScore: firstDefined(jobPost?.passingScore, company?.passingScore),
-    defaultTopN: firstDefined(jobPost?.defaultTopN, company?.defaultTopN),
   };
 }
 
@@ -117,8 +109,6 @@ export function describeInheritance(jobPost?: ScreeningConfigRow | null) {
     mustHaveCriteria: readCriteria(jobPost?.mustHaveCriteria) === null,
     niceToHaveCriteria: readCriteria(jobPost?.niceToHaveCriteria) === null,
     customPrompt: (jobPost?.customPrompt ?? null) === null,
-    passingScore: (jobPost?.passingScore ?? null) === null,
-    defaultTopN: (jobPost?.defaultTopN ?? null) === null,
   };
 }
 
@@ -252,13 +242,11 @@ export function readConfigSnapshot(value: Prisma.JsonValue | null | undefined) {
 
   const record = value as Record<string, unknown>;
   return {
-    weights: readScoringWeights((record.weights ?? null)),
+    weights: readScoringWeights(record.weights ?? null),
     weightPreset: typeof record.weightPreset === 'string' ? record.weightPreset : null,
     mustHaveCriteria: readCriteria(record.mustHaveCriteria as Prisma.JsonValue) ?? [],
     niceToHaveCriteria: readCriteria(record.niceToHaveCriteria as Prisma.JsonValue) ?? [],
     customPrompt: typeof record.customPrompt === 'string' ? record.customPrompt : null,
-    passingScore: typeof record.passingScore === 'number' ? record.passingScore : null,
-    defaultTopN: typeof record.defaultTopN === 'number' ? record.defaultTopN : null,
   } satisfies ResolvedScreeningConfig;
 }
 

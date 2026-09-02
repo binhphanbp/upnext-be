@@ -201,7 +201,7 @@ describe('GeminiScoringService', () => {
     expect(schema.items.properties).not.toHaveProperty('niceToHaveResults');
   });
 
-  it('asks for a verdict per configured criterion and keeps them in the recruiter\'s order', async () => {
+  it("asks for a verdict per configured criterion and keeps them in the recruiter's order", async () => {
     const applicationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const { service, provider } = createService([
       {

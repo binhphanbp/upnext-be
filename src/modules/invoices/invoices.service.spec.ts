@@ -109,9 +109,7 @@ describe('InvoicesService', () => {
       // Assert on the message, not just the type: the company-ownership check
       // above this one throws ForbiddenException too, so the type alone would
       // let this test pass for the wrong reason.
-      await expect(service.pay('inv-1', user, { paymentMethod: 'SEPAY' })).rejects.toThrow(
-        /SePay/,
-      );
+      await expect(service.pay('inv-1', user, { paymentMethod: 'SEPAY' })).rejects.toThrow(/SePay/);
 
       expect(prismaMock.invoice.update).not.toHaveBeenCalled();
       expect(subscriptionServiceMock.activatePlanForCompany).not.toHaveBeenCalled();

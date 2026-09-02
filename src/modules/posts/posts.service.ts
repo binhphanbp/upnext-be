@@ -391,12 +391,15 @@ export class PostsService {
           content,
           excerpt: dto.excerpt === undefined ? post.excerpt : dto.excerpt,
           categoryId: dto.categoryId === undefined ? post.categoryId : dto.categoryId,
-          thumbnailFileId: dto.thumbnailFileId === undefined ? post.thumbnailFileId : dto.thumbnailFileId,
-          coverImageFileId: dto.coverImageFileId === undefined ? post.coverImageFileId : dto.coverImageFileId,
+          thumbnailFileId:
+            dto.thumbnailFileId === undefined ? post.thumbnailFileId : dto.thumbnailFileId,
+          coverImageFileId:
+            dto.coverImageFileId === undefined ? post.coverImageFileId : dto.coverImageFileId,
           thumbnailAlt: dto.thumbnailAlt === undefined ? post.thumbnailAlt : dto.thumbnailAlt,
           coverImageAlt: dto.coverImageAlt === undefined ? post.coverImageAlt : dto.coverImageAlt,
           metaTitle: dto.metaTitle === undefined ? post.metaTitle : dto.metaTitle,
-          metaDescription: dto.metaDescription === undefined ? post.metaDescription : dto.metaDescription,
+          metaDescription:
+            dto.metaDescription === undefined ? post.metaDescription : dto.metaDescription,
           canonicalUrl: dto.canonicalUrl === undefined ? post.canonicalUrl : dto.canonicalUrl,
         });
       }
@@ -410,9 +413,7 @@ export class PostsService {
           type: dto.type,
           status: dto.status === undefined ? undefined : dto.status,
           publishedAt:
-            dto.status === PostStatus.PUBLISHED && !post.publishedAt
-              ? new Date()
-              : undefined,
+            dto.status === PostStatus.PUBLISHED && !post.publishedAt ? new Date() : undefined,
           categoryId: dto.categoryId === undefined ? undefined : dto.categoryId,
           thumbnailFileId: dto.thumbnailFileId === undefined ? undefined : dto.thumbnailFileId,
           coverImageFileId: dto.coverImageFileId === undefined ? undefined : dto.coverImageFileId,

@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Put, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -39,7 +48,7 @@ export class CvScreeningConfigController {
   }
 
   @Get('job/:jobPostId')
-  @ApiOperation({ summary: 'Get one job post\'s screening config, merged over company defaults' })
+  @ApiOperation({ summary: "Get one job post's screening config, merged over company defaults" })
   @ApiParam({ name: 'jobPostId', description: 'UUID of the job post' })
   @ApiOkResponse({ description: 'Effective config for this job post, with inheritance flags.' })
   getJobConfig(
@@ -50,7 +59,7 @@ export class CvScreeningConfigController {
   }
 
   @Put('job/:jobPostId')
-  @ApiOperation({ summary: "Override the company defaults for one job post" })
+  @ApiOperation({ summary: 'Override the company defaults for one job post' })
   @ApiParam({ name: 'jobPostId', description: 'UUID of the job post' })
   @ApiBody({ type: UpdateCvScreeningConfigDto })
   @ApiOkResponse({ description: 'Override saved.' })

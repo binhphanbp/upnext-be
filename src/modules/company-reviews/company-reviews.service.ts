@@ -8,10 +8,7 @@ import { CompanyReviewStatus, Prisma } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toPagination } from '../../common/dto/pagination-query.dto';
-import {
-  COMPANY_REVIEW_TARGET_TYPE,
-  ReportsService,
-} from '../reports/reports.service';
+import { COMPANY_REVIEW_TARGET_TYPE, ReportsService } from '../reports/reports.service';
 import { CreateCompanyReviewDto } from './dto/create-company-review.dto';
 import { UpdateCompanyReviewDto } from './dto/update-company-review.dto';
 import { CreateCompanyReviewReportDto } from './dto/create-company-review-report.dto';
@@ -324,5 +321,4 @@ export class CompanyReviewsService {
       evidenceFileId: dto.evidenceFileId,
     });
   }
-
 }

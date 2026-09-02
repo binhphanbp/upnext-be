@@ -154,15 +154,15 @@ export class CvScreeningService {
     // config edit while the run is queued can't change how it scores.
     const config = resolveScreeningConfig(companyConfig, jobConfig);
 
-    // `limit` is "Top N" (10/20/...): the recruiter wants only the N CVs
-    // closest to the job description AI-scored, not every applicant. Ranking
-    // by embedding similarity first (cheap, fast, already computed/cached for
-    // other features) and sending only the winners to Gemini's slow, metered
-    // scoring is what actually gets a run down to 1-2 minutes -- scoring
-    // every CV with the LLM is both the cost and the latency problem, not
-    // just a throughput setting. Omitting `limit` (and having no configured
-    // default) keeps the old "score everyone" behaviour.
-    const limit = dto.limit ?? config.defaultTopN ?? undefined;
+    // `limit` is "Top N" (10/20/...), chosen per run on the screening screen:
+    // the recruiter wants only the N CVs closest to the job description
+    // AI-scored, not every applicant. Ranking by embedding similarity first
+    // (cheap, fast, already computed/cached for other features) and sending
+    // only the winners to Gemini's slow, metered scoring is what gets a run
+    // down to 1-2 minutes -- scoring every CV with the LLM is both the cost
+    // and the latency problem, not just a throughput setting. Omitting
+    // `limit` keeps the "score everyone" behaviour.
+    const limit = dto.limit;
     const applicationIds =
       limit && limit < applicationPool.length
         ? await this.selectTopApplicationsByEmbedding(dto.jobPostId, applicationPool, limit)
@@ -423,8 +423,6 @@ export class CvScreeningService {
       missingSkills: this.toStringArray(score.missingSkills),
       summary: score.summary,
       recommendation: this.toVietnameseRecommendation(score.recommendation),
-      passingScore: score.passingScore,
-      meetsPassingScore: score.meetsPassingScore,
       missingMustHaveCount: this.readVerdicts(score.mustHaveResults).filter(
         (verdict) => !verdict.met,
       ).length,
@@ -498,8 +496,6 @@ export class CvScreeningService {
       ),
       evaluationRubric: this.scaleRubric(weights),
       scoringWeights: weights,
-      passingScore: score.passingScore,
-      meetsPassingScore: score.meetsPassingScore,
       mustHaveResults: this.readVerdicts(score.mustHaveResults),
       niceToHaveResults: this.readVerdicts(score.niceToHaveResults),
       cvFileUrl:
@@ -952,7 +948,6 @@ export class CvScreeningService {
         applicationId: true,
         runId: true,
         scoringWeights: true,
-        passingScore: true,
         rawAiResponse: true,
       },
     });
@@ -982,7 +977,7 @@ export class CvScreeningService {
   }
 
   /**
-   * Re-applies the current weights/passing score to cached scores whose AI
+   * Re-applies the current weights to cached scores whose AI
    * output is still valid.
    *
    * This is what makes "change the weights" instant and free: the model's
@@ -994,15 +989,12 @@ export class CvScreeningService {
     scores: Array<{
       id: string;
       scoringWeights: Prisma.JsonValue;
-      passingScore: number | null;
       rawAiResponse: Prisma.JsonValue;
     }>,
     config: ResolvedScreeningConfig,
   ): Promise<number> {
     const stale = scores.filter(
-      (score) =>
-        !this.sameWeights(readScoringWeights(score.scoringWeights), config.weights) ||
-        (score.passingScore ?? null) !== config.passingScore,
+      (score) => !this.sameWeights(readScoringWeights(score.scoringWeights), config.weights),
     );
     if (stale.length === 0) {
       return 0;
@@ -1010,7 +1002,9 @@ export class CvScreeningService {
 
     let updated = 0;
     for (const score of stale) {
-      const breakdown = this.toCriteriaBreakdown(score.rawAiResponse) as CvScoringCriterionBreakdown[];
+      const breakdown = this.toCriteriaBreakdown(
+        score.rawAiResponse,
+      ) as CvScoringCriterionBreakdown[];
       if (breakdown.length === 0) {
         // Nothing to recompute from (legacy row without a breakdown): leave it
         // as scored rather than inventing numbers.
@@ -1025,9 +1019,6 @@ export class CvScreeningService {
           ...weighted,
           aiScore: weighted.finalScore,
           scoringWeights: config.weights,
-          passingScore: config.passingScore,
-          meetsPassingScore:
-            config.passingScore === null ? null : weighted.finalScore >= config.passingScore,
           recommendation: this.recommendationForScore(weighted.finalScore),
         },
       });
@@ -1269,9 +1260,6 @@ export class CvScreeningService {
       recommendation: this.recommendationForScore(weighted.finalScore),
       rawAiResponse: rawAiResponse as Prisma.InputJsonValue,
       scoringWeights: config.weights as unknown as Prisma.InputJsonValue,
-      passingScore: config.passingScore,
-      meetsPassingScore:
-        config.passingScore === null ? null : weighted.finalScore >= config.passingScore,
       mustHaveResults: result.mustHaveResults as unknown as Prisma.InputJsonValue,
       niceToHaveResults: result.niceToHaveResults as unknown as Prisma.InputJsonValue,
       promptFingerprint: buildPromptFingerprint(config, SCORING_VERSION),

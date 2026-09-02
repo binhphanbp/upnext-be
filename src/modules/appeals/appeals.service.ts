@@ -161,7 +161,9 @@ export class AppealsService {
       where: status ? { status } : undefined,
       orderBy: { createdAt: 'desc' },
       include: {
-        recruiterAccount: { select: { id: true, email: true, company: { select: { name: true } } } },
+        recruiterAccount: {
+          select: { id: true, email: true, company: { select: { name: true } } },
+        },
       },
     });
   }

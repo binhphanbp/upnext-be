@@ -66,7 +66,10 @@ import { AiConversationContext } from '@prisma/client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { JobPostAiService } from '../src/modules/job-post-ai/job-post-ai.service';
-import { JobPostOutputLanguage, JobPostPresentationStyle } from '../src/modules/job-post-ai/dto/generate-job-post-draft.dto';
+import {
+  JobPostOutputLanguage,
+  JobPostPresentationStyle,
+} from '../src/modules/job-post-ai/dto/generate-job-post-draft.dto';
 import { CvScreeningService } from '../src/modules/cv-screening/cv-screening.service';
 import { AiCopilotService } from '../src/modules/ai/copilot/ai-copilot.service';
 import { AiConversationsService } from '../src/modules/ai/copilot/ai-conversations.service';
@@ -107,9 +110,14 @@ function parseArgs(): Args {
     }),
   );
   const feature = raw.get('feature');
-  if (feature !== 'jd_generate' && feature !== 'cv_matching' && feature !== 'copilot' && feature !== 'report') {
+  if (
+    feature !== 'jd_generate' &&
+    feature !== 'cv_matching' &&
+    feature !== 'copilot' &&
+    feature !== 'report'
+  ) {
     throw new Error(
-      "--feature phải là jd_generate | cv_matching | copilot | report, ví dụ: --feature=jd_generate",
+      '--feature phải là jd_generate | cv_matching | copilot | report, ví dụ: --feature=jd_generate',
     );
   }
   return {
@@ -122,7 +130,11 @@ function parseArgs(): Args {
   };
 }
 
-async function runJdGenerate(app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>, recruiterId: string, n: number) {
+async function runJdGenerate(
+  app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>,
+  recruiterId: string,
+  n: number,
+) {
   const service = app.get(JobPostAiService);
   let ok = 0;
   let failed = 0;
@@ -181,7 +193,7 @@ async function runCvMatching(
     }
   }
   process.stdout.write(
-    `  [cv_matching] Quá ${MAX_ATTEMPTS * POLL_INTERVAL_MS / 3_600_000} giờ chờ -- kiểm tra run ${runId} bằng tay ` +
+    `  [cv_matching] Quá ${(MAX_ATTEMPTS * POLL_INTERVAL_MS) / 3_600_000} giờ chờ -- kiểm tra run ${runId} bằng tay ` +
       `(CHÚ Ý: nếu process này thoát trong khi run chưa xong, phần đang xử lý sẽ kẹt ở status=processing).\n`,
   );
 }
@@ -272,14 +284,20 @@ async function printReport(prisma: PrismaService, since?: Date) {
   }
 
   process.stdout.write('\n=== Báo cáo COGS (ai_usage_logs) ===\n');
-  process.stdout.write(since ? `Từ: ${since.toISOString()}\n\n` : '(toàn bộ, không lọc thời gian)\n\n');
+  process.stdout.write(
+    since ? `Từ: ${since.toISOString()}\n\n` : '(toàn bộ, không lọc thời gian)\n\n',
+  );
   for (const row of rows) {
     const avgCost = row._avg.costEstimate ? Number(row._avg.costEstimate) : null;
     const totalCost = row._sum.costEstimate ? Number(row._sum.costEstimate) : null;
     process.stdout.write(
       `${row.feature.padEnd(18)} succeeded=${String(row.succeeded).padEnd(5)} n=${String(row._count._all).padEnd(5)} ` +
-        `avg_input=${Math.round(row._avg.inputTokens ?? 0).toString().padEnd(7)} ` +
-        `avg_output=${Math.round(row._avg.outputTokens ?? 0).toString().padEnd(7)} ` +
+        `avg_input=${Math.round(row._avg.inputTokens ?? 0)
+          .toString()
+          .padEnd(7)} ` +
+        `avg_output=${Math.round(row._avg.outputTokens ?? 0)
+          .toString()
+          .padEnd(7)} ` +
         `avg_cost_vnd=${avgCost !== null ? avgCost.toFixed(2) : 'N/A'.padEnd(10)} ` +
         `total_cost_vnd=${totalCost !== null ? totalCost.toFixed(2) : 'N/A'}\n`,
     );
@@ -298,7 +316,8 @@ async function main() {
 
   try {
     if (args.feature === 'jd_generate') {
-      if (!args.recruiterId) throw new Error('--recruiter-id là bắt buộc cho --feature=jd_generate');
+      if (!args.recruiterId)
+        throw new Error('--recruiter-id là bắt buộc cho --feature=jd_generate');
       await runJdGenerate(app, args.recruiterId, args.n);
     } else if (args.feature === 'cv_matching') {
       if (!args.recruiterId || !args.jobPostId) {
@@ -306,12 +325,14 @@ async function main() {
       }
       await runCvMatching(app, args.recruiterId, args.jobPostId, args.n);
     } else if (args.feature === 'copilot') {
-      if (!args.candidateAccountId) throw new Error('--candidate-account-id là bắt buộc cho --feature=copilot');
+      if (!args.candidateAccountId)
+        throw new Error('--candidate-account-id là bắt buộc cho --feature=copilot');
       await runCopilot(app, args.candidateAccountId, args.n);
     }
 
     const prisma = app.get(PrismaService);
-    const since = args.feature === 'report' ? (args.since ? new Date(args.since) : undefined) : startedAt;
+    const since =
+      args.feature === 'report' ? (args.since ? new Date(args.since) : undefined) : startedAt;
     await printReport(prisma, since);
   } finally {
     await app.close();

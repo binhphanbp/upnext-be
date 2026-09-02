@@ -1,5 +1,11 @@
 import 'dotenv/config';
-import { PrismaClient, JobBoostStatus, JobBoostType, JobBoostEndedReason, SubscriptionUsageDirection } from '@prisma/client';
+import {
+  PrismaClient,
+  JobBoostStatus,
+  JobBoostType,
+  JobBoostEndedReason,
+  SubscriptionUsageDirection,
+} from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { randomUUID } from 'node:crypto';
 
@@ -22,8 +28,12 @@ async function main() {
   console.log('🚀 Bắt đầu nạp dữ liệu mẫu cho Job Boost theo đúng nghiệp vụ...');
 
   const now = new Date();
-  const proPlan = await prisma.subscriptionPlan.findUniqueOrThrow({ where: { code: 'RECRUITER_PRO' } });
-  const freePlan = await prisma.subscriptionPlan.findUniqueOrThrow({ where: { code: 'RECRUITER_FREE' } });
+  const proPlan = await prisma.subscriptionPlan.findUniqueOrThrow({
+    where: { code: 'RECRUITER_PRO' },
+  });
+  const freePlan = await prisma.subscriptionPlan.findUniqueOrThrow({
+    where: { code: 'RECRUITER_FREE' },
+  });
 
   // Tìm các công ty tiêu biểu
   const targetCompanies = [
@@ -87,14 +97,19 @@ async function main() {
         data: {
           subscriptionPlanId: item.plan.id,
           companyId: company.id,
-          invoiceCode: `INV-${company.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+          invoiceCode: `INV-${company.name
+            .replace(/[^a-zA-Z0-9]/g, '')
+            .slice(0, 8)
+            .toUpperCase()}-${Date.now().toString().slice(-4)}`,
           amount: item.plan.price,
           paymentMethod: 'SEPAY',
           paymentStatus: 'PAID',
           paidAt: addDays(now, -10),
         },
       });
-      console.log(`  ✅ Đã tạo gói đăng ký ${item.plan.code} (Hạn mức: ${boostLimit} Boost, Đã dùng: ${totalBoostsNeeded})`);
+      console.log(
+        `  ✅ Đã tạo gói đăng ký ${item.plan.code} (Hạn mức: ${boostLimit} Boost, Đã dùng: ${totalBoostsNeeded})`,
+      );
     } else {
       await prisma.companySubscription.update({
         where: { id: activeSub.id },
@@ -105,7 +120,9 @@ async function main() {
           status: 'ACTIVE',
         },
       });
-      console.log(`  ✅ Đã cập nhật gói đăng ký ${item.plan.code} (Hạn mức: ${boostLimit} Boost, Đã dùng: ${totalBoostsNeeded})`);
+      console.log(
+        `  ✅ Đã cập nhật gói đăng ký ${item.plan.code} (Hạn mức: ${boostLimit} Boost, Đã dùng: ${totalBoostsNeeded})`,
+      );
     }
 
     // 2. Dọn dẹp boost cũ của các job được target để tránh duplicate live index
@@ -121,7 +138,10 @@ async function main() {
 
       // Xóa boost live cũ nếu có trên job này
       await prisma.jobBoost.deleteMany({
-        where: { jobPostId: job.id, status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] } },
+        where: {
+          jobPostId: job.id,
+          status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] },
+        },
       });
 
       const boost = await prisma.jobBoost.create({
@@ -190,7 +210,10 @@ async function main() {
       const idempotencyKey = `job-boost:${company.id}:${boostId}`;
 
       await prisma.jobBoost.deleteMany({
-        where: { jobPostId: job.id, status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] } },
+        where: {
+          jobPostId: job.id,
+          status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] },
+        },
       });
 
       const boost = await prisma.jobBoost.create({
@@ -255,7 +278,9 @@ async function main() {
     // Các job còn lại để trống để test bấm nút "Đẩy tin"
     const remainingJobs = company.jobPosts.slice(jobIndex);
     if (remainingJobs.length > 0) {
-      console.log(`  🆕 Có ${remainingJobs.length} tin chưa boost: "${remainingJobs[0].title}" (Sẵn sàng test nút Đẩy tin)`);
+      console.log(
+        `  🆕 Có ${remainingJobs.length} tin chưa boost: "${remainingJobs[0].title}" (Sẵn sàng test nút Đẩy tin)`,
+      );
     }
   }
 

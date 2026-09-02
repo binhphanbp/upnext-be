@@ -1472,10 +1472,6 @@ model ApplicationAiScore {
   /// scored before configurable weights existed -- readers fall back to the
   /// reference rubric, which is exactly what those rows used.
   scoringWeights     Json?    @map("scoring_weights")
-  /// Snapshot of the "Đạt tiêu chuẩn" threshold, and whether this candidate
-  /// cleared it. null = the company had not set a passing score.
-  passingScore       Int?     @map("passing_score")
-  meetsPassingScore  Boolean? @map("meets_passing_score")
   /// Per-criterion verdicts, e.g. [{"criterion":"2 năm React","met":false,
   /// "evidence":"..."}]. Missing must-haves are a warning, never a veto.
   mustHaveResults    Json?    @map("must_have_results")
@@ -2683,12 +2679,12 @@ model CandidateContactPreference {
 }
 
 /// Per-company defaults for the "AI lọc CV" screening behaviour: how the 100
-/// points are split between the four rubric groups, the recruiter's real
-/// hiring criteria, and the shortlist/passing thresholds. Absent (no row) or
-/// a null field means "use the system defaults" (see
-/// screening-config.resolver.ts), so a company never has to configure
-/// anything. A single job post can override any of this -- see
-/// JobPostCvScreeningConfig.
+/// points are split between the four rubric groups, plus the recruiter's real
+/// hiring criteria. Absent (no row) or a null field means "use the system
+/// defaults" (see screening-config.resolver.ts), so a company never has to
+/// configure anything. A single job post can override any of this -- see
+/// JobPostCvScreeningConfig. How many CVs a run scores is chosen per run on
+/// the screening screen (Top 10/Top 20), not configured here.
 model CvScreeningCompanyConfig {
   companyId          String  @id @map("company_id") @db.Uuid
   /// Point weights per rubric group; they must be multiples of 5 and sum to
@@ -2712,12 +2708,6 @@ model CvScreeningCompanyConfig {
   /// One free-text note appended to the AI prompt. Treated as untrusted
   /// recruiter input -- see gemini-scoring.service.ts buildSystemInstruction.
   customPrompt       String? @map("custom_prompt") @db.Text
-  /// Final score (0-100) at or above which a candidate is labelled "Đạt tiêu
-  /// chuẩn". null = no labelling.
-  passingScore       Int?    @map("passing_score")
-  /// Default "Top N" shortlist size when a run's request omits `limit`.
-  /// null = score the whole application pool.
-  defaultTopN        Int?    @map("default_top_n")
 
   updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
   createdAt          DateTime @default(now()) @map("created_at")
@@ -2742,8 +2732,6 @@ model JobPostCvScreeningConfig {
   mustHaveCriteria   Json?   @map("must_have_criteria")
   niceToHaveCriteria Json?   @map("nice_to_have_criteria")
   customPrompt       String? @map("custom_prompt") @db.Text
-  passingScore       Int?    @map("passing_score")
-  defaultTopN        Int?    @map("default_top_n")
 
   updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
   createdAt          DateTime @default(now()) @map("created_at")

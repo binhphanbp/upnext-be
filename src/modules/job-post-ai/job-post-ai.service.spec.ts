@@ -107,10 +107,20 @@ describe('JobPostAiService', () => {
     gemini = {
       generateDraft: jest
         .fn()
-        .mockResolvedValue({ draft: rawDraft, modelName: 'gemini-test', inputTokens: 500, outputTokens: 300 }),
+        .mockResolvedValue({
+          draft: rawDraft,
+          modelName: 'gemini-test',
+          inputTokens: 500,
+          outputTokens: 300,
+        }),
       extractDraft: jest
         .fn()
-        .mockResolvedValue({ draft: rawDraft, modelName: 'gemini-test', inputTokens: 500, outputTokens: 300 }),
+        .mockResolvedValue({
+          draft: rawDraft,
+          modelName: 'gemini-test',
+          inputTokens: 500,
+          outputTokens: 300,
+        }),
     };
     quota = {
       consume: jest

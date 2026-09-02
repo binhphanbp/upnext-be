@@ -17,7 +17,6 @@ import {
   WEIGHT_TOTAL,
 } from '../screening-config.resolver';
 
-const ALLOWED_DEFAULT_TOP_N = [10, 20, 50] as const;
 const ALLOWED_WEIGHT_PRESETS = ['FRESHER', 'MID', 'SENIOR', 'CUSTOM'] as const;
 
 export class UpdateCvScreeningConfigDto {
@@ -95,25 +94,4 @@ export class UpdateCvScreeningConfigDto {
   @IsString()
   @MaxLength(MAX_CUSTOM_PROMPT_LENGTH)
   customPrompt?: string | null;
-
-  @ApiPropertyOptional({
-    example: 70,
-    minimum: 0,
-    maximum: 100,
-    description: 'Điểm đạt tối thiểu để gắn nhãn "Đạt tiêu chuẩn". null = không gắn nhãn.',
-  })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  passingScore?: number | null;
-
-  @ApiPropertyOptional({
-    example: 20,
-    enum: ALLOWED_DEFAULT_TOP_N,
-    description: 'Số ứng viên chấm điểm mặc định khi lượt chạy không gửi `limit`. null = tất cả.',
-  })
-  @IsOptional()
-  @IsIn(ALLOWED_DEFAULT_TOP_N)
-  defaultTopN?: number | null;
 }

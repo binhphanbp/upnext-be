@@ -93,7 +93,11 @@ export class ReportsService {
   }
 
   /** Checks if candidate has an active (PENDING/REVIEWING) report for the target. */
-  async findActiveCandidateReport(candidateAccountId: string, targetType: string, targetIdOrSlug: string) {
+  async findActiveCandidateReport(
+    candidateAccountId: string,
+    targetType: string,
+    targetIdOrSlug: string,
+  ) {
     const candidateProfile = await this.prisma.candidateProfile.findUnique({
       where: { candidateAccountId },
       select: { id: true },
@@ -383,7 +387,10 @@ export class ReportsService {
 
     // Approving a report against a company is what puts it into Restricted Mode. Same
     // guard as above: this mutates the company, so it must not run twice.
-    if (report.targetType.toUpperCase() === RESTRICTED_TARGET_TYPE && status === ReportStatus.RESOLVED) {
+    if (
+      report.targetType.toUpperCase() === RESTRICTED_TARGET_TYPE &&
+      status === ReportStatus.RESOLVED
+    ) {
       if (report.status !== ReportStatus.PENDING && report.status !== ReportStatus.REVIEWING) {
         throw new BadRequestException('Báo cáo này đã được xử lý trước đó.');
       }
@@ -611,7 +618,9 @@ export class ReportsService {
   }
 
   private async resolveTargetId(targetType: string, targetIdOrSlug: string): Promise<string> {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetIdOrSlug);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      targetIdOrSlug,
+    );
     if (isUuid) {
       return targetIdOrSlug;
     }

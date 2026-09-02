@@ -201,9 +201,7 @@ export class CandidateAccountAuthService {
    * Gửi lại link xác thực bằng email, không cần đăng nhập — cần cho trường
    * hợp mở link xác thực trên thiết bị/trình duyệt khác với lúc đăng ký.
    */
-  async requestEmailVerificationByEmail(
-    email: string,
-  ): Promise<CandidateEmailVerificationRequest> {
+  async requestEmailVerificationByEmail(email: string): Promise<CandidateEmailVerificationRequest> {
     const normalizedEmail = email.toLowerCase();
     const account = await this.prisma.candidateAccount.findUnique({
       where: { email: normalizedEmail },

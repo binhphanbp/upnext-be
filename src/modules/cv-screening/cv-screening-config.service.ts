@@ -26,8 +26,6 @@ export type CvScreeningConfigResponse = {
   mustHaveCriteria: string[];
   niceToHaveCriteria: string[];
   customPrompt: string | null;
-  passingScore: number | null;
-  defaultTopN: number | null;
   /** Which fields a job-scoped config is still inheriting from the company
    * defaults, so the UI can label them instead of pretending they were set
    * for this job. Always all-false for the company scope. */
@@ -49,8 +47,6 @@ type ScreeningConfigWriteData = {
   mustHaveCriteria?: Prisma.InputJsonValue | typeof Prisma.DbNull;
   niceToHaveCriteria?: Prisma.InputJsonValue | typeof Prisma.DbNull;
   customPrompt?: string | null;
-  passingScore?: number | null;
-  defaultTopN?: number | null;
 };
 
 const NO_INHERITANCE: Record<string, boolean> = {
@@ -58,17 +54,14 @@ const NO_INHERITANCE: Record<string, boolean> = {
   mustHaveCriteria: false,
   niceToHaveCriteria: false,
   customPrompt: false,
-  passingScore: false,
-  defaultTopN: false,
 };
 
 @Injectable()
 export class CvScreeningConfigService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Readable by any team member -- the "AI lọc CV" screen pre-fills its
-   * default Top-N and weights from this for everyone, not just whoever can
-   * edit it. */
+  /** Readable by any team member -- the "AI lọc CV" screen shows the current
+   * weights and criteria to everyone, not just whoever can edit them. */
   async getConfig(recruiterId: string): Promise<CvScreeningConfigResponse> {
     const companyId = await this.resolveCompanyId(recruiterId);
     const config = await this.prisma.cvScreeningCompanyConfig.findUnique({
@@ -80,8 +73,8 @@ export class CvScreeningConfigService {
 
   /**
    * Company-wide defaults. Writable only by a recruiter with
-   * `company:manage` -- this changes AI prompt behaviour, ranking and the
-   * quota-billed shortlist size for every job the company runs.
+   * `company:manage` -- this changes AI prompt behaviour and ranking for every
+   * job the company screens.
    */
   async updateConfig(
     user: AuthenticatedUser,
@@ -221,8 +214,6 @@ export class CvScreeningConfigService {
         : Prisma.DbNull;
     }
     if (dto.customPrompt !== undefined) data.customPrompt = dto.customPrompt?.trim() || null;
-    if (dto.passingScore !== undefined) data.passingScore = dto.passingScore;
-    if (dto.defaultTopN !== undefined) data.defaultTopN = dto.defaultTopN;
 
     return data;
   }

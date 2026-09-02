@@ -1,5 +1,10 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient, ApplicationStatus, NotificationChannel, NotificationStatus } from '@prisma/client';
+import {
+  PrismaClient,
+  ApplicationStatus,
+  NotificationChannel,
+  NotificationStatus,
+} from '@prisma/client';
 import 'dotenv/config';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -163,9 +168,13 @@ async function main() {
   console.log('✅ KẾT QUẢ KIỂM TRA THỰC TẾ: THÀNH CÔNG 100%');
   console.log('================================================================');
   console.log(`📉 Điểm uy tín trước đó:  ${initialScore} điểm`);
-  console.log(`📉 Điểm uy tín sau phạt:  ${String(updatedCompany?.reputationScore)} điểm (${String(latestActivity?.score)} điểm)`);
+  console.log(
+    `📉 Điểm uy tín sau phạt:  ${String(updatedCompany?.reputationScore)} điểm (${String(latestActivity?.score)} điểm)`,
+  );
   console.log(`📋 Nhật ký ghi nhận:     "${latestActivity?.reason}"`);
-  console.log(`🔔 Đã phát thông báo tới: ${company.recruiterAccounts.length} tài khoản Nhà tuyển dụng`);
+  console.log(
+    `🔔 Đã phát thông báo tới: ${company.recruiterAccounts.length} tài khoản Nhà tuyển dụng`,
+  );
   console.log('================================================================\n');
 
   console.log('👉 BƯỚC TIẾP THEO TRÊN TRÌNH DUYỆT CỦA BẠN:');

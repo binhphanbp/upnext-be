@@ -51,19 +51,15 @@ describe('resolveScreeningConfig', () => {
         weightEducation: 10,
         mustHaveCriteria: ['Tiếng Anh giao tiếp tốt'],
         customPrompt: 'Ghi chú công ty',
-        passingScore: 60,
-        defaultTopN: 20,
       },
-      { passingScore: 80, customPrompt: 'Ghi chú riêng cho tin này' },
+      { customPrompt: 'Ghi chú riêng cho tin này' },
     );
 
     // Overridden at job level...
-    expect(config.passingScore).toBe(80);
     expect(config.customPrompt).toBe('Ghi chú riêng cho tin này');
     // ...everything else still inherited from the company.
     expect(config.weights).toEqual({ skills: 40, experience: 30, projects: 20, education: 10 });
     expect(config.mustHaveCriteria).toEqual(['Tiếng Anh giao tiếp tốt']);
-    expect(config.defaultTopN).toBe(20);
   });
 
   it('treats the four weights as one atomic block, never merging halves', () => {
@@ -85,10 +81,9 @@ describe('resolveScreeningConfig', () => {
   });
 
   it('reports which fields a job is still inheriting', () => {
-    expect(describeInheritance({ passingScore: 80 })).toMatchObject({
-      passingScore: false,
+    expect(describeInheritance({ customPrompt: 'Test' })).toMatchObject({
       weights: true,
-      customPrompt: true,
+      customPrompt: false,
     });
     expect(describeInheritance(null).weights).toBe(true);
   });

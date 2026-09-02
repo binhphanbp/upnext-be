@@ -646,7 +646,9 @@ export class CompanyMembersService {
     }
 
     if (account.passwordHash) {
-      throw new BadRequestException('Tài khoản đã thiết lập mật khẩu trước đó. Vui lòng đăng nhập để chấp nhận lời mời.');
+      throw new BadRequestException(
+        'Tài khoản đã thiết lập mật khẩu trước đó. Vui lòng đăng nhập để chấp nhận lời mời.',
+      );
     }
 
     const hashedPassword = await this.authService.hashPassword(dto.password);

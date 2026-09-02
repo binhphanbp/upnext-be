@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { AccountStatus, ActorType, ApplicationStatus, JobReputationEvaluationType } from '@prisma/client';
+import {
+  AccountStatus,
+  ActorType,
+  ApplicationStatus,
+  JobReputationEvaluationType,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReputationLedgerService } from './reputation-ledger.service';
@@ -158,7 +163,9 @@ export class ReputationScoringService {
     const candidates = await this.prisma.jobPost.findMany({
       where: {
         publishedAt: { lte: new Date(now.getTime() - windowMs) },
-        reputationEvaluations: { none: { evaluationType: JobReputationEvaluationType.CV_PROCESSING } },
+        reputationEvaluations: {
+          none: { evaluationType: JobReputationEvaluationType.CV_PROCESSING },
+        },
         applications: { some: {} },
       },
       select: {
@@ -184,7 +191,8 @@ export class ReputationScoringService {
       const sortedBySubmission = [...job.applications].sort(
         (a, b) => a.submittedAt.getTime() - b.submittedAt.getTime(),
       );
-      const fifthSubmittedAt = sortedBySubmission[REPUTATION_CONFIG.CV_MIN_APPLICATIONS - 1].submittedAt;
+      const fifthSubmittedAt =
+        sortedBySubmission[REPUTATION_CONFIG.CV_MIN_APPLICATIONS - 1].submittedAt;
       if (now.getTime() - fifthSubmittedAt.getTime() < windowMs) continue;
 
       const processedCount = job.applications.filter((app) => {
@@ -232,7 +240,9 @@ export class ReputationScoringService {
     const candidates = await this.prisma.jobPost.findMany({
       where: {
         expiredAt: { lt: now },
-        reputationEvaluations: { none: { evaluationType: JobReputationEvaluationType.EXPIRY_PENALTY } },
+        reputationEvaluations: {
+          none: { evaluationType: JobReputationEvaluationType.EXPIRY_PENALTY },
+        },
         applications: { some: { status: ApplicationStatus.SUBMITTED } },
       },
       select: { id: true, companyId: true },

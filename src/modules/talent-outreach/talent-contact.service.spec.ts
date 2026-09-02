@@ -47,7 +47,10 @@ describe('TalentContactService.create - talent_contact quota', () => {
       candidateProfile: {
         findFirst: jest
           .fn()
-          .mockResolvedValue({ id: 'candidate-profile-1', candidateAccountId: 'candidate-account-1' }),
+          .mockResolvedValue({
+            id: 'candidate-profile-1',
+            candidateAccountId: 'candidate-account-1',
+          }),
       },
       companyCandidateBlock: { findFirst: jest.fn().mockResolvedValue(null) },
       application: { findUnique: jest.fn().mockResolvedValue(null) },

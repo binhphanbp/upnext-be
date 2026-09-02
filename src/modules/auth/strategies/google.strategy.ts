@@ -7,8 +7,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   private readonly logger = new Logger(GoogleStrategy.name);
 
   constructor(configService: ConfigService) {
-    const backendUrl =
-      configService.get<string>('appBackendUrl') || 'http://localhost:3001';
+    const backendUrl = configService.get<string>('appBackendUrl') || 'http://localhost:3001';
     const callbackURL = `${backendUrl}/api/v1/candidate/auth/google/callback`;
 
     super({

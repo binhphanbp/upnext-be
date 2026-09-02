@@ -463,9 +463,9 @@ export class AiCopilotService {
 
     const byName = new Map(plan.toolCalls.map((tool) => [tool.name, tool]));
     const approved = required[inScopeIntent].map((name) => ({
-        name,
-        argument: byName.get(name)?.argument ?? this.contextArgumentFor(name, input),
-      }));
+      name,
+      argument: byName.get(name)?.argument ?? this.contextArgumentFor(name, input),
+    }));
 
     // The model may classify intent, but it may not expand the data boundary.
     // Only the deterministic allowlist for that intent is executed. This keeps
