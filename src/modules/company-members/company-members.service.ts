@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Injectable,
   Logger,
   NotFoundException,
@@ -22,6 +23,22 @@ import { AuthService } from '../auth/auth.service';
 import { AcceptInvitationAndSetPasswordDto } from './dto/accept-invitation-and-set-password.dto';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { SubscriptionFeature } from '../subscriptions/feature-registry';
+
+/**
+ * Lời mời sống bao lâu. Link mời đi qua email và endpoint accept-and-set-password là
+ * public (người được mời chưa có mật khẩu), nên link đó đặt được mật khẩu cho một tài
+ * khoản NTD — để nó không có hạn là để mở một cửa hậu vĩnh viễn.
+ */
+const INVITATION_TTL_DAYS = 7;
+
+function invitationDeadline(from = new Date()) {
+  return new Date(from.getTime() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000);
+}
+
+/** Lời mời cũ từ trước khi có cột hạn (null) vẫn được chấp nhận. */
+function isInvitationExpired(expiresAt: Date | null) {
+  return expiresAt !== null && expiresAt.getTime() <= Date.now();
+}
 
 @Injectable()
 export class CompanyMembersService {
@@ -72,6 +89,48 @@ export class CompanyMembersService {
     });
   }
 
+  /**
+   * Chỉ OWNER/HR của công ty (hoặc Admin) được mời và gửi lại lời mời.
+   *
+   * Tách riêng vì cả `inviteMember` và `resendInvitation` đều cần đúng quy tắc này —
+   * gửi lại lời mời cũng là phát ra một link đặt mật khẩu, nên không thể lỏng hơn mời mới.
+   */
+  private async assertCanInvite(companyId: string, currentUser: AuthenticatedUser) {
+    if (currentUser.role === ActorType.ADMIN) return;
+
+    let invitingMember = await this.prisma.companyMember.findFirst({
+      where: { recruiterAccountId: currentUser.id, companyId },
+      include: { role: true },
+    });
+
+    // Auto-create missing CompanyMember record for the company owner/creator
+    if (!invitingMember) {
+      const ownerRole = await this.prisma.recruiterRole.findFirst({
+        where: { code: 'OWNER' },
+      });
+
+      if (ownerRole) {
+        invitingMember = await this.prisma.companyMember.create({
+          data: {
+            recruiterAccountId: currentUser.id,
+            companyId,
+            roleId: ownerRole.id,
+            status: 'ACTIVE',
+            joinedAt: new Date(),
+          },
+          include: { role: true },
+        });
+      }
+    }
+
+    if (
+      !invitingMember ||
+      (invitingMember.role?.code !== 'OWNER' && invitingMember.role?.code !== 'HR')
+    ) {
+      throw new ForbiddenException('Bạn không có quyền mời thành viên.');
+    }
+  }
+
   async inviteMember(companyId: string, dto: InviteMemberDto, currentUser: AuthenticatedUser) {
     // 1. Check if current user belongs to the company they are inviting to (or is an Admin)
     const belongsToCompany =
@@ -82,39 +141,7 @@ export class CompanyMembersService {
     }
 
     // 2. Check if current user has OWNER or HR role in the company
-    if (currentUser.role !== ActorType.ADMIN) {
-      let invitingMember = await this.prisma.companyMember.findFirst({
-        where: { recruiterAccountId: currentUser.id, companyId },
-        include: { role: true },
-      });
-
-      // Auto-create missing CompanyMember record for the company owner/creator
-      if (!invitingMember) {
-        const ownerRole = await this.prisma.recruiterRole.findFirst({
-          where: { code: 'OWNER' },
-        });
-
-        if (ownerRole) {
-          invitingMember = await this.prisma.companyMember.create({
-            data: {
-              recruiterAccountId: currentUser.id,
-              companyId,
-              roleId: ownerRole.id,
-              status: 'ACTIVE',
-              joinedAt: new Date(),
-            },
-            include: { role: true },
-          });
-        }
-      }
-
-      if (
-        !invitingMember ||
-        (invitingMember.role?.code !== 'OWNER' && invitingMember.role?.code !== 'HR')
-      ) {
-        throw new ForbiddenException('Bạn không có quyền mời thành viên.');
-      }
-    }
+    await this.assertCanInvite(companyId, currentUser);
 
     const company = await this.ensureCompanyExists(companyId);
 
@@ -244,6 +271,7 @@ export class CompanyMembersService {
         companyId,
         roleId: dto.roleId,
         status: CompanyMemberStatus.INVITED,
+        invitationExpiresAt: invitationDeadline(),
       },
       include: {
         recruiterAccount: {
@@ -270,6 +298,67 @@ export class CompanyMembersService {
     return invitation;
   }
 
+  /**
+   * Gửi lại lời mời và gia hạn thêm INVITATION_TTL_DAYS ngày.
+   *
+   * Bắt buộc phải có kể từ khi lời mời có hạn: hết hạn thì người được mời không accept
+   * được, mà OWNER cũng không mời lại được vì `@@unique([invitedEmail, companyId])` vẫn
+   * còn hàng cũ — không có đường này thì lời mời hết hạn thành ngõ chết.
+   */
+  async resendInvitation(memberId: string, currentUser: AuthenticatedUser) {
+    const member = await this.prisma.companyMember.findUnique({
+      where: { id: memberId },
+      include: {
+        company: { select: { name: true } },
+        role: { select: { name: true } },
+        recruiterAccount: { select: { email: true } },
+      },
+    });
+
+    if (!member) {
+      throw new NotFoundException(`Invitation ${memberId} not found`);
+    }
+    if (member.status !== CompanyMemberStatus.INVITED) {
+      throw new ConflictException('Lời mời này đã được xử lý trước đó.');
+    }
+
+    await this.assertCanInvite(member.companyId, currentUser);
+
+    const updated = await this.prisma.companyMember.update({
+      where: { id: member.id },
+      data: { invitationExpiresAt: invitationDeadline() },
+    });
+
+    const to = member.invitedEmail ?? member.recruiterAccount?.email;
+    if (!to) {
+      throw new BadRequestException('Lời mời này không có email người nhận.');
+    }
+
+    // Email lỗi thì không rollback: hạn đã được gia hạn, chủ công ty bấm gửi lại được.
+    try {
+      await this.emailService.sendCompanyInvitation({
+        to,
+        companyName: member.company.name,
+        roleName: member.role?.name,
+        invitationLink: this.buildInvitationLink(member.id),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Invitation ${member.id} was renewed but the email could not be sent.`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new BadRequestException(
+        'Đã gia hạn lời mời nhưng không gửi được email. Vui lòng thử lại.',
+      );
+    }
+
+    return {
+      id: updated.id,
+      invitedEmail: to,
+      invitationExpiresAt: updated.invitationExpiresAt,
+    };
+  }
+
   async acceptInvitation(memberId: string, currentUser: AuthenticatedUser) {
     const member = await this.prisma.companyMember.findUnique({
       where: { id: memberId },
@@ -281,6 +370,12 @@ export class CompanyMembersService {
 
     if (member.status !== CompanyMemberStatus.INVITED) {
       throw new ConflictException(`Invitation is not in INVITED status`);
+    }
+
+    if (isInvitationExpired(member.invitationExpiresAt)) {
+      throw new GoneException(
+        `Lời mời đã hết hạn (${INVITATION_TTL_DAYS} ngày). Vui lòng liên hệ công ty để được gửi lại lời mời.`,
+      );
     }
 
     // Verify current user matches invitation email or recruiterAccountId
@@ -619,6 +714,14 @@ export class CompanyMembersService {
       throw new NotFoundException('Lời mời không tồn tại hoặc đã được xử lý.');
     }
 
+    // 410 chứ không phải 404: link có thật, chỉ là đã quá hạn — client phân biệt được để
+    // hiện đúng thông báo "hết hạn, hãy yêu cầu gửi lại".
+    if (isInvitationExpired(member.invitationExpiresAt)) {
+      throw new GoneException(
+        `Lời mời đã hết hạn (${INVITATION_TTL_DAYS} ngày). Vui lòng liên hệ công ty để được gửi lại lời mời.`,
+      );
+    }
+
     return {
       id: member.id,
       invitedEmail: member.invitedEmail ?? member.recruiterAccount?.email,
@@ -638,6 +741,13 @@ export class CompanyMembersService {
 
     if (!member || member.status !== CompanyMemberStatus.INVITED) {
       throw new NotFoundException('Lời mời không tồn tại hoặc đã được xử lý.');
+    }
+
+    // Đây là đường nguy hiểm nhất: public, và đặt mật khẩu cho tài khoản NTD.
+    if (isInvitationExpired(member.invitationExpiresAt)) {
+      throw new GoneException(
+        `Lời mời đã hết hạn (${INVITATION_TTL_DAYS} ngày). Vui lòng liên hệ công ty để được gửi lại lời mời.`,
+      );
     }
 
     const account = member.recruiterAccount;

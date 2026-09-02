@@ -43,6 +43,14 @@ async function main() {
   console.log(`💼 Tin tuyển dụng: "${jobPost.title}"\n`);
 
   const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  // Mốc đếm là ngày tin hết hạn, không phải ngày nộp hồ sơ — nên kịch bản phải lùi
+  // `expiredAt` về 15 ngày trước, còn hồ sơ thì nộp trước đó.
+  await prisma.jobPost.update({
+    where: { id: jobPost.id },
+    data: { expiredAt: fifteenDaysAgo },
+  });
 
   // Xóa penalty cũ nếu có để test lại nhiều lần
   await prisma.companyReputationActivity.deleteMany({
@@ -80,7 +88,7 @@ async function main() {
         jobPost: { connect: { id: jobPost.id } },
         cvVersion: { connect: { id: existingCvVersion.id } },
         status: ApplicationStatus.SUBMITTED,
-        submittedAt: fifteenDaysAgo,
+        submittedAt: thirtyDaysAgo,
       },
       include: {
         candidateProfile: { include: { account: true } },
@@ -93,7 +101,7 @@ async function main() {
       where: { id: application.id },
       data: {
         status: ApplicationStatus.SUBMITTED,
-        submittedAt: fifteenDaysAgo,
+        submittedAt: thirtyDaysAgo,
       },
       include: {
         candidateProfile: { include: { account: true } },
@@ -105,7 +113,8 @@ async function main() {
   const candidateName = application.candidateProfile.account.fullName;
 
   console.log(`📝 Đã thiết lập hồ sơ ứng tuyển của: ${candidateName}`);
-  console.log(`📅 Ngày nộp: ${fifteenDaysAgo.toLocaleString('vi-VN')} (15 ngày trước)`);
+  console.log(`📅 Ngày nộp: ${thirtyDaysAgo.toLocaleString('vi-VN')} (30 ngày trước)`);
+  console.log(`⏰ Tin hết hạn: ${fifteenDaysAgo.toLocaleString('vi-VN')} (15 ngày trước)`);
   console.log(`⚠️ Trạng thái hiện tại: SUBMITTED (chưa được NTD xem/xử lý)\n`);
 
   // 4. Kích hoạt logic tính phạt
@@ -113,7 +122,7 @@ async function main() {
 
   const PENALTY = 5;
   const newScore = Math.max(0, Math.min(100, initialScore - PENALTY));
-  const reason = `Hồ sơ ứng tuyển (${application.id}) của ${candidateName} cho vị trí "${jobPost.title}" quá 14 ngày không được xem xét hoặc phản hồi`;
+  const reason = `Hồ sơ ứng tuyển (${application.id}) của ${candidateName} cho vị trí "${jobPost.title}" vẫn chưa được xử lý sau 14 ngày kể từ khi tin tuyển dụng hết hạn (${fifteenDaysAgo.toLocaleDateString('vi-VN')})`;
 
   await prisma.$transaction(async (tx) => {
     // Trừ điểm công ty
@@ -139,7 +148,7 @@ async function main() {
           recipientId: recruiter.id,
           recipientType: 'RECRUITER',
           title: 'Cảnh báo: Bị trừ điểm uy tín do bỏ lơ CV quá hạn',
-          body: `Công ty bị trừ ${PENALTY} điểm uy tín do hồ sơ ứng tuyển của ${candidateName} (vị trí "${jobPost.title}") đã nộp quá 14 ngày nhưng chưa được xem xét. Vui lòng phản hồi ứng viên để duy trì uy tín.`,
+          body: `Công ty bị trừ ${PENALTY} điểm uy tín: tin tuyển dụng "${jobPost.title}" đã hết hạn từ ${fifteenDaysAgo.toLocaleDateString('vi-VN')} nhưng hồ sơ của ${candidateName} vẫn chưa được đổi trạng thái sau 14 ngày. Vui lòng phản hồi ứng viên để duy trì uy tín.`,
           type: 'REPUTATION',
           targetType: 'REPUTATION',
           targetId: jobPost.id,

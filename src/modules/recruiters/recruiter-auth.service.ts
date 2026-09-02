@@ -526,6 +526,46 @@ export class RecruiterAuthService {
     return this.issueRecruiterTokens(account);
   }
 
+  /**
+   * Đổi token trong link email thành session, không cần mật khẩu.
+   *
+   * Trả về đúng cặp token như `login()` (qua `issueRecruiterTokens`) để client lưu y
+   * như đăng nhập thường — không có đường session hạng hai nào ở đây.
+   *
+   * Vẫn kiểm tra lại account tại thời điểm đổi token, không tin payload: tài khoản có
+   * thể đã bị ban hoặc gỡ xác thực email sau khi email được gửi.
+   */
+  async loginWithMagicLink(token: string): Promise<RecruiterLoginResponse> {
+    const payload = await this.authService.verifyRecruiterMagicLinkToken(token);
+
+    const account = await this.prisma.recruiterAccount.findFirst({
+      where: { id: payload.sub, status: AccountStatus.ACTIVE },
+      select: {
+        id: true,
+        email: true,
+        companyId: true,
+        recruiterRoleId: true,
+        emailVerifiedAt: true,
+      },
+    });
+
+    if (!account) {
+      throw new UnauthorizedException('Link đăng nhập không hợp lệ hoặc đã hết hạn.');
+    }
+
+    // Email trong token phải khớp email hiện tại: nếu tài khoản đã đổi email thì link cũ
+    // không còn là bằng chứng sở hữu hộp thư mới.
+    if (account.email.toLowerCase() !== payload.email.toLowerCase()) {
+      throw new UnauthorizedException('Link đăng nhập không hợp lệ hoặc đã hết hạn.');
+    }
+
+    if (!account.emailVerifiedAt) {
+      throw new ForbiddenException('Tài khoản của bạn chưa được xác thực email.');
+    }
+
+    return this.issueRecruiterTokens(account);
+  }
+
   private async issueRecruiterTokens(
     account: RecruiterTokenAccount,
   ): Promise<RecruiterLoginResponse> {

@@ -28,7 +28,7 @@ import { CreateCompanyDto } from './dto/create-company.dto';
 import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { VerifyCompanyDto } from './dto/verify-company.dto';
+import { MAX_VERIFICATION_EVIDENCE_FILES, VerifyCompanyDto } from './dto/verify-company.dto';
 import { slugify } from '../../common/utils/slugify';
 import { CreateJobLocationDto } from '../job-locations/dto/create-job-location.dto';
 import { UpdateJobLocationDto } from '../job-locations/dto/update-job-location.dto';
@@ -40,6 +40,7 @@ import {
   CompanyLicenseFile,
 } from './ports/company-license-extraction-provider.port';
 import { LLM_PROVIDER, LlmProviderPort } from '../ai/ports/llm-provider.port';
+import { AuthService } from '../auth/auth.service';
 
 /**
  * A company's current plan is its ACTIVE subscription that has not lapsed yet — a row
@@ -47,6 +48,11 @@ import { LLM_PROVIDER, LlmProviderPort } from '../ai/ports/llm-provider.port';
  */
 function activeSubscriptionWhere(now: Date): Prisma.CompanySubscriptionWhereInput {
   return { status: SubscriptionStatus.ACTIVE, expiredAt: { gt: now } };
+}
+
+/** Keeps the admin's order while dropping a file id sent twice. */
+function dedupeIds(ids: string[]) {
+  return [...new Set(ids)];
 }
 
 /**
@@ -165,6 +171,7 @@ export class CompaniesService {
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
     private readonly reputationLedger: ReputationLedgerService,
+    private readonly authService: AuthService,
     @Inject(COMPANY_LICENSE_EXTRACTION_PROVIDER)
     private readonly licenseExtraction: CompanyLicenseExtractionProviderPort,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProviderPort,
@@ -898,47 +905,109 @@ export class CompaniesService {
     const company = await this.ensureCompanyExists(id);
 
     const isVerified = dto.status === 'VERIFIED';
+    const reason = dto.reason?.trim();
+
+    // Từ chối mà không nêu lý do thì email gửi cho nhà tuyển dụng chỉ nói "chưa được
+    // duyệt" và không nói vì sao — họ không biết phải sửa gì để gửi lại.
+    if (!isVerified && !reason) {
+      throw new BadRequestException('Vui lòng nhập lý do từ chối.');
+    }
+
+    // Mỗi lần gọi lại cùng một trạng thái sẽ cộng/trừ điểm uy tín thêm một lần nữa, nên
+    // phải chặn: quyết định lặp lại không phải là quyết định mới.
+    if (company.verificationStatus === dto.status) {
+      throw new ConflictException(
+        isVerified
+          ? 'Doanh nghiệp này đã được xác thực trước đó.'
+          : 'Hồ sơ xác thực của doanh nghiệp này đã bị từ chối trước đó.',
+      );
+    }
+
+    const evidenceFileIds = isVerified ? [] : dedupeIds(dto.evidenceFileIds ?? []);
+    await this.assertVerificationEvidenceExists(evidenceFileIds);
+
+    const finalReason = reason ?? 'Mã số thuế / Giấy phép đăng ký kinh doanh được xác thực';
     const scoreChange = isVerified ? REPUTATION_CONFIG.STATIC_TAX_CODE_BONUS : -5.0;
     const actionType = isVerified ? 'TAX_CODE_VERIFIED' : 'REJECTED_VERIFICATION';
-    const defaultReason = isVerified
-      ? 'Mã số thuế / Giấy phép đăng ký kinh doanh được xác thực'
-      : 'Yêu cầu xác thực doanh nghiệp bị từ chối';
-    const reason = dto.reason ?? defaultReason;
 
-    const updatedCompany = await this.prisma.$transaction(async (tx) => {
+    const { updatedCompany, evidenceFiles } = await this.prisma.$transaction(async (tx) => {
       await tx.company.update({
         where: { id },
+        data: { verificationStatus: dto.status },
+      });
+
+      // Lịch sử quyết định: giữ lý do, hướng dẫn và ảnh minh chứng để nhà tuyển dụng
+      // xem lại được, và để admin sau biết hồ sơ này đã bị từ chối vì cái gì.
+      const review = await tx.companyVerificationReview.create({
         data: {
-          verificationStatus: dto.status,
-          lockedReason: isVerified ? null : reason,
+          companyId: id,
+          reviewedByAdminId: adminUser.id,
+          decision: dto.status,
+          reason: finalReason,
+          guidance: dto.guidance?.trim() || null,
+          evidences: {
+            create: evidenceFileIds.map((fileId, position) => ({ fileId, position })),
+          },
+        },
+        include: {
+          evidences: {
+            orderBy: { position: 'asc' },
+            select: { file: { select: { publicUrl: true, originalName: true } } },
+          },
         },
       });
 
-      return this.reputationLedger.applyDelta(
+      const ledgerResult = await this.reputationLedger.applyDelta(
         tx,
         id,
         scoreChange,
         actionType,
-        reason,
+        finalReason,
         adminUser.id,
       );
+
+      return { updatedCompany: ledgerResult, evidenceFiles: review.evidences };
     });
 
     // Notify the company's recruiters of the result. Fire-and-forget.
-    void this.notifyCompanyVerificationResult(company.id, isVerified, reason, dto.guidance).catch(
-      (error: unknown) => {
-        this.logger.warn(
-          `Failed to send company verification emails for ${company.id}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      },
-    );
+    void this.notifyCompanyVerificationResult({
+      companyId: company.id,
+      approved: isVerified,
+      reason: finalReason,
+      guidance: dto.guidance,
+      evidence: evidenceFiles
+        .filter((item) => item.file.publicUrl)
+        .map((item) => ({ url: item.file.publicUrl!, name: item.file.originalName })),
+    }).catch((error: unknown) => {
+      this.logger.warn(
+        `Failed to send company verification emails for ${company.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
 
     return {
       message: `Company verification status updated to ${dto.status} successfully.`,
       company: updatedCompany,
     };
+  }
+
+  /**
+   * Ảnh minh chứng phải là file đã upload thật, nếu không FK sẽ nổ thành 500 giữa
+   * transaction. Hạn mức cũng chặn ở đây để không caller nào lách qua được DTO.
+   */
+  private async assertVerificationEvidenceExists(evidenceFileIds: string[]) {
+    if (evidenceFileIds.length === 0) return;
+    if (evidenceFileIds.length > MAX_VERIFICATION_EVIDENCE_FILES) {
+      throw new BadRequestException(
+        `Chỉ được gửi tối đa ${MAX_VERIFICATION_EVIDENCE_FILES} ảnh minh chứng.`,
+      );
+    }
+
+    const found = await this.prisma.fileAsset.count({ where: { id: { in: evidenceFileIds } } });
+    if (found !== evidenceFileIds.length) {
+      throw new NotFoundException('Không tìm thấy ảnh minh chứng đã tải lên.');
+    }
   }
 
   /**
@@ -1005,7 +1074,7 @@ export class CompaniesService {
       return;
     }
 
-    const reviewLink = this.buildFrontendUrl(`/admin/companies/${company.id}`);
+    const reviewLink = this.buildFrontendUrl(`/admin/users/employers/${company.id}`);
 
     // Admins whose active role holds the 'companies:verify' permission.
     const admins = await this.prisma.adminUser.findMany({
@@ -1047,12 +1116,17 @@ export class CompaniesService {
   /**
    * Emails the company's active recruiter accounts with the verification outcome.
    */
-  private async notifyCompanyVerificationResult(
-    companyId: string,
-    approved: boolean,
-    reason: string,
-    guidance?: string,
-  ) {
+  private async notifyCompanyVerificationResult(input: {
+    companyId: string;
+    approved: boolean;
+    reason: string;
+    guidance?: string | undefined;
+    /** Ảnh minh chứng kèm lý do từ chối; chỉ ảnh có publicUrl mới đính kèm được. */
+    evidence?: Array<{ url: string; name: string }>;
+  }) {
+    const { companyId, approved, reason, guidance } = input;
+    const evidence = input.evidence ?? [];
+
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: {
@@ -1060,7 +1134,7 @@ export class CompaniesService {
         name: true,
         recruiterAccounts: {
           where: { status: 'ACTIVE' },
-          select: { email: true, profile: { select: { fullName: true } } },
+          select: { id: true, email: true, profile: { select: { fullName: true } } },
         },
       },
     });
@@ -1068,10 +1142,8 @@ export class CompaniesService {
       return;
     }
 
-    const companyLink = this.buildFrontendUrl(`/recruiter/company`);
-
     await Promise.all(
-      company.recruiterAccounts.map((account) =>
+      company.recruiterAccounts.map(async (account) =>
         this.emailService.sendCompanyVerificationResult({
           to: account.email,
           recruiterName: account.profile?.fullName,
@@ -1079,7 +1151,10 @@ export class CompaniesService {
           approved,
           reason,
           guidance,
-          companyLink,
+          evidence,
+          // Link phải đúng theo từng người nhận: nó mang cả email để đối chiếu session
+          // lẫn token đăng nhập của riêng tài khoản đó.
+          companyLink: await this.buildRecruiterEmailLink('/recruiter/company-profile', account),
         }),
       ),
     );
@@ -1088,6 +1163,33 @@ export class CompaniesService {
   private buildFrontendUrl(path: string) {
     const frontendUrl = this.configService.getOrThrow<string>('appFrontendUrl');
     return new URL(path, frontendUrl).toString();
+  }
+
+  /**
+   * Link cho nhà tuyển dụng, đi qua chặng `/recruiter/continue`.
+   *
+   * Bấm link trong email khi trình duyệt đang giữ session của một tài khoản khác thì
+   * trước đây sẽ mở đúng trang nhưng với dữ liệu của công ty khác mà không báo gì.
+   * Chặng trung gian so email trong session với `as` rồi cho đổi tài khoản nếu lệch.
+   */
+  private async buildRecruiterEmailLink(
+    targetPath: string,
+    recipient: { id: string; email: string },
+  ) {
+    // `buildFrontendUrl` để `new URL` tự nối, tránh sinh `//recruiter` khi
+    // APP_FRONTEND_URL có dấu gạch chéo cuối.
+    const url = new URL(this.buildFrontendUrl('/recruiter/continue'));
+    url.searchParams.set('to', targetPath);
+    url.searchParams.set('as', recipient.email);
+    // Token để trang trung gian đăng nhập luôn đúng tài khoản này, không cần mật khẩu.
+    url.searchParams.set(
+      'token',
+      await this.authService.signRecruiterMagicLinkToken({
+        id: recipient.id,
+        email: recipient.email,
+      }),
+    );
+    return url.toString();
   }
 
   async getReputationActivities(id: string, user: AuthenticatedUser) {

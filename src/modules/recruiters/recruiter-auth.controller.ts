@@ -11,6 +11,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
+import { MagicLinkLoginDto } from './dto/magic-link-login.dto';
 import { LoginDto } from '../auth/dto/login.dto';
 import { RecruiterLoginResponse, RecruiterRegisterResponse } from '../auth/entities/auth.entity';
 import { RecruiterRefreshTokenDto } from './dto/recruiter-refresh-token.dto';
@@ -53,6 +54,24 @@ export class RecruiterAuthController {
   @ApiUnauthorizedResponse({ description: 'Email hoặc password không hợp lệ' })
   login(@Body() dto: LoginDto) {
     return this.recruiterAuthService.login(dto);
+  }
+
+  @Public()
+  @UseGuards(ThrottlerGuard)
+  // Chặt hơn login bằng mật khẩu: đây là đường vào không cần biết mật khẩu, chỉ cần
+  // giữ được token, nên không có lý do gì để cho gọi nhiều.
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('magic-link')
+  @ApiOperation({
+    summary: 'Đăng nhập bằng link trong email (nhà tuyển dụng)',
+    description:
+      'Đổi token trong link email thành session. Token hết hạn sau 30 phút và chỉ dùng được cho đúng tài khoản mà email được gửi tới.',
+  })
+  @ApiBody({ type: MagicLinkLoginDto })
+  @ApiOkResponse({ description: 'Login successful', type: RecruiterLoginResponse })
+  @ApiUnauthorizedResponse({ description: 'Token không hợp lệ hoặc đã hết hạn' })
+  loginWithMagicLink(@Body() dto: MagicLinkLoginDto) {
+    return this.recruiterAuthService.loginWithMagicLink(dto.token);
   }
 
   @Public()

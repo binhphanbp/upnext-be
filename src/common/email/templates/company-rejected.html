@@ -72,7 +72,7 @@
                   <tr>
                     <td align="left" valign="middle">
                       <img
-                        src="cid:upnext-logo"
+                        src="{{logoSrc}}"
                         width="118"
                         alt="UPNEXT"
                         style="
@@ -194,10 +194,19 @@
                       <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #1e293b">
                         {{guidance}}
                       </p>
+{{?evidenceNote}}
+                      <p style="margin: 16px 0 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">
+                        Ảnh minh chứng
+                      </p>
+                      <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        {{evidenceNote}}
+                      </p>
+{{/evidenceNote}}
                     </td>
                   </tr>
                 </table>
 
+{{?guidelinesLink}}
                 <p style="margin: 0 0 22px; font-size: 14px; line-height: 1.7; color: #334155">
                   Để việc duyệt hồ sơ được thuận lợi và nhanh chóng hơn, Quý khách vui lòng tham
                   khảo hướng dẫn chi tiết về quy định
@@ -208,6 +217,7 @@
                     >TẠI ĐÂY</a
                   >.
                 </p>
+{{/guidelinesLink}}
 
                 <!-- CTA -->
                 <table

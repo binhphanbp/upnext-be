@@ -53,6 +53,8 @@ const envSchema = z
     SMTP_USER: z.string().optional(),
     SMTP_PASS: z.string().optional(),
     MAIL_FROM: z.string().optional(),
+    MAIL_LOGO_URL: z.string().url().optional(),
+    MAIL_VERIFICATION_GUIDE_URL: z.string().url().optional(),
     CLOUDINARY_CLOUD_NAME: z.string().optional(),
     CLOUDINARY_API_KEY: z.string().optional(),
     CLOUDINARY_API_SECRET: z.string().optional(),
@@ -247,6 +249,8 @@ export type AppConfig = {
   smtpUser?: string;
   smtpPass?: string;
   mailFrom?: string;
+  mailLogoUrl?: string;
+  mailVerificationGuideUrl?: string;
   cloudinaryCloudName?: string;
   cloudinaryApiKey?: string;
   cloudinaryApiSecret?: string;
@@ -313,6 +317,8 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     smtpUser: parsed.SMTP_USER,
     smtpPass: parsed.SMTP_PASS,
     mailFrom: parsed.MAIL_FROM,
+    mailLogoUrl: parsed.MAIL_LOGO_URL,
+    mailVerificationGuideUrl: parsed.MAIL_VERIFICATION_GUIDE_URL,
     cloudinaryCloudName: parsed.CLOUDINARY_CLOUD_NAME,
     cloudinaryApiKey: parsed.CLOUDINARY_API_KEY,
     cloudinaryApiSecret: parsed.CLOUDINARY_API_SECRET,
