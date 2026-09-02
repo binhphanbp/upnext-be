@@ -19,6 +19,7 @@ import { EMBEDDING_PROVIDER, EmbeddingProviderPort } from './ports/embedding-pro
 import { ToolRegistryService } from './tools/tool-registry.service';
 import { CandidateKnowledgeRetrievalService } from './retrieval/candidate-knowledge-retrieval.service';
 import { CandidateKnowledgeIndexerService } from './retrieval/candidate-knowledge-indexer.service';
+import { CandidateKnowledgeCatalogService } from './retrieval/candidate-knowledge-catalog.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 
@@ -82,6 +83,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
     ToolRegistryService,
     CandidateKnowledgeRetrievalService,
     CandidateKnowledgeIndexerService,
+    CandidateKnowledgeCatalogService,
   ],
   exports: [
     LLM_PROVIDER,
@@ -90,6 +92,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
     ToolRegistryService,
     CandidateKnowledgeRetrievalService,
     CandidateKnowledgeIndexerService,
+    CandidateKnowledgeCatalogService,
   ],
 })
 export class AiModule {}
