@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { PrismaClient, JobBoostStatus, JobBoostType, JobBoostEndedReason, JobBoostPlacement, JobBoostEventType, SubscriptionUsageDirection } from '@prisma/client';
+import { PrismaClient, JobBoostStatus, JobBoostType, JobBoostEndedReason, SubscriptionUsageDirection } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { randomUUID } from 'node:crypto';
 
