@@ -21,6 +21,7 @@ describe('InvoicesService', () => {
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       count: jest.fn(),
       groupBy: jest.fn(),
       aggregate: jest.fn(),

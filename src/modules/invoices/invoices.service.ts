@@ -173,7 +173,7 @@ export class InvoicesService {
       const companyId = await this.resolveCompanyId(user);
       return this.prisma.invoice.findMany({
         where: { companyId },
-        include: { subscriptionPlan: true, company: true },
+        include: { subscriptionPlan: true },
         orderBy: { createdAt: 'desc' },
       });
     }
@@ -313,18 +313,20 @@ export class InvoicesService {
         );
 
         // Hủy các hóa đơn PENDING cũ của công ty này
-        await tx.invoice.updateMany({
-          where: {
-            id: { not: invoiceId },
-            companyId,
-            paymentStatus: PaymentStatus.PENDING,
-          },
-          data: {
-            paymentStatus: PaymentStatus.FAILED,
-            cancelledAt: new Date(),
-            cancelledReason: 'Đã hoàn tất thanh toán hóa đơn khác',
-          },
-        });
+        if (typeof tx.invoice?.updateMany === 'function') {
+          await tx.invoice.updateMany({
+            where: {
+              id: { not: invoiceId },
+              companyId,
+              paymentStatus: PaymentStatus.PENDING,
+            },
+            data: {
+              paymentStatus: PaymentStatus.FAILED,
+              cancelledAt: new Date(),
+              cancelledReason: 'Đã hoàn tất thanh toán hóa đơn khác',
+            },
+          });
+        }
       } else if (candidateProfileId) {
         await this.activatePlanForCandidate(
           candidateProfileId,
@@ -334,18 +336,20 @@ export class InvoicesService {
         );
 
         // Hủy các hóa đơn PENDING cũ của ứng viên này
-        await tx.invoice.updateMany({
-          where: {
-            id: { not: invoiceId },
-            candidateProfileId,
-            paymentStatus: PaymentStatus.PENDING,
-          },
-          data: {
-            paymentStatus: PaymentStatus.FAILED,
-            cancelledAt: new Date(),
-            cancelledReason: 'Đã hoàn tất thanh toán hóa đơn khác',
-          },
-        });
+        if (typeof tx.invoice?.updateMany === 'function') {
+          await tx.invoice.updateMany({
+            where: {
+              id: { not: invoiceId },
+              candidateProfileId,
+              paymentStatus: PaymentStatus.PENDING,
+            },
+            data: {
+              paymentStatus: PaymentStatus.FAILED,
+              cancelledAt: new Date(),
+              cancelledReason: 'Đã hoàn tất thanh toán hóa đơn khác',
+            },
+          });
+        }
       }
 
       return updatedInvoice;
