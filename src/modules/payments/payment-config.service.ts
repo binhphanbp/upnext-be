@@ -24,6 +24,8 @@ export type AdminPaymentConfig = {
   contentPrefix: string | null;
   /** Never the real secret -- last 4 chars only, or null if none is set. */
   webhookSecretMasked: string | null;
+  /** Never the real token -- last 4 chars only, or null if none is set. */
+  apiTokenMasked: string | null;
   webhookUrl: string;
 };
 
@@ -66,6 +68,7 @@ export class PaymentConfigService {
       accountName: config?.accountName ?? null,
       contentPrefix: config?.contentPrefix ?? null,
       webhookSecretMasked: maskSecret(config?.webhookSecret ?? null),
+      apiTokenMasked: maskSecret(config?.apiToken ?? null),
       webhookUrl: this.webhookUrlFor(provider),
     };
   }
@@ -108,11 +111,15 @@ export class PaymentConfigService {
     dto: UpsertPaymentConfigDto,
     adminId: string,
   ): Promise<AdminPaymentConfig> {
-    // A blank webhookSecret means "leave it as-is" -- an admin editing the
-    // bank account should not be forced to re-paste the secret every time.
+    // A blank webhookSecret/apiToken means "leave it as-is"
     const webhookSecretUpdate =
       dto.webhookSecret && dto.webhookSecret.trim().length > 0
         ? { webhookSecret: dto.webhookSecret.trim() }
+        : {};
+
+    const apiTokenUpdate =
+      dto.apiToken && dto.apiToken.trim().length > 0
+        ? { apiToken: dto.apiToken.trim() }
         : {};
 
     await this.prisma.paymentGatewayConfig.upsert({
@@ -126,6 +133,7 @@ export class PaymentConfigService {
         contentPrefix: dto.contentPrefix,
         updatedByAdminId: adminId,
         ...webhookSecretUpdate,
+        ...apiTokenUpdate,
       },
       create: {
         provider,
@@ -137,6 +145,7 @@ export class PaymentConfigService {
         contentPrefix: dto.contentPrefix,
         updatedByAdminId: adminId,
         ...webhookSecretUpdate,
+        ...apiTokenUpdate,
       },
     });
 
