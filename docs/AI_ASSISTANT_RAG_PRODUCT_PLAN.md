@@ -83,6 +83,18 @@ flowchart LR
 4. Citation phải trỏ tới source/chunk id, tiêu đề, phiên bản và snippet đã redaction; không dùng “AI suy luận” làm citation.
 5. Job/CV thay đổi, consent rút, job hết hạn hoặc document bị xoá phải làm index stale ngay và loại khỏi retrieval trước khi re-index hoàn tất.
 
+### 4.3 Corpus v1 được phép và corpus bị cấm
+
+| Corpus | Mục đích | Ai được retrieve | Điều kiện index | Citation hiển thị |
+| --- | --- | --- | --- | --- |
+| CV chunks của candidate | tìm evidence khi phân tích/cải thiện CV của chính họ | chỉ owner | CV active, owned, parsed/structured content đủ; redaction trước embedding | section/heading và snippet đã redaction |
+| Public job index | job fit và discovery | candidate signed-in theo public job policy | PUBLISHED, APPROVED, không hidden/xóa/hết hạn | title, company, job route, published/updated time |
+| Own application facts | next step/timeline | chỉ owner | direct authorised tool, **không cần vector index** | application/job status và thời điểm update |
+| Candidate knowledge base | hướng dẫn CV, apply, phỏng vấn chuẩn bị, dùng UpNext | signed-in candidates | source owner approve, locale/version/effective date/review date | title, section, source route, version/date |
+| Conversation summary | continuity cá nhân | chỉ owner trong conversation | redacted, TTL và policy version | không làm citation evidence |
+
+Không đưa vào Candidate Assistant v1: CV/profile của candidate khác, Talent Pool, recruiter note, CV Screening result, job draft/nội bộ company, email/support ticket, data analytics nhạy cảm, raw upload file, blog/website chưa được content review, hoặc internet search live.
+
 ## 5. Candidate Career Assistant v1
 
 ### 5.1 Use case được triển khai
@@ -101,6 +113,33 @@ flowchart LR
 - Không hứa khả năng đậu, không dự đoán đặc tính nhạy cảm hay xếp hạng “employability” chung chung.
 - Không dùng web search live cho tư vấn nghề nghiệp; dữ liệu ngoài kiểm soát sẽ làm citation/chi phí/safety khó quản lý.
 - Không giữ toàn bộ CV/message history trong prompt. Dùng summary đã kiểm soát + top chunks có evidence.
+
+### 5.3 Product contract theo workflow
+
+Mỗi workflow có một contract riêng. Một intent không khớp contract phải bị chuyển sang clarifying question hoặc knowledge Q&A; không để model tự biến mọi câu hỏi thành “phân tích CV”.
+
+| Workflow | Required context | Evidence tối thiểu | Response/UI contract | Khi phải từ chối hoặc hỏi thêm |
+| --- | --- | --- | --- | --- |
+| `JOB_FIT` | một public job từ page context hoặc job URL hợp lệ | job hiện tại + profile; CV chunks chỉ khi candidate cho phép dùng CV | 3 điểm match, tối đa 3 gap, confidence, citations, CTA Save/Apply/Improve CV | job không public/hết hạn; profile không có skills; không đủ evidence |
+| `CV_IMPROVE` | CV active hoặc version do owner chọn; job optional | section chunks của own CV + job/profile cần thiết | issue theo section, proposed patch dạng diff, rationale/citation; **không write ngay** | CV không thuộc owner, parse thiếu dữ liệu, yêu cầu thay đổi không xác định section/mục tiêu |
+| `JOB_DISCOVERY` | candidate preference; filters optional | hard filters + public job retrieval + rank factors | danh sách 3–10 jobs, freshness, lý do match/gap; không “điểm AI bí mật” | profile chưa có skill/mục tiêu; không có job đủ điều kiện |
+| `APPLICATION_NEXT_STEP` | own application hoặc danh sách own applications | application status/event + public job + candidate knowledge | timeline, điều có thể làm tiếp, checklist, citations | application không thuộc owner hoặc không có update mới |
+| `CAREER_KNOWLEDGE` | locale và topic | curated candidate corpus | answer ngắn, citations, ngày cập nhật, suggested next prompt | source không đủ liên quan hoặc câu hỏi ngoài scope |
+
+`AI Interview` không được âm thầm đưa vào `CAREER_KNOWLEDGE`. Assistant chỉ có thể tạo preparation checklist/question set theo job; product chấm/luyện phỏng vấn tương tác là roadmap AI Interview riêng.
+
+### 5.4 Context-first UX
+
+Candidate không phải tự gõ lại “CV nào”, “job nào” hay “đơn nào” nếu đang ở đúng màn hình. Frontend gửi loại context của trang; backend tự resolve resource bằng session và policy, không tin id/ownership do model hay client khẳng định.
+
+| Entry point | Quick actions khởi đầu | Context server-authoritative |
+| --- | --- | --- |
+| Job detail | “Tôi có hợp job này không?”, “Thiếu gì để apply?”, “Tạo checklist chuẩn bị” | job slug/id → chỉ public, approved, active |
+| CV workspace | “Phân tích CV”, “Cải thiện CV cho vị trí mục tiêu”, “So sánh với job đang chọn” | CV version → phải thuộc candidate |
+| Application detail | “Tôi cần làm gì tiếp?”, “Tóm tắt yêu cầu job”, “Chuẩn bị phỏng vấn” | application → phải thuộc candidate |
+| Candidate AI page | “Tìm job phù hợp”, “Rà soát hồ sơ”, “Hướng dẫn dùng UpNext” | candidate profile + optional explicit selected public job |
+
+Mỗi câu trả lời phải có trạng thái: `grounded`, `insufficient_evidence`, `needs_clarification` hoặc `out_of_scope`. Không dùng một câu trả lời confident để che việc retrieval rỗng.
 
 ## 6. Ranh giới recruiter và dependency hiện có
 
@@ -160,6 +199,29 @@ PostgreSQL + `pgvector` là lựa chọn v1 để giảm hệ thống vận hàn
 
 JSON cosine fallback chỉ được phép cho migration/backfill nhỏ hoặc emergency read-only; không là backend production của RAG corpus lớn.
 
+### 8.3 Indexing pipeline và vòng đời dữ liệu
+
+```mermaid
+flowchart LR
+    S[CV / job / curated article changes] --> Q[Durable index queue]
+    Q --> X[Authorize + redact + classify]
+    X --> C[Chunk + checksum + version]
+    C --> E[Private embedding endpoint]
+    E --> P[(PostgreSQL pgvector + lexical index)]
+    P --> R[Hybrid retrieval]
+    D[Delete / consent revoke / job expiry] --> I[Invalidate immediately]
+    I --> P
+```
+
+Chi tiết bắt buộc:
+
+1. Mỗi source event tạo một index job idempotent với `sourceType`, `sourceId`, `sourceVersion`, `contentChecksum`, `indexVersion` và `requestedAt`.
+2. Worker đọc source mới nhất, redaction trước chunking, chunk theo cấu trúc (CV: summary/experience/project/education; article: heading/section), không cắt mù theo ký tự. Mục tiêu 350–600 token/chunk, overlap 60–100 token; phải đo bằng tokenizer của model đang dùng.
+3. Embedding only của `contentRedacted`; original text không vào queue payload/log. Chunk quá ngắn, parse lỗi hoặc không có content phải ghi reason, không tạo vector rỗng.
+4. Khi candidate xoá CV, đổi visibility/consent hoặc resource hết quyền: soft-invalidate synchronously trong transaction/outbox; physical purge và vector cleanup chạy durable async. Retrieval luôn filter `valid=true` trước.
+5. Backfill có checkpoint, per-candidate rate limit, dead-letter/retry limit, dashboard “index lag / failed / stale”; không chạy một script quét toàn bộ production không resume.
+6. Knowledge corpus chỉ được ingest từ source owner đã duyệt. Mỗi document có owner, locale, effective date và review date; không scrape web tùy ý.
+
 ## 9. Retrieval và answer contract
 
 1. Normalize query; classify audience/workflow; resolve page context server-side.
@@ -169,10 +231,42 @@ JSON cosine fallback chỉ được phép cho migration/backfill nhỏ hoặc em
 5. Client chỉ render citations do backend resolved. Citation phải mở source hợp lệ hoặc highlight snippet; nếu source private thì chỉ owner đúng quyền thấy.
 6. Khi không có relevant evidence: answer rõ giới hạn, gợi ý workflow/tool khác; không trả citation giả.
 
+### 9.1 Hybrid retrieval và reranking cụ thể
+
+1. Chạy hard authorization/status filter trước: candidate owner, document visibility, job public/approved/active, locale và expiry.
+2. Chạy lexical retrieval (`tsvector`/BM25-like ranking) và vector cosine song song, mỗi nhánh top 30; fuse bằng Reciprocal Rank Fusion hoặc weighted normalized score có version.
+3. Dedupe theo document/entity, diversity theo section để không gửi sáu chunks cùng một đoạn CV.
+4. Deterministic rerank thêm freshness, page-context match và workflow-specific constraints. Với job discovery, skill/location/working-model là hard/rerank factors rõ ràng; LLM không là ranker duy nhất.
+5. Chỉ gửi top 4–6 evidence chunks trong budget vào model. Nếu top score dưới threshold hoặc evidence mâu thuẫn, trạng thái là `insufficient_evidence`/`needs_clarification`.
+6. Persist ranks/scores/source versions để reproduce một answer hoặc điều tra feedback mà không cần lưu raw prompt/CV trong log.
+
+### 9.2 API, SSE events và write boundary
+
+Tái sử dụng conversation API hiện có, nhưng bổ sung contract versioned thay vì tạo chat endpoint chung cho từng page.
+
+| Thành phần | Contract đề xuất |
+| --- | --- |
+| Create conversation | `contextType`, optional public context reference, locale. Backend resolve/authorize trước persist. |
+| Send message | browser gửi `prompt` và optional UI intent; backend có thể bỏ qua intent đó. Page context/session là nguồn sự thật. |
+| SSE `status` | `classifying`, `retrieving`, `validating_evidence`, `drafting`, `awaiting_confirmation`; không lộ raw prompt/tool nội bộ. |
+| SSE `citation` | opaque citation id, source type/title/version, permitted snippet, route target; frontend không nhận storage key/raw document id ngoài quyền. |
+| SSE `card` | typed cards: job fit, job recommendation, CV issue, application next step, knowledge answer. |
+| SSE `action_proposal` | proposal id, action type, preview/diff, expiry; browser gọi endpoint confirm/decline riêng. |
+| Confirm action | backend re-authorizes and revalidates source/version/quota, then executes idempotently. Stale proposal trả conflict, không áp dụng diff cũ. |
+
+Không đưa retrieved chunks hoặc tool result trực tiếp vào browser chỉ để frontend lắp prompt. Browser chỉ nhận projection cần hiển thị; backend là policy enforcement point duy nhất.
+
+### 9.3 Conversation memory
+
+- Lịch sử full chỉ dùng trong giới hạn nhỏ (ví dụ 8 turns/character budget); cũ hơn được summarise bằng job nền có policy version.
+- Summary cũng là derived candidate data: redaction, owner binding, delete/revoke cùng conversation; không dùng lại giữa users.
+- Evidence của lượt hiện tại luôn retrieve mới. Conversation summary không được dùng làm chứng cứ cho claim về CV/job/application.
+- Khi user đổi page context, assistant thông báo context đang dùng thay vì trộn CV/job cũ vào câu trả lời mới.
+
 ## 10. Privacy, fairness, safety và compliance
 
-- Candidate data không dùng cho recruiter retrieval nếu không có consent/discovery eligibility. `OPEN_TO_WORK` không phải consent.
-- Recruiter queries luôn bind company id, job/application assignment và permission; candidate card/CV luôn đi qua masking projection, không serialize raw entity.
+- Dữ liệu candidate luôn bị cô lập theo chủ sở hữu: một phiên Candidate Assistant chỉ được truy xuất dữ liệu thuộc candidate hiện tại, không được đưa vào retrieval của candidate khác hay bất kỳ trợ lý recruiter nào.
+- Candidate Assistant chỉ truy xuất facts thuộc candidate và dữ liệu job công khai; không được tuần tự hoá hoặc truy xuất dữ liệu nội bộ của recruiter/công ty.
 - Không retrieve/embed/use để score các protected/sensitive attributes: ảnh, giới tính, tuổi/ngày sinh, địa chỉ chính xác, tình trạng sức khỏe, dân tộc/tôn giáo, email/SĐT/link cá nhân.
 - AI output không tự reject, không tự hạ/xếp hạng hiring decision; screening/ranking chỉ là decision support có rubric/evidence/audit/human review.
 - Encrypt data at rest/in transit theo nền tảng hiện có; internal service tokens scope hẹp, TTL ngắn; không log prompt/CV raw, secrets hoặc full retrieved chunks.
@@ -196,6 +290,22 @@ JSON cosine fallback chỉ được phép cho migration/backfill nhỏ hoặc em
 - Per workflow: token cap, retrieval cap, tool timeout, total timeout, daily/org budget và circuit breaker provider.
 - Private `upnext-ai` là gateway model; backend giữ policy, authorization, business tools, quota và persistence. Provider không được kết nối database nghiệp vụ trực tiếp.
 - Log theo trace id: workflow, model, latency, cost estimate, retrieved ids (không raw content), tool outcomes, safety block và action result.
+
+### 12.1 SLO và cost guardrail đề xuất cho beta
+
+Các số dưới đây là ngưỡng beta để Product/Engineering chốt trước launch; không được coi là SLA public trước khi đo baseline thật.
+
+| Metric | Mục tiêu beta | Alert / hành động |
+| --- | --- | --- |
+| Time to first status event | p95 ≤ 1 giây | kiểm tra API/SSE/proxy nếu vượt 5 phút liên tục |
+| Retrieval latency | p95 ≤ 1.5 giây, p99 ≤ 3 giây | kiểm tra index, query plan, queue lag; degrade sang authorised tool/clarification chứ không scan toàn bảng |
+| First answer token | p95 ≤ 6 giây | circuit-break/provider fallback theo policy, không duplicate stream |
+| Total interactive run | p95 ≤ 25 giây; hard stop 45 giây | emit retryable error, persist partial đúng trạng thái, refund quota nếu chưa completed |
+| Grounded workflow answer | 100% claims có citation hoặc trạng thái insufficient evidence | block release nếu citation validation fail |
+| Unauthorized retrieval/PII critical leak | 0 | kill switch workflow, incident response và audit review |
+| Cost | per-workflow ceiling do Finance/Product chốt, enforced server-side | stop/limit workflow khi vượt daily budget, không chờ invoice |
+
+Cache chỉ được dùng cho public knowledge retrieval hoặc private data cùng owner + same source/query/filter/policy version. Không cache generated answer chứa CV/profile để trả cho user khác.
 
 ## 13. Evaluation trước khi launch
 
@@ -251,6 +361,43 @@ Thêm online canary: 5–10% opt-in, kill switch theo workflow, dashboard theo r
 - Implement plan state, tool receipts, action proposal/approval, replay tests and per-step budget.
 
 **Gate:** mỗi tool/action có owner, audit/retry/rollback story; không có autonomous high-impact action.
+
+### 14.1 Work breakdown theo repository
+
+| Repo | Phase 1–2 deliverables | Phase 3–4 deliverables |
+| --- | --- | --- |
+| `upnext-be` | schema/migrations, policy resolver, retrieval service, chunk/index queue, authorization filters, citation/action contracts, audit/eval endpoints | conversation summary, proposal lifecycle, advanced deterministic rerank, evaluation runner/admin review |
+| `upnext-ai` | embedding contract validation, model routing/structured answer contract, token/model observability; không chứa business DB access | provider resilience, model/prompt version rollout support, offline evaluation hooks |
+| `upnext-frontend` | context-first entry points, SSE state/citation/card rendering, source preview, fallback UI, quota/cancel/error states | CV diff/confirm UI, feedback/report flow, conversation context switch UX, beta instrumentation |
+| `upnext-infra` | PostgreSQL image có pgvector, migration/preflight, private network/secret policy, metrics/logging/dashboard/backup runbook | capacity/reindex runbook, alerts for index lag/cost/error/citation validation, controlled production canary |
+
+Mọi migration/index/backfill phải có owner và rollback plan. Không merge frontend “RAG UI” trước khi backend contract và infra pgvector preflight có integration test.
+
+### 14.2 Staging acceptance checklist theo workflow
+
+Candidate QA account chỉ được tạo tạm, xác minh và dọn sau test. Tối thiểu cần pass:
+
+1. Job Fit với job public: citations đúng CV/job; job expired/draft bị từ chối.
+2. CV Improve: chỉ lấy CV owner; patch hiện diff; confirm một lần write; double-submit idempotent; stale CV version bị conflict.
+3. Job Discovery: chỉ public active jobs; filter location/working model; không có job ngoài quyền; không có job hết hạn.
+4. Application Next Step: application owner-only; thay đổi status hiển thị đúng sau refresh; không dùng vector khi fact API đủ.
+5. Knowledge Q&A: trả citation source-managed; source expired/unpublished không được retrieve.
+6. Delete/revoke CV: chunk bị invalidated ngay; không còn citation sau purge/backfill.
+7. Adversarial CV/JD text cố nhúng instruction: không mở tool ngoài workflow, không leak prompt/system data.
+8. Provider 429/5xx/timeout và client cancel: SSE kết thúc đúng, message không kẹt STREAMING, quota/refund đúng một lần.
+9. Concurrent requests/retry: không duplicate action/index/usage ledger.
+10. Observability: trace có run/retrieval/action records nhưng không chứa raw CV, email, SĐT hoặc token.
+
+### 14.3 Risk register trước beta
+
+| Rủi ro | Dấu hiệu sớm | Giảm thiểu / quyết định |
+| --- | --- | --- |
+| RAG trả nguồn không liên quan | feedback “nguồn không hỗ trợ câu trả lời”, citation click thấp | eval recall + rerank threshold; trả insufficient evidence thay vì answer dài |
+| CV parse kém | chunks rỗng/lệch section, answer chung chung | quality flag, fallback structured profile, UX yêu cầu candidate bổ sung nội dung; không bịa evidence |
+| Chi phí tăng theo chat history | token/run tăng, cache hit thấp | context budget, summary, retrieval caps, workflow quota/cost ceiling |
+| pgvector vận hành sai | extension/index absent, query slow, index lag | infra preflight fail-closed, staged backfill, query-plan/capacity test, runbook |
+| PII/prompt injection | redaction hit/error, tool-policy violation | strict projection, content isolation, red-team tests, kill switch and incident process |
+| Candidate không thấy giá trị | low task completion/retention despite chat volume | remove low-value quick action, test JTBD again; không tối ưu model prompt mù quáng |
 
 ## 15. Ownership
 
