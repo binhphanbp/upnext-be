@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { PopularSearchKeywordPlacement } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { LogSearchKeywordDto } from './dto/log-search-keyword.dto';
+import { GetPopularKeywordsDto } from './dto/get-popular-keywords.dto';
 import { GetTopSearchKeywordsDto, SearchRange } from './dto/get-top-search-keywords.dto';
 
 @Injectable()
@@ -99,6 +101,27 @@ export class SearchKeywordService {
         resultCount: dto.resultCount !== undefined ? dto.resultCount : null,
       },
     });
+  }
+
+  /**
+   * Danh sách chip "Tìm kiếm phổ biến" cho trang chủ / trang việc làm.
+   *
+   * Đây là danh sách biên tập, không phải số đo — nên nó đọc `popular_search_keywords`
+   * chứ không đọc `search_keyword_logs`. Nếu lấy từ log thì chip sẽ phản chiếu chính
+   * những chip mình đã hiện, vì người dùng bấm vào chúng.
+   */
+  async getPopularKeywords(query: GetPopularKeywordsDto) {
+    const placement = query.placement ?? PopularSearchKeywordPlacement.HOME_HERO;
+    const locale = query.locale ?? 'vi';
+
+    const items = await this.prisma.popularSearchKeyword.findMany({
+      where: { placement, locale, isActive: true },
+      orderBy: [{ priority: 'asc' }, { label: 'asc' }],
+      take: query.limit,
+      select: { label: true, shortLabel: true, query: true, priority: true, category: true },
+    });
+
+    return { placement, locale, items };
   }
 
   async getTopSearchKeywords(query: GetTopSearchKeywordsDto) {

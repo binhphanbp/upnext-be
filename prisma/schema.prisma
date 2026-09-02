@@ -2533,6 +2533,37 @@ model SearchKeywordLog {
   @@map("search_keyword_logs")
 }
 
+/// Các chip "Tìm kiếm phổ biến" hiện trên trang chủ và trang việc làm.
+///
+/// Đây là danh sách BIÊN TẬP, không phải đo lường: nó điều hướng người dùng. Cố tình
+/// tách khỏi `search_keyword_logs` (thứ đo nhu cầu thực) — trộn hai thứ lại thì thống kê
+/// nhu cầu sẽ phản chiếu chính lựa chọn của mình.
+model PopularSearchKeyword {
+  id         String                        @id @default(uuid()) @db.Uuid
+  placement  PopularSearchKeywordPlacement
+  locale     String                        @db.VarChar(5)
+  label      String                        @db.VarChar(80)
+  /// Nhãn ngắn cho màn hình hẹp, ví dụ "K8s" thay cho "Kubernetes".
+  shortLabel String?                       @map("short_label") @db.VarChar(40)
+  /// Từ khóa thực sự được đặt vào ô tìm kiếm khi bấm chip.
+  query      String                        @db.VarChar(120)
+  /// Số nhỏ hiện trước.
+  priority   Int
+  category   String?                       @db.VarChar(30)
+  isActive   Boolean                       @default(true) @map("is_active")
+  createdAt  DateTime                      @default(now()) @map("created_at")
+  updatedAt  DateTime                      @updatedAt @map("updated_at")
+
+  @@unique([placement, locale, query])
+  @@index([placement, locale, isActive, priority])
+  @@map("popular_search_keywords")
+}
+
+enum PopularSearchKeywordPlacement {
+  HOME_HERO   @map("home_hero")
+  JOBS_SEARCH @map("jobs_search")
+}
+
 // =========================
 // Notifications module
 // =========================

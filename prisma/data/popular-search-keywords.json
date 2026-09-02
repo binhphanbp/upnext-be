@@ -1,0 +1,223 @@
+{
+  "note": "Nguồn duy nhất cho các chip \"Tìm kiếm phổ biến\". Trước đây nằm cứng ở 4 chỗ trong frontend. Nội dung ở đây sao y nguyên trạng cũ để giao diện không đổi khi chuyển sang đọc từ DB.",
+  "home_hero": [
+    {
+      "locale": "vi",
+      "label": "Frontend",
+      "query": "Frontend",
+      "priority": 10,
+      "category": "role"
+    },
+    { "locale": "vi", "label": "Backend", "query": "Backend", "priority": 20, "category": "role" },
+    { "locale": "vi", "label": "DevOps", "query": "DevOps", "priority": 30, "category": "role" },
+    {
+      "locale": "vi",
+      "label": "AI Engineer",
+      "query": "AI Engineer",
+      "priority": 40,
+      "category": "role"
+    },
+    { "locale": "vi", "label": "Data", "query": "Data", "priority": 50, "category": "skill" },
+    { "locale": "vi", "label": "UI/UX", "query": "UI/UX", "priority": 60, "category": "skill" },
+    { "locale": "vi", "label": "React", "query": "React", "priority": 70, "category": "skill" },
+    { "locale": "vi", "label": "Node.js", "query": "Node.js", "priority": 80, "category": "skill" },
+    { "locale": "vi", "label": "Java", "query": "Java", "priority": 90, "category": "skill" },
+    { "locale": "vi", "label": "Python", "query": "Python", "priority": 100, "category": "skill" },
+    { "locale": "vi", "label": "Golang", "query": "Golang", "priority": 110, "category": "skill" },
+    {
+      "locale": "vi",
+      "label": "QA Automation",
+      "shortLabel": "QA",
+      "query": "QA Automation",
+      "priority": 120,
+      "category": "role"
+    },
+    {
+      "locale": "vi",
+      "label": "Remote",
+      "query": "Remote",
+      "priority": 130,
+      "category": "work-mode"
+    },
+    {
+      "locale": "vi",
+      "label": "Hybrid",
+      "query": "Hybrid",
+      "priority": 140,
+      "category": "work-mode"
+    },
+    {
+      "locale": "vi",
+      "label": "Fresher",
+      "query": "Fresher",
+      "priority": 150,
+      "category": "level"
+    },
+    { "locale": "vi", "label": "Senior", "query": "Senior", "priority": 160, "category": "level" },
+    { "locale": "vi", "label": "Product", "query": "Product", "priority": 170, "category": "role" },
+    {
+      "locale": "vi",
+      "label": "Fintech",
+      "query": "Fintech",
+      "priority": 180,
+      "category": "skill"
+    },
+    { "locale": "vi", "label": "AWS", "query": "AWS", "priority": 190, "category": "skill" },
+    {
+      "locale": "vi",
+      "label": "Kubernetes",
+      "shortLabel": "K8s",
+      "query": "Kubernetes",
+      "priority": 200,
+      "category": "skill"
+    },
+    { "locale": "vi", "label": "Mobile", "query": "Mobile", "priority": 210, "category": "role" },
+    {
+      "locale": "vi",
+      "label": "Business Analyst",
+      "shortLabel": "BA",
+      "query": "Business Analyst",
+      "priority": 220,
+      "category": "role"
+    },
+    {
+      "locale": "vi",
+      "label": "Security",
+      "query": "Security",
+      "priority": 230,
+      "category": "skill"
+    },
+    { "locale": "vi", "label": "Cloud", "query": "Cloud", "priority": 240, "category": "skill" },
+
+    {
+      "locale": "en",
+      "label": "Frontend",
+      "query": "Frontend",
+      "priority": 10,
+      "category": "role"
+    },
+    { "locale": "en", "label": "Backend", "query": "Backend", "priority": 20, "category": "role" },
+    { "locale": "en", "label": "DevOps", "query": "DevOps", "priority": 30, "category": "role" },
+    {
+      "locale": "en",
+      "label": "AI Engineer",
+      "query": "AI Engineer",
+      "priority": 40,
+      "category": "role"
+    },
+    { "locale": "en", "label": "Data", "query": "Data", "priority": 50, "category": "skill" },
+    { "locale": "en", "label": "UI/UX", "query": "UI/UX", "priority": 60, "category": "skill" },
+    { "locale": "en", "label": "React", "query": "React", "priority": 70, "category": "skill" },
+    { "locale": "en", "label": "Node.js", "query": "Node.js", "priority": 80, "category": "skill" },
+    { "locale": "en", "label": "Java", "query": "Java", "priority": 90, "category": "skill" },
+    { "locale": "en", "label": "Python", "query": "Python", "priority": 100, "category": "skill" },
+    { "locale": "en", "label": "Golang", "query": "Golang", "priority": 110, "category": "skill" },
+    {
+      "locale": "en",
+      "label": "QA Automation",
+      "shortLabel": "QA",
+      "query": "QA Automation",
+      "priority": 120,
+      "category": "role"
+    },
+    {
+      "locale": "en",
+      "label": "Remote",
+      "query": "Remote",
+      "priority": 130,
+      "category": "work-mode"
+    },
+    {
+      "locale": "en",
+      "label": "Hybrid",
+      "query": "Hybrid",
+      "priority": 140,
+      "category": "work-mode"
+    },
+    {
+      "locale": "en",
+      "label": "Fresher",
+      "query": "Fresher",
+      "priority": 150,
+      "category": "level"
+    },
+    { "locale": "en", "label": "Senior", "query": "Senior", "priority": 160, "category": "level" },
+    { "locale": "en", "label": "Product", "query": "Product", "priority": 170, "category": "role" },
+    {
+      "locale": "en",
+      "label": "Fintech",
+      "query": "Fintech",
+      "priority": 180,
+      "category": "skill"
+    },
+    { "locale": "en", "label": "AWS", "query": "AWS", "priority": 190, "category": "skill" },
+    {
+      "locale": "en",
+      "label": "Kubernetes",
+      "shortLabel": "K8s",
+      "query": "Kubernetes",
+      "priority": 200,
+      "category": "skill"
+    },
+    { "locale": "en", "label": "Mobile", "query": "Mobile", "priority": 210, "category": "role" },
+    {
+      "locale": "en",
+      "label": "Business Analyst",
+      "shortLabel": "BA",
+      "query": "Business Analyst",
+      "priority": 220,
+      "category": "role"
+    },
+    {
+      "locale": "en",
+      "label": "Security",
+      "query": "Security",
+      "priority": 230,
+      "category": "skill"
+    },
+    { "locale": "en", "label": "Cloud", "query": "Cloud", "priority": 240, "category": "skill" }
+  ],
+  "jobs_search": [
+    { "locale": "vi", "label": "ReactJS", "query": "ReactJS", "priority": 10, "category": "skill" },
+    { "locale": "vi", "label": "NodeJS", "query": "NodeJS", "priority": 20, "category": "skill" },
+    {
+      "locale": "vi",
+      "label": "Frontend",
+      "query": "Frontend",
+      "priority": 30,
+      "category": "role"
+    },
+    { "locale": "vi", "label": "Backend", "query": "Backend", "priority": 40, "category": "role" },
+    {
+      "locale": "vi",
+      "label": "Fullstack",
+      "query": "Fullstack",
+      "priority": 50,
+      "category": "role"
+    },
+    { "locale": "vi", "label": ".NET", "query": ".NET", "priority": 60, "category": "skill" },
+    { "locale": "vi", "label": "Python", "query": "Python", "priority": 70, "category": "skill" },
+    { "locale": "vi", "label": "DevOps", "query": "DevOps", "priority": 80, "category": "role" },
+
+    { "locale": "en", "label": "ReactJS", "query": "ReactJS", "priority": 10, "category": "skill" },
+    { "locale": "en", "label": "NodeJS", "query": "NodeJS", "priority": 20, "category": "skill" },
+    {
+      "locale": "en",
+      "label": "Frontend",
+      "query": "Frontend",
+      "priority": 30,
+      "category": "role"
+    },
+    { "locale": "en", "label": "Backend", "query": "Backend", "priority": 40, "category": "role" },
+    {
+      "locale": "en",
+      "label": "Fullstack",
+      "query": "Fullstack",
+      "priority": 50,
+      "category": "role"
+    },
+    { "locale": "en", "label": ".NET", "query": ".NET", "priority": 60, "category": "skill" },
+    { "locale": "en", "label": "Python", "query": "Python", "priority": 70, "category": "skill" },
+    { "locale": "en", "label": "DevOps", "query": "DevOps", "priority": 80, "category": "role" }
+  ]
+}

@@ -2072,6 +2072,13 @@ async function main() {
       module: 'interviews',
       description: 'Can thiệp quản trị vào lịch phỏng vấn khi có phê duyệt.',
     },
+    // analytics
+    {
+      name: 'View Analytics',
+      code: 'analytics:view',
+      module: 'analytics',
+      description: 'Xem báo cáo phân tích từ khóa tìm kiếm và nhu cầu thị trường.',
+    },
     // companies
     {
       name: 'Verify Companies',
