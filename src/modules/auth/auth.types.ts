@@ -7,6 +7,7 @@ export type JwtPayload = {
   companyId?: string | null;
   recruiterRoleId?: string | null;
   adminRoleId?: string | null;
+  tokenVersion?: number;
 };
 
 export type EmailVerificationTokenPayload = {

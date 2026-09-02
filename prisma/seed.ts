@@ -2183,22 +2183,55 @@ async function main() {
       module: 'system',
       description: 'Xem nhật ký hoạt động hệ thống của Admin.',
     },
+    {
+      name: 'View Roles',
+      code: 'roles:read',
+      module: 'system',
+      description: 'Xem danh sách vai trò và quyền hạn quản trị.',
+    },
+    {
+      name: 'Manage Roles',
+      code: 'roles:write',
+      module: 'system',
+      description: 'Tạo, sửa, xóa và phân quyền vai trò quản trị.',
+    },
+    {
+      name: 'View Admin Users',
+      code: 'admins:read',
+      module: 'system',
+      description: 'Xem danh sách tài khoản quản trị viên.',
+    },
+    {
+      name: 'Manage Admin Users',
+      code: 'admins:write',
+      module: 'system',
+      description: 'Tạo, sửa, khóa và quản lý tài khoản quản trị viên.',
+    },
+    {
+      name: 'View Permissions',
+      code: 'permissions:read',
+      module: 'system',
+      description: 'Tra cứu danh mục quyền hạn hệ thống.',
+    },
   ];
 
   const seededAdminPermissions: Record<string, string> = {};
-  for (const perm of adminPermissionsDefinitions) {
+  for (let i = 0; i < adminPermissionsDefinitions.length; i++) {
+    const perm = adminPermissionsDefinitions[i];
     const record = await prisma.adminPermission.upsert({
       where: { permissionCode: perm.code },
       update: {
         permissionName: perm.name,
         module: perm.module,
         description: perm.description,
+        sortOrder: i,
       },
       create: {
         permissionName: perm.name,
         permissionCode: perm.code,
         module: perm.module,
         description: perm.description,
+        sortOrder: i,
       },
     });
     seededAdminPermissions[perm.code] = record.id;
@@ -2209,12 +2242,14 @@ async function main() {
       code: 'SUPER_ADMIN',
       name: 'Super Admin',
       description: 'Toàn quyền quản trị hệ thống UpNext.',
+      isSystem: true,
       permissionCodes: adminPermissionsDefinitions.map((p) => p.code),
     },
     {
       code: 'MODERATOR',
       name: 'Content Moderator',
       description: 'Kiểm duyệt tin tuyển dụng, bài viết và đánh giá công ty.',
+      isSystem: true,
       permissionCodes: [
         'jobs:moderate',
         'jobs:view',
@@ -2231,6 +2266,7 @@ async function main() {
       code: 'COMPLIANCE',
       name: 'Compliance Officer',
       description: 'Xác thực doanh nghiệp, xử lý báo cáo vi phạm và khiếu nại.',
+      isSystem: true,
       permissionCodes: [
         'companies:verify',
         'companies:lock',
@@ -2250,6 +2286,7 @@ async function main() {
       code: 'FINANCE',
       name: 'Finance & Billing',
       description: 'Quản lý gói dịch vụ và kiểm tra hóa đơn thanh toán.',
+      isSystem: true,
       permissionCodes: [
         'billing:plans',
         'billing:invoices',
@@ -2265,6 +2302,7 @@ async function main() {
       code: 'SUPPORT',
       name: 'Support Specialist',
       description: 'Hỗ trợ khách hàng, xem log hệ thống và thông tin cơ bản.',
+      isSystem: true,
       permissionCodes: [
         'jobs:view',
         'companies:view',
@@ -2285,13 +2323,19 @@ async function main() {
   const seededAdminRoles: Record<string, any> = {};
   for (const roleDef of adminRolesDefinitions) {
     const role = await prisma.adminRole.upsert({
-      where: { roleName: roleDef.name },
+      where: { roleCode: roleDef.code },
       update: {
-        description: roleDef.description,
-      },
-      create: {
         roleName: roleDef.name,
         description: roleDef.description,
+        isSystem: roleDef.isSystem,
+        status: 'ACTIVE',
+      },
+      create: {
+        roleCode: roleDef.code,
+        roleName: roleDef.name,
+        description: roleDef.description,
+        isSystem: roleDef.isSystem,
+        status: 'ACTIVE',
       },
     });
     seededAdminRoles[roleDef.code] = role;
@@ -2301,10 +2345,12 @@ async function main() {
     });
 
     await prisma.adminRolePermission.createMany({
-      data: roleDef.permissionCodes.map((code) => ({
-        roleId: role.id,
-        permissionId: seededAdminPermissions[code],
-      })),
+      data: Array.from(new Set(roleDef.permissionCodes))
+        .filter((code) => seededAdminPermissions[code])
+        .map((code) => ({
+          roleId: role.id,
+          permissionId: seededAdminPermissions[code],
+        })),
     });
   }
 
@@ -2344,19 +2390,23 @@ async function main() {
   const seededAdmins: Record<string, any> = {};
   for (const adminDef of adminUsersDefinitions) {
     const role = seededAdminRoles[adminDef.roleCode];
+    const normalizedEmail = adminDef.email.toLowerCase().trim();
     const user = await prisma.adminUser.upsert({
-      where: { email: adminDef.email },
+      where: { email: normalizedEmail },
       update: {
         fullName: adminDef.fullName,
         phone: adminDef.phone,
         roleId: role.id,
+        status: 'ACTIVE',
+        deletedAt: null,
       },
       create: {
-        email: adminDef.email,
+        email: normalizedEmail,
         fullName: adminDef.fullName,
         phone: adminDef.phone,
         passwordHash,
         roleId: role.id,
+        status: 'ACTIVE',
       },
     });
     seededAdmins[adminDef.roleCode] = user;

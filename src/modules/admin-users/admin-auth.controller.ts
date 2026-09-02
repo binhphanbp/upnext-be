@@ -1,6 +1,7 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiBody,
   ApiExtraModels,
   ApiOkResponse,
@@ -10,9 +11,11 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { LoginDto } from '../auth/dto/login.dto';
 import { AdminLoginResponse } from '../auth/entities/auth.entity';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminAuthService } from './admin-auth.service';
 
 @ApiTags('Admin - Auth')
@@ -51,5 +54,17 @@ export class AdminAuthController {
   @ApiUnauthorizedResponse({ description: 'Email hoặc mật khẩu không hợp lệ' })
   login(@Body() dto: LoginDto) {
     return this.adminAuthService.login(dto);
+  }
+
+  @ApiOperation({
+    summary: 'Thông tin Admin hiện tại',
+    description: 'Lấy thông tin tài khoản, vai trò và danh sách quyền hạn của Admin đang đăng nhập.',
+  })
+  @ApiOkResponse({ description: 'Lấy thông tin thành công.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  getMe(@CurrentUser() user: AuthenticatedUser) {
+    return this.adminAuthService.getProfile(user.id);
   }
 }

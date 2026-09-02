@@ -90,12 +90,14 @@ async function main() {
     // relation is valid — AdminUser.roleId is a FK to admin_roles, not a
     // free-text string.
     const superAdminRole = await prisma.adminRole.upsert({
-      where: { roleName: 'Super Admin' },
+      where: { roleCode: 'SUPER_ADMIN' },
       update: {},
       create: {
         id: randomUUID(),
+        roleCode: 'SUPER_ADMIN',
         roleName: 'Super Admin',
         description: 'Toàn quyền quản trị hệ thống UpNext.',
+        isSystem: true,
       },
     });
     admin = await prisma.adminUser.create({

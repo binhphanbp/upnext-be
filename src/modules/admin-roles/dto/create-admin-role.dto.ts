@@ -1,14 +1,20 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { RoleStatus } from '@prisma/client';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateAdminRoleDto {
-  @ApiProperty({ maxLength: 120, example: 'super_admin' })
+  @ApiPropertyOptional({ maxLength: 80, example: 'CONTENT_CREATOR' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  roleCode?: string;
+
+  @ApiProperty({ maxLength: 120, example: 'Chuyên viên Nội dung' })
   @IsString()
   @MaxLength(120)
   roleName!: string;
 
-  @ApiPropertyOptional({ example: 'Quyền truy cập quản trị hệ thống đầy đủ' })
+  @ApiPropertyOptional({ example: 'Quản trị viên duyệt bài viết và tin đăng' })
   @IsOptional()
   @IsString()
   description?: string;
@@ -17,4 +23,10 @@ export class CreateAdminRoleDto {
   @IsOptional()
   @IsEnum(RoleStatus)
   status?: RoleStatus;
+
+  @ApiPropertyOptional({ type: [String], description: 'Danh sách UUID quyền hạn được gán ban đầu' })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  permissionIds?: string[];
 }

@@ -7,10 +7,15 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CompanySubscriptionsService } from '../company-subscriptions/company-subscriptions.service';
+import { AdminAuditLogService } from '../admin-users/admin-audit-log.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { PayInvoiceDto } from './dto/pay-invoice.dto';
+import { AdminInvoiceQueryDto } from './dto/admin-invoice-query.dto';
+import { ManualConfirmInvoiceDto } from './dto/manual-confirm-invoice.dto';
+import { CancelInvoiceDto } from './dto/cancel-invoice.dto';
+import { RefundInvoiceDto } from './dto/refund-invoice.dto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { ActorType, PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
+import { ActorType, PaymentMethod, PaymentStatus, Prisma, SubscriptionStatus } from '@prisma/client';
 
 @Injectable()
 export class InvoicesService {
@@ -19,6 +24,7 @@ export class InvoicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptionService: CompanySubscriptionsService,
+    private readonly auditLogService: AdminAuditLogService,
   ) {}
 
   private async resolveCompanyId(user: AuthenticatedUser): Promise<string> {
@@ -190,7 +196,7 @@ export class InvoicesService {
     invoiceId: string,
     companyId: string,
     subscriptionPlanId: string,
-    options: { paymentMethod: PaymentMethod; source: string; paymentReference?: string },
+    options: { paymentMethod: PaymentMethod; source: string; paymentReference?: string; adminNote?: string },
   ) {
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const updatedInvoice = await tx.invoice.update({
@@ -199,6 +205,7 @@ export class InvoicesService {
           paymentStatus: PaymentStatus.PAID,
           paymentMethod: options.paymentMethod,
           paymentReference: options.paymentReference,
+          adminNote: options.adminNote,
           paidAt: new Date(),
         },
         include: { subscriptionPlan: true },
@@ -214,4 +221,309 @@ export class InvoicesService {
       return updatedInvoice;
     });
   }
+
+  async findAdminInvoices(query: AdminInvoiceQueryDto) {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(100, Math.max(1, query.limit || 10));
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.InvoiceWhereInput = {};
+
+    if (query.search?.trim()) {
+      const searchTerm = query.search.trim();
+      where.OR = [
+        { invoiceCode: { contains: searchTerm, mode: 'insensitive' } },
+        { paymentReference: { contains: searchTerm, mode: 'insensitive' } },
+        { company: { name: { contains: searchTerm, mode: 'insensitive' } } },
+        { company: { taxCode: { contains: searchTerm, mode: 'insensitive' } } },
+        { company: { email: { contains: searchTerm, mode: 'insensitive' } } },
+      ];
+    }
+
+    if (query.paymentStatus) {
+      where.paymentStatus = query.paymentStatus;
+    }
+
+    if (query.paymentMethod) {
+      where.paymentMethod = query.paymentMethod;
+    }
+
+    if (query.subscriptionPlanId) {
+      where.subscriptionPlanId = query.subscriptionPlanId;
+    }
+
+    if (query.fromDate || query.toDate) {
+      where.createdAt = {};
+      if (query.fromDate) {
+        where.createdAt.gte = new Date(query.fromDate);
+      }
+      if (query.toDate) {
+        const to = new Date(query.toDate);
+        to.setHours(23, 59, 59, 999);
+        where.createdAt.lte = to;
+      }
+    }
+
+    const sortBy = query.sortBy || 'createdAt';
+    const sortOrder = query.sortOrder || 'desc';
+
+    const [total, items] = await Promise.all([
+      this.prisma.invoice.count({ where }),
+      this.prisma.invoice.findMany({
+        where,
+        include: {
+          company: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              taxCode: true,
+              address: true,
+              email: true,
+              phone: true,
+              verificationStatus: true,
+            },
+          },
+          subscriptionPlan: true,
+        },
+        orderBy: { [sortBy]: sortOrder },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getAdminInvoiceStats() {
+    const [allCounts, paidSum, pendingSum] = await Promise.all([
+      this.prisma.invoice.groupBy({
+        by: ['paymentStatus'],
+        _count: { id: true },
+      }),
+      this.prisma.invoice.aggregate({
+        where: { paymentStatus: PaymentStatus.PAID },
+        _sum: { amount: true },
+      }),
+      this.prisma.invoice.aggregate({
+        where: { paymentStatus: PaymentStatus.PENDING },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    let paidCount = 0;
+    let pendingCount = 0;
+    let failedCount = 0;
+    let refundedCount = 0;
+    let totalCount = 0;
+
+    for (const group of allCounts) {
+      totalCount += group._count.id;
+      if (group.paymentStatus === PaymentStatus.PAID) paidCount = group._count.id;
+      else if (group.paymentStatus === PaymentStatus.PENDING) pendingCount = group._count.id;
+      else if (group.paymentStatus === PaymentStatus.FAILED) failedCount = group._count.id;
+      else if (group.paymentStatus === PaymentStatus.REFUNDED) refundedCount = group._count.id;
+    }
+
+    return {
+      totalRevenue: paidSum._sum.amount ? Number(paidSum._sum.amount) : 0,
+      pendingRevenue: pendingSum._sum.amount ? Number(pendingSum._sum.amount) : 0,
+      totalCount,
+      paidCount,
+      pendingCount,
+      failedCount,
+      refundedCount,
+    };
+  }
+
+  async findAdminInvoiceDetail(id: string) {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        company: true,
+        subscriptionPlan: {
+          include: { features: true },
+        },
+      },
+    });
+
+    if (!invoice) throw new NotFoundException('Không tìm thấy hóa đơn');
+    return invoice;
+  }
+
+  async manualConfirmInvoice(
+    id: string,
+    dto: ManualConfirmInvoiceDto,
+    admin: AuthenticatedUser,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const invoice = await this.findAdminInvoiceDetail(id);
+
+    if (invoice.paymentStatus === PaymentStatus.PAID) {
+      throw new BadRequestException('Hóa đơn này đã được thanh toán trước đó');
+    }
+    if (invoice.paymentStatus === PaymentStatus.FAILED) {
+      throw new BadRequestException('Hóa đơn đã bị hủy, không thể xác nhận thanh toán');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.invoice.update({
+        where: { id },
+        data: {
+          paymentStatus: PaymentStatus.PAID,
+          paymentMethod: dto.paymentMethod ?? PaymentMethod.SEPAY,
+          paymentReference: dto.paymentReference,
+          adminNote: dto.adminNote,
+          paidAt: new Date(),
+        },
+        include: { company: true, subscriptionPlan: true },
+      });
+
+      await this.subscriptionService.activatePlanForCompany(
+        invoice.companyId,
+        invoice.subscriptionPlanId,
+        'ADMIN_MANUAL_CONFIRM',
+        tx,
+      );
+
+      await this.auditLogService.log(
+        {
+          adminId: admin.id,
+          action: 'INVOICE_MANUAL_PAID',
+          targetId: invoice.id,
+          targetType: 'INVOICE',
+          ipAddress: ip,
+          userAgent: userAgent,
+          oldValue: { paymentStatus: invoice.paymentStatus },
+          newValue: {
+            paymentStatus: PaymentStatus.PAID,
+            paymentReference: dto.paymentReference,
+            adminNote: dto.adminNote,
+          },
+        },
+        tx,
+      );
+
+      return updated;
+    });
+  }
+
+  async cancelInvoice(
+    id: string,
+    dto: CancelInvoiceDto,
+    admin: AuthenticatedUser,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const invoice = await this.findAdminInvoiceDetail(id);
+
+    if (invoice.paymentStatus === PaymentStatus.PAID) {
+      throw new BadRequestException(
+        'Không thể hủy hóa đơn đã thanh toán. Vui lòng sử dụng tính năng hoàn tiền.',
+      );
+    }
+    if (invoice.paymentStatus === PaymentStatus.FAILED) {
+      throw new BadRequestException('Hóa đơn này đã bị hủy trước đó');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.invoice.update({
+        where: { id },
+        data: {
+          paymentStatus: PaymentStatus.FAILED,
+          cancelledAt: new Date(),
+          cancelledReason: dto.reason,
+        },
+        include: { company: true, subscriptionPlan: true },
+      });
+
+      await this.auditLogService.log(
+        {
+          adminId: admin.id,
+          action: 'INVOICE_CANCELLED',
+          targetId: invoice.id,
+          targetType: 'INVOICE',
+          ipAddress: ip,
+          userAgent: userAgent,
+          oldValue: { paymentStatus: invoice.paymentStatus },
+          newValue: { paymentStatus: PaymentStatus.FAILED, reason: dto.reason },
+        },
+        tx,
+      );
+
+      return updated;
+    });
+  }
+
+  async refundInvoice(
+    id: string,
+    dto: RefundInvoiceDto,
+    admin: AuthenticatedUser,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const invoice = await this.findAdminInvoiceDetail(id);
+
+    if (invoice.paymentStatus !== PaymentStatus.PAID) {
+      throw new BadRequestException(
+        'Chỉ có thể hoàn tiền đối với hóa đơn đã thanh toán thành công (PAID)',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.invoice.update({
+        where: { id },
+        data: {
+          paymentStatus: PaymentStatus.REFUNDED,
+          refundedAt: new Date(),
+          refundReason: dto.reason,
+          refundReference: dto.refundReference,
+          adminNote: dto.adminNote
+            ? `${invoice.adminNote ? invoice.adminNote + '\n' : ''}[Hoàn tiền]: ${dto.adminNote}`
+            : invoice.adminNote,
+        },
+        include: { company: true, subscriptionPlan: true },
+      });
+
+      // Huỷ gói dịch vụ đã kích hoạt từ hoá đơn này nếu công ty đang active gói này
+      await tx.companySubscription.updateMany({
+        where: {
+          companyId: invoice.companyId,
+          planId: invoice.subscriptionPlanId,
+          status: SubscriptionStatus.ACTIVE,
+        },
+        data: {
+          status: SubscriptionStatus.CANCELLED,
+        },
+      });
+
+      await this.auditLogService.log(
+        {
+          adminId: admin.id,
+          action: 'INVOICE_REFUNDED',
+          targetId: invoice.id,
+          targetType: 'INVOICE',
+          ipAddress: ip,
+          userAgent: userAgent,
+          oldValue: { paymentStatus: invoice.paymentStatus },
+          newValue: {
+            paymentStatus: PaymentStatus.REFUNDED,
+            reason: dto.reason,
+            refundReference: dto.refundReference,
+          },
+        },
+        tx,
+      );
+
+      return updated;
+    });
+  }
 }
+
