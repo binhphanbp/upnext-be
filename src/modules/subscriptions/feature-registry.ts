@@ -33,7 +33,23 @@ export const FEATURES = {
    * còn được dùng. */
   URGENT_LABEL: { key: 'urgent_label', type: 'METERED', audience: 'RECRUITER' },
   CV_POOL_VIEW: { key: 'cv_pool_view', type: 'METERED', audience: 'RECRUITER' },
+  CV_POOL_UNLOCKED_PROFILE: {
+    key: 'cv_pool_unlocked_profile',
+    type: 'CONCURRENT',
+    audience: 'RECRUITER',
+  },
+  CV_POOL_AI_SEARCH: { key: 'cv_pool_ai_search', type: 'METERED', audience: 'RECRUITER' },
   TALENT_CONTACT: { key: 'talent_contact', type: 'METERED', audience: 'RECRUITER' },
+  TALENT_DISCOVERY_RUN: {
+    key: 'talent_discovery_run',
+    type: 'METERED',
+    audience: 'RECRUITER',
+  },
+  TALENT_DISCOVERY_CARD: {
+    key: 'talent_discovery_card',
+    type: 'CONCURRENT',
+    audience: 'RECRUITER',
+  },
   HR_SEAT: { key: 'hr_seat', type: 'CONCURRENT', audience: 'RECRUITER' },
   AI_CV_MATCHING: { key: 'ai_cv_matching', type: 'METERED', audience: 'RECRUITER' },
   AI_JD_GENERATE: { key: 'ai_jd_generate', type: 'METERED', audience: 'RECRUITER' },

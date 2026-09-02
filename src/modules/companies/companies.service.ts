@@ -174,7 +174,7 @@ export class CompaniesService {
 
   async generateLetterTemplate(
     id: string,
-    type: 'OFFER' | 'REJECTION',
+    type: 'OFFER' | 'REJECTION' | 'INVITATION',
     user: AuthenticatedUser,
   ) {
     await this.ensureCompanyExists(id);
@@ -197,7 +197,7 @@ export class CompaniesService {
     });
     const response = await this.llm.generateStructured({
       systemInstruction:
-        'Bạn viết mẫu email tuyển dụng bằng tiếng Việt. Chỉ trả JSON đúng schema. Giá trị template phải là HTML an toàn để hiển thị trong trình soạn thảo, chỉ dùng các thẻ <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em> và <br>. Định dạng rõ tiêu đề, lời chào, các đoạn nội dung, danh sách thông tin cần xác nhận (nếu có) và chữ ký. Chỉ dùng thông tin công ty được cung cấp; không bịa lương, quyền lợi, ngày bắt đầu, người liên hệ, địa chỉ hoặc chính sách. Mọi dữ liệu chưa có phải để placeholder trong ngoặc vuông.',
+        'Bạn viết mẫu email tuyển dụng bằng tiếng Việt. Chỉ trả JSON đúng schema. Giá trị template phải là HTML an toàn để hiển thị trong trình soạn thảo, chỉ dùng các thẻ <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em> và <br>. Định dạng rõ tiêu đề, lời chào, các đoạn nội dung, danh sách thông tin cần xác nhận (nếu có) và chữ ký. Chỉ dùng thông tin công ty được cung cấp; không bịa lương, quyền lợi, ngày bắt đầu, người liên hệ, địa chỉ hoặc chính sách. Mọi dữ liệu chưa có phải để placeholder trong ngoặc vuông. Đối với mẫu thư mời ứng tuyển, sử dụng biến {candidateName} đại diện cho tên ứng viên và {companyName} đại diện cho tên công ty.',
       messages: [
         {
           role: 'user',
@@ -207,7 +207,9 @@ export class CompaniesService {
             instruction:
               type === 'OFFER'
                 ? 'Viết mẫu thư nhận việc chuyên nghiệp, ngắn gọn.'
-                : 'Viết mẫu thư từ chối lịch sự, ngắn gọn.',
+                : type === 'REJECTION'
+                  ? 'Viết mẫu thư từ chối lịch sự, ngắn gọn.'
+                  : 'Viết mẫu thư mời ứng tuyển hấp dẫn, chuyên nghiệp và lịch sự từ công ty gửi tới ứng viên tài năng. Nhấn mạnh việc công ty rất ấn tượng với hồ sơ và muốn mời ứng viên tìm hiểu cơ hội việc làm. Sử dụng đúng biến {candidateName} và {companyName}.',
           }),
         },
       ],

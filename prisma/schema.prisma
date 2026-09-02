@@ -410,6 +410,47 @@ enum TalentContactAttemptOutcome {
   BLOCKED   @map("blocked")
 }
 
+/// Trạng thái của một dòng Discovery index. Cũng là trạng thái queue: dòng
+/// index vừa là dữ liệu vừa là work item, theo đúng khuôn
+/// `20260902090000_durable_cv_screening_queue` đã thiết lập cho CV screening
+/// ("keeping queue state on the aggregate [...] avoids introducing a second
+/// broker before Redis is operated in this stack").
+enum TalentDiscoveryRunStatus {
+  PENDING    @map("pending")
+  PROCESSING @map("processing")
+  COMPLETED  @map("completed")
+  FAILED     @map("failed")
+  /// Snapshot đã quá TTL 30 ngày (§1). Giữ dòng để audit, nhưng không trả card.
+  EXPIRED    @map("expired")
+}
+
+/// Nhãn hiển thị thay cho điểm số thô (§7.2: "Score hiển thị dạng
+/// `Rất phù hợp / Phù hợp / Có thể cân nhắc`", và §246 cấm gọi đó là điểm AI).
+enum TalentDiscoveryMatchBand {
+  STRONG   @map("strong")
+  GOOD     @map("good")
+  CONSIDER @map("consider")
+}
+
+enum DiscoveryIndexStatus {
+  PENDING  @map("pending")
+  ACTIVE   @map("active")
+  INACTIVE @map("inactive")
+  FAILED   @map("failed")
+}
+
+enum DiscoveryConsentStatus {
+  DISABLED @map("disabled")
+  ENABLED  @map("enabled")
+}
+
+/// Candidate tự chọn mức hiển thị mong muốn lương (§5.1 "Mong muốn công việc:
+/// chỉ trường candidate chọn cho phép hiển thị").
+enum DiscoverySalaryVisibility {
+  HIDE       @map("hide")
+  RANGE_ONLY @map("range_only")
+}
+
 enum CandidateContactPreferenceStatus {
   OPTED_OUT @map("opted_out")
   OPTED_IN  @map("opted_in")
@@ -510,37 +551,47 @@ model CandidateProfile {
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @updatedAt @map("updated_at")
 
-  account               CandidateAccount              @relation(fields: [candidateAccountId], references: [id], onDelete: Cascade)
-  educations            CandidateEducation[]
-  experiences           CandidateExperience[]
-  skills                CandidateSkill[]
-  projects              CandidateProject[]
-  certifications        CandidateCertification[]
-  languages             CandidateLanguage[]
-  links                 CandidateLink[]
-  jobPreference         CandidateJobPreference?
-  cvs                   CV[]
-  applications          Application[]
-  savedJobs             SavedJob[]
-  jobViews              JobView[]
-  companyFollows        CompanyFollow[]
-  shortlists            RecruiterCandidateShortlist[]
-  reports               Report[]
-  companyReviews        CompanyReview[]
-  mockInterviews        MockInterview[]
-  cvEmbeddings          CvEmbedding[]
-  applicationAiScores   ApplicationAiScore[]
-  contactPreference     CandidateContactPreference?
-  companyBlocks         CompanyCandidateBlock[]
-  cvPoolUnlocks         CvPoolUnlock[]
-  talentRecommendations TalentRecommendation[]
-  talentContactRequests TalentContactRequest[]
-  aiConversations       AIConversation[]
-  subscriptions         CandidateSubscription[]
-  subscriptionUsages    CandidateSubscriptionUsage[]
+  account                   CandidateAccount                    @relation(fields: [candidateAccountId], references: [id], onDelete: Cascade)
+  educations                CandidateEducation[]
+  experiences               CandidateExperience[]
+  skills                    CandidateSkill[]
+  projects                  CandidateProject[]
+  certifications            CandidateCertification[]
+  languages                 CandidateLanguage[]
+  links                     CandidateLink[]
+  jobPreference             CandidateJobPreference?
+  cvs                       CV[]
+  applications              Application[]
+  savedJobs                 SavedJob[]
+  jobViews                  JobView[]
+  companyFollows            CompanyFollow[]
+  shortlists                RecruiterCandidateShortlist[]
+  reports                   Report[]
+  companyReviews            CompanyReview[]
+  mockInterviews            MockInterview[]
+  cvEmbeddings              CvEmbedding[]
+  applicationAiScores       ApplicationAiScore[]
+  contactPreference         CandidateContactPreference?
+  talentDiscoveryPreference CandidateTalentDiscoveryPreference?
+  talentDiscoveryIndex      TalentDiscoveryIndex?
+  companyBlocks             CompanyCandidateBlock[]
+  cvPoolUnlocks             CvPoolUnlock[]
+  cvPoolDetailViews         CvPoolDetailView[]
+  talentRecommendations     TalentRecommendation[]
+  talentContactRequests     TalentContactRequest[]
+  talentPoolInvitations     TalentPoolInvitation[]
+  aiConversations           AIConversation[]
+  subscriptions             CandidateSubscription[]
+  subscriptionUsages        CandidateSubscriptionUsage[]
 
   @@index([jobSearchStatus])
   @@index([profileVisibility])
+  /// Predicate eligibility của Discovery (§4.2) lọc đồng thời `jobSearchStatus`
+  /// và `profileVisibility`; hai index đơn lẻ ở trên không phục vụ được điều đó.
+  /// Giữ cả hai index cũ vì `profileVisibility` còn được dùng riêng ở nơi khác.
+  /// Index này KHÔNG phục vụ đường pgvector — đường đó chạy trên
+  /// `talent_discovery_indexes`.
+  @@index([jobSearchStatus, profileVisibility, updatedAt])
   @@map("candidate_profiles")
 }
 
@@ -900,6 +951,7 @@ model Company {
   benefits                String?                   @db.Text
   offerLetterTemplate     String?                   @map("offer_letter_template") @db.Text
   rejectionLetterTemplate String?                   @map("rejection_letter_template") @db.Text
+  applicationInvitationTemplate String?             @map("application_invitation_template") @db.Text
   companySize             String?                   @map("company_size") @db.VarChar(80)
   workingDays             String?                   @map("working_days") @db.VarChar(150)
   verificationStatus      CompanyVerificationStatus @default(UNVERIFIED) @map("verification_status")
@@ -930,8 +982,10 @@ model Company {
   conversations            Conversation[]
   candidateBlocks          CompanyCandidateBlock[]
   cvPoolUnlocks            CvPoolUnlock[]
+  cvPoolDetailViews        CvPoolDetailView[]
   talentRecommendationRuns TalentRecommendationRun[]
   talentContactRequests    TalentContactRequest[]
+  talentPoolInvitations    TalentPoolInvitation[]
   supportCases             SupportCase[]
   subscriptionUsages       SubscriptionUsage[]
   aiUsageLogs              AiUsageLog[]
@@ -1018,6 +1072,7 @@ model RecruiterAccount {
   talentRecommendationRuns TalentRecommendationRun[]
   talentContactAttempts    TalentContactAttempt[]
   cvPoolUnlocks            CvPoolUnlock[]
+  cvPoolDetailViews        CvPoolDetailView[]
   createdSupportCases      SupportCase[]                 @relation("SupportCaseCreatedByRecruiter")
   hiringResultReports      HiringResultReport[]
   reportsFiled             Report[]
@@ -2642,9 +2697,55 @@ model CvPoolUnlock {
   @@map("cv_pool_unlocks")
 }
 
+/// Một lượt "xem chi tiết" trong Kho CV, trong MỘT chu kỳ tháng.
+///
+/// Khác `CvPoolUnlock` (mở vĩnh viễn, đã khai tử cùng route `unlock`), bảng
+/// này khoá theo `(companyId, candidateProfileId, periodStart)` -- xem lại
+/// cùng một hồ sơ trong CÙNG kỳ không trừ thêm, nhưng sang kỳ mới thì trừ lại.
+/// `periodStart` không tính bằng công thức cố định (không phải "ngày 1 hàng
+/// tháng") vì kỳ theo `SubscriptionQuotaService.resolveCurrentPeriod()`, gắn
+/// với ngày công ty bắt đầu subscription -- xem doc comment của hàm đó.
+model CvPoolDetailView {
+  id                  String   @id @default(uuid()) @db.Uuid
+  companyId           String   @map("company_id") @db.Uuid
+  candidateProfileId  String   @map("candidate_profile_id") @db.Uuid
+  viewedByRecruiterId String   @map("viewed_by_recruiter_id") @db.Uuid
+  periodStart         DateTime @map("period_start")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidateProfile  CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  viewedByRecruiter RecruiterAccount @relation(fields: [viewedByRecruiterId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, candidateProfileId, periodStart])
+  @@index([candidateProfileId, createdAt])
+  @@map("cv_pool_detail_views")
+}
+
+model TalentPoolInvitation {
+  id                 String           @id @default(uuid()) @db.Uuid
+  companyId          String           @map("company_id") @db.Uuid
+  candidateProfileId String           @map("candidate_profile_id") @db.Uuid
+  message            String?          @db.Text
+  sentAt             DateTime         @default(now()) @map("sent_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, candidateProfileId])
+  @@index([companyId])
+  @@index([candidateProfileId])
+  @@map("talent_pool_invitations")
+}
+
 model CandidateContactPreference {
   candidateProfileId String                           @id @map("candidate_profile_id") @db.Uuid
   status             CandidateContactPreferenceStatus @default(OPTED_OUT)
+  /// KHÔNG được đọc bởi Talent Discovery (§3, §11.3). Hai cột này chưa có nơi
+  /// nào trong `src/` đọc tới; giữ lại vì xoá là migration phá huỷ, và
+  /// `consentVersion` có thể là bằng chứng cho consent direct-contact đã thu.
+  /// Consent của Discovery nằm ở `CandidateTalentDiscoveryPreference`.
   allowedChannels    Json?                            @map("allowed_channels")
   consentVersion     String?                          @map("consent_version") @db.VarChar(40)
   updatedAt          DateTime                         @updatedAt @map("updated_at")
@@ -2653,6 +2754,339 @@ model CandidateContactPreference {
   candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
 
   @@map("candidate_contact_preferences")
+}
+
+/// Consent riêng cho AI Talent Discovery (§4.1).
+///
+/// Vì sao KHÔNG tái dùng `CandidateContactPreference`: §3 và §11.3 nói thẳng
+/// "không suy ra từ `CandidateContactPreference` cũ". Consent cho phép một công
+/// ty *liên hệ trực tiếp* không hàm ý đồng ý cho *xử lý và xếp hạng CV* trong
+/// một sản phẩm khác. `OPEN_TO_WORK` hay profile `PUBLIC` cũng vậy — §1 đặt
+/// consent mặc định là tắt.
+///
+/// `consentVersion` là NOT NULL và không có default có chủ ý: một dòng ở bảng
+/// này là bằng chứng ai đó đã đồng ý với một bản văn cụ thể. Không ghi được bản
+/// nào thì không nên tồn tại dòng nào.
+model CandidateTalentDiscoveryPreference {
+  candidateProfileId String                 @id @map("candidate_profile_id") @db.Uuid
+  status             DiscoveryConsentStatus @default(DISABLED)
+  /// Bản consent mà candidate đã đồng ý. Bump hằng số trong code sẽ làm mọi
+  /// dòng có version cũ trở thành không-đủ-điều-kiện (predicate match trên cột
+  /// này), tức ép re-consent mà không cần migration dữ liệu.
+  consentVersion     String                 @map("consent_version") @db.VarChar(40)
+  consentedAt        DateTime?              @map("consented_at")
+  revokedAt          DateTime?              @map("revoked_at")
+
+  /// Cho phép nhận lời mời trao đổi (§4.1.2: bật/tắt riêng khỏi quyền xem CV).
+  allowInvitations    Boolean @default(true) @map("allow_invitations")
+  /// Cho phép recruiter xem hồ sơ/CV đã redaction. Mặc định `false` — fail
+  /// closed theo §5.3, vì đây là mức phơi bày sâu hơn card.
+  allowRedactedCvView Boolean @default(false) @map("allow_redacted_cv_view")
+
+  /// Giới hạn phạm vi do candidate tự đặt (§4.1.4). Lưu `Json` vì đây là tập
+  /// filter candidate tự soạn, chỉ đọc trong trusted backend; phần enforce được
+  /// sẽ denormalize sang `TalentDiscoveryIndex` nơi SQL hard filter cần tới.
+  allowedJobFamilies   Json? @map("allowed_job_families")
+  allowedCities        Json? @map("allowed_cities")
+  allowedWorkingModels Json? @map("allowed_working_models")
+
+  salaryVisibility    DiscoverySalaryVisibility @default(HIDE) @map("salary_visibility")
+  noticePeriodVisible Boolean                   @default(false) @map("notice_period_visible")
+
+  lastReviewedAt DateTime? @map("last_reviewed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("candidate_talent_discovery_preferences")
+}
+
+/// Chỉ mục tìm kiếm cho Talent Discovery — **một dòng cho mỗi ứng viên**.
+///
+/// `@@unique([candidateProfileId])`, không phải "một dòng *active* mỗi ứng
+/// viên": trạng thái đổi tại chỗ. Điều này làm yêu cầu §12 ("một candidate có
+/// nhiều CV version chỉ xuất hiện một lần") thành bảo đảm **cấu trúc** thay vì
+/// một invariant phải nhớ khi viết query, và tránh phải dùng partial unique
+/// index mà Prisma không diễn đạt được.
+///
+/// ## Cái gì được denormalize, cái gì không
+///
+/// Chỉ denormalize **tuỳ chọn do chính ứng viên đặt** (thành phố, mô hình làm
+/// việc, dải kinh nghiệm, lương) — chúng không thể đổi mà không có một lần ghi
+/// profile, tức không thể lệch.
+///
+/// **Tuyệt đối không** denormalize consent / visibility / block: chúng phải là
+/// live join trong câu truy vấn, nếu không một lần rút consent sẽ chỉ có hiệu
+/// lực sau khi indexer chạy lại — đúng cái lỗi quyền riêng tư mà thiết kế này
+/// không được phép có.
+///
+/// `sanitizedText` chỉ ghép từ taxonomy và trường đã sanitize (§7.1). Nó
+/// **không bao giờ** đến từ `CVVersion.parsedText` hay file gốc; xem
+/// `talent-discovery/discovery-text.ts`.
+model TalentDiscoveryIndex {
+  id                 String               @id @default(uuid()) @db.Uuid
+  candidateProfileId String               @unique @map("candidate_profile_id") @db.Uuid
+  status             DiscoveryIndexStatus @default(PENDING)
+
+  sanitizedText        String @map("sanitized_text") @db.Text
+  /// Vector dạng JSONB. Cột `vector(768)` cho pgvector được thêm bằng raw SQL ở
+  /// migration riêng và **vô hình với Prisma** — xem ghi chú ở migration đó.
+  embeddingVector      Json?  @map("embedding_vector")
+  embeddingModel       String @default("") @map("embedding_model") @db.VarChar(120)
+  /// `EMBEDDING_CACHE_KEY` + `SANITIZER_VERSION`. Lệch giá trị hiện hành nghĩa
+  /// là phải index lại.
+  embeddingVersion     String @default("") @map("embedding_version") @db.VarChar(80)
+  sanitizerVersion     String @default("") @map("sanitizer_version") @db.VarChar(40)
+  /// sha256 của đúng tập trường nguồn mà text builder đọc. Không đổi thì **bỏ
+  /// hẳn** lời gọi embedding — đây là khoá cache của Discovery, không phải phép
+  /// so `embeddingText` như `CvEmbedding` dùng.
+  sourceProfileVersion String @map("source_profile_version") @db.VarChar(64)
+
+  /// Dòng mô tả nghề nghiệp trên card. **Chỉ** được ghi sau khi đã qua
+  /// `sanitizeDiscoveryText()` + `assertNoDiscoveryPii()` — nguồn của nó là
+  /// free text ứng viên tự gõ nên hàng rào đó là điều kiện để cột này tồn tại.
+  headline         String? @db.VarChar(120)
+  /// Dải thời gian có thể nhận việc, ví dụ "within 1 month". Chỉ ghi khi ứng
+  /// viên bật `noticePeriodVisible`; ngược lại để `null` (fail closed).
+  noticePeriodBand String? @map("notice_period_band") @db.VarChar(40)
+
+  // --- cột hard-filter đã denormalize (tuỳ chọn do ứng viên đặt) ---
+  allowedJobCategoryIds String[]       @map("allowed_job_category_ids") @db.Uuid
+  cities                String[]       @db.VarChar(100)
+  workingModels         WorkingModel[] @map("working_models")
+  experienceMonths      Int            @default(0) @map("experience_months")
+  desiredLevelId        String?        @map("desired_level_id") @db.Uuid
+  /// Chỉ ghi khi `salaryVisibility != HIDE` (§5.1, §7.2 mục salary opt-in).
+  salaryMin             Decimal?       @map("salary_min") @db.Decimal(12, 2)
+  salaryMax             Decimal?       @map("salary_max") @db.Decimal(12, 2)
+  salaryCurrency        String?        @map("salary_currency") @db.VarChar(10)
+  /// Bản sao của quyền xem CV redaction, để truy vấn không phải join thêm.
+  /// Quyền thật vẫn được kiểm live ở đường đọc.
+  allowRedactedCvView   Boolean        @default(false) @map("allow_redacted_cv_view")
+
+  // --- trạng thái queue trên chính aggregate ---
+  attemptCount  Int       @default(0) @map("attempt_count")
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at")
+  lockedAt      DateTime? @map("locked_at")
+  lockedBy      String?   @map("locked_by") @db.VarChar(100)
+  lastError     String?   @map("last_error") @db.Text
+
+  indexedAt     DateTime? @map("indexed_at")
+  deactivatedAt DateTime? @map("deactivated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([status, lockedAt])
+  @@index([status, embeddingVersion])
+  @@map("talent_discovery_indexes")
+}
+
+/// Cooldown liên hệ theo cặp (công ty, ứng viên) — **nguồn sự thật duy nhất**
+/// cho quy tắc 30 ngày (§6.3).
+///
+/// `TalentContactRequest` đã có `@@unique([companyId, candidateProfileId,
+/// jobPostId])`, nhưng đó là unique theo **từng tin tuyển dụng**: một công ty
+/// mời cùng một người cho 5 tin trong cùng một ngày vẫn hợp lệ. §6.3 nói thẳng
+/// "Không dựa vào unique hiện tại theo (company, candidate, job)".
+///
+/// Không FK sang `talent_discovery_recommendations` cho `lastRecommendationId`:
+/// snapshot recommendation có TTL 30 ngày và sẽ bị dọn, nhưng cooldown thì phải
+/// sống sót qua việc đó.
+model CompanyCandidateOutreachWindow {
+  id                   String   @id @default(uuid()) @db.Uuid
+  companyId            String   @map("company_id") @db.Uuid
+  candidateProfileId   String   @map("candidate_profile_id") @db.Uuid
+  lastContactedAt      DateTime @map("last_contacted_at")
+  nextEligibleAt       DateTime @map("next_eligible_at")
+  /// Không FK: snapshot bị dọn sau TTL, cooldown phải sống lâu hơn.
+  lastRecommendationId String?  @map("last_recommendation_id") @db.Uuid
+  lastJobPostId        String?  @map("last_job_post_id") @db.Uuid
+  contactCount         Int      @default(0) @map("contact_count")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyId, candidateProfileId])
+  @@index([nextEligibleAt])
+  @@map("company_candidate_outreach_windows")
+}
+
+/// Cửa sổ phơi bày theo cặp (ứng viên, công ty) — dùng cho **cả hai** giới hạn
+/// ở §4.2.
+///
+/// Chốt then chốt của thiết kế: vì một dòng được mở đúng 30 ngày ở lần lộ diện
+/// đầu tiên, và `@@unique([candidateProfileId, companyId])` bảo đảm **một dòng
+/// mỗi công ty**, thì
+///
+///   `count(where candidateProfileId, nextEligibleAt > now())`
+///
+/// **chính là** số công ty distinct đã thấy ứng viên trong 30 ngày. Không cần
+/// aggregate rolling-window trên bảng event append-only; một phép đếm rolling
+/// trở thành một `count` trên index. Bảng event vẫn tồn tại, nhưng để làm nguồn
+/// audit và lịch sử cho ứng viên xem (§10), không phải để enforce.
+model CandidateDiscoveryExposureWindow {
+  id                 String   @id @default(uuid()) @db.Uuid
+  candidateProfileId String   @map("candidate_profile_id") @db.Uuid
+  companyId          String   @map("company_id") @db.Uuid
+  firstExposedAt     DateTime @map("first_exposed_at")
+  lastExposedAt      DateTime @map("last_exposed_at")
+  nextEligibleAt     DateTime @map("next_eligible_at")
+  exposureCount      Int      @default(0) @map("exposure_count")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@unique([candidateProfileId, companyId])
+  /// Phục vụ đúng phép đếm ở trên.
+  @@index([candidateProfileId, nextEligibleAt])
+  @@map("candidate_discovery_exposure_windows")
+}
+
+/// Nhật ký append-only mỗi lần một ứng viên lộ diện với một công ty (§10).
+///
+/// Đây là nguồn cho trang "công ty nào đã thấy tôi" của ứng viên (§4.2) và cho
+/// audit. **Không** phải nguồn enforce — việc đó là của
+/// `CandidateDiscoveryExposureWindow`, vì nó cho phép enforce bằng một `count`
+/// có index thay vì một aggregate trên bảng đang lớn dần.
+///
+/// Không FK trên `runId`/`recommendationId`: cả hai bị dọn sau TTL 30 ngày,
+/// nhưng lịch sử phơi bày là điều ứng viên có quyền xem lâu hơn thế.
+model CandidateDiscoveryExposureEvent {
+  id                 String   @id @default(uuid()) @db.Uuid
+  candidateProfileId String   @map("candidate_profile_id") @db.Uuid
+  companyId          String   @map("company_id") @db.Uuid
+  runId              String?  @map("run_id") @db.Uuid
+  jobPostId          String?  @map("job_post_id") @db.Uuid
+  recommendationId   String?  @map("recommendation_id") @db.Uuid
+  exposedAt          DateTime @default(now()) @map("exposed_at")
+
+  @@index([candidateProfileId, exposedAt])
+  @@index([companyId, exposedAt])
+  @@index([runId])
+  @@map("candidate_discovery_exposure_events")
+}
+
+/// Một lượt Discovery cho một Job Post.
+///
+/// Bảng **mới**, không tái dùng `TalentRecommendationRun`: bảng cũ có grain theo
+/// `CVVersion` (một ứng viên nhiều CV chiếm nhiều slot và đụng
+/// `@@unique([runId, candidateProfileId])`), không có quota, và serializer của nó
+/// trả tên thật. §3 cấm nối UI vào nó và §10 đặt tên hai bảng mới. Bảng cũ giữ
+/// nguyên cho lịch sử audit (quy tắc additive của §11.1).
+///
+/// Trạng thái queue nằm trên chính aggregate (`attemptCount`, `nextAttemptAt`,
+/// `lockedAt`, `lockedBy`), theo khuôn `20260902090000_durable_cv_screening_queue`.
+model TalentDiscoveryRun {
+  id                     String                   @id @default(uuid()) @db.Uuid
+  companyId              String                   @map("company_id") @db.Uuid
+  jobPostId              String                   @map("job_post_id") @db.Uuid
+  requestedByRecruiterId String                   @map("requested_by_recruiter_id") @db.Uuid
+  status                 TalentDiscoveryRunStatus @default(PENDING)
+
+  /// `talent-discovery:{companyId}:{header}`. Unique để một retry cùng key không
+  /// bao giờ tạo run thứ hai.
+  idempotencyKey  String    @unique @map("idempotency_key") @db.VarChar(180)
+  /// `SubscriptionUsage` đã trừ cho run này, để `reverse()` được khi worker thất
+  /// bại trước lúc publish (§8).
+  usageId         String?   @unique @map("usage_id") @db.Uuid
+  usageReversedAt DateTime? @map("usage_reversed_at")
+
+  /// sha256 các trường ảnh hưởng ranking. Refresh chỉ charge khi nó đổi hoặc
+  /// snapshot đã quá 7 ngày (§1, §6.1.6).
+  matchingFingerprint   String @map("matching_fingerprint") @db.VarChar(64)
+  fingerprintVersion    String @map("fingerprint_version") @db.VarChar(40)
+  /// Ảnh chụp job lúc chạy, để kết quả giải thích/tái lập được (§7.3).
+  jobSnapshot           Json   @map("job_snapshot")
+  /// Weights, thresholds, `indexEmbeddingVersion`, đường retrieval đã chạy.
+  scoringConfig         Json   @map("scoring_config")
+  scoringVersion        String @map("scoring_version") @db.VarChar(40)
+  indexEmbeddingVersion String @map("index_embedding_version") @db.VarChar(80)
+  maskingPolicyVersion  String @map("masking_policy_version") @db.VarChar(40)
+
+  maxResults   Int     @map("max_results")
+  resultCount  Int     @default(0) @map("result_count")
+  /// Vì sao ít hơn `maxResults`. §1 và §12 cấm lấp thêm cho đủ số.
+  supplyReason String? @map("supply_reason") @db.VarChar(40)
+
+  eligibilityCheckedAt DateTime? @map("eligibility_checked_at")
+  /// TTL 30 ngày (§1). Đường đọc vẫn kiểm mốc này, cron chỉ dọn.
+  snapshotExpiresAt    DateTime  @map("snapshot_expires_at")
+
+  attemptCount  Int       @default(0) @map("attempt_count")
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at")
+  lockedAt      DateTime? @map("locked_at")
+  lockedBy      String?   @map("locked_by") @db.VarChar(100)
+  errorCode     String?   @map("error_code") @db.VarChar(80)
+  errorMessage  String?   @map("error_message") @db.Text
+
+  startedAt  DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  recommendations TalentDiscoveryRecommendation[]
+
+  @@index([jobPostId, status, createdAt])
+  @@index([companyId, createdAt])
+  /// Tra snapshot còn dùng lại được cho một fingerprint.
+  @@index([jobPostId, matchingFingerprint, status])
+  /// Cron dọn TTL, và cột queue.
+  @@index([status, snapshotExpiresAt])
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([status, lockedAt])
+  @@map("talent_discovery_runs")
+}
+
+/// Một card ẩn danh trong một run.
+///
+/// `candidateProfileId` là FK **nội bộ** để join; §10 nói rõ "serializer
+/// recruiter tuyệt đối không gửi value này". Việc đó được bảo đảm ở mapper viết
+/// tay (không `...spread`) và có spec khoá tập khoá của DTO.
+///
+/// Không có cột `explanation` dạng text tự do: §7.2 yêu cầu reason **codes**, và
+/// một cột text là nơi mà một câu do model sinh — có thể chứa fingerprint hiếm
+/// đủ để truy ra một người — sẽ lọt vào.
+model TalentDiscoveryRecommendation {
+  id                 String @id @default(uuid()) @db.Uuid
+  runId              String @map("run_id") @db.Uuid
+  jobPostId          String @map("job_post_id") @db.Uuid
+  /// Nội bộ, không bao giờ serialize.
+  candidateProfileId String @map("candidate_profile_id") @db.Uuid
+
+  /// HMAC per-run, chỉ làm khoá danh sách phía client. Không endpoint nào nhận.
+  candidateRef String @map("candidate_ref") @db.VarChar(64)
+  /// 4 ký tự Crockford, hiển thị `Candidate #A7K4`.
+  alias        String @db.VarChar(32)
+
+  rank           Int
+  /// Chỉ dùng phía server. §9 cấm trả score thô ra client.
+  score          Decimal                  @db.Decimal(5, 2)
+  matchBand      TalentDiscoveryMatchBand @map("match_band")
+  scoreBreakdown Json                     @map("score_breakdown")
+  /// Mã lý do/khoảng trống, resolve sang copy tiếng Việt ở tầng serializer.
+  reasonCodes    Json                     @map("reason_codes")
+  gapCodes       Json                     @map("gap_codes")
+
+  matchedSkillIds  String[]      @map("matched_skill_ids") @db.Uuid
+  experienceMonths Int           @default(0) @map("experience_months")
+  city             String?       @db.VarChar(100)
+  workingModel     WorkingModel? @map("working_model")
+  /// Các trường không-PII dùng dựng card, chụp lại lúc chạy.
+  indexSnapshot    Json          @map("index_snapshot")
+
+  generatedAt DateTime @default(now()) @map("generated_at")
+
+  run TalentDiscoveryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  /// Một ứng viên xuất hiện đúng một lần trong một run (§12).
+  @@unique([runId, candidateProfileId])
+  /// Bắt trùng alias trong một run -- xác suất nhỏ nhưng không bằng không.
+  @@unique([runId, alias])
+  @@index([runId, rank])
+  @@map("talent_discovery_recommendations")
 }
 
 model CompanyCandidateBlock {
@@ -2902,6 +3336,39 @@ model OutboxEvent {
   @@index([status, nextAttemptAt, createdAt])
   @@index([aggregateType, aggregateId])
   @@map("outbox_events")
+}
+
+/// Nhật ký hành động cấp nghiệp vụ cho MỌI loại actor.
+///
+/// Vì sao không dùng `AdminAuditLog`: `admin_id` của nó có FK cứng tới
+/// `admin_users`, nên chèn id của một recruiter hay candidate sẽ fail. Ba call
+/// site hiện tại của nó đều là luồng support của admin.
+///
+/// Chủ ý KHÔNG có FK trên `actorId` / `companyId` / `candidateProfileId`: audit
+/// phải sống sót khi bản ghi được tham chiếu bị xoá, và không bao giờ được để
+/// một `onDelete: Restrict` chặn hành động mà nó chỉ đang ghi chép. Đó chính là
+/// lý do `AdminAuditLog` không dùng được ở đây.
+model DomainAuditEvent {
+  id                 String     @id @default(uuid()) @db.Uuid
+  eventType          String     @map("event_type") @db.VarChar(80)
+  aggregateType      String     @map("aggregate_type") @db.VarChar(60)
+  aggregateId        String     @map("aggregate_id") @db.Uuid
+  actorType          ActorType? @map("actor_type")
+  actorId            String?    @map("actor_id") @db.Uuid
+  companyId          String?    @map("company_id") @db.Uuid
+  candidateProfileId String?    @map("candidate_profile_id") @db.Uuid
+  /// Chỉ metadata đã tối thiểu hoá. Tuyệt đối không raw CV text, dữ liệu liên
+  /// hệ hay prompt của model (AI_TALENT_DISCOVERY_ROLLOUT_PLAN.md §10).
+  metadata           Json?
+  createdAt          DateTime   @default(now()) @map("created_at")
+
+  @@index([aggregateType, aggregateId, createdAt])
+  @@index([companyId, eventType, createdAt])
+  // Tên đặt tường minh: tên do Prisma sinh sẽ dài 66 ký tự và bị Postgres
+  // cắt ở giới hạn 63 byte, tạo drift giữa migration và DB.
+  @@index([candidateProfileId, eventType, createdAt], map: "domain_audit_events_candidate_event_created_idx")
+  @@index([eventType, createdAt])
+  @@map("domain_audit_events")
 }
 
 // =========================

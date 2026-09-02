@@ -1,6 +1,6 @@
 import { IsIn } from 'class-validator';
 
 export class GenerateCompanyLetterTemplateDto {
-  @IsIn(['OFFER', 'REJECTION'])
-  type!: 'OFFER' | 'REJECTION';
+  @IsIn(['OFFER', 'REJECTION', 'INVITATION'])
+  type!: 'OFFER' | 'REJECTION' | 'INVITATION';
 }
