@@ -10,6 +10,7 @@ const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 100;
 const MIN_SALARY = 3_000_000;
 const MAX_SALARY = 300_000_000;
+const GOOGLE_GROUNDING_REDIRECT_HOST = 'vertexaisearch.cloud.google.com';
 
 export type SalaryResearchInput = {
   title: string;
@@ -329,13 +330,8 @@ ${JSON.stringify(facts)}
     const sources = evidence.sources;
     const distinctSourceDomains = new Set(
       sources.flatMap((source) => {
-        try {
-          // `www.` is not an independent publisher from the apex domain.
-          const hostname = new URL(source.url).hostname.toLowerCase().replace(/^www\./, '');
-          return hostname ? [hostname] : [];
-        } catch {
-          return [];
-        }
+        const publisher = this.publisherDomain(source);
+        return publisher ? [publisher] : [];
       }),
     );
     const searchQueries = evidence.searchQueries.slice(0, 8);
@@ -384,6 +380,56 @@ ${JSON.stringify(facts)}
       return null;
     }
     return Math.round(value / 500_000) * 500_000;
+  }
+
+  /**
+   * Gemini grounding now wraps citations in a `vertexaisearch.cloud.google.com`
+   * redirect. Those URLs are still safe and useful links for the UI, but counting
+   * their host would make five independent publishers look like one source. When
+   * that exact redirect shape appears, Gemini provides the original publisher as
+   * a hostname in the citation title; accept only that hostname-shaped metadata.
+   */
+  private publisherDomain(source: GroundedSource) {
+    try {
+      const url = new URL(source.url);
+      const hostname = this.normalizeHostname(url.hostname);
+      if (
+        hostname &&
+        !(
+          hostname === GOOGLE_GROUNDING_REDIRECT_HOST &&
+          url.pathname.startsWith('/grounding-api-redirect/')
+        )
+      ) {
+        return hostname;
+      }
+      if (hostname !== GOOGLE_GROUNDING_REDIRECT_HOST) return null;
+      return this.hostnameFromCitationTitle(source.title);
+    } catch {
+      return null;
+    }
+  }
+
+  private hostnameFromCitationTitle(value: string) {
+    const title = value
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/$/, '');
+    // A display title such as "Vietnam salary report" is not evidence of an
+    // independent publisher. Only retain a bare hostname, optionally with `www.`.
+    if (
+      !/^(?:www\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(
+        title,
+      )
+    ) {
+      return null;
+    }
+    return this.normalizeHostname(title);
+  }
+
+  private normalizeHostname(value: string) {
+    const hostname = value.toLowerCase().replace(/^www\./, '');
+    return hostname || null;
   }
 
   private plainText(value: string, maxLength: number) {
