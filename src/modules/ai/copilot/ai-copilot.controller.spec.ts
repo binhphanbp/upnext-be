@@ -9,16 +9,19 @@ import { AiConversationsService } from './ai-conversations.service';
 import { AiCopilotController } from './ai-copilot.controller';
 import { AiCopilotService } from './ai-copilot.service';
 import { AiRunTrackerService } from './ai-run-tracker.service';
+import { CandidateKnowledgeRetrievalService } from '../retrieval/candidate-knowledge-retrieval.service';
 
 describe('AiCopilotController — candidate entitlement', () => {
   const appendUserMessage = jest.fn();
   const reserve = jest.fn();
   const reverseUsage = jest.fn();
   const run = jest.fn();
+  const getPublishedSource = jest.fn();
 
   const conversations = { appendUserMessage } as unknown as AiConversationsService;
   const copilot = { run } as unknown as AiCopilotService;
   const quota = { reserve, reverseUsage } as unknown as CandidateSubscriptionQuotaService;
+  const knowledge = { getPublishedSource } as unknown as CandidateKnowledgeRetrievalService;
 
   let controller: AiCopilotController;
 
@@ -32,9 +35,11 @@ describe('AiCopilotController — candidate entitlement', () => {
       {} as AiBudgetService,
       {} as AiRunTrackerService,
       quota,
+      knowledge,
     );
     appendUserMessage.mockResolvedValue({ id: 'user-message' });
     reserve.mockResolvedValue({ usage: { id: 'usage-1' }, replayed: false });
+    getPublishedSource.mockResolvedValue({ id: 'source-1' });
   });
 
   it('keeps a Copilot quota reservation after a completed stream', async () => {
@@ -88,6 +93,13 @@ describe('AiCopilotController — candidate entitlement', () => {
 
     expect(run).not.toHaveBeenCalled();
     expect(reverseUsage).toHaveBeenCalledWith('usage-1', 'copilot_run_failed');
+  });
+
+  it('resolves a citation source through the publication-checked knowledge service', async () => {
+    await expect(controller.knowledgeSource('source-1')).resolves.toEqual({
+      data: { id: 'source-1' },
+    });
+    expect(getPublishedSource).toHaveBeenCalledWith('source-1');
   });
 });
 

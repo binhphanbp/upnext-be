@@ -7,12 +7,19 @@
     <title>Kết quả kiểm tra hồ sơ doanh nghiệp - UPNEXT</title>
     <style>
       body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
       }
       @media screen and (max-width: 480px) {
-        .email-card { width: 100% !important; }
-        .card-padding { padding: 24px 18px !important; }
-        .header-title { font-size: 19px !important; }
+        .email-card {
+          width: 100% !important;
+        }
+        .card-padding {
+          padding: 24px 18px !important;
+        }
+        .header-title {
+          font-size: 19px !important;
+        }
       }
     </style>
   </head>
@@ -22,13 +29,25 @@
       padding: 0;
       background-color: #f1f5f9;
       color: #1e293b;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    ">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-      style="width: 100%; border-collapse: collapse; background-color: #f1f5f9;">
+      font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    "
+  >
+    <table
+      role="presentation"
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="width: 100%; border-collapse: collapse; background-color: #f1f5f9"
+    >
       <tr>
-        <td align="center" style="padding: 40px 12px;">
-          <table role="presentation" class="email-card" width="560" cellpadding="0" cellspacing="0"
+        <td align="center" style="padding: 40px 12px">
+          <table
+            role="presentation"
+            class="email-card"
+            width="560"
+            cellpadding="0"
+            cellspacing="0"
             style="
               width: 560px;
               max-width: 100%;
@@ -39,18 +58,37 @@
               border-radius: 12px;
               overflow: hidden;
               box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
-            ">
+            "
+          >
             <!-- Header -->
             <tr>
-              <td style="padding: 24px 32px; border-bottom: 1px solid #eef2f6;">
-                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+              <td style="padding: 24px 32px; border-bottom: 1px solid #eef2f6">
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="border-collapse: collapse"
+                >
                   <tr>
                     <td align="left" valign="middle">
-                      <img src="cid:upnext-logo" width="118" alt="UPNEXT"
-                        style="display: block; width: 118px; max-width: 100%; height: auto; border: 0;" />
+                      <img
+                        src="{{logoSrc}}"
+                        width="118"
+                        alt="UPNEXT"
+                        style="
+                          display: block;
+                          width: 118px;
+                          max-width: 100%;
+                          height: auto;
+                          border: 0;
+                        "
+                      />
                     </td>
-                    <td align="right" valign="middle"
-                      style="font-size: 11px; color: #94a3b8; white-space: nowrap;">
+                    <td
+                      align="right"
+                      valign="middle"
+                      style="font-size: 11px; color: #94a3b8; white-space: nowrap"
+                    >
                       {{sentDate}}
                     </td>
                   </tr>
@@ -60,12 +98,31 @@
 
             <!-- Status banner -->
             <tr>
-              <td style="padding: 22px 32px 0;">
-                <table width="100%" cellpadding="0" cellspacing="0"
-                  style="border-collapse: separate; border-spacing: 0; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;">
+              <td style="padding: 22px 32px 0">
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="
+                    border-collapse: separate;
+                    border-spacing: 0;
+                    background-color: #fef2f2;
+                    border: 1px solid #fecaca;
+                    border-radius: 10px;
+                  "
+                >
                   <tr>
-                    <td style="padding: 14px 18px;">
-                      <p style="margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: #b91c1c;">
+                    <td style="padding: 14px 18px">
+                      <p
+                        style="
+                          margin: 0;
+                          font-size: 12px;
+                          font-weight: 700;
+                          letter-spacing: 0.4px;
+                          text-transform: uppercase;
+                          color: #b91c1c;
+                        "
+                      >
                         Hồ sơ chưa được duyệt
                       </p>
                     </td>
@@ -76,61 +133,121 @@
 
             <!-- Body -->
             <tr>
-              <td class="card-padding" style="padding: 24px 32px 8px;">
-                <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6; color: #0f172a;">
+              <td class="card-padding" style="padding: 24px 32px 8px">
+                <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6; color: #0f172a">
                   Kính gửi Quý khách hàng <strong>{{recipientName}}</strong>,
                 </p>
-                <p style="margin: 0 0 14px; font-size: 14px; line-height: 1.7; color: #334155;">
+                <p style="margin: 0 0 14px; font-size: 14px; line-height: 1.7; color: #334155">
                   UpNext xin chân thành cảm ơn Quý khách hàng đã gửi thông tin và tài liệu để chúng
                   tôi tiến hành kiểm tra hồ sơ doanh nghiệp <strong>{{companyName}}</strong>.
                 </p>
-                <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.7; color: #334155;">
-                  Sau khi rà soát, chúng tôi xin thông báo rằng hồ sơ hiện <strong>chưa đáp ứng đủ
-                  yêu cầu</strong>.
+                <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.7; color: #334155">
+                  Sau khi rà soát, chúng tôi xin thông báo rằng hồ sơ hiện
+                  <strong>chưa đáp ứng đủ yêu cầu</strong>.
                 </p>
 
                 <!-- Reason / guidance -->
-                <table width="100%" cellpadding="0" cellspacing="0"
-                  style="border-collapse: separate; border-spacing: 0; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 20px;">
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="
+                    border-collapse: separate;
+                    border-spacing: 0;
+                    background-color: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 10px;
+                    margin-bottom: 20px;
+                  "
+                >
                   <tr>
-                    <td style="padding: 16px 18px;">
-                      <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">
+                    <td style="padding: 16px 18px">
+                      <p
+                        style="
+                          margin: 0 0 4px;
+                          font-size: 12px;
+                          font-weight: 700;
+                          text-transform: uppercase;
+                          letter-spacing: 0.4px;
+                          color: #64748b;
+                        "
+                      >
                         Lý do
                       </p>
-                      <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                      <p
+                        style="margin: 0 0 16px; font-size: 14px; line-height: 1.6; color: #1e293b"
+                      >
                         {{reason}}
                       </p>
-                      <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">
+                      <p
+                        style="
+                          margin: 0 0 4px;
+                          font-size: 12px;
+                          font-weight: 700;
+                          text-transform: uppercase;
+                          letter-spacing: 0.4px;
+                          color: #64748b;
+                        "
+                      >
                         Mô tả / hướng dẫn
                       </p>
-                      <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                      <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #1e293b">
                         {{guidance}}
                       </p>
+{{?evidenceNote}}
+                      <p style="margin: 16px 0 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">
+                        Ảnh minh chứng
+                      </p>
+                      <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #1e293b;">
+                        {{evidenceNote}}
+                      </p>
+{{/evidenceNote}}
                     </td>
                   </tr>
                 </table>
 
-                <p style="margin: 0 0 22px; font-size: 14px; line-height: 1.7; color: #334155;">
-                  Để việc duyệt hồ sơ được thuận lợi và nhanh chóng hơn, Quý khách vui lòng tham khảo
-                  hướng dẫn chi tiết về quy định
-                  <a href="{{guidelinesLink}}" target="_blank"
-                    style="color: #2563eb; font-weight: 700; text-decoration: none;">TẠI ĐÂY</a>.
+{{?guidelinesLink}}
+                <p style="margin: 0 0 22px; font-size: 14px; line-height: 1.7; color: #334155">
+                  Để việc duyệt hồ sơ được thuận lợi và nhanh chóng hơn, Quý khách vui lòng tham
+                  khảo hướng dẫn chi tiết về quy định
+                  <a
+                    href="{{guidelinesLink}}"
+                    target="_blank"
+                    style="color: #2563eb; font-weight: 700; text-decoration: none"
+                    >TẠI ĐÂY</a
+                  >.
                 </p>
+{{/guidelinesLink}}
 
                 <!-- CTA -->
-                <table width="100%" cellpadding="0" cellspacing="0"
-                  style="border-collapse: collapse; margin-bottom: 24px;">
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="border-collapse: collapse; margin-bottom: 24px"
+                >
                   <tr>
-                    <td bgcolor="#0f172a" align="center" style="border-radius: 10px;">
-                      <a href="{{companyLink}}" target="_blank"
-                        style="display: block; padding: 13px 20px; font-size: 14px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 10px;">
+                    <td bgcolor="#0f172a" align="center" style="border-radius: 10px">
+                      <a
+                        href="{{companyLink}}"
+                        target="_blank"
+                        style="
+                          display: block;
+                          padding: 13px 20px;
+                          font-size: 14px;
+                          font-weight: 700;
+                          color: #ffffff;
+                          text-decoration: none;
+                          border-radius: 10px;
+                        "
+                      >
                         Cập nhật &amp; gửi lại hồ sơ
                       </a>
                     </td>
                   </tr>
                 </table>
 
-                <p style="margin: 0 0 4px; font-size: 14px; line-height: 1.7; color: #334155;">
+                <p style="margin: 0 0 4px; font-size: 14px; line-height: 1.7; color: #334155">
                   Một lần nữa, chúng tôi xin cảm ơn sự hợp tác của Quý khách hàng.
                 </p>
               </td>
@@ -138,25 +255,38 @@
 
             <!-- Support block -->
             <tr>
-              <td style="padding: 8px 32px 4px;">
-                <table width="100%" cellpadding="0" cellspacing="0"
-                  style="border-collapse: collapse; border-top: 1px solid #eef2f6;">
+              <td style="padding: 8px 32px 4px">
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="border-collapse: collapse; border-top: 1px solid #eef2f6"
+                >
                   <tr>
-                    <td style="padding: 18px 0 4px;">
-                      <p style="margin: 0 0 10px; font-size: 13px; color: #475569;">
+                    <td style="padding: 18px 0 4px">
+                      <p style="margin: 0 0 10px; font-size: 13px; color: #475569">
                         Trong trường hợp cần hỗ trợ thêm thông tin, Quý khách vui lòng liên hệ:
                       </p>
-                      <p style="margin: 0 0 5px; font-size: 13px; color: #334155;">
-                        <span style="color: #64748b;">Hotline CSKH:</span>
+                      <p style="margin: 0 0 5px; font-size: 13px; color: #334155">
+                        <span style="color: #64748b">Hotline CSKH:</span>
                         <strong>{{supportHotline}}</strong>
                       </p>
-                      <p style="margin: 0 0 5px; font-size: 13px; color: #334155;">
-                        <span style="color: #64748b;">Email CSKH:</span>
-                        <a href="mailto:{{supportEmail}}" style="color: #2563eb; text-decoration: none;">{{supportEmail}}</a>
+                      <p style="margin: 0 0 5px; font-size: 13px; color: #334155">
+                        <span style="color: #64748b">Email CSKH:</span>
+                        <a
+                          href="mailto:{{supportEmail}}"
+                          style="color: #2563eb; text-decoration: none"
+                          >{{supportEmail}}</a
+                        >
                       </p>
-                      <p style="margin: 0; font-size: 13px; color: #334155;">
-                        <span style="color: #64748b;">Zalo CSKH:</span>
-                        <a href="{{supportZalo}}" target="_blank" style="color: #2563eb; text-decoration: none;">Zalo OA</a>
+                      <p style="margin: 0; font-size: 13px; color: #334155">
+                        <span style="color: #64748b">Zalo CSKH:</span>
+                        <a
+                          href="{{supportZalo}}"
+                          target="_blank"
+                          style="color: #2563eb; text-decoration: none"
+                          >Zalo OA</a
+                        >
                       </p>
                     </td>
                   </tr>
@@ -166,14 +296,16 @@
 
             <!-- Sign off -->
             <tr>
-              <td style="padding: 18px 32px 28px;">
-                <p style="margin: 0; font-size: 13px; color: #64748b;">Trân trọng,</p>
-                <p style="margin: 2px 0 0; font-size: 14px; font-weight: 700; color: #0f172a;">Đội ngũ UpNext</p>
+              <td style="padding: 18px 32px 28px">
+                <p style="margin: 0; font-size: 13px; color: #64748b">Trân trọng,</p>
+                <p style="margin: 2px 0 0; font-size: 14px; font-weight: 700; color: #0f172a">
+                  Đội ngũ UpNext
+                </p>
               </td>
             </tr>
           </table>
 
-          <p style="margin: 18px 0 0; font-size: 11px; color: #94a3b8;">
+          <p style="margin: 18px 0 0; font-size: 11px; color: #94a3b8">
             © UpNext — Nền tảng tuyển dụng công nghệ.
           </p>
         </td>

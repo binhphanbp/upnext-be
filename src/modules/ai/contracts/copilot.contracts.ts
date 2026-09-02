@@ -71,6 +71,8 @@ export const aiCitationSchema = z.object({
   sourceId: z.string().min(1),
   title: z.string().min(1).max(240),
   excerpt: z.string().min(1).max(600),
+  /** Immutable version of a reviewed knowledge source, when applicable. */
+  sourceVersion: z.string().min(1).max(120).optional(),
   href: z.string().max(500).optional(),
 });
 export type AiCitation = z.infer<typeof aiCitationSchema>;

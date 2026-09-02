@@ -77,7 +77,9 @@ async function main() {
     });
   }
 
-  console.log(`\n🎉 THÀNH CÔNG: Đã xóa hoàn toàn tài khoản ${targetOldOwnerEmail} ra khỏi công ty. Tài khoản ${targetNewOwnerEmail} hiện là Owner duy nhất của FPT Software!`);
+  console.log(
+    `\n🎉 THÀNH CÔNG: Đã xóa hoàn toàn tài khoản ${targetOldOwnerEmail} ra khỏi công ty. Tài khoản ${targetNewOwnerEmail} hiện là Owner duy nhất của FPT Software!`,
+  );
 }
 
 main()

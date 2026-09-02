@@ -87,16 +87,66 @@
         }
       ],
       "skills": [
-        { "name": "Java", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2.5", "sortOrder": 0 },
-        { "name": "Spring Boot", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2", "sortOrder": 1 },
-        { "name": "RESTful API", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2", "sortOrder": 2 },
-        { "name": "PostgreSQL", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 3 },
-        { "name": "MySQL", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 4 },
-        { "name": "Docker", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1", "sortOrder": 5 },
-        { "name": "JWT", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 6 },
-        { "name": "WebSocket", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1", "sortOrder": 7 },
-        { "name": "Git", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 8 },
-        { "name": "Node.js", "proficiencyLevel": "BASIC", "yearsOfExperience": "0.8", "sortOrder": 9 }
+        {
+          "name": "Java",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "2.5",
+          "sortOrder": 0
+        },
+        {
+          "name": "Spring Boot",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "2",
+          "sortOrder": 1
+        },
+        {
+          "name": "RESTful API",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "2",
+          "sortOrder": 2
+        },
+        {
+          "name": "PostgreSQL",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1.5",
+          "sortOrder": 3
+        },
+        {
+          "name": "MySQL",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1.5",
+          "sortOrder": 4
+        },
+        {
+          "name": "Docker",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1",
+          "sortOrder": 5
+        },
+        {
+          "name": "JWT",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1.5",
+          "sortOrder": 6
+        },
+        {
+          "name": "WebSocket",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1",
+          "sortOrder": 7
+        },
+        {
+          "name": "Git",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "2",
+          "sortOrder": 8
+        },
+        {
+          "name": "Node.js",
+          "proficiencyLevel": "BASIC",
+          "yearsOfExperience": "0.8",
+          "sortOrder": 9
+        }
       ],
       "projects": [
         {
@@ -239,15 +289,55 @@
       ],
       "skills": [
         { "name": "SQL", "proficiencyLevel": "EXPERT", "yearsOfExperience": "3", "sortOrder": 0 },
-        { "name": "Data Analysis", "proficiencyLevel": "EXPERT", "yearsOfExperience": "3", "sortOrder": 1 },
-        { "name": "Product Analytics", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2", "sortOrder": 2 },
-        { "name": "Power BI", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2.5", "sortOrder": 3 },
-        { "name": "BigQuery", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2", "sortOrder": 4 },
-        { "name": "Python", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 5 },
-        { "name": "A/B Testing", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 6 },
-        { "name": "Cohort Analysis", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2", "sortOrder": 7 },
+        {
+          "name": "Data Analysis",
+          "proficiencyLevel": "EXPERT",
+          "yearsOfExperience": "3",
+          "sortOrder": 1
+        },
+        {
+          "name": "Product Analytics",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "2",
+          "sortOrder": 2
+        },
+        {
+          "name": "Power BI",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "2.5",
+          "sortOrder": 3
+        },
+        {
+          "name": "BigQuery",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "2",
+          "sortOrder": 4
+        },
+        {
+          "name": "Python",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1.5",
+          "sortOrder": 5
+        },
+        {
+          "name": "A/B Testing",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1.5",
+          "sortOrder": 6
+        },
+        {
+          "name": "Cohort Analysis",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "2",
+          "sortOrder": 7
+        },
         { "name": "Excel", "proficiencyLevel": "EXPERT", "yearsOfExperience": "4", "sortOrder": 8 },
-        { "name": "GA4", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 9 }
+        {
+          "name": "GA4",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1.5",
+          "sortOrder": 9
+        }
       ],
       "projects": [
         {
@@ -389,16 +479,66 @@
         }
       ],
       "skills": [
-        { "name": "Product Management", "proficiencyLevel": "EXPERT", "yearsOfExperience": "5", "sortOrder": 0 },
-        { "name": "E-commerce", "proficiencyLevel": "EXPERT", "yearsOfExperience": "5", "sortOrder": 1 },
-        { "name": "Marketplace", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "4", "sortOrder": 2 },
-        { "name": "Business Analysis", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "4", "sortOrder": 3 },
-        { "name": "SQL", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 4 },
-        { "name": "Agile", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "4", "sortOrder": 5 },
-        { "name": "User Research", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 6 },
-        { "name": "Figma", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 7 },
-        { "name": "Jira", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "5", "sortOrder": 8 },
-        { "name": "A/B Testing", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 9 }
+        {
+          "name": "Product Management",
+          "proficiencyLevel": "EXPERT",
+          "yearsOfExperience": "5",
+          "sortOrder": 0
+        },
+        {
+          "name": "E-commerce",
+          "proficiencyLevel": "EXPERT",
+          "yearsOfExperience": "5",
+          "sortOrder": 1
+        },
+        {
+          "name": "Marketplace",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "4",
+          "sortOrder": 2
+        },
+        {
+          "name": "Business Analysis",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "4",
+          "sortOrder": 3
+        },
+        {
+          "name": "SQL",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "2",
+          "sortOrder": 4
+        },
+        {
+          "name": "Agile",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "4",
+          "sortOrder": 5
+        },
+        {
+          "name": "User Research",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "2",
+          "sortOrder": 6
+        },
+        {
+          "name": "Figma",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "2",
+          "sortOrder": 7
+        },
+        {
+          "name": "Jira",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "5",
+          "sortOrder": 8
+        },
+        {
+          "name": "A/B Testing",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "2",
+          "sortOrder": 9
+        }
       ],
       "projects": [
         {
@@ -540,15 +680,55 @@
         }
       ],
       "skills": [
-        { "name": "Operations", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 0 },
-        { "name": "Data Analysis", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "2.5", "sortOrder": 1 },
+        {
+          "name": "Operations",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "3",
+          "sortOrder": 0
+        },
+        {
+          "name": "Data Analysis",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "2.5",
+          "sortOrder": 1
+        },
         { "name": "Excel", "proficiencyLevel": "EXPERT", "yearsOfExperience": "4", "sortOrder": 2 },
-        { "name": "Google Sheets", "proficiencyLevel": "EXPERT", "yearsOfExperience": "4", "sortOrder": 3 },
-        { "name": "SQL", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1", "sortOrder": 4 },
-        { "name": "E-commerce", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 5 },
-        { "name": "Seller Management", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 6 },
-        { "name": "Looker Studio", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 7 },
-        { "name": "Business Analysis", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 8 }
+        {
+          "name": "Google Sheets",
+          "proficiencyLevel": "EXPERT",
+          "yearsOfExperience": "4",
+          "sortOrder": 3
+        },
+        {
+          "name": "SQL",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1",
+          "sortOrder": 4
+        },
+        {
+          "name": "E-commerce",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "3",
+          "sortOrder": 5
+        },
+        {
+          "name": "Seller Management",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "3",
+          "sortOrder": 6
+        },
+        {
+          "name": "Looker Studio",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1.5",
+          "sortOrder": 7
+        },
+        {
+          "name": "Business Analysis",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1.5",
+          "sortOrder": 8
+        }
       ],
       "projects": [
         {
@@ -596,9 +776,7 @@
         { "language": "Vietnamese", "proficiency": "Native" },
         { "language": "English", "proficiency": "Intermediate" }
       ],
-      "links": [
-        { "type": "LinkedIn", "url": "https://linkedin.com/in/phamgiahan-ops" }
-      ]
+      "links": [{ "type": "LinkedIn", "url": "https://linkedin.com/in/phamgiahan-ops" }]
     }
   },
   {
@@ -690,15 +868,60 @@
       ],
       "skills": [
         { "name": "Go", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 0 },
-        { "name": "Java", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 1 },
-        { "name": "Microservices", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 2 },
-        { "name": "Distributed Systems", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 3 },
-        { "name": "Kafka", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 4 },
-        { "name": "Redis", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "3", "sortOrder": 5 },
-        { "name": "PostgreSQL", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "4", "sortOrder": 6 },
-        { "name": "RESTful API", "proficiencyLevel": "ADVANCED", "yearsOfExperience": "4", "sortOrder": 7 },
-        { "name": "Docker", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "2", "sortOrder": 8 },
-        { "name": "Prometheus", "proficiencyLevel": "INTERMEDIATE", "yearsOfExperience": "1.5", "sortOrder": 9 }
+        {
+          "name": "Java",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "2",
+          "sortOrder": 1
+        },
+        {
+          "name": "Microservices",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "3",
+          "sortOrder": 2
+        },
+        {
+          "name": "Distributed Systems",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "2",
+          "sortOrder": 3
+        },
+        {
+          "name": "Kafka",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1.5",
+          "sortOrder": 4
+        },
+        {
+          "name": "Redis",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "3",
+          "sortOrder": 5
+        },
+        {
+          "name": "PostgreSQL",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "4",
+          "sortOrder": 6
+        },
+        {
+          "name": "RESTful API",
+          "proficiencyLevel": "ADVANCED",
+          "yearsOfExperience": "4",
+          "sortOrder": 7
+        },
+        {
+          "name": "Docker",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "2",
+          "sortOrder": 8
+        },
+        {
+          "name": "Prometheus",
+          "proficiencyLevel": "INTERMEDIATE",
+          "yearsOfExperience": "1.5",
+          "sortOrder": 9
+        }
       ],
       "projects": [
         {

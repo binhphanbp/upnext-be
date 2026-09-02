@@ -7,12 +7,19 @@
     <title>Tin tuyển dụng mới - UPNEXT</title>
     <style>
       body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
       }
       @media screen and (max-width: 480px) {
-        .email-card { width: 100% !important; }
-        .card-padding { padding: 24px 16px !important; }
-        .header-title { font-size: 20px !important; }
+        .email-card {
+          width: 100% !important;
+        }
+        .card-padding {
+          padding: 24px 16px !important;
+        }
+        .header-title {
+          font-size: 20px !important;
+        }
       }
     </style>
   </head>
@@ -22,13 +29,25 @@
       padding: 0;
       background-color: #f2faf7;
       color: #1e293b;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    ">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-      style="width: 100%; border-collapse: collapse; background-color: #f2faf7;">
+      font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    "
+  >
+    <table
+      role="presentation"
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="width: 100%; border-collapse: collapse; background-color: #f2faf7"
+    >
       <tr>
-        <td align="center" style="padding: 40px 12px;">
-          <table role="presentation" class="email-card" width="460" cellpadding="0" cellspacing="0"
+        <td align="center" style="padding: 40px 12px">
+          <table
+            role="presentation"
+            class="email-card"
+            width="460"
+            cellpadding="0"
+            cellspacing="0"
             style="
               width: 460px;
               max-width: 100%;
@@ -39,74 +58,160 @@
               border-radius: 20px;
               overflow: hidden;
               box-shadow: 0 10px 30px rgba(16, 167, 120, 0.06);
-            ">
+            "
+          >
             <tr>
-              <td style="height: 6px; background-color: #10a778; line-height: 6px; font-size: 0;">&nbsp;</td>
+              <td style="height: 6px; background-color: #10a778; line-height: 6px; font-size: 0">
+                &nbsp;
+              </td>
             </tr>
             <tr>
-              <td class="card-padding" style="padding: 32px 32px 24px;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                  style="border-collapse: collapse; margin-bottom: 24px;">
+              <td class="card-padding" style="padding: 32px 32px 24px">
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="border-collapse: collapse; margin-bottom: 24px"
+                >
                   <tr>
                     <td valign="middle" align="left">
-                      <img src="cid:upnext-logo" width="120" alt="UPNEXT"
-                        style="display: block; width: 120px; max-width: 100%; height: auto; border: 0;" />
+                      <img
+                        src="{{logoSrc}}"
+                        width="120"
+                        alt="UPNEXT"
+                        style="
+                          display: block;
+                          width: 120px;
+                          max-width: 100%;
+                          height: auto;
+                          border: 0;
+                        "
+                      />
                     </td>
-                    <td valign="middle" align="right"
-                      style="font-size: 11px; line-height: 1.5; color: #94a3b8; white-space: nowrap;">
+                    <td
+                      valign="middle"
+                      align="right"
+                      style="font-size: 11px; line-height: 1.5; color: #94a3b8; white-space: nowrap"
+                    >
                       {{sentDate}}
                     </td>
                   </tr>
                 </table>
 
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                  style="border-collapse: collapse; background-color: #eafaf3; border-radius: 16px; margin-bottom: 24px;">
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="
+                    border-collapse: collapse;
+                    background-color: #eafaf3;
+                    border-radius: 16px;
+                    margin-bottom: 24px;
+                  "
+                >
                   <tr>
-                    <td style="padding: 20px 20px 16px;">
-                      <h1 class="header-title"
-                        style="margin: 0 0 8px; font-size: 20px; line-height: 1.3; font-weight: 800; color: #1e293b;">
+                    <td style="padding: 20px 20px 16px">
+                      <h1
+                        class="header-title"
+                        style="
+                          margin: 0 0 8px;
+                          font-size: 20px;
+                          line-height: 1.3;
+                          font-weight: 800;
+                          color: #1e293b;
+                        "
+                      >
                         {{companyName}} vừa đăng tin mới
                       </h1>
-                      <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #475569;">
+                      <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #475569">
                         {{jobCountLine}}
                       </p>
                     </td>
                   </tr>
                 </table>
 
-                <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.6; color: #334155;">
+                <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.6; color: #334155">
                   Xin chào {{recipientName}},
                 </p>
-                <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #334155;">
-                  Bạn đang theo dõi <strong>{{companyName}}</strong> trên UpNext. Dưới đây là những vị
-                  trí vừa được đăng:
+                <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #334155">
+                  Bạn đang theo dõi <strong>{{companyName}}</strong> trên UpNext. Dưới đây là những
+                  vị trí vừa được đăng:
                 </p>
 
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                  style="border-collapse: collapse; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 24px;">
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="
+                    border-collapse: collapse;
+                    background-color: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 12px;
+                    margin-bottom: 24px;
+                  "
+                >
                   <tr>
-                    <td style="padding: 16px 18px;">
-                      <p style="margin: 0; font-size: 13px; line-height: 1.9; color: #334155; white-space: pre-line;">{{jobList}}</p>
+                    <td style="padding: 16px 18px">
+                      <p
+                        style="
+                          margin: 0;
+                          font-size: 13px;
+                          line-height: 1.9;
+                          color: #334155;
+                          white-space: pre-line;
+                        "
+                      >
+                        {{jobList}}
+                      </p>
                     </td>
                   </tr>
                 </table>
 
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                  style="border-collapse: collapse; margin-bottom: 24px;">
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="border-collapse: collapse; margin-bottom: 24px"
+                >
                   <tr>
-                    <td bgcolor="#10a778" align="center" style="border-radius: 12px;">
-                      <a href="{{companyLink}}" target="_blank"
-                        style="display: block; padding: 14px 20px; font-size: 14px; letter-spacing: 0.5px; line-height: 20px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 12px;">
+                    <td bgcolor="#10a778" align="center" style="border-radius: 12px">
+                      <a
+                        href="{{companyLink}}"
+                        target="_blank"
+                        style="
+                          display: block;
+                          padding: 14px 20px;
+                          font-size: 14px;
+                          letter-spacing: 0.5px;
+                          line-height: 20px;
+                          font-weight: 700;
+                          color: #ffffff;
+                          text-decoration: none;
+                          border-radius: 12px;
+                        "
+                      >
                         XEM TIN TUYỂN DỤNG
                       </a>
                     </td>
                   </tr>
                 </table>
 
-                <div style="border-top: 1px dashed #e2e8f0; padding-top: 16px; margin-top: 24px;">
-                  <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #94a3b8; text-align: center;">
-                    Bạn nhận email này vì đang theo dõi {{companyName}}. Bỏ theo dõi trên trang công ty
-                    để dừng nhận thông báo.
+                <div style="border-top: 1px dashed #e2e8f0; padding-top: 16px; margin-top: 24px">
+                  <p
+                    style="
+                      margin: 0;
+                      font-size: 12px;
+                      line-height: 1.6;
+                      color: #94a3b8;
+                      text-align: center;
+                    "
+                  >
+                    Bạn nhận email này vì đang theo dõi {{companyName}}. Bỏ theo dõi trên trang công
+                    ty để dừng nhận thông báo.
                   </p>
                 </div>
               </td>

@@ -94,8 +94,12 @@ export class AdminRolesController {
   @ApiForbiddenResponse({ description: 'Không có quyền thực hiện hành động này.' })
   @AdminPermissions('roles:write')
   @Patch(':id')
-  update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateAdminRoleDto) {
-    return this.adminRolesService.updateRole(id, dto);
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateAdminRoleDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.adminRolesService.updateRole(id, user.id, dto);
   }
 
   @ApiOperation({
@@ -110,8 +114,11 @@ export class AdminRolesController {
   @AdminPermissions('roles:write')
   @Delete(':id')
   @HttpCode(204)
-  async remove(@Param('id', new ParseUUIDPipe()) id: string) {
-    await this.adminRolesService.removeRole(id);
+  async remove(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.adminRolesService.removeRole(id, user.id);
   }
 
   @ApiOperation({
@@ -127,7 +134,8 @@ export class AdminRolesController {
   assignPermissions(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: AssignAdminPermissionsDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.adminRolesService.assignPermissions(id, dto);
+    return this.adminRolesService.assignPermissions(id, user.id, dto);
   }
 }

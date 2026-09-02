@@ -18,10 +18,7 @@ describe('SubscriptionPlansController route guards', () => {
   const reflector = new Reflector();
 
   function rolesFor(methodName: keyof SubscriptionPlansController): ActorType[] | undefined {
-    return reflector.get<ActorType[]>(
-      ROLES_KEY,
-      SubscriptionPlansController.prototype[methodName],
-    );
+    return reflector.get<ActorType[]>(ROLES_KEY, SubscriptionPlansController.prototype[methodName]);
   }
 
   it('requires ADMIN on findAll -- the route that lists every plan', () => {

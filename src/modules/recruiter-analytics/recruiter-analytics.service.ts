@@ -1,7 +1,10 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ApplicationStatus, JobStatus, ModerationStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { RecruiterAnalyticsQueryDto, RecruiterAnalyticsWindowDays } from './dto/recruiter-analytics-query.dto';
+import {
+  RecruiterAnalyticsQueryDto,
+  RecruiterAnalyticsWindowDays,
+} from './dto/recruiter-analytics-query.dto';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -100,7 +103,10 @@ export class RecruiterAnalyticsService {
         },
       }),
       this.prisma.interview.count({
-        where: { createdAt: { gte: from, lte: to }, application: { jobPostId: { in: jobPostIds } } },
+        where: {
+          createdAt: { gte: from, lte: to },
+          application: { jobPostId: { in: jobPostIds } },
+        },
       }),
     ]);
 
@@ -184,10 +190,22 @@ export class RecruiterAnalyticsService {
     statusLogs: StatusLogRow[];
     interviewsScheduled: number;
   }) {
-    const { windowDays, from, to, scopedJob, jobPosts, views, applications, statusLogs, interviewsScheduled } =
-      params;
+    const {
+      windowDays,
+      from,
+      to,
+      scopedJob,
+      jobPosts,
+      views,
+      applications,
+      statusLogs,
+      interviewsScheduled,
+    } = params;
 
-    const interviewing = this.dedupeEarliestByApplication(statusLogs, ApplicationStatus.INTERVIEWING);
+    const interviewing = this.dedupeEarliestByApplication(
+      statusLogs,
+      ApplicationStatus.INTERVIEWING,
+    );
     const offered = this.dedupeEarliestByApplication(statusLogs, ApplicationStatus.OFFERED);
     const hired = this.dedupeEarliestByApplication(statusLogs, ApplicationStatus.HIRED);
 
@@ -268,8 +286,15 @@ export class RecruiterAnalyticsService {
     applications: Array<{ jobPostId: string; submittedAt: Date }>,
     hired: StatusLogRow[],
   ) {
-    const points = new Map<string, { date: string; views: number; applications: number; hires: number }>();
-    for (let cursor = new Date(from); cursor.getTime() <= to.getTime(); cursor = new Date(cursor.getTime() + DAY_MS)) {
+    const points = new Map<
+      string,
+      { date: string; views: number; applications: number; hires: number }
+    >();
+    for (
+      let cursor = new Date(from);
+      cursor.getTime() <= to.getTime();
+      cursor = new Date(cursor.getTime() + DAY_MS)
+    ) {
       const date = this.toIsoDate(cursor);
       points.set(date, { date, views: 0, applications: 0, hires: 0 });
     }
@@ -322,7 +347,8 @@ export class RecruiterAnalyticsService {
       interviewing: jobInterviewing,
       offered: jobOffered,
       hired: jobHiredRows.length,
-      applyToHireRate: jobApplications > 0 ? round1((jobHiredRows.length / jobApplications) * 100) : null,
+      applyToHireRate:
+        jobApplications > 0 ? round1((jobHiredRows.length / jobApplications) * 100) : null,
       avgTimeToHireDays,
     };
   }

@@ -30,6 +30,7 @@ import {
   type CandidateApplicationActivityGroup,
 } from './dto/candidate-application-activity-query.dto';
 import { CV_SCORING_RUBRIC } from '../cv-screening/scoring-rubric';
+import { readScoringWeights, weightKey } from '../cv-screening/screening-config.resolver';
 import { EmailService } from '../../common/email/email.service';
 
 const PIPELINE_SCORE_FIELD_BY_RUBRIC_KEY: Record<string, string> = {
@@ -1184,12 +1185,19 @@ export class ApplicationsService {
               value: Math.round(Number(app.aiScore.finalScore)),
               maxValue: 100,
             },
+            // Max values come from the weights this score was actually
+            // computed with, not the reference rubric: a company that
+            // prioritises experience 50% must not see its 45/50 rendered as
+            // 45/30. Scores predating configurable weights carry no snapshot
+            // and fall back to the reference split they were scored on.
             ...CV_SCORING_RUBRIC.map((criterion) => ({
               label: criterion.label,
               value: Math.round(
                 Number(app.aiScore[PIPELINE_SCORE_FIELD_BY_RUBRIC_KEY[criterion.key]]),
               ),
-              maxValue: criterion.maxScore,
+              maxValue: readScoringWeights(app.aiScore.scoringWeights as Prisma.JsonValue)[
+                weightKey(criterion.key)
+              ],
             })),
           ]
         : undefined,
@@ -1537,8 +1545,7 @@ export class ApplicationsService {
     });
 
     const recipientEmail = application.candidateProfile?.account?.email;
-    const recipientName =
-      application.candidateProfile?.account?.fullName || 'Ứng viên';
+    const recipientName = application.candidateProfile?.account?.fullName || 'Ứng viên';
 
     if (status === ApplicationStatus.OFFERED && recipientEmail) {
       void this.emailService

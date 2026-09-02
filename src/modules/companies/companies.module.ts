@@ -12,9 +12,10 @@ import {
   COMPANY_LICENSE_EXTRACTION_PROVIDER,
   CompanyLicenseExtractionProviderPort,
 } from './ports/company-license-extraction-provider.port';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [ReputationModule, AiModule],
+  imports: [ReputationModule, AiModule, AuthModule],
   controllers: [CompaniesController],
   providers: [
     CompaniesService,

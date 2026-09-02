@@ -443,10 +443,13 @@ export class CvVersionsService {
 
         let cloudinaryRes = await fetch(signedUrl);
         if (!cloudinaryRes.ok && cloudinaryResourceType === 'raw') {
-          const altSignedUrl = this.cloudinaryService.createSignedUrl(version.sourceFile.storageKey, {
-            resourceType: 'image',
-            deliveryType: 'upload',
-          });
+          const altSignedUrl = this.cloudinaryService.createSignedUrl(
+            version.sourceFile.storageKey,
+            {
+              resourceType: 'image',
+              deliveryType: 'upload',
+            },
+          );
           const altRes = await fetch(altSignedUrl);
           if (altRes.ok) {
             cloudinaryRes = altRes;

@@ -45,6 +45,7 @@ import { AiConversationsService } from './ai-conversations.service';
 import { AiCopilotService } from './ai-copilot.service';
 import { AiRunTrackerService } from './ai-run-tracker.service';
 import { CandidateSubscriptionQuotaService } from '../../subscriptions/candidate-subscription-quota.service';
+import { CandidateKnowledgeRetrievalService } from '../retrieval/candidate-knowledge-retrieval.service';
 
 /** Một người dùng được mở tối đa bấy nhiêu lượt chat song song. */
 const MAX_CONCURRENT_RUNS_PER_USER = 2;
@@ -86,7 +87,15 @@ export class AiCopilotController {
     private readonly budget: AiBudgetService,
     private readonly runTracker: AiRunTrackerService,
     private readonly candidateQuota: CandidateSubscriptionQuotaService,
+    private readonly knowledge: CandidateKnowledgeRetrievalService,
   ) {}
+
+  @Get('knowledge/:id')
+  @ApiOperation({ summary: 'Mở nguồn hướng dẫn đã được Candidate Copilot trích dẫn' })
+  @ApiParam({ name: 'id', description: 'Opaque id from a Candidate Copilot citation' })
+  async knowledgeSource(@Param('id', ParseUUIDPipe) id: string) {
+    return { data: await this.knowledge.getPublishedSource(id) };
+  }
 
   @Get('conversations')
   @ApiOperation({ summary: 'Danh sách hội thoại của ứng viên đang đăng nhập' })

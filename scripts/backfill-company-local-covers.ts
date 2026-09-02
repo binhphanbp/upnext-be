@@ -100,7 +100,9 @@ async function main() {
       }
     }
 
-    console.log(`✅ Successfully updated ${updatedCount}/${companies.length} company covers to local uploads!`);
+    console.log(
+      `✅ Successfully updated ${updatedCount}/${companies.length} company covers to local uploads!`,
+    );
   } finally {
     await prisma.$disconnect();
   }

@@ -28,6 +28,90 @@ export class SkillsService {
     });
   }
 
+  async updateCategory(id: string, dto: Partial<CreateSkillCategoryDto>) {
+    const existing = await this.prisma.skillCategory.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Skill category not found');
+    return this.prisma.skillCategory.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  async removeCategory(id: string) {
+    const existing = await this.prisma.skillCategory.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Skill category not found');
+    return this.prisma.skillCategory.delete({ where: { id } });
+  }
+
+  async getTaxonomyStats() {
+    const [totalSkills, activeSkills, totalSkillCategories, totalJobCategories, activeJobCategories] =
+      await Promise.all([
+        this.prisma.skill.count(),
+        this.prisma.skill.count({ where: { isActive: true } }),
+        this.prisma.skillCategory.count(),
+        this.prisma.jobCategory.count(),
+        this.prisma.jobCategory.count({ where: { isActive: true } }),
+      ]);
+
+    return {
+      totalSkills,
+      activeSkills,
+      totalSkillCategories,
+      totalJobCategories,
+      activeJobCategories,
+    };
+  }
+
+  async findAdminSkills(query: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    categoryId?: string;
+    isActive?: boolean;
+  }) {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.max(1, Math.min(100, query.limit || 10));
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (query.categoryId && query.categoryId !== 'all') {
+      where.categoryId = query.categoryId;
+    }
+    if (query.isActive !== undefined) {
+      where.isActive = query.isActive;
+    }
+    if (query.q && query.q.trim()) {
+      where.name = { contains: query.q.trim(), mode: 'insensitive' };
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.skill.findMany({
+        where,
+        include: {
+          category: true,
+          _count: {
+            select: {
+              jobPostSkills: true,
+              candidateSkills: true,
+            },
+          },
+        },
+        orderBy: { name: 'asc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.skill.count({ where }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
+  }
+
   // ─── Skills ──────────────────────────────────────────────────────────────
 
   async create(dto: CreateSkillDto) {

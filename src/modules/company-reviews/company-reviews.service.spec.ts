@@ -37,15 +37,7 @@ describe('CompanyReviewsService', () => {
     prismaMock.companyReview.count.mockResolvedValue(0);
     prismaMock.companyReview.aggregate.mockResolvedValue({
       _count: { _all: 0 },
-      _avg: {
-        overallRating: null,
-        salaryBenefitsRating: null,
-        trainingLearningRating: null,
-        managementCareRating: null,
-        cultureFunRating: null,
-        officeWorkspaceRating: null,
-        overtimeSatisfaction: null,
-      },
+      _avg: { overallRating: null },
     });
     prismaMock.companyReview.groupBy.mockResolvedValue([]);
     reportsServiceMock.findRecruiterReportsByTargets.mockResolvedValue([]);
@@ -154,15 +146,7 @@ describe('CompanyReviewsService', () => {
       prismaMock.companyReview.count.mockResolvedValue(1);
       prismaMock.companyReview.aggregate.mockResolvedValue({
         _count: { _all: 4 },
-        _avg: {
-          overallRating: 3.666_666,
-          salaryBenefitsRating: null,
-          trainingLearningRating: null,
-          managementCareRating: null,
-          cultureFunRating: null,
-          officeWorkspaceRating: null,
-          overtimeSatisfaction: null,
-        },
+        _avg: { overallRating: 3.666_666 },
       });
       prismaMock.companyReview.groupBy.mockResolvedValue([
         { overallRating: 1, _count: { _all: 1 } },
@@ -196,6 +180,21 @@ describe('CompanyReviewsService', () => {
       prismaMock.companyReview.findUnique.mockResolvedValue({
         id: 'review-1',
         companyId: 'another-company',
+      });
+
+      await expect(service.reportReview('review-1', recruiter, dto)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(reportsServiceMock.createRecruiterReport).not.toHaveBeenCalled();
+    });
+
+    it('never lets someone report the review they wrote themselves', async () => {
+      // Same person, two accounts: the candidate row that wrote the review and the
+      // recruiter row filing the report share an email.
+      prismaMock.companyReview.findUnique.mockResolvedValue({
+        id: 'review-1',
+        companyId: 'company-id',
+        candidateProfile: { account: { email: 'Recruiter@Test.dev' } },
       });
 
       await expect(service.reportReview('review-1', recruiter, dto)).rejects.toThrow(

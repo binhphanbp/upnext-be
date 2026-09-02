@@ -10,7 +10,12 @@ import { EmailService } from '../../common/email/email.service';
 @Module({
   imports: [ConversationsModule],
   controllers: [ApplicationsController],
-  providers: [ApplicationsService, ApplicationAssignmentService, ApplicationTransitionPolicy, EmailService],
+  providers: [
+    ApplicationsService,
+    ApplicationAssignmentService,
+    ApplicationTransitionPolicy,
+    EmailService,
+  ],
   exports: [ApplicationsService],
 })
 export class ApplicationsModule {}

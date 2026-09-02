@@ -17,7 +17,8 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: data
 
 async function main() {
   const candidateAccountId = process.argv[2];
-  if (!candidateAccountId) throw new Error('Usage: grant-candidate-pro-for-measurement.ts <candidateAccountId>');
+  if (!candidateAccountId)
+    throw new Error('Usage: grant-candidate-pro-for-measurement.ts <candidateAccountId>');
 
   const profile = await prisma.candidateProfile.findUnique({
     where: { candidateAccountId },

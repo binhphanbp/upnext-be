@@ -2176,22 +2176,55 @@ async function main() {
       module: 'system',
       description: 'Xem nhật ký hoạt động hệ thống của Admin.',
     },
+    {
+      name: 'View Roles',
+      code: 'roles:read',
+      module: 'system',
+      description: 'Xem danh sách vai trò và quyền hạn quản trị.',
+    },
+    {
+      name: 'Manage Roles',
+      code: 'roles:write',
+      module: 'system',
+      description: 'Tạo, sửa, xóa và phân quyền vai trò quản trị.',
+    },
+    {
+      name: 'View Admin Users',
+      code: 'admins:read',
+      module: 'system',
+      description: 'Xem danh sách tài khoản quản trị viên.',
+    },
+    {
+      name: 'Manage Admin Users',
+      code: 'admins:write',
+      module: 'system',
+      description: 'Tạo, sửa, khóa và quản lý tài khoản quản trị viên.',
+    },
+    {
+      name: 'View Permissions',
+      code: 'permissions:read',
+      module: 'system',
+      description: 'Tra cứu danh mục quyền hạn hệ thống.',
+    },
   ];
 
   const seededAdminPermissions: Record<string, string> = {};
-  for (const perm of adminPermissionsDefinitions) {
+  for (let i = 0; i < adminPermissionsDefinitions.length; i++) {
+    const perm = adminPermissionsDefinitions[i];
     const record = await prisma.adminPermission.upsert({
       where: { permissionCode: perm.code },
       update: {
         permissionName: perm.name,
         module: perm.module,
         description: perm.description,
+        sortOrder: i,
       },
       create: {
         permissionName: perm.name,
         permissionCode: perm.code,
         module: perm.module,
         description: perm.description,
+        sortOrder: i,
       },
     });
     seededAdminPermissions[perm.code] = record.id;
@@ -2202,12 +2235,14 @@ async function main() {
       code: 'SUPER_ADMIN',
       name: 'Super Admin',
       description: 'Toàn quyền quản trị hệ thống UpNext.',
+      isSystem: true,
       permissionCodes: adminPermissionsDefinitions.map((p) => p.code),
     },
     {
       code: 'MODERATOR',
       name: 'Content Moderator',
       description: 'Kiểm duyệt tin tuyển dụng, bài viết và đánh giá công ty.',
+      isSystem: true,
       permissionCodes: [
         'jobs:moderate',
         'jobs:view',
@@ -2224,6 +2259,7 @@ async function main() {
       code: 'COMPLIANCE',
       name: 'Compliance Officer',
       description: 'Xác thực doanh nghiệp, xử lý báo cáo vi phạm và khiếu nại.',
+      isSystem: true,
       permissionCodes: [
         'companies:verify',
         'companies:lock',
@@ -2243,6 +2279,7 @@ async function main() {
       code: 'FINANCE',
       name: 'Finance & Billing',
       description: 'Quản lý gói dịch vụ và kiểm tra hóa đơn thanh toán.',
+      isSystem: true,
       permissionCodes: [
         'billing:plans',
         'billing:invoices',
@@ -2258,6 +2295,7 @@ async function main() {
       code: 'SUPPORT',
       name: 'Support Specialist',
       description: 'Hỗ trợ khách hàng, xem log hệ thống và thông tin cơ bản.',
+      isSystem: true,
       permissionCodes: [
         'jobs:view',
         'companies:view',
@@ -2278,13 +2316,19 @@ async function main() {
   const seededAdminRoles: Record<string, any> = {};
   for (const roleDef of adminRolesDefinitions) {
     const role = await prisma.adminRole.upsert({
-      where: { roleName: roleDef.name },
+      where: { roleCode: roleDef.code },
       update: {
-        description: roleDef.description,
-      },
-      create: {
         roleName: roleDef.name,
         description: roleDef.description,
+        isSystem: roleDef.isSystem,
+        status: 'ACTIVE',
+      },
+      create: {
+        roleCode: roleDef.code,
+        roleName: roleDef.name,
+        description: roleDef.description,
+        isSystem: roleDef.isSystem,
+        status: 'ACTIVE',
       },
     });
     seededAdminRoles[roleDef.code] = role;
@@ -2294,10 +2338,12 @@ async function main() {
     });
 
     await prisma.adminRolePermission.createMany({
-      data: roleDef.permissionCodes.map((code) => ({
-        roleId: role.id,
-        permissionId: seededAdminPermissions[code],
-      })),
+      data: Array.from(new Set(roleDef.permissionCodes))
+        .filter((code) => seededAdminPermissions[code])
+        .map((code) => ({
+          roleId: role.id,
+          permissionId: seededAdminPermissions[code],
+        })),
     });
   }
 
@@ -2337,19 +2383,23 @@ async function main() {
   const seededAdmins: Record<string, any> = {};
   for (const adminDef of adminUsersDefinitions) {
     const role = seededAdminRoles[adminDef.roleCode];
+    const normalizedEmail = adminDef.email.toLowerCase().trim();
     const user = await prisma.adminUser.upsert({
-      where: { email: adminDef.email },
+      where: { email: normalizedEmail },
       update: {
         fullName: adminDef.fullName,
         phone: adminDef.phone,
         roleId: role.id,
+        status: 'ACTIVE',
+        deletedAt: null,
       },
       create: {
-        email: adminDef.email,
+        email: normalizedEmail,
         fullName: adminDef.fullName,
         phone: adminDef.phone,
         passwordHash,
         roleId: role.id,
+        status: 'ACTIVE',
       },
     });
     seededAdmins[adminDef.roleCode] = user;
@@ -2433,40 +2483,6 @@ async function main() {
         createdByAdminId: adminUser.id,
       },
     }),
-    // Gói giá rẻ chỉ để tự tay test hết luồng thanh toán SePay thật (checkout,
-    // quét QR, webhook xác nhận, kích hoạt) mà không phải chuyển số tiền lớn.
-    // isPublic: true để nó hiện thật trên trang pricing -- tắt/archive gói này
-    // sau khi test xong, đừng để khách thật nhìn thấy "Gói Test".
-    recruiterTest: await prisma.subscriptionPlan.upsert({
-      where: { code: 'RECRUITER_TEST' },
-      update: {
-        subscriptionName: 'Gói Test 5.000đ',
-        price: new Prisma.Decimal(5000),
-        description:
-          'Gói giá rẻ chỉ dùng để kiểm thử luồng thanh toán -- không dùng cho khách thật.',
-        durationDays: 3,
-        jobPostLimit: 0,
-        status: 'ACTIVE',
-        isPublic: true,
-        highlightLabel: 'TEST',
-        sortOrder: 99,
-        createdByAdminId: adminUser.id,
-      },
-      create: {
-        code: 'RECRUITER_TEST',
-        subscriptionName: 'Gói Test 5.000đ',
-        price: new Prisma.Decimal(5000),
-        description:
-          'Gói giá rẻ chỉ dùng để kiểm thử luồng thanh toán -- không dùng cho khách thật.',
-        durationDays: 3,
-        jobPostLimit: 0,
-        status: 'ACTIVE',
-        isPublic: true,
-        highlightLabel: 'TEST',
-        sortOrder: 99,
-        createdByAdminId: adminUser.id,
-      },
-    }),
     candidateFree: await prisma.subscriptionPlan.upsert({
       where: { code: 'CANDIDATE_FREE' },
       update: {
@@ -2537,15 +2553,31 @@ async function main() {
     }),
   };
 
-  // Đảm bảo trang admin "Cấu hình thanh toán" luôn có sẵn 1 dòng SePay để
-  // load/sửa ngay lần đầu vào (thay vì 404 trên DB mới tinh). Tắt sẵn
-  // (isEnabled: false) và để trống bank info/API key -- admin tự điền qua UI.
+  // Cấu hình sẵn SePay Test Mode / Sandbox để khi clone sang máy khác hoặc chạy seed
+  // là có thể test thanh toán và API Polling ngay lập tức mà không cần cấu hình lại thủ công.
+  const sepayDefaultToken = 'VUGF1QUHQ9G2QSDVYIBEIGZKATC73B2MW5O4CBLEV43VOFA0DWTENNYO6L8LYAOS';
   await prisma.paymentGatewayConfig.upsert({
     where: { provider: PaymentMethod.SEPAY },
-    update: {},
+    update: {
+      isEnabled: true,
+      bankName: 'TPBank (Test Mode)',
+      bankBin: '970423',
+      accountNumber: '10001291241',
+      accountName: 'PHAN QUOC DUY',
+      contentPrefix: '',
+      apiToken: sepayDefaultToken,
+      webhookSecret: sepayDefaultToken,
+    },
     create: {
       provider: PaymentMethod.SEPAY,
-      isEnabled: false,
+      isEnabled: true,
+      bankName: 'TPBank (Test Mode)',
+      bankBin: '970423',
+      accountNumber: '10001291241',
+      accountName: 'PHAN QUOC DUY',
+      contentPrefix: '',
+      apiToken: sepayDefaultToken,
+      webhookSecret: sepayDefaultToken,
     },
   });
 
@@ -2581,7 +2613,6 @@ async function main() {
     { planId: plans.pro.id, feature: SubscriptionFeature.HR_SEAT, limitValue: 10 },
     { planId: plans.pro.id, feature: SubscriptionFeature.AI_CV_MATCHING, limitValue: 1250 },
     { planId: plans.pro.id, feature: SubscriptionFeature.AI_JD_GENERATE, limitValue: 150 },
-    { planId: plans.recruiterTest.id, feature: SubscriptionFeature.JOB_POST, limitValue: null },
   ];
 
   await Promise.all(
@@ -3172,7 +3203,9 @@ async function main() {
 
   const recruiters = backupData.recruiters.map((rec: any) => {
     let roleCode = 'HR';
-    if (
+    if (rec.email === 'fpt-software@gmail.com') {
+      roleCode = 'HR';
+    } else if (
       rec.email === 'hr@fptsoftware.com' ||
       rec.email === 'admin@fptsoftware.com' ||
       rec.email.includes('owner') ||
@@ -5687,7 +5720,10 @@ async function main() {
         data: {
           subscriptionPlanId: item.plan.id,
           companyId: comp.id,
-          invoiceCode: `INV-${comp.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+          invoiceCode: `INV-${comp.name
+            .replace(/[^a-zA-Z0-9]/g, '')
+            .slice(0, 8)
+            .toUpperCase()}-${Date.now().toString().slice(-4)}`,
           amount: item.plan.price,
           paymentMethod: 'SEPAY',
           paymentStatus: 'PAID',
@@ -5716,7 +5752,10 @@ async function main() {
       const idempotencyKey = `seed:job-boost:${comp.id}:${boostId}`;
 
       await prisma.jobBoost.deleteMany({
-        where: { jobPostId: targetJob.id, status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] } },
+        where: {
+          jobPostId: targetJob.id,
+          status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] },
+        },
       });
 
       const boost = await prisma.jobBoost.create({
@@ -5782,7 +5821,10 @@ async function main() {
       const idempotencyKey = `seed:job-boost:${comp.id}:${boostId}`;
 
       await prisma.jobBoost.deleteMany({
-        where: { jobPostId: targetJob.id, status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] } },
+        where: {
+          jobPostId: targetJob.id,
+          status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] },
+        },
       });
 
       const boost = await prisma.jobBoost.create({

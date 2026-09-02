@@ -67,7 +67,7 @@ type CompanyUploadFile = {
 @ApiTags('Companies')
 @Controller('companies')
 export class CompaniesController {
-  constructor(private readonly companiesService: CompaniesService) { }
+  constructor(private readonly companiesService: CompaniesService) {}
 
   @Post(':id/letter-templates/generate')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

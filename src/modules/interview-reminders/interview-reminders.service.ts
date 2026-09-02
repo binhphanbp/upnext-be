@@ -127,9 +127,7 @@ export class InterviewRemindersService {
 
     for (const result of results) {
       if (result.status === 'rejected') {
-        this.logger.warn(
-          `Reminder channel failed for interview ${interview.id}: ${result.reason}`,
-        );
+        this.logger.warn(`Reminder channel failed for interview ${interview.id}: ${result.reason}`);
       }
     }
 

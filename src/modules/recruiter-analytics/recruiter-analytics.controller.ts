@@ -27,12 +27,13 @@ export class RecruiterAnalyticsController {
   @Roles(ActorType.RECRUITER)
   @AllowWhenRestricted()
   @ApiQuery({ name: 'windowDays', required: false, enum: [7, 30, 90] })
-  @ApiQuery({ name: 'jobPostId', required: false, description: 'UUID của tin tuyển dụng cần xem chi tiết' })
+  @ApiQuery({
+    name: 'jobPostId',
+    required: false,
+    description: 'UUID của tin tuyển dụng cần xem chi tiết',
+  })
   @ApiOkResponse({ description: 'Dữ liệu phân tích tuyển dụng.' })
-  getAnalytics(
-    @CurrentUser() user: AuthenticatedUser,
-    @Query() query: RecruiterAnalyticsQueryDto,
-  ) {
+  getAnalytics(@CurrentUser() user: AuthenticatedUser, @Query() query: RecruiterAnalyticsQueryDto) {
     return this.recruiterAnalyticsService.getAnalytics(user.id, query);
   }
 }

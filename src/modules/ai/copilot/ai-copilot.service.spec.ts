@@ -6,6 +6,7 @@ import { AiActionsService } from './ai-actions.service';
 import { AiConversationsService } from './ai-conversations.service';
 import { AiCopilotService, CopilotRunInput } from './ai-copilot.service';
 import { CandidateContextAssembler } from '../context/candidate-context.assembler';
+import { CandidateKnowledgeRetrievalService } from '../retrieval/candidate-knowledge-retrieval.service';
 
 describe('AiCopilotService — business orchestration', () => {
   const generateStructured = jest.fn();
@@ -19,6 +20,7 @@ describe('AiCopilotService — business orchestration', () => {
   const propose = jest.fn();
   const createRun = jest.fn();
   const createAiUsageLog = jest.fn();
+  const searchKnowledge = jest.fn();
 
   const llm = {
     modelName: 'test-model',
@@ -41,6 +43,7 @@ describe('AiCopilotService — business orchestration', () => {
     aIRun: { create: createRun },
     aiUsageLog: { create: createAiUsageLog },
   } as unknown as PrismaService;
+  const knowledge = { search: searchKnowledge } as unknown as CandidateKnowledgeRetrievalService;
 
   let service: AiCopilotService;
 
@@ -58,7 +61,7 @@ describe('AiCopilotService — business orchestration', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new AiCopilotService(llm, tools, context, conversations, actions, prisma);
+    service = new AiCopilotService(llm, tools, context, conversations, actions, prisma, knowledge);
     createAssistantPlaceholder.mockResolvedValue({ id: 'assistant-1' });
     recentTurns.mockResolvedValue([{ role: 'USER', content: 'Hello' }]);
     listFor.mockReturnValue([]);
@@ -66,6 +69,7 @@ describe('AiCopilotService — business orchestration', () => {
     finalizeAssistantMessage.mockResolvedValue(undefined);
     createRun.mockResolvedValue(undefined);
     createAiUsageLog.mockResolvedValue(undefined);
+    searchKnowledge.mockResolvedValue([]);
     streamText.mockImplementation(async function* () {
       yield { kind: 'text' as const, text: 'A grounded answer.' };
       yield { kind: 'usage' as const, inputTokens: 7, outputTokens: 4, modelName: 'test-model' };
@@ -89,6 +93,59 @@ describe('AiCopilotService — business orchestration', () => {
     expect(events.at(-1)).toMatchObject({ event: 'done' });
     expect(finalizeAssistantMessage).toHaveBeenCalledWith(
       expect.objectContaining({ status: AiRunStatus.COMPLETED, content: 'A grounded answer.' }),
+    );
+  });
+
+  it('grounds general guidance in candidate knowledge and emits only permitted citations', async () => {
+    generateStructured.mockResolvedValue({
+      value: { intent: 'GENERAL_GUIDANCE', toolCalls: [] },
+      inputTokens: 3,
+      outputTokens: 2,
+    });
+    searchKnowledge.mockResolvedValue([
+      {
+        chunkId: 'chunk-1',
+        documentId: 'document-1',
+        title: 'Hướng dẫn CV',
+        canonicalUrl: '/guides/cv',
+        sourceVersion: 'v1',
+        excerpt: 'Dùng thành tựu có thể đo lường.',
+        semanticScore: 0.9,
+        lexicalScore: 0.1,
+        score: 0.66,
+      },
+    ]);
+
+    const events = await collect(service.run(input({ prompt: 'Làm CV tốt hơn như thế nào?' })));
+
+    expect(searchKnowledge).toHaveBeenCalledWith(
+      expect.objectContaining({ candidateProfileId: 'candidate-profile-1', locale: 'en' }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        event: 'citation',
+        data: expect.objectContaining({
+          citation: expect.objectContaining({ sourceType: 'POLICY', sourceId: 'document-1' }),
+        }),
+      }),
+    );
+    expect(streamText.mock.calls[0]?.[0].messages.at(-1)?.text).toContain(
+      'Dùng thành tựu có thể đo lường.',
+    );
+    // The same source emitted to the client must be present in the model's
+    // evidence list. Otherwise the model has no valid `[n]` marker to attach
+    // to the claim it writes, even though the UI renders a source card later.
+    expect(streamText.mock.calls[0]?.[0].messages.at(-1)?.text).toContain('[1] Hướng dẫn CV');
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        event: 'citation',
+        data: expect.objectContaining({
+          citation: expect.objectContaining({
+            sourceVersion: 'v1',
+            href: '/candidate/ai/knowledge/document-1',
+          }),
+        }),
+      }),
     );
   });
 
