@@ -141,6 +141,31 @@ describe('SalaryResearchService', () => {
     await expect(service.research(input)).resolves.toBeNull();
   });
 
+  it('counts publisher domains from Gemini grounding redirects without weakening source checks', async () => {
+    const { port } = stub(
+      answer({
+        sources: [
+          {
+            title: 'itviec.com',
+            url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/first',
+          },
+          {
+            title: 'topcv.vn',
+            url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/second',
+          },
+        ],
+      }),
+    );
+    const service = new SalaryResearchService(port);
+
+    await expect(service.research(input)).resolves.toMatchObject({
+      p25: 15_000_000,
+      median: 21_000_000,
+      p75: 28_000_000,
+      confidence: 'LOW',
+    });
+  });
+
   it('coalesces concurrent research for the same market profile into one provider call', async () => {
     let resolveAnswer: ((value: GroundedResearchResponse) => void) | undefined;
     const response = new Promise<GroundedResearchResponse>((resolve) => {
