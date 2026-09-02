@@ -340,6 +340,7 @@ enum CvScreeningRunStatus {
   COMPLETED      @map("completed")
   FAILED         @map("failed")
   PARTIAL_FAILED @map("partial_failed")
+  CANCELLED      @map("cancelled")
 }
 
 enum EducationLevel {
@@ -937,6 +938,7 @@ model Company {
   supportCases             SupportCase[]
   subscriptionUsages       SubscriptionUsage[]
   aiUsageLogs              AiUsageLog[]
+  cvScreeningConfig        CvScreeningCompanyConfig?
 
   @@index([verificationStatus])
   @@index([status])
@@ -1141,6 +1143,7 @@ model JobPost {
   mockInterviews           MockInterview[]
   jobEmbedding             JobEmbedding?
   cvScreeningRuns          CvScreeningRun[]
+  cvScreeningConfig        JobPostCvScreeningConfig?
   applicationAiScores      ApplicationAiScore[]
   conversations            Conversation[]
   hiringTeamMembers        JobHiringTeamMember[]
@@ -1383,12 +1386,19 @@ model CvScreeningRun {
   failedCount        Int                  @default(0) @map("failed_count")
   limit              Int?
   applicationIds     Json                 @default("[]") @map("application_ids")
+  /// Resolved screening config (job override merged over company defaults)
+  /// captured when the run was created, so a config edit mid-run can't change
+  /// how the run scores, and so a finished run stays explainable.
+  configSnapshot     Json?                @map("config_snapshot")
   status             CvScreeningRunStatus @default(PENDING)
   attemptCount       Int                  @default(0) @map("attempt_count")
   nextAttemptAt      DateTime             @default(now()) @map("next_attempt_at")
   lockedAt           DateTime?            @map("locked_at")
   lockedBy           String?              @map("locked_by") @db.VarChar(100)
   errorMessage       String?              @map("error_message") @db.Text
+  /// Đặt khi recruiter bấm hủy một run đang PROCESSING -- worker kiểm tra cờ
+  /// này giữa các batch và dừng lại sớm thay vì chờ chấm hết toàn bộ CV.
+  cancelRequestedAt  DateTime?            @map("cancel_requested_at")
   startedAt          DateTime?            @map("started_at")
   finishedAt         DateTime?            @map("finished_at")
   createdAt          DateTime             @default(now()) @map("created_at")
@@ -1459,6 +1469,19 @@ model ApplicationAiScore {
   summary            String?  @db.Text
   recommendation     String?  @db.Text
   rawAiResponse      Json?    @map("raw_ai_response")
+  /// Snapshot of the point weights this score was computed with, e.g.
+  /// {"skills":40,"experience":30,"projects":20,"education":10}. null on rows
+  /// scored before configurable weights existed -- readers fall back to the
+  /// reference rubric, which is exactly what those rows used.
+  scoringWeights     Json?    @map("scoring_weights")
+  /// Per-criterion verdicts, e.g. [{"criterion":"2 năm React","met":false,
+  /// "evidence":"..."}]. Missing must-haves are a warning, never a veto.
+  mustHaveResults    Json?    @map("must_have_results")
+  niceToHaveResults  Json?    @map("nice_to_have_results")
+  /// Hash of the config inputs that change the model's output (criteria +
+  /// custom prompt + scoring version). Weights are deliberately excluded, so
+  /// a weight change re-weights this row locally instead of re-calling the AI.
+  promptFingerprint  String?  @map("prompt_fingerprint") @db.VarChar(64)
   modelName          String   @map("model_name") @db.VarChar(120)
   scoringVersion     String   @map("scoring_version") @db.VarChar(40)
   createdAt          DateTime @default(now()) @map("created_at")
@@ -2673,6 +2696,70 @@ model CandidateContactPreference {
   candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
 
   @@map("candidate_contact_preferences")
+}
+
+/// Per-company defaults for the "AI lọc CV" screening behaviour: how the 100
+/// points are split between the four rubric groups, plus the recruiter's real
+/// hiring criteria. Absent (no row) or a null field means "use the system
+/// defaults" (see screening-config.resolver.ts), so a company never has to
+/// configure anything. A single job post can override any of this -- see
+/// JobPostCvScreeningConfig. How many CVs a run scores is chosen per run on
+/// the screening screen (Top 10/Top 20), not configured here.
+model CvScreeningCompanyConfig {
+  companyId          String  @id @map("company_id") @db.Uuid
+  /// Point weights per rubric group; they must be multiples of 5 and sum to
+  /// 100. Weights are applied AFTER the model scores a CV on the fixed
+  /// reference rubric (scoring-rubric.ts), never inside the prompt, so
+  /// changing them re-ranks existing results without another AI call. All
+  /// four are set together or all null (= inherit the 40/30/20/10 default).
+  weightSkills       Int?    @map("weight_skills")
+  weightExperience   Int?    @map("weight_experience")
+  weightProjects     Int?    @map("weight_projects")
+  weightEducation    Int?    @map("weight_education")
+  /// Which preset the weights came from: FRESHER | MID | SENIOR | CUSTOM.
+  /// Display-only, so the UI can re-select the right preset card.
+  weightPreset       String? @map("weight_preset") @db.VarChar(20)
+  /// Deal-breakers, e.g. ["Ít nhất 2 năm React", "Tiếng Anh giao tiếp tốt"].
+  /// The model reports met/unmet per criterion; a miss is surfaced as a
+  /// warning and reflected in the related rubric items, it does not veto.
+  mustHaveCriteria   Json?   @map("must_have_criteria")
+  /// Bonus criteria the model credits within preferred-skills / domain.
+  niceToHaveCriteria Json?   @map("nice_to_have_criteria")
+  /// One free-text note appended to the AI prompt. Treated as untrusted
+  /// recruiter input -- see gemini-scoring.service.ts buildSystemInstruction.
+  customPrompt       String? @map("custom_prompt") @db.Text
+
+  updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("cv_screening_company_configs")
+}
+
+/// Per-job-post override of the company's AI screening config. Every field is
+/// optional: a null field inherits the company value (and in turn the system
+/// default). Weights are an atomic block -- either all four are set here or
+/// the job inherits the company's split entirely.
+model JobPostCvScreeningConfig {
+  jobPostId          String  @id @map("job_post_id") @db.Uuid
+  weightSkills       Int?    @map("weight_skills")
+  weightExperience   Int?    @map("weight_experience")
+  weightProjects     Int?    @map("weight_projects")
+  weightEducation    Int?    @map("weight_education")
+  weightPreset       String? @map("weight_preset") @db.VarChar(20)
+  mustHaveCriteria   Json?   @map("must_have_criteria")
+  niceToHaveCriteria Json?   @map("nice_to_have_criteria")
+  customPrompt       String? @map("custom_prompt") @db.Text
+
+  updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  jobPost JobPost @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+
+  @@map("job_post_cv_screening_configs")
 }
 
 model CompanyCandidateBlock {

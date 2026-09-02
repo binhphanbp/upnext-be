@@ -108,9 +108,10 @@ export class EmailService {
     const lang = params.locale === 'en' ? 'en' : 'vi';
     const templateName = `password-reset-${lang}.html`;
     const subject = lang === 'en' ? 'Reset your UpNext Password' : 'Đặt lại mật khẩu UpNext';
-    const bodyText = lang === 'en' 
-      ? `Click the link to reset your password: ${params.resetLink}` 
-      : `Nhấn vào link để đặt lại mật khẩu: ${params.resetLink}`;
+    const bodyText =
+      lang === 'en'
+        ? `Click the link to reset your password: ${params.resetLink}`
+        : `Nhấn vào link để đặt lại mật khẩu: ${params.resetLink}`;
 
     const html = this.renderTemplate(templateName, {
       resetLink: params.resetLink,
@@ -242,14 +243,10 @@ export class EmailService {
     recruiterCode?: string | null;
     companyLink: string;
   }) {
-    const templateName = params.approved
-      ? 'company-approved.html'
-      : 'company-rejected.html';
+    const templateName = params.approved ? 'company-approved.html' : 'company-rejected.html';
 
     const name = params.recruiterName?.trim() || params.to;
-    const recipientName = params.recruiterCode
-      ? `${name} - Mã NTD ${params.recruiterCode}`
-      : name;
+    const recipientName = params.recruiterCode ? `${name} - Mã NTD ${params.recruiterCode}` : name;
 
     const html = this.renderTemplate(templateName, {
       recruiterName: name,
@@ -830,7 +827,18 @@ export class EmailService {
     const paths = [
       join(__dirname, resourceDirectory, fileName),
       join(__dirname, '..', '..', '..', 'src', 'common', 'email', resourceDirectory, fileName),
-      join(__dirname, '..', '..', '..', '..', 'src', 'common', 'email', resourceDirectory, fileName),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        '..',
+        'src',
+        'common',
+        'email',
+        resourceDirectory,
+        fileName,
+      ),
     ];
 
     return paths.find(existsSync) ?? paths[0];

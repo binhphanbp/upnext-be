@@ -8,8 +8,7 @@ export class RecruiterGoogleStrategy extends PassportStrategy(Strategy, 'google-
   private readonly logger = new Logger(RecruiterGoogleStrategy.name);
 
   constructor(configService: ConfigService) {
-    const backendUrl =
-      configService.get<string>('appBackendUrl') || 'http://localhost:3001';
+    const backendUrl = configService.get<string>('appBackendUrl') || 'http://localhost:3001';
     const callbackURL = `${backendUrl}/api/v1/recruiter/auth/google/callback`;
 
     super({
@@ -27,11 +26,7 @@ export class RecruiterGoogleStrategy extends PassportStrategy(Strategy, 'google-
     }
   }
 
-  async validate(
-    accessToken: string,
-    refreshToken: string,
-    profile: Profile,
-  ) {
+  async validate(accessToken: string, refreshToken: string, profile: Profile) {
     const { id, name, emails } = profile;
 
     const user = {

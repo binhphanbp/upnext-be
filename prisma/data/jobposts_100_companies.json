@@ -19,7 +19,7 @@
     "salaryMin": null,
     "salaryMax": null,
     "salaryCurrency": "VND",
-    "salaryPeriod": "MONTH",  
+    "salaryPeriod": "MONTH",
     "salaryIsNegotiable": true,
     "salaryIsVisible": false,
     "vacanciesCount": 1,

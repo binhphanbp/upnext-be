@@ -8,7 +8,7 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: data
 async function testJob() {
   const job = await prisma.jobPost.findUnique({
     where: { id: 'c542840c-e406-4b73-b858-513d372b0cb6' },
-    select: { title: true, _count: { select: { applications: true } } }
+    select: { title: true, _count: { select: { applications: true } } },
   });
   console.log('Job:', job);
 
@@ -19,7 +19,7 @@ async function testJob() {
   console.log('Run state:', run);
 
   const scoresCount = await prisma.applicationAiScore.count({
-    where: { jobPostId: 'c542840c-e406-4b73-b858-513d372b0cb6' }
+    where: { jobPostId: 'c542840c-e406-4b73-b858-513d372b0cb6' },
   });
   console.log('Scores count in DB:', scoresCount);
 }

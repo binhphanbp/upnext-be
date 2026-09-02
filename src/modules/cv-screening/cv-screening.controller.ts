@@ -25,6 +25,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CvVersionsService } from '../cvs/cv-versions.service';
+import { CvScreeningWorkerService } from './cv-screening-worker.service';
 import { CvScreeningService } from './cv-screening.service';
 import { RunCvScreeningDto } from './dto/run-cv-screening.dto';
 
@@ -37,6 +38,7 @@ export class CvScreeningController {
   constructor(
     private readonly cvScreeningService: CvScreeningService,
     private readonly cvVersionsService: CvVersionsService,
+    private readonly cvScreeningWorker: CvScreeningWorkerService,
   ) {}
 
   @Post('cv-screening/run')
@@ -51,8 +53,28 @@ export class CvScreeningController {
       },
     },
   })
-  run(@CurrentUser() user: AuthenticatedUser, @Body() dto: RunCvScreeningDto) {
-    return this.cvScreeningService.startRun(user.id, dto);
+  async run(@CurrentUser() user: AuthenticatedUser, @Body() dto: RunCvScreeningDto) {
+    const result = await this.cvScreeningService.startRun(user.id, dto);
+    // Nudge the worker immediately instead of leaving the run to sit at "0
+    // processed" for up to 5s until the next cron tick -- `processNextRun`
+    // is already safe to call redundantly (single `running` guard + an
+    // atomic claim), so this can never double-process anything.
+    void this.cvScreeningWorker.processNextRun().catch(() => {
+      // The 5s cron tick is still the source of truth; a failed nudge just
+      // means the run waits for it like before this optimization existed.
+    });
+    return result;
+  }
+
+  @Post('cv-screening/runs/:runId/cancel')
+  @ApiOperation({ summary: 'Cancel a CV screening run in progress' })
+  @ApiParam({ name: 'runId', description: 'UUID of the CV screening run' })
+  @ApiOkResponse({ description: 'Run cancelled, or a cancel was already requested.' })
+  cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('runId', new ParseUUIDPipe()) runId: string,
+  ) {
+    return this.cvScreeningService.cancelRun(user.id, runId);
   }
 
   @Get('cv-screening/runs/:runId')

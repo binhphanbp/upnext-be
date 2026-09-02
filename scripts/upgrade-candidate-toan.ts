@@ -65,7 +65,8 @@ async function main() {
     update: {
       audience: PlanAudience.CANDIDATE,
       subscriptionName: 'Candidate Dev Unlimited (VIP Max)',
-      description: 'Gói ứng viên cao cấp không giới hạn tính năng và lượt dùng AI để kiểm thử luồng.',
+      description:
+        'Gói ứng viên cao cấp không giới hạn tính năng và lượt dùng AI để kiểm thử luồng.',
       price: 0,
       durationDays: YEARS * 365,
       status: SubscriptionStatus.ACTIVE,
@@ -75,7 +76,8 @@ async function main() {
       code: PLAN_CODE,
       audience: PlanAudience.CANDIDATE,
       subscriptionName: 'Candidate Dev Unlimited (VIP Max)',
-      description: 'Gói ứng viên cao cấp không giới hạn tính năng và lượt dùng AI để kiểm thử luồng.',
+      description:
+        'Gói ứng viên cao cấp không giới hạn tính năng và lượt dùng AI để kiểm thử luồng.',
       price: 0,
       durationDays: YEARS * 365,
       status: SubscriptionStatus.ACTIVE,
@@ -87,9 +89,7 @@ async function main() {
   console.log(`Plan: ${plan.subscriptionName} (${plan.code})`);
 
   // 3. Upsert features for this plan (AI_COPILOT_RUN unlimited)
-  const candidateFeatures = [
-    SubscriptionFeature.AI_COPILOT_RUN,
-  ];
+  const candidateFeatures = [SubscriptionFeature.AI_COPILOT_RUN];
 
   for (const feature of candidateFeatures) {
     await prisma.planFeature.upsert({
@@ -105,9 +105,16 @@ async function main() {
   });
   if (proPlan) {
     await prisma.planFeature.upsert({
-      where: { planId_feature: { planId: proPlan.id, feature: SubscriptionFeature.AI_COPILOT_RUN } },
+      where: {
+        planId_feature: { planId: proPlan.id, feature: SubscriptionFeature.AI_COPILOT_RUN },
+      },
       update: { enabled: true, limitValue: 9999 },
-      create: { planId: proPlan.id, feature: SubscriptionFeature.AI_COPILOT_RUN, enabled: true, limitValue: 9999 },
+      create: {
+        planId: proPlan.id,
+        feature: SubscriptionFeature.AI_COPILOT_RUN,
+        enabled: true,
+        limitValue: 9999,
+      },
     });
   }
 
@@ -137,7 +144,9 @@ async function main() {
     },
   });
 
-  console.log(`Candidate Subscription: ACTIVE, Hạn dùng đến: ${expiredAt.toISOString().slice(0, 10)}`);
+  console.log(
+    `Candidate Subscription: ACTIVE, Hạn dùng đến: ${expiredAt.toISOString().slice(0, 10)}`,
+  );
 
   // Clear quota counters for fresh start
   const cleared = await prisma.candidateSubscriptionQuotaCounter.deleteMany({
@@ -147,7 +156,9 @@ async function main() {
     console.log(`Đã reset ${cleared.count} quota counters về 0.`);
   }
 
-  console.log(`\n🎉 THÀNH CÔNG: Tài khoản ứng viên ${account.email} đã được nâng lên gói VIP cao nhất (${plan.subscriptionName})!`);
+  console.log(
+    `\n🎉 THÀNH CÔNG: Tài khoản ứng viên ${account.email} đã được nâng lên gói VIP cao nhất (${plan.subscriptionName})!`,
+  );
 }
 
 main()

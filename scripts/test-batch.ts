@@ -20,15 +20,15 @@ async function testBatch4() {
             Ứng viên 1: ID app1, 3 năm kinh nghiệm React, Next.js, TypeScript.
             Ứng viên 2: ID app2, 1 năm kinh nghiệm HTML/CSS cơ bản.
             Ứng viên 3: ID app3, 5 năm kinh nghiệm Vue, Node.js, React.
-            Trả về JSON array các object với: applicationId, skillScore (0-40), experienceScore (0-30), projectScore (0-20), summary.`
-          }
-        ]
-      }
+            Trả về JSON array các object với: applicationId, skillScore (0-40), experienceScore (0-30), projectScore (0-20), summary.`,
+          },
+        ],
+      },
     ],
     generationConfig: {
       responseMimeType: 'application/json',
-      temperature: 0.1
-    }
+      temperature: 0.1,
+    },
   };
 
   const start = Date.now();
@@ -36,7 +36,7 @@ async function testBatch4() {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(prompt)
+    body: JSON.stringify(prompt),
   });
   const data: any = await res.json();
   console.log(`Finished in ${Date.now() - start}ms, status: ${res.status}`);

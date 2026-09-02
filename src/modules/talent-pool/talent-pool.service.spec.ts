@@ -9,7 +9,12 @@ describe('TalentPoolService', () => {
   const candidateProfileId = 'candidate-1';
 
   let prisma: {
-    candidateProfile: { findMany: jest.Mock; count: jest.Mock; findFirst: jest.Mock; findUniqueOrThrow: jest.Mock };
+    candidateProfile: {
+      findMany: jest.Mock;
+      count: jest.Mock;
+      findFirst: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
+    };
     cvPoolUnlock: { findMany: jest.Mock; findUnique: jest.Mock; create: jest.Mock };
     $transaction: jest.Mock;
   };

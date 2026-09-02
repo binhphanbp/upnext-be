@@ -14,7 +14,7 @@ export class PrismaSerializeInterceptor implements NestInterceptor {
     return next.handle().pipe(
       map((data: unknown) => {
         if (data === null || data === undefined || data instanceof StreamableFile) {
-          return data;  
+          return data;
         }
         try {
           return JSON.parse(JSON.stringify(data)) as unknown;

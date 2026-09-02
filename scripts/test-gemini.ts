@@ -12,8 +12,8 @@ async function testModel(model: string) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: 'Hello, respond with {"status": "ok"}' }] }],
-        generationConfig: { responseMimeType: 'application/json' }
-      })
+        generationConfig: { responseMimeType: 'application/json' },
+      }),
     });
     const status = res.status;
     const body: any = await res.json();

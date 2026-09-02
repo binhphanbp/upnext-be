@@ -176,10 +176,14 @@ describe('CompanyMembersService', () => {
       });
 
       await expect(
-        service.updateMemberRole('target-member-id', { roleId: 'owner-role-id' }, {
-          ...currentUser,
-          id: 'other-account-id',
-        }),
+        service.updateMemberRole(
+          'target-member-id',
+          { roleId: 'owner-role-id' },
+          {
+            ...currentUser,
+            id: 'other-account-id',
+          },
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
   });

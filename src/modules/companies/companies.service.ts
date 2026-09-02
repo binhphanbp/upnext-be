@@ -168,15 +168,11 @@ export class CompaniesService {
     @Inject(COMPANY_LICENSE_EXTRACTION_PROVIDER)
     private readonly licenseExtraction: CompanyLicenseExtractionProviderPort,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProviderPort,
-  ) { }
+  ) {}
 
   private readonly logger = new Logger(CompaniesService.name);
 
-  async generateLetterTemplate(
-    id: string,
-    type: 'OFFER' | 'REJECTION',
-    user: AuthenticatedUser,
-  ) {
+  async generateLetterTemplate(id: string, type: 'OFFER' | 'REJECTION', user: AuthenticatedUser) {
     await this.ensureCompanyExists(id);
     await this.checkCompanyPermission(id, user);
     if (!this.llm.isConfigured()) {
@@ -349,12 +345,12 @@ export class CompaniesService {
     const where: Prisma.CompanyWhereInput = {
       ...(query.q
         ? {
-          OR: [
-            { name: { contains: query.q, mode: 'insensitive' } },
-            { description: { contains: query.q, mode: 'insensitive' } },
-            { email: { contains: query.q, mode: 'insensitive' } },
-          ],
-        }
+            OR: [
+              { name: { contains: query.q, mode: 'insensitive' } },
+              { description: { contains: query.q, mode: 'insensitive' } },
+              { email: { contains: query.q, mode: 'insensitive' } },
+            ],
+          }
         : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.verificationStatus ? { verificationStatus: query.verificationStatus } : {}),
@@ -425,10 +421,10 @@ export class CompaniesService {
           coverFile: coverMap.get(company.id) ?? null,
           activePlan: activeSubscription
             ? {
-              id: activeSubscription.plan.id,
-              name: activeSubscription.plan.subscriptionName,
-              expiredAt: activeSubscription.expiredAt,
-            }
+                id: activeSubscription.plan.id,
+                name: activeSubscription.plan.subscriptionName,
+                expiredAt: activeSubscription.expiredAt,
+              }
             : null,
         };
       }),
@@ -563,7 +559,8 @@ export class CompaniesService {
 
     await this.awardCompanyInfoBonusIfEligible(id).catch((error: unknown) => {
       this.logger.warn(
-        `Failed to evaluate company-info reputation bonus for ${id}: ${error instanceof Error ? error.message : String(error)
+        `Failed to evaluate company-info reputation bonus for ${id}: ${
+          error instanceof Error ? error.message : String(error)
         }`,
       );
     });
@@ -832,7 +829,8 @@ export class CompaniesService {
     // email delivery must never block or fail the upload.
     void this.notifyCompanySubmittedForReview(id, user).catch((error: unknown) => {
       this.logger.warn(
-        `Failed to send company submission emails for ${id}: ${error instanceof Error ? error.message : String(error)
+        `Failed to send company submission emails for ${id}: ${
+          error instanceof Error ? error.message : String(error)
         }`,
       );
     });
@@ -930,7 +928,8 @@ export class CompaniesService {
     void this.notifyCompanyVerificationResult(company.id, isVerified, reason, dto.guidance).catch(
       (error: unknown) => {
         this.logger.warn(
-          `Failed to send company verification emails for ${company.id}: ${error instanceof Error ? error.message : String(error)
+          `Failed to send company verification emails for ${company.id}: ${
+            error instanceof Error ? error.message : String(error)
           }`,
         );
       },

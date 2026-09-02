@@ -8,12 +8,12 @@
 
 UpNext không nên làm một chatbot hỏi gì cũng trả lời. Giá trị thật là giúp người dùng **ra quyết định hoặc hoàn tất một việc tuyển dụng** nhanh hơn, trên dữ liệu có quyền truy cập và có bằng chứng.
 
-| Đối tượng | Quyết định | Lý do |
-| --- | --- | --- |
-| Ứng viên | Làm **Candidate Career Assistant**. | Nhu cầu lặp lại, tần suất cao: hiểu CV, chọn việc, theo dõi đơn, chuẩn bị ứng tuyển/phỏng vấn. Dữ liệu chủ yếu là của chính người dùng nên rủi ro quyền truy cập thấp hơn. |
+| Đối tượng      | Quyết định                                                                                                                                                                   | Lý do                                                                                                                                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ứng viên       | Làm **Candidate Career Assistant**.                                                                                                                                          | Nhu cầu lặp lại, tần suất cao: hiểu CV, chọn việc, theo dõi đơn, chuẩn bị ứng tuyển/phỏng vấn. Dữ liệu chủ yếu là của chính người dùng nên rủi ro quyền truy cập thấp hơn.              |
 | Nhà tuyển dụng | **Không làm Recruiter Chatbot.** Giữ và cải tiến workflow AI chuyên biệt: tạo/import JD, salary insight, CV Screening; Talent Discovery là roadmap riêng có consent/masking. | Chat tổng quát làm phân tán roadmap, khó đo ROI, tăng chi phí và mở rộng bề mặt rủi ro lộ CV/candidate. Mỗi workflow hiện có đã có entry point, quyền và kết quả nghiệp vụ rõ hơn chat. |
-| RAG | Bắt buộc cho tri thức dài/tài liệu và truy vấn semantic; không dùng RAG một cách hình thức cho dữ liệu entity nhỏ đã có API chuẩn. | Đọc toàn bộ CV, JD, knowledge base vào prompt vừa tốn tiền vừa dễ hallucinate; nhưng gọi DB tool cho “trạng thái đơn của tôi” chính xác hơn vector search. |
-| Agentic | Dùng **workflow có giới hạn**, không dùng autonomous agent. | Hệ thống tuyển dụng có quyền riêng tư, quota và tác động nghiệp vụ; agent không được tự mở rộng quyền, gửi tin, sửa dữ liệu hoặc chạy vòng lặp vô hạn. |
+| RAG            | Bắt buộc cho tri thức dài/tài liệu và truy vấn semantic; không dùng RAG một cách hình thức cho dữ liệu entity nhỏ đã có API chuẩn.                                           | Đọc toàn bộ CV, JD, knowledge base vào prompt vừa tốn tiền vừa dễ hallucinate; nhưng gọi DB tool cho “trạng thái đơn của tôi” chính xác hơn vector search.                              |
+| Agentic        | Dùng **workflow có giới hạn**, không dùng autonomous agent.                                                                                                                  | Hệ thống tuyển dụng có quyền riêng tư, quota và tác động nghiệp vụ; agent không được tự mở rộng quyền, gửi tin, sửa dữ liệu hoặc chạy vòng lặp vô hạn.                                  |
 
 ## 2. Bài toán cần giải, không phải danh sách tính năng AI
 
@@ -68,12 +68,12 @@ flowchart LR
 
 ### 4.1 Bốn đường grounding
 
-| Loại câu hỏi | Nguồn đúng | Ví dụ | Không dùng |
-| --- | --- | --- | --- |
-| Fact có cấu trúc/quyền sở hữu | Tool SQL có authorization | trạng thái đơn, quota, job đang mở | Vector search, vì có thể stale/sai quyền |
-| Một document dài | Chunk retrieval trong document đã được phép | “CV này có ví dụ leadership nào?” | Toàn bộ PDF/raw CV vào prompt |
-| Corpus tri thức đã quản trị | Hybrid search keyword + vector + rerank | quy trình ứng tuyển, chính sách UpNext, hướng dẫn candidate | Web search tự do ở v1 |
-| Semantic matching | Index theo entity và filter trước retrieval | job phù hợp candidate, candidate phù hợp job | LLM tự bịa score hoặc scan toàn DB |
+| Loại câu hỏi                  | Nguồn đúng                                  | Ví dụ                                                       | Không dùng                               |
+| ----------------------------- | ------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------- |
+| Fact có cấu trúc/quyền sở hữu | Tool SQL có authorization                   | trạng thái đơn, quota, job đang mở                          | Vector search, vì có thể stale/sai quyền |
+| Một document dài              | Chunk retrieval trong document đã được phép | “CV này có ví dụ leadership nào?”                           | Toàn bộ PDF/raw CV vào prompt            |
+| Corpus tri thức đã quản trị   | Hybrid search keyword + vector + rerank     | quy trình ứng tuyển, chính sách UpNext, hướng dẫn candidate | Web search tự do ở v1                    |
+| Semantic matching             | Index theo entity và filter trước retrieval | job phù hợp candidate, candidate phù hợp job                | LLM tự bịa score hoặc scan toàn DB       |
 
 ### 4.2 Nguyên tắc dữ liệu
 
@@ -85,13 +85,13 @@ flowchart LR
 
 ### 4.3 Corpus v1 được phép và corpus bị cấm
 
-| Corpus | Mục đích | Ai được retrieve | Điều kiện index | Citation hiển thị |
-| --- | --- | --- | --- | --- |
-| CV chunks của candidate | tìm evidence khi phân tích/cải thiện CV của chính họ | chỉ owner | CV active, owned, parsed/structured content đủ; redaction trước embedding | section/heading và snippet đã redaction |
-| Public job index | job fit và discovery | candidate signed-in theo public job policy | PUBLISHED, APPROVED, không hidden/xóa/hết hạn | title, company, job route, published/updated time |
-| Own application facts | next step/timeline | chỉ owner | direct authorised tool, **không cần vector index** | application/job status và thời điểm update |
-| Candidate knowledge base | hướng dẫn CV, apply, phỏng vấn chuẩn bị, dùng UpNext | signed-in candidates | source owner approve, locale/version/effective date/review date | title, section, source route, version/date |
-| Conversation summary | continuity cá nhân | chỉ owner trong conversation | redacted, TTL và policy version | không làm citation evidence |
+| Corpus                   | Mục đích                                             | Ai được retrieve                           | Điều kiện index                                                           | Citation hiển thị                                 |
+| ------------------------ | ---------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------- |
+| CV chunks của candidate  | tìm evidence khi phân tích/cải thiện CV của chính họ | chỉ owner                                  | CV active, owned, parsed/structured content đủ; redaction trước embedding | section/heading và snippet đã redaction           |
+| Public job index         | job fit và discovery                                 | candidate signed-in theo public job policy | PUBLISHED, APPROVED, không hidden/xóa/hết hạn                             | title, company, job route, published/updated time |
+| Own application facts    | next step/timeline                                   | chỉ owner                                  | direct authorised tool, **không cần vector index**                        | application/job status và thời điểm update        |
+| Candidate knowledge base | hướng dẫn CV, apply, phỏng vấn chuẩn bị, dùng UpNext | signed-in candidates                       | source owner approve, locale/version/effective date/review date           | title, section, source route, version/date        |
+| Conversation summary     | continuity cá nhân                                   | chỉ owner trong conversation               | redacted, TTL và policy version                                           | không làm citation evidence                       |
 
 Không đưa vào Candidate Assistant v1: CV/profile của candidate khác, Talent Pool, recruiter note, CV Screening result, job draft/nội bộ company, email/support ticket, data analytics nhạy cảm, raw upload file, blog/website chưa được content review, hoặc internet search live.
 
@@ -99,13 +99,13 @@ Không đưa vào Candidate Assistant v1: CV/profile của candidate khác, Tale
 
 ### 5.1 Use case được triển khai
 
-| Use case | Grounding | Output phải hành động được | Success metric |
-| --- | --- | --- | --- |
-| Đánh giá fit với job đang xem | public job + own profile/CV chunks + deterministic rubric | match evidence, 3 gap ưu tiên, CTA lưu/apply/sửa CV | tỷ lệ apply/save sau insight; user rating |
-| Cải thiện CV theo mục tiêu | own CV chunks + profile + selected job (nếu có) | patch theo section, evidence thiếu, user phải confirm trước khi ghi | tỷ lệ apply patch và CV completion |
-| Tìm việc có giải thích | public job index + candidate preferences + structured hard filters | 3–10 job, lý do match/gap và freshness | save/apply rate, zero expired/unauthorised result |
-| Theo dõi đơn và chuẩn bị bước tiếp | own application status + job + curated prep knowledge | timeline, checklist và CTA | giảm câu hỏi support / return rate |
-| Hỏi kiến thức nghề nghiệp/UpNext | curated candidate knowledge corpus | câu trả lời có citations | grounded-answer rate, citation click rate |
+| Use case                           | Grounding                                                          | Output phải hành động được                                          | Success metric                                    |
+| ---------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------------------- |
+| Đánh giá fit với job đang xem      | public job + own profile/CV chunks + deterministic rubric          | match evidence, 3 gap ưu tiên, CTA lưu/apply/sửa CV                 | tỷ lệ apply/save sau insight; user rating         |
+| Cải thiện CV theo mục tiêu         | own CV chunks + profile + selected job (nếu có)                    | patch theo section, evidence thiếu, user phải confirm trước khi ghi | tỷ lệ apply patch và CV completion                |
+| Tìm việc có giải thích             | public job index + candidate preferences + structured hard filters | 3–10 job, lý do match/gap và freshness                              | save/apply rate, zero expired/unauthorised result |
+| Theo dõi đơn và chuẩn bị bước tiếp | own application status + job + curated prep knowledge              | timeline, checklist và CTA                                          | giảm câu hỏi support / return rate                |
+| Hỏi kiến thức nghề nghiệp/UpNext   | curated candidate knowledge corpus                                 | câu trả lời có citations                                            | grounded-answer rate, citation click rate         |
 
 ### 5.2 Những việc không làm ở v1
 
@@ -118,13 +118,13 @@ Không đưa vào Candidate Assistant v1: CV/profile của candidate khác, Tale
 
 Mỗi workflow có một contract riêng. Một intent không khớp contract phải bị chuyển sang clarifying question hoặc knowledge Q&A; không để model tự biến mọi câu hỏi thành “phân tích CV”.
 
-| Workflow | Required context | Evidence tối thiểu | Response/UI contract | Khi phải từ chối hoặc hỏi thêm |
-| --- | --- | --- | --- | --- |
-| `JOB_FIT` | một public job từ page context hoặc job URL hợp lệ | job hiện tại + profile; CV chunks chỉ khi candidate cho phép dùng CV | 3 điểm match, tối đa 3 gap, confidence, citations, CTA Save/Apply/Improve CV | job không public/hết hạn; profile không có skills; không đủ evidence |
-| `CV_IMPROVE` | CV active hoặc version do owner chọn; job optional | section chunks của own CV + job/profile cần thiết | issue theo section, proposed patch dạng diff, rationale/citation; **không write ngay** | CV không thuộc owner, parse thiếu dữ liệu, yêu cầu thay đổi không xác định section/mục tiêu |
-| `JOB_DISCOVERY` | candidate preference; filters optional | hard filters + public job retrieval + rank factors | danh sách 3–10 jobs, freshness, lý do match/gap; không “điểm AI bí mật” | profile chưa có skill/mục tiêu; không có job đủ điều kiện |
-| `APPLICATION_NEXT_STEP` | own application hoặc danh sách own applications | application status/event + public job + candidate knowledge | timeline, điều có thể làm tiếp, checklist, citations | application không thuộc owner hoặc không có update mới |
-| `CAREER_KNOWLEDGE` | locale và topic | curated candidate corpus | answer ngắn, citations, ngày cập nhật, suggested next prompt | source không đủ liên quan hoặc câu hỏi ngoài scope |
+| Workflow                | Required context                                   | Evidence tối thiểu                                                   | Response/UI contract                                                                   | Khi phải từ chối hoặc hỏi thêm                                                              |
+| ----------------------- | -------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `JOB_FIT`               | một public job từ page context hoặc job URL hợp lệ | job hiện tại + profile; CV chunks chỉ khi candidate cho phép dùng CV | 3 điểm match, tối đa 3 gap, confidence, citations, CTA Save/Apply/Improve CV           | job không public/hết hạn; profile không có skills; không đủ evidence                        |
+| `CV_IMPROVE`            | CV active hoặc version do owner chọn; job optional | section chunks của own CV + job/profile cần thiết                    | issue theo section, proposed patch dạng diff, rationale/citation; **không write ngay** | CV không thuộc owner, parse thiếu dữ liệu, yêu cầu thay đổi không xác định section/mục tiêu |
+| `JOB_DISCOVERY`         | candidate preference; filters optional             | hard filters + public job retrieval + rank factors                   | danh sách 3–10 jobs, freshness, lý do match/gap; không “điểm AI bí mật”                | profile chưa có skill/mục tiêu; không có job đủ điều kiện                                   |
+| `APPLICATION_NEXT_STEP` | own application hoặc danh sách own applications    | application status/event + public job + candidate knowledge          | timeline, điều có thể làm tiếp, checklist, citations                                   | application không thuộc owner hoặc không có update mới                                      |
+| `CAREER_KNOWLEDGE`      | locale và topic                                    | curated candidate corpus                                             | answer ngắn, citations, ngày cập nhật, suggested next prompt                           | source không đủ liên quan hoặc câu hỏi ngoài scope                                          |
 
 `AI Interview` không được âm thầm đưa vào `CAREER_KNOWLEDGE`. Assistant chỉ có thể tạo preparation checklist/question set theo job; product chấm/luyện phỏng vấn tương tác là roadmap AI Interview riêng.
 
@@ -132,12 +132,12 @@ Mỗi workflow có một contract riêng. Một intent không khớp contract ph
 
 Candidate không phải tự gõ lại “CV nào”, “job nào” hay “đơn nào” nếu đang ở đúng màn hình. Frontend gửi loại context của trang; backend tự resolve resource bằng session và policy, không tin id/ownership do model hay client khẳng định.
 
-| Entry point | Quick actions khởi đầu | Context server-authoritative |
-| --- | --- | --- |
-| Job detail | “Tôi có hợp job này không?”, “Thiếu gì để apply?”, “Tạo checklist chuẩn bị” | job slug/id → chỉ public, approved, active |
-| CV workspace | “Phân tích CV”, “Cải thiện CV cho vị trí mục tiêu”, “So sánh với job đang chọn” | CV version → phải thuộc candidate |
-| Application detail | “Tôi cần làm gì tiếp?”, “Tóm tắt yêu cầu job”, “Chuẩn bị phỏng vấn” | application → phải thuộc candidate |
-| Candidate AI page | “Tìm job phù hợp”, “Rà soát hồ sơ”, “Hướng dẫn dùng UpNext” | candidate profile + optional explicit selected public job |
+| Entry point        | Quick actions khởi đầu                                                          | Context server-authoritative                              |
+| ------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Job detail         | “Tôi có hợp job này không?”, “Thiếu gì để apply?”, “Tạo checklist chuẩn bị”     | job slug/id → chỉ public, approved, active                |
+| CV workspace       | “Phân tích CV”, “Cải thiện CV cho vị trí mục tiêu”, “So sánh với job đang chọn” | CV version → phải thuộc candidate                         |
+| Application detail | “Tôi cần làm gì tiếp?”, “Tóm tắt yêu cầu job”, “Chuẩn bị phỏng vấn”             | application → phải thuộc candidate                        |
+| Candidate AI page  | “Tìm job phù hợp”, “Rà soát hồ sơ”, “Hướng dẫn dùng UpNext”                     | candidate profile + optional explicit selected public job |
 
 Mỗi câu trả lời phải có trạng thái: `grounded`, `insufficient_evidence`, `needs_clarification` hoặc `out_of_scope`. Không dùng một câu trả lời confident để che việc retrieval rỗng.
 
@@ -175,15 +175,15 @@ Quy tắc bắt buộc:
 
 ### 8.1 Bảng đề xuất
 
-| Entity | Field cốt lõi |
-| --- | --- |
-| `knowledge_documents` | audience, locale, title, canonicalUrl, status, sourceVersion, owner/tenant nullable, publishedAt, expiresAt |
-| `knowledge_chunks` | documentId, ordinal, contentRedacted, tokenCount, lexicalText, embedding, embeddingModel, checksum, visibility, metadata JSONB |
-| `ai_retrieval_runs` | assistantRunId, queryHash, corpus, filtersHash, topK, rerankerVersion, latencyMs, resultCount, status |
-| `ai_retrieval_results` | retrievalRunId, chunkId/entityRef, rank, lexicalScore, semanticScore, rerankScore, cited boolean |
-| `ai_assistant_runs` | actorType, actorId, companyId nullable, workflow, policyVersion, promptVersion, model, status, token/cost/latency, traceId |
-| `ai_action_proposals` | runId, actionType, payloadRedacted, preview, expiresAt, idempotencyKey, status, confirmedBy |
-| `ai_evaluations` | runId, scenario/version, grounded, citationCorrect, actionUseful, safetyViolation, human label |
+| Entity                 | Field cốt lõi                                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `knowledge_documents`  | audience, locale, title, canonicalUrl, status, sourceVersion, owner/tenant nullable, publishedAt, expiresAt                    |
+| `knowledge_chunks`     | documentId, ordinal, contentRedacted, tokenCount, lexicalText, embedding, embeddingModel, checksum, visibility, metadata JSONB |
+| `ai_retrieval_runs`    | assistantRunId, queryHash, corpus, filtersHash, topK, rerankerVersion, latencyMs, resultCount, status                          |
+| `ai_retrieval_results` | retrievalRunId, chunkId/entityRef, rank, lexicalScore, semanticScore, rerankScore, cited boolean                               |
+| `ai_assistant_runs`    | actorType, actorId, companyId nullable, workflow, policyVersion, promptVersion, model, status, token/cost/latency, traceId     |
+| `ai_action_proposals`  | runId, actionType, payloadRedacted, preview, expiresAt, idempotencyKey, status, confirmedBy                                    |
+| `ai_evaluations`       | runId, scenario/version, grounded, citationCorrect, actionUseful, safetyViolation, human label                                 |
 
 Raw original document remains in CV/file storage under current access policy. Chunks/index are derived data with their own deletion/revocation lifecycle; they are not a bypass copy of the document.
 
@@ -244,15 +244,15 @@ Chi tiết bắt buộc:
 
 Tái sử dụng conversation API hiện có, nhưng bổ sung contract versioned thay vì tạo chat endpoint chung cho từng page.
 
-| Thành phần | Contract đề xuất |
-| --- | --- |
-| Create conversation | `contextType`, optional public context reference, locale. Backend resolve/authorize trước persist. |
-| Send message | browser gửi `prompt` và optional UI intent; backend có thể bỏ qua intent đó. Page context/session là nguồn sự thật. |
-| SSE `status` | `classifying`, `retrieving`, `validating_evidence`, `drafting`, `awaiting_confirmation`; không lộ raw prompt/tool nội bộ. |
-| SSE `citation` | opaque citation id, source type/title/version, permitted snippet, route target; frontend không nhận storage key/raw document id ngoài quyền. |
-| SSE `card` | typed cards: job fit, job recommendation, CV issue, application next step, knowledge answer. |
-| SSE `action_proposal` | proposal id, action type, preview/diff, expiry; browser gọi endpoint confirm/decline riêng. |
-| Confirm action | backend re-authorizes and revalidates source/version/quota, then executes idempotently. Stale proposal trả conflict, không áp dụng diff cũ. |
+| Thành phần            | Contract đề xuất                                                                                                                             |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Create conversation   | `contextType`, optional public context reference, locale. Backend resolve/authorize trước persist.                                           |
+| Send message          | browser gửi `prompt` và optional UI intent; backend có thể bỏ qua intent đó. Page context/session là nguồn sự thật.                          |
+| SSE `status`          | `classifying`, `retrieving`, `validating_evidence`, `drafting`, `awaiting_confirmation`; không lộ raw prompt/tool nội bộ.                    |
+| SSE `citation`        | opaque citation id, source type/title/version, permitted snippet, route target; frontend không nhận storage key/raw document id ngoài quyền. |
+| SSE `card`            | typed cards: job fit, job recommendation, CV issue, application next step, knowledge answer.                                                 |
+| SSE `action_proposal` | proposal id, action type, preview/diff, expiry; browser gọi endpoint confirm/decline riêng.                                                  |
+| Confirm action        | backend re-authorizes and revalidates source/version/quota, then executes idempotently. Stale proposal trả conflict, không áp dụng diff cũ.  |
 
 Không đưa retrieved chunks hoặc tool result trực tiếp vào browser chỉ để frontend lắp prompt. Browser chỉ nhận projection cần hiển thị; backend là policy enforcement point duy nhất.
 
@@ -295,15 +295,15 @@ Không đưa retrieved chunks hoặc tool result trực tiếp vào browser ch�
 
 Các số dưới đây là ngưỡng beta để Product/Engineering chốt trước launch; không được coi là SLA public trước khi đo baseline thật.
 
-| Metric | Mục tiêu beta | Alert / hành động |
-| --- | --- | --- |
-| Time to first status event | p95 ≤ 1 giây | kiểm tra API/SSE/proxy nếu vượt 5 phút liên tục |
-| Retrieval latency | p95 ≤ 1.5 giây, p99 ≤ 3 giây | kiểm tra index, query plan, queue lag; degrade sang authorised tool/clarification chứ không scan toàn bảng |
-| First answer token | p95 ≤ 6 giây | circuit-break/provider fallback theo policy, không duplicate stream |
-| Total interactive run | p95 ≤ 25 giây; hard stop 45 giây | emit retryable error, persist partial đúng trạng thái, refund quota nếu chưa completed |
-| Grounded workflow answer | 100% claims có citation hoặc trạng thái insufficient evidence | block release nếu citation validation fail |
-| Unauthorized retrieval/PII critical leak | 0 | kill switch workflow, incident response và audit review |
-| Cost | per-workflow ceiling do Finance/Product chốt, enforced server-side | stop/limit workflow khi vượt daily budget, không chờ invoice |
+| Metric                                   | Mục tiêu beta                                                      | Alert / hành động                                                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Time to first status event               | p95 ≤ 1 giây                                                       | kiểm tra API/SSE/proxy nếu vượt 5 phút liên tục                                                            |
+| Retrieval latency                        | p95 ≤ 1.5 giây, p99 ≤ 3 giây                                       | kiểm tra index, query plan, queue lag; degrade sang authorised tool/clarification chứ không scan toàn bảng |
+| First answer token                       | p95 ≤ 6 giây                                                       | circuit-break/provider fallback theo policy, không duplicate stream                                        |
+| Total interactive run                    | p95 ≤ 25 giây; hard stop 45 giây                                   | emit retryable error, persist partial đúng trạng thái, refund quota nếu chưa completed                     |
+| Grounded workflow answer                 | 100% claims có citation hoặc trạng thái insufficient evidence      | block release nếu citation validation fail                                                                 |
+| Unauthorized retrieval/PII critical leak | 0                                                                  | kill switch workflow, incident response và audit review                                                    |
+| Cost                                     | per-workflow ceiling do Finance/Product chốt, enforced server-side | stop/limit workflow khi vượt daily budget, không chờ invoice                                               |
 
 Cache chỉ được dùng cho public knowledge retrieval hoặc private data cùng owner + same source/query/filter/policy version. Không cache generated answer chứa CV/profile để trả cho user khác.
 
@@ -311,14 +311,14 @@ Cache chỉ được dùng cho public knowledge retrieval hoặc private data c�
 
 Không rollout dựa vào demo. Xây eval set versioned, được redaction, gồm tiếng Việt/Anh và các tình huống đối kháng.
 
-| Nhóm | Tiêu chí release |
-| --- | --- |
-| Retrieval | Recall@10/grounded context đạt ngưỡng do Product đặt; không trả document ngoài quyền; stale/deleted source = 0 result |
-| Grounded answer | claim có citation hợp lệ; citation support đúng claim; hallucination critical = 0 trong eval set |
-| Action | payload/diff đúng; write không xảy ra trước confirm; idempotency/retry không duplicate |
-| Privacy/security | cross-tenant retrieval = 0; PII leak test = 0; prompt injection không mở rộng tool scope |
-| Utility | human raters đánh giá answer/action đủ dùng; task success tốt hơn flow không AI |
-| Reliability | p95 latency, timeout/error, cost/run nằm trong SLO/budget; quota refund chính xác |
+| Nhóm             | Tiêu chí release                                                                                                      |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Retrieval        | Recall@10/grounded context đạt ngưỡng do Product đặt; không trả document ngoài quyền; stale/deleted source = 0 result |
+| Grounded answer  | claim có citation hợp lệ; citation support đúng claim; hallucination critical = 0 trong eval set                      |
+| Action           | payload/diff đúng; write không xảy ra trước confirm; idempotency/retry không duplicate                                |
+| Privacy/security | cross-tenant retrieval = 0; PII leak test = 0; prompt injection không mở rộng tool scope                              |
+| Utility          | human raters đánh giá answer/action đủ dùng; task success tốt hơn flow không AI                                       |
+| Reliability      | p95 latency, timeout/error, cost/run nằm trong SLO/budget; quota refund chính xác                                     |
 
 Thêm online canary: 5–10% opt-in, kill switch theo workflow, dashboard theo role/plan/model/prompt version. Không lấy thumbs-up đơn lẻ làm chỉ số chất lượng.
 
@@ -364,12 +364,12 @@ Thêm online canary: 5–10% opt-in, kill switch theo workflow, dashboard theo r
 
 ### 14.1 Work breakdown theo repository
 
-| Repo | Phase 1–2 deliverables | Phase 3–4 deliverables |
-| --- | --- | --- |
-| `upnext-be` | schema/migrations, policy resolver, retrieval service, chunk/index queue, authorization filters, citation/action contracts, audit/eval endpoints | conversation summary, proposal lifecycle, advanced deterministic rerank, evaluation runner/admin review |
-| `upnext-ai` | embedding contract validation, model routing/structured answer contract, token/model observability; không chứa business DB access | provider resilience, model/prompt version rollout support, offline evaluation hooks |
-| `upnext-frontend` | context-first entry points, SSE state/citation/card rendering, source preview, fallback UI, quota/cancel/error states | CV diff/confirm UI, feedback/report flow, conversation context switch UX, beta instrumentation |
-| `upnext-infra` | PostgreSQL image có pgvector, migration/preflight, private network/secret policy, metrics/logging/dashboard/backup runbook | capacity/reindex runbook, alerts for index lag/cost/error/citation validation, controlled production canary |
+| Repo              | Phase 1–2 deliverables                                                                                                                           | Phase 3–4 deliverables                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `upnext-be`       | schema/migrations, policy resolver, retrieval service, chunk/index queue, authorization filters, citation/action contracts, audit/eval endpoints | conversation summary, proposal lifecycle, advanced deterministic rerank, evaluation runner/admin review     |
+| `upnext-ai`       | embedding contract validation, model routing/structured answer contract, token/model observability; không chứa business DB access                | provider resilience, model/prompt version rollout support, offline evaluation hooks                         |
+| `upnext-frontend` | context-first entry points, SSE state/citation/card rendering, source preview, fallback UI, quota/cancel/error states                            | CV diff/confirm UI, feedback/report flow, conversation context switch UX, beta instrumentation              |
+| `upnext-infra`    | PostgreSQL image có pgvector, migration/preflight, private network/secret policy, metrics/logging/dashboard/backup runbook                       | capacity/reindex runbook, alerts for index lag/cost/error/citation validation, controlled production canary |
 
 Mọi migration/index/backfill phải có owner và rollback plan. Không merge frontend “RAG UI” trước khi backend contract và infra pgvector preflight có integration test.
 
@@ -390,26 +390,26 @@ Candidate QA account chỉ được tạo tạm, xác minh và dọn sau test. T
 
 ### 14.3 Risk register trước beta
 
-| Rủi ro | Dấu hiệu sớm | Giảm thiểu / quyết định |
-| --- | --- | --- |
-| RAG trả nguồn không liên quan | feedback “nguồn không hỗ trợ câu trả lời”, citation click thấp | eval recall + rerank threshold; trả insufficient evidence thay vì answer dài |
-| CV parse kém | chunks rỗng/lệch section, answer chung chung | quality flag, fallback structured profile, UX yêu cầu candidate bổ sung nội dung; không bịa evidence |
-| Chi phí tăng theo chat history | token/run tăng, cache hit thấp | context budget, summary, retrieval caps, workflow quota/cost ceiling |
-| pgvector vận hành sai | extension/index absent, query slow, index lag | infra preflight fail-closed, staged backfill, query-plan/capacity test, runbook |
-| PII/prompt injection | redaction hit/error, tool-policy violation | strict projection, content isolation, red-team tests, kill switch and incident process |
-| Candidate không thấy giá trị | low task completion/retention despite chat volume | remove low-value quick action, test JTBD again; không tối ưu model prompt mù quáng |
+| Rủi ro                         | Dấu hiệu sớm                                                   | Giảm thiểu / quyết định                                                                              |
+| ------------------------------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| RAG trả nguồn không liên quan  | feedback “nguồn không hỗ trợ câu trả lời”, citation click thấp | eval recall + rerank threshold; trả insufficient evidence thay vì answer dài                         |
+| CV parse kém                   | chunks rỗng/lệch section, answer chung chung                   | quality flag, fallback structured profile, UX yêu cầu candidate bổ sung nội dung; không bịa evidence |
+| Chi phí tăng theo chat history | token/run tăng, cache hit thấp                                 | context budget, summary, retrieval caps, workflow quota/cost ceiling                                 |
+| pgvector vận hành sai          | extension/index absent, query slow, index lag                  | infra preflight fail-closed, staged backfill, query-plan/capacity test, runbook                      |
+| PII/prompt injection           | redaction hit/error, tool-policy violation                     | strict projection, content isolation, red-team tests, kill switch and incident process               |
+| Candidate không thấy giá trị   | low task completion/retention despite chat volume              | remove low-value quick action, test JTBD again; không tối ưu model prompt mù quáng                   |
 
 ## 15. Ownership
 
-| Area | Owner | Deliverable |
-| --- | --- | --- |
-| Product/research | Product lead | candidate workflow priority, JTBD, pricing, success metrics |
-| Backend | Backend team | policy engine, tools, retrieval/audit/action contracts, queues |
-| AI service | AI team | provider gateway, embeddings, structured/stream interfaces, model observability |
-| Frontend | Frontend team | context-first assistant UX, citations, diff/confirm, feedback/fallback |
-| Infra/SRE | Infra team | pgvector capability, secret/network policy, deploy preflight, dashboards/alerts |
-| Privacy/Security | designated reviewer | consent, data mapping, retention, red-team sign-off |
-| QA | QA + Product | eval dataset, E2E acceptance, regression and canary checks |
+| Area             | Owner               | Deliverable                                                                     |
+| ---------------- | ------------------- | ------------------------------------------------------------------------------- |
+| Product/research | Product lead        | candidate workflow priority, JTBD, pricing, success metrics                     |
+| Backend          | Backend team        | policy engine, tools, retrieval/audit/action contracts, queues                  |
+| AI service       | AI team             | provider gateway, embeddings, structured/stream interfaces, model observability |
+| Frontend         | Frontend team       | context-first assistant UX, citations, diff/confirm, feedback/fallback          |
+| Infra/SRE        | Infra team          | pgvector capability, secret/network policy, deploy preflight, dashboards/alerts |
+| Privacy/Security | designated reviewer | consent, data mapping, retention, red-team sign-off                             |
+| QA               | QA + Product        | eval dataset, E2E acceptance, regression and canary checks                      |
 
 ## 16. Acceptance criteria khi tuyên bố “AI Assistant hoàn thiện”
 

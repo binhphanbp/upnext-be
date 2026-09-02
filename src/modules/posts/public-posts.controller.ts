@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import {
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -46,7 +40,11 @@ export class PublicPostsController {
 
   @Get('by-slug/:slug')
   @ApiOperation({ summary: 'Chi tiết bài viết qua Slug (Công khai)' })
-  @ApiParam({ name: 'slug', description: 'URL slug của bài viết', example: 'huong-dan-viet-cv-2026' })
+  @ApiParam({
+    name: 'slug',
+    description: 'URL slug của bài viết',
+    example: 'huong-dan-viet-cv-2026',
+  })
   @ApiOkResponse({ description: 'Lấy chi tiết bài viết thành công.' })
   @ApiNotFoundResponse({ description: 'Bài viết không tồn tại hoặc chưa xuất bản.' })
   findBySlug(@Param('slug') slug: string) {
