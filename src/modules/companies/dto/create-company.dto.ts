@@ -75,6 +75,11 @@ export class CreateCompanyDto {
   @IsString()
   rejectionLetterTemplate?: string;
 
+  @ApiPropertyOptional({ example: 'ChÃ o {candidateName}, {companyName} mời bạn ứng tuyển...' })
+  @IsOptional()
+  @IsString()
+  applicationInvitationTemplate?: string;
+
   @ApiPropertyOptional({ maxLength: 80, example: '51-200 nhân sự' })
   @IsOptional()
   @IsString()

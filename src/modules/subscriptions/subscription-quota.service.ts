@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { activeSubscriptionRaceError, isActiveSubscriptionRace } from './active-subscription-race';
 import { SubscriptionFeature } from './feature-registry';
+import { resolveMonthlyWindow } from './billing-period';
 
 export type QuotaConsumeInput = {
   companyId: string;
@@ -62,6 +63,12 @@ export class SubscriptionQuotaService {
       where: { id: subscription.id },
       include: { plan: true },
     });
+  }
+
+  /** Resolve the current monthly counter window without creating or consuming a counter. */
+  async resolveCurrentPeriod(companyId: string, feature: SubscriptionFeature) {
+    const subscription = await this.resolveActiveSubscription(this.prisma, companyId);
+    return this.resolvePeriod(subscription, feature);
   }
 
   /**
@@ -252,19 +259,32 @@ export class SubscriptionQuotaService {
   /** Everything the UI needs to render "đã dùng / hạn mức" per feature. */
   async peek(companyId: string): Promise<QuotaSnapshot[]> {
     const subscription = await this.resolveActiveSubscription(this.prisma, companyId);
-    const { periodStart, periodEnd } = this.resolvePeriod(subscription);
-
-    const [planFeatures, counters] = await Promise.all([
-      this.prisma.planFeature.findMany({ where: { planId: subscription.planId } }),
-      this.prisma.subscriptionQuotaCounter.findMany({
-        where: { companySubscriptionId: subscription.id, periodStart },
-      }),
-    ]);
-
-    const usedByFeature = new Map(counters.map((counter) => [counter.feature, counter.usedValue]));
+    const planFeatures = await this.prisma.planFeature.findMany({
+      where: { planId: subscription.planId },
+    });
+    const windows = new Map(
+      planFeatures.map((planFeature) => [
+        planFeature.feature,
+        this.resolvePeriod(subscription, planFeature.feature),
+      ]),
+    );
+    const periodStarts = [
+      ...new Set([...windows.values()].map((window) => window.periodStart.getTime())),
+    ].map((time) => new Date(time));
+    const counters = await this.prisma.subscriptionQuotaCounter.findMany({
+      where: { companySubscriptionId: subscription.id, periodStart: { in: periodStarts } },
+    });
+    const usedByFeatureAndPeriod = new Map(
+      counters.map((counter) => [
+        `${counter.feature}:${counter.periodStart.getTime()}`,
+        counter.usedValue,
+      ]),
+    );
 
     return planFeatures.map((planFeature) => {
-      const used = usedByFeature.get(planFeature.feature) ?? 0;
+      const window = windows.get(planFeature.feature)!;
+      const used =
+        usedByFeatureAndPeriod.get(`${planFeature.feature}:${window.periodStart.getTime()}`) ?? 0;
       const isPlatformJobPosting = planFeature.feature === SubscriptionFeature.JOB_POST;
       const limit = isPlatformJobPosting ? null : planFeature.limitValue;
       return {
@@ -273,8 +293,8 @@ export class SubscriptionQuotaService {
         limit,
         used,
         remaining: limit === null ? null : Math.max(0, limit - used),
-        periodStart,
-        periodEnd,
+        periodStart: window.periodStart,
+        periodEnd: window.periodEnd,
       };
     });
   }
@@ -452,7 +472,7 @@ export class SubscriptionQuotaService {
     },
     feature: SubscriptionFeature,
   ) {
-    const { periodStart, periodEnd } = this.resolvePeriod(subscription);
+    const { periodStart, periodEnd } = this.resolvePeriod(subscription, feature);
     const planFeature = await tx.planFeature.findUnique({
       where: { planId_feature: { planId: subscription.planId, feature } },
     });
@@ -486,12 +506,25 @@ export class SubscriptionQuotaService {
     });
   }
 
-  private resolvePeriod(subscription: {
-    startedAt: Date;
-    expiredAt: Date;
-    currentPeriodStart: Date | null;
-    currentPeriodEnd: Date | null;
-  }) {
+  private resolvePeriod(
+    subscription: {
+      startedAt: Date;
+      expiredAt: Date;
+      currentPeriodStart: Date | null;
+      currentPeriodEnd: Date | null;
+    },
+    feature: string,
+  ) {
+    if (
+      feature === SubscriptionFeature.TALENT_DISCOVERY_RUN ||
+      feature === SubscriptionFeature.TALENT_CONTACT
+    ) {
+      return resolveMonthlyWindow(
+        subscription.currentPeriodStart ?? subscription.startedAt,
+        subscription.expiredAt,
+        new Date(),
+      );
+    }
     return {
       periodStart: subscription.currentPeriodStart ?? subscription.startedAt,
       periodEnd: subscription.currentPeriodEnd ?? subscription.expiredAt,

@@ -162,6 +162,22 @@ export class EmailService {
     });
   }
 
+  async sendApplicationInvitation(params: {
+    to: string;
+    candidateName: string;
+    companyName: string;
+    html: string;
+    text: string;
+  }) {
+    await this.sendMail({
+      to: params.to,
+      subject: `${params.companyName} mời bạn ứng tuyển trên UpNext`,
+      text: params.text,
+      html: params.html,
+      fallbackLog: `Application invitation from ${params.companyName} to ${params.to}`,
+    });
+  }
+
   async sendCompanyPendingReviewToAdmin(params: {
     to: string;
     adminName?: string | null;

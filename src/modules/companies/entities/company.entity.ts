@@ -78,6 +78,9 @@ export class Company {
   @ApiPropertyOptional({ example: 'Cáº£m Æ¡n {candidateName} Ä‘Ã£ quan tÃ¢m Ä‘áº¿n vá»‹ trÃ­...' })
   rejectionLetterTemplate?: string | null;
 
+  @ApiPropertyOptional({ example: 'ChÃ o {candidateName}, {companyName} mời bạn ứng tuyển...' })
+  applicationInvitationTemplate?: string | null;
+
   @ApiPropertyOptional({ example: '51-200 nhân sự' })
   companySize?: string | null;
 
