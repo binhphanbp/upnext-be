@@ -68,15 +68,23 @@ export class AuthIdentityService {
   }
 
   private async resolveAdmin(payload: JwtPayload): Promise<AuthenticatedUser> {
+    const normalizedEmail = payload.email.toLowerCase().trim();
     const account = await this.prisma.adminUser.findFirst({
-      where: { id: payload.sub, email: payload.email, status: AdminStatus.ACTIVE },
+      where: {
+        id: payload.sub,
+        email: normalizedEmail,
+        status: AdminStatus.ACTIVE,
+        deletedAt: null,
+      },
       select: {
         id: true,
         email: true,
         roleId: true,
+        tokenVersion: true,
         role: {
           select: {
             status: true,
+            deletedAt: true,
             rolePermissions: {
               select: { permission: { select: { permissionCode: true } } },
             },
@@ -85,8 +93,18 @@ export class AuthIdentityService {
       },
     });
 
-    if (!account || (account.role && account.role.status !== RoleStatus.ACTIVE)) {
-      throw new UnauthorizedException('Invalid token');
+    if (
+      !account ||
+      (account.role && (account.role.status !== RoleStatus.ACTIVE || account.role.deletedAt !== null))
+    ) {
+      throw new UnauthorizedException('Tài khoản hoặc vai trò không hợp lệ');
+    }
+
+    if (
+      payload.tokenVersion !== undefined &&
+      account.tokenVersion !== payload.tokenVersion
+    ) {
+      throw new UnauthorizedException('Phiên đăng nhập đã hết hiệu lực, vui lòng đăng nhập lại');
     }
 
     return {

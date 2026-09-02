@@ -1732,6 +1732,8 @@ model AdminUser {
   status           AdminStatus @default(ACTIVE)
   avatarUrl        String?     @map("avatar_url") @db.VarChar(500)
   lastLoginAt      DateTime?   @map("last_login_at")
+  tokenVersion     Int         @default(0) @map("token_version")
+  deletedAt        DateTime?   @map("deleted_at")
   phone            String?     @db.VarChar(30)
   createdAt        DateTime    @default(now()) @map("created_at")
   updatedAt        DateTime    @updatedAt @map("updated_at")
@@ -1754,16 +1756,22 @@ model AdminUser {
   taxCodeBlacklists        TaxCodeBlacklist[]
   paymentGatewayConfigs    PaymentGatewayConfig[]
 
+  @@index([email])
   @@index([roleId])
+  @@index([status])
+  @@index([deletedAt])
   @@map("admin")
 }
 
 model AdminRole {
   id               String     @id @default(uuid()) @db.Uuid
   createdByAdminId String?    @map("created_by_admin_id") @db.Uuid
+  roleCode         String     @unique @map("role_code") @db.VarChar(80)
   roleName         String     @unique @map("role_name") @db.VarChar(120)
   description      String?    @db.Text
   status           RoleStatus @default(ACTIVE)
+  isSystem         Boolean    @default(false) @map("is_system")
+  deletedAt        DateTime?  @map("deleted_at")
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
 
@@ -1771,6 +1779,9 @@ model AdminRole {
   admins          AdminUser[]           @relation("AdminRoleUsers")
   rolePermissions AdminRolePermission[]
 
+  @@index([status])
+  @@index([roleCode])
+  @@index([deletedAt])
   @@map("admin_roles")
 }
 
@@ -1780,11 +1791,14 @@ model AdminPermission {
   permissionCode String   @unique @map("permission_code") @db.VarChar(120)
   module         String   @db.VarChar(80)
   description    String?  @db.Text
+  sortOrder      Int      @default(0) @map("sort_order")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   rolePermissions AdminRolePermission[]
 
+  @@index([permissionCode])
+  @@index([module])
   @@map("admin_permissions")
 }
 
@@ -1808,6 +1822,8 @@ model AdminAuditLog {
   targetId   String?  @map("target_id") @db.Uuid
   targetType String?  @map("target_type") @db.VarChar(80)
   ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.VarChar(500)
+  requestId  String?  @map("request_id") @db.VarChar(100)
   oldValue   Json?    @map("old_value")
   newValue   Json?    @map("new_value")
   createdAt  DateTime @default(now()) @map("created_at")
@@ -1816,6 +1832,7 @@ model AdminAuditLog {
 
   @@index([adminId, createdAt])
   @@index([targetType, targetId])
+  @@index([action])
   @@map("admin_audit_logs")
 }
 
@@ -2197,6 +2214,12 @@ model Invoice {
   /// xác nhận -- phục vụ đối soát, không phải khoá nghiệp vụ.
   paymentReference   String?        @map("payment_reference") @db.VarChar(120)
   paidAt             DateTime?      @map("paid_at")
+  adminNote          String?        @map("admin_note") @db.Text
+  cancelledAt        DateTime?      @map("cancelled_at")
+  cancelledReason    String?        @map("cancelled_reason") @db.Text
+  refundedAt         DateTime?      @map("refunded_at")
+  refundReason       String?        @map("refund_reason") @db.Text
+  refundReference    String?        @map("refund_reference") @db.VarChar(120)
   createdAt          DateTime       @default(now()) @map("created_at")
   updatedAt          DateTime       @updatedAt @map("updated_at")
 
@@ -2205,6 +2228,8 @@ model Invoice {
   supportCases     SupportCase[]
 
   @@index([companyId, paymentStatus])
+  @@index([paymentStatus, createdAt])
+  @@index([createdAt])
   @@map("invoices")
 }
 
