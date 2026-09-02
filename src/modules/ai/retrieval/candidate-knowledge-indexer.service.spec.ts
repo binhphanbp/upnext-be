@@ -20,7 +20,8 @@ describe('CandidateKnowledgeIndexerService', () => {
         cacheKey: 'gemini-embedding-001:768:l2-v1',
       }),
     };
-    const service = new CandidateKnowledgeIndexerService(prisma as never, embeddings);
+    const outbox = { enqueue: jest.fn() };
+    const service = new CandidateKnowledgeIndexerService(prisma as never, embeddings, outbox as never);
 
     await expect(
       service.upsertPublished({

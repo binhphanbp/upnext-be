@@ -3,6 +3,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ActorType, OutboxStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  CandidateKnowledgeIndexerService,
+  CandidateKnowledgeUpsert,
+} from '../ai/retrieval/candidate-knowledge-indexer.service';
 
 type NotificationPayload = {
   recipientId: string;
@@ -23,6 +27,7 @@ export class OutboxProcessorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly knowledgeIndexer: CandidateKnowledgeIndexerService,
   ) {}
 
   @Cron(CronExpression.EVERY_5_SECONDS)
@@ -73,6 +78,10 @@ export class OutboxProcessorService {
           ...payload,
           dedupeKey: payload.dedupeKey ?? event.dedupeKey,
         });
+      } else if (event.eventType === 'candidate_knowledge.index') {
+        await this.knowledgeIndexer.upsertPublished(
+          event.payload as unknown as CandidateKnowledgeUpsert,
+        );
       } else {
         throw new Error(`Unsupported outbox event type: ${event.eventType}`);
       }
