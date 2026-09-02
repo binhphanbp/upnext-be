@@ -315,7 +315,7 @@ describe('CompanyMembersService', () => {
 
       // Đây là đường public duy nhất đặt được mật khẩu cho tài khoản NTD.
       await expect(
-        service.acceptAndSetPassword('invitation-id', { password: 'Password123!' } as never),
+        service.acceptAndSetPassword('invitation-id', { password: 'Password123!' }),
       ).rejects.toThrow(GoneException);
       expect(prismaMock.recruiterAccount.update).not.toHaveBeenCalled();
     });
