@@ -2667,20 +2667,33 @@ model CandidateContactPreference {
 /// rubric's clamp logic and DB score columns. Absent (no row) means "use the
 /// system defaults", so a company never has to configure anything.
 model CvScreeningCompanyConfig {
-  companyId          String   @id @map("company_id") @db.Uuid
-  /// Free-text guidance appended to the AI scoring prompt (e.g. "ưu tiên
-  /// ứng viên có chứng chỉ AWS"). Treated as untrusted recruiter input by
-  /// the prompt -- see gemini-scoring.service.ts buildSystemInstruction.
-  customInstructions String?  @map("custom_instructions") @db.Text
+  companyId                  String   @id @map("company_id") @db.Uuid
+  /// Free-text guidance appended to the AI scoring prompt, one field per
+  /// rubric group (skills/experience/projects/education) so recruiters give
+  /// targeted context instead of one unstructured blob -- e.g. skills:
+  /// "ưu tiên ứng viên có chứng chỉ AWS". Treated as untrusted recruiter
+  /// input by the prompt -- see gemini-scoring.service.ts
+  /// buildSystemInstruction. None of these can change the fixed point
+  /// weights (skills=40/experience=30/projects=20/education=10).
+  skillsInstructions         String?  @map("skills_instructions") @db.Text
+  experienceInstructions     String?  @map("experience_instructions") @db.Text
+  projectsInstructions       String?  @map("projects_instructions") @db.Text
+  /// Education is scored deterministically (see education-scoring.ts) from
+  /// the job's required level, not by the LLM, so free-text guidance can't
+  /// influence it. This is the one real, functional education lever
+  /// instead: when true, every run for this company scores education as if
+  /// the job required none (always full marks), regardless of the job
+  /// post's own `educationLevel`.
+  ignoreEducationRequirement Boolean  @default(false) @map("ignore_education_requirement")
   /// Default "Top N" shortlist size when a run's request omits `limit`.
   /// null = score the whole application pool.
-  defaultTopN        Int?     @map("default_top_n")
+  defaultTopN                Int?     @map("default_top_n")
   /// Minimum embedding cosine-similarity score (0-100) a CV must clear to
   /// enter the shortlist. null = no threshold (rank-only).
-  minSimilarityScore Int?     @map("min_similarity_score")
-  updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  minSimilarityScore         Int?     @map("min_similarity_score")
+  updatedByAccountId         String?  @map("updated_by_account_id") @db.Uuid
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 

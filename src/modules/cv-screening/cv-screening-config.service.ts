@@ -1,10 +1,18 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { UpdateCvScreeningConfigDto } from './dto/update-cv-screening-config.dto';
 
 export type CvScreeningConfigResponse = {
-  customInstructions: string | null;
+  skillsInstructions: string | null;
+  experienceInstructions: string | null;
+  projectsInstructions: string | null;
+  ignoreEducationRequirement: boolean;
   defaultTopN: number | null;
   minSimilarityScore: number | null;
   updatedByAccountId: string | null;
@@ -12,7 +20,10 @@ export type CvScreeningConfigResponse = {
 };
 
 const EMPTY_CONFIG: CvScreeningConfigResponse = {
-  customInstructions: null,
+  skillsInstructions: null,
+  experienceInstructions: null,
+  projectsInstructions: null,
+  ignoreEducationRequirement: false,
   defaultTopN: null,
   minSimilarityScore: null,
   updatedByAccountId: null,
@@ -35,13 +46,7 @@ export class CvScreeningConfigService {
       return EMPTY_CONFIG;
     }
 
-    return {
-      customInstructions: config.customInstructions,
-      defaultTopN: config.defaultTopN,
-      minSimilarityScore: config.minSimilarityScore,
-      updatedByAccountId: config.updatedByAccountId,
-      updatedAt: config.updatedAt,
-    };
+    return this.toResponse(config);
   }
 
   /** Writable only by a recruiter with `company:manage` -- this changes AI
@@ -62,17 +67,29 @@ export class CvScreeningConfigService {
       where: { companyId },
       create: {
         companyId,
-        customInstructions: dto.customInstructions ?? null,
+        skillsInstructions: dto.skillsInstructions ?? null,
+        experienceInstructions: dto.experienceInstructions ?? null,
+        projectsInstructions: dto.projectsInstructions ?? null,
+        ignoreEducationRequirement: dto.ignoreEducationRequirement ?? false,
         defaultTopN: dto.defaultTopN ?? null,
         minSimilarityScore: dto.minSimilarityScore ?? null,
         updatedByAccountId: user.id,
       },
       update: {
         // Every field on this DTO is optional; only apply the ones the
-        // caller actually sent so a partial PUT can't silently null out the
+        // caller actually sent so a partial PUT can't silently reset the
         // others.
-        ...(dto.customInstructions !== undefined && {
-          customInstructions: dto.customInstructions,
+        ...(dto.skillsInstructions !== undefined && {
+          skillsInstructions: dto.skillsInstructions,
+        }),
+        ...(dto.experienceInstructions !== undefined && {
+          experienceInstructions: dto.experienceInstructions,
+        }),
+        ...(dto.projectsInstructions !== undefined && {
+          projectsInstructions: dto.projectsInstructions,
+        }),
+        ...(dto.ignoreEducationRequirement !== undefined && {
+          ignoreEducationRequirement: dto.ignoreEducationRequirement,
         }),
         ...(dto.defaultTopN !== undefined && { defaultTopN: dto.defaultTopN }),
         ...(dto.minSimilarityScore !== undefined && {
@@ -82,8 +99,24 @@ export class CvScreeningConfigService {
       },
     });
 
+    return this.toResponse(config);
+  }
+
+  private toResponse(config: {
+    skillsInstructions: string | null;
+    experienceInstructions: string | null;
+    projectsInstructions: string | null;
+    ignoreEducationRequirement: boolean;
+    defaultTopN: number | null;
+    minSimilarityScore: number | null;
+    updatedByAccountId: string | null;
+    updatedAt: Date;
+  }): CvScreeningConfigResponse {
     return {
-      customInstructions: config.customInstructions,
+      skillsInstructions: config.skillsInstructions,
+      experienceInstructions: config.experienceInstructions,
+      projectsInstructions: config.projectsInstructions,
+      ignoreEducationRequirement: config.ignoreEducationRequirement,
       defaultTopN: config.defaultTopN,
       minSimilarityScore: config.minSimilarityScore,
       updatedByAccountId: config.updatedByAccountId,

@@ -17,6 +17,7 @@ import {
   estimateGeminiCostVnd,
   GeminiScoringService,
   GeminiScoreResult,
+  CvScoringCustomInstructions,
 } from './gemini-scoring.service';
 import {
   calculateEducationMatchScore,
@@ -589,7 +590,22 @@ export class CvScreeningService {
       }
 
       const jobText = buildJobText(jobPost);
-      const customInstructions = companyConfig?.customInstructions ?? null;
+      // One instructions field per rubric group instead of a single blob, so
+      // guidance is targeted (and only injected near the criterion it's
+      // actually about) -- see GeminiScoringService.buildSystemInstruction.
+      const customInstructions: CvScoringCustomInstructions | null = companyConfig
+        ? {
+            skills: companyConfig.skillsInstructions,
+            experience: companyConfig.experienceInstructions,
+            projects: companyConfig.projectsInstructions,
+          }
+        : null;
+      // Education is scored deterministically from the job's required level
+      // (education-scoring.ts), not by the LLM -- this is the one config
+      // lever that can actually change it: score as if nothing was required.
+      const requiredEducationLevel = companyConfig?.ignoreEducationRequirement
+        ? EducationLevel.ANY
+        : jobPost.educationLevel;
       const cvTextByVersionId = await this.loadCvTexts(
         applications.map((application) => application.cvVersionId),
       );
@@ -630,7 +646,7 @@ export class CvScreeningService {
           this.scoreAndPersistBatch(
             runId,
             jobText,
-            jobPost.educationLevel,
+            requiredEducationLevel,
             batch,
             true,
             cancelAbortController.signal,
@@ -903,7 +919,7 @@ export class CvScreeningService {
     batch: ScreeningCandidate[],
     canFallback = true,
     signal?: AbortSignal,
-    customInstructions?: string | null,
+    customInstructions?: CvScoringCustomInstructions | null,
   ) {
     if (batch.length === 0) {
       return;
@@ -1022,7 +1038,7 @@ export class CvScreeningService {
     missingItems: ScreeningCandidate[],
     canFallback: boolean,
     signal?: AbortSignal,
-    customInstructions?: string | null,
+    customInstructions?: CvScoringCustomInstructions | null,
   ) {
     if (canFallback && missingItems.length > 0) {
       this.logger.warn(

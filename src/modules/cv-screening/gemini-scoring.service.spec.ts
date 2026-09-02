@@ -152,7 +152,7 @@ describe('GeminiScoringService', () => {
     expect(provider.generateStructured.mock.calls[0][0].signal).toBe(controller.signal);
   });
 
-  it('appends the company custom instructions after the rubric, framed as reference-only', async () => {
+  it('appends the company custom instructions after the rubric, one line per rubric group, framed as reference-only', async () => {
     const applicationId = '88888888-8888-4888-8888-888888888888';
     const { service, provider } = createService([]);
 
@@ -160,13 +160,14 @@ describe('GeminiScoringService', () => {
       'Yêu cầu công việc',
       [{ applicationId, cvText: 'CV', candidateEducationLevel: null }],
       undefined,
-      'Ưu tiên ứng viên có chứng chỉ AWS.',
+      { skills: 'Ưu tiên ứng viên có chứng chỉ AWS.', experience: 'Ít nhất 3 năm kinh nghiệm.' },
     );
 
     const instruction = provider.generateStructured.mock.calls[0][0].systemInstruction as string;
     const rubricIndex = instruction.indexOf('Rubric bắt buộc:');
     const customIndex = instruction.indexOf('Ưu tiên ứng viên có chứng chỉ AWS.');
     expect(customIndex).toBeGreaterThan(-1);
+    expect(instruction).toContain('Ít nhất 3 năm kinh nghiệm.');
     // Must come after the mandatory rubric, and be framed as reference-only /
     // non-overriding -- this is untrusted recruiter input reaching the prompt.
     expect(customIndex).toBeGreaterThan(rubricIndex);

@@ -29,7 +29,10 @@ describe('CvScreeningConfigService', () => {
       const result = await service.getConfig('recruiter-1');
 
       expect(result).toEqual({
-        customInstructions: null,
+        skillsInstructions: null,
+        experienceInstructions: null,
+        projectsInstructions: null,
+        ignoreEducationRequirement: false,
         defaultTopN: null,
         minSimilarityScore: null,
         updatedByAccountId: null,
@@ -42,7 +45,10 @@ describe('CvScreeningConfigService', () => {
       const updatedAt = new Date();
       prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({
         companyId: 'company-1',
-        customInstructions: 'Ưu tiên AWS',
+        skillsInstructions: 'Ưu tiên AWS',
+        experienceInstructions: null,
+        projectsInstructions: null,
+        ignoreEducationRequirement: true,
         defaultTopN: 20,
         minSimilarityScore: 60,
         updatedByAccountId: 'recruiter-owner',
@@ -53,7 +59,10 @@ describe('CvScreeningConfigService', () => {
       const result = await service.getConfig('recruiter-1');
 
       expect(result).toEqual({
-        customInstructions: 'Ưu tiên AWS',
+        skillsInstructions: 'Ưu tiên AWS',
+        experienceInstructions: null,
+        projectsInstructions: null,
+        ignoreEducationRequirement: true,
         defaultTopN: 20,
         minSimilarityScore: 60,
         updatedByAccountId: 'recruiter-owner',
@@ -73,16 +82,19 @@ describe('CvScreeningConfigService', () => {
     it('rejects a recruiter without company:manage permission', async () => {
       const { service } = buildService();
 
-      await expect(
-        service.updateConfig(actingUser([]), { defaultTopN: 20 }),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.updateConfig(actingUser([]), { defaultTopN: 20 })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('upserts the config and stamps who changed it', async () => {
       const { service, prisma } = buildService();
       const saved = {
         companyId: 'company-1',
-        customInstructions: 'Ưu tiên AWS',
+        skillsInstructions: 'Ưu tiên AWS',
+        experienceInstructions: 'Ít nhất 3 năm',
+        projectsInstructions: null,
+        ignoreEducationRequirement: true,
         defaultTopN: 20,
         minSimilarityScore: 60,
         updatedByAccountId: 'recruiter-1',
@@ -91,7 +103,9 @@ describe('CvScreeningConfigService', () => {
       prisma.cvScreeningCompanyConfig.upsert.mockResolvedValue(saved);
 
       const result = await service.updateConfig(actingUser(), {
-        customInstructions: 'Ưu tiên AWS',
+        skillsInstructions: 'Ưu tiên AWS',
+        experienceInstructions: 'Ít nhất 3 năm',
+        ignoreEducationRequirement: true,
         defaultTopN: 20,
         minSimilarityScore: 60,
       });
@@ -101,13 +115,18 @@ describe('CvScreeningConfigService', () => {
           where: { companyId: 'company-1' },
           create: expect.objectContaining({
             companyId: 'company-1',
-            customInstructions: 'Ưu tiên AWS',
+            skillsInstructions: 'Ưu tiên AWS',
+            experienceInstructions: 'Ít nhất 3 năm',
+            projectsInstructions: null,
+            ignoreEducationRequirement: true,
             defaultTopN: 20,
             minSimilarityScore: 60,
             updatedByAccountId: 'recruiter-1',
           }),
           update: expect.objectContaining({
-            customInstructions: 'Ưu tiên AWS',
+            skillsInstructions: 'Ưu tiên AWS',
+            experienceInstructions: 'Ít nhất 3 năm',
+            ignoreEducationRequirement: true,
             defaultTopN: 20,
             minSimilarityScore: 60,
             updatedByAccountId: 'recruiter-1',
@@ -115,13 +134,17 @@ describe('CvScreeningConfigService', () => {
         }),
       );
       expect(result.defaultTopN).toBe(20);
+      expect(result.ignoreEducationRequirement).toBe(true);
     });
 
     it('a partial update only touches the fields sent, leaving the others untouched', async () => {
       const { service, prisma } = buildService();
       prisma.cvScreeningCompanyConfig.upsert.mockResolvedValue({
         companyId: 'company-1',
-        customInstructions: null,
+        skillsInstructions: null,
+        experienceInstructions: null,
+        projectsInstructions: null,
+        ignoreEducationRequirement: false,
         defaultTopN: 50,
         minSimilarityScore: null,
         updatedByAccountId: 'recruiter-1',
@@ -132,7 +155,10 @@ describe('CvScreeningConfigService', () => {
 
       const { update } = prisma.cvScreeningCompanyConfig.upsert.mock.calls[0][0];
       expect(update).toEqual({ defaultTopN: 50, updatedByAccountId: 'recruiter-1' });
-      expect(update).not.toHaveProperty('customInstructions');
+      expect(update).not.toHaveProperty('skillsInstructions');
+      expect(update).not.toHaveProperty('experienceInstructions');
+      expect(update).not.toHaveProperty('projectsInstructions');
+      expect(update).not.toHaveProperty('ignoreEducationRequirement');
       expect(update).not.toHaveProperty('minSimilarityScore');
     });
 
@@ -140,17 +166,24 @@ describe('CvScreeningConfigService', () => {
       const { service, prisma } = buildService();
       prisma.cvScreeningCompanyConfig.upsert.mockResolvedValue({
         companyId: 'company-1',
-        customInstructions: null,
+        skillsInstructions: null,
+        experienceInstructions: null,
+        projectsInstructions: null,
+        ignoreEducationRequirement: false,
         defaultTopN: null,
         minSimilarityScore: null,
         updatedByAccountId: 'recruiter-1',
         updatedAt: new Date(),
       });
 
-      await service.updateConfig(actingUser(), { defaultTopN: null });
+      await service.updateConfig(actingUser(), { defaultTopN: null, skillsInstructions: null });
 
       const { update } = prisma.cvScreeningCompanyConfig.upsert.mock.calls[0][0];
-      expect(update).toEqual({ defaultTopN: null, updatedByAccountId: 'recruiter-1' });
+      expect(update).toEqual({
+        defaultTopN: null,
+        skillsInstructions: null,
+        updatedByAccountId: 'recruiter-1',
+      });
     });
   });
 });
