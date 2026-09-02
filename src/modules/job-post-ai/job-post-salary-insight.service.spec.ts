@@ -102,6 +102,7 @@ describe('JobPostSalaryInsightService', () => {
     expect(result.matchedFactors).toEqual(
       expect.arrayContaining(['Chức danh tương đồng', 'Cùng cấp bậc', 'Kỹ năng liên quan']),
     );
+    expect(salaryResearch.research).not.toHaveBeenCalled();
   });
 
   it('does not invent a market range when fewer than five matches exist', async () => {
@@ -189,22 +190,30 @@ describe('JobPostSalaryInsightService', () => {
       },
       companyLocation: { findMany: jest.fn().mockResolvedValue([]) },
       jobPost: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue([
-            marketJob(20_000_000, 30_000_000),
-            marketJob(21_000_000, 31_000_000),
-            marketJob(22_000_000, 32_000_000),
-            marketJob(23_000_000, 33_000_000),
-            marketJob(24_000_000, 34_000_000),
-          ]),
+        findMany: jest.fn().mockResolvedValue([marketJob(20_000_000, 30_000_000)]),
       },
     };
     const embeddings = {
       createEmbedding: jest.fn().mockResolvedValue([1, 0]),
       cosineSimilarity: jest.fn().mockReturnValue(1),
     };
-    const salaryResearch = { research: jest.fn().mockResolvedValue(null) };
+    const salaryResearch = {
+      research: jest.fn().mockResolvedValue({
+        p25: 20_000_000,
+        median: 25_000_000,
+        p75: 30_000_000,
+        confidence: 'LOW',
+        summary: 'Nguồn công khai phù hợp.',
+        evidenceNotes: [],
+        sources: [
+          { title: 'Nguồn A', url: 'https://source-a.example/salary' },
+          { title: 'Nguồn B', url: 'https://source-b.example/salary' },
+        ],
+        searchQueries: ['Senior React Developer salary Vietnam'],
+        searchedAt: '2026-09-02T00:00:00.000Z',
+        model: 'upnext-ai/gemini',
+      }),
+    };
     const service = new JobPostSalaryInsightService(
       prisma as never,
       embeddings as never,
@@ -232,7 +241,8 @@ describe('JobPostSalaryInsightService', () => {
     );
     expect(result).toMatchObject({
       available: true,
-      matchedFactors: expect.arrayContaining(['Cùng loại hình công ty', 'Cùng quy mô công ty']),
+      basis: 'WEB_GROUNDED_AI',
+      matchedFactors: expect.arrayContaining(['Loại hình công ty', 'Quy mô công ty']),
     });
   });
 

@@ -300,6 +300,13 @@ export class JobPostSalaryInsightService {
       .sort((a, b) => b.score - a.score)
       .slice(0, MAX_MATCHES);
 
+    // Prefer the platform's own verified, public salary data when there is enough of it. Grounded
+    // web research is a costly fallback for sparse markets, not something every click should run
+    // ahead of a complete local sample.
+    if (ranked.length >= MIN_SAMPLE_SIZE) {
+      return this.toUpnextPublicInsight(dto, ranked);
+    }
+
     const skillNameById = new Map(targetSkills.map((skill) => [skill.id, skill.name]));
     const webResearch = await this.salaryResearch.research({
       title: dto.title,
@@ -373,19 +380,19 @@ export class JobPostSalaryInsightService {
       };
     }
 
-    if (ranked.length < MIN_SAMPLE_SIZE) {
-      return {
-        available: false as const,
-        basis: 'MULTI_SOURCE_RESEARCH' as const,
-        currency: 'VND' as const,
-        period: SalaryPeriod.MONTH,
-        sampleSize: ranked.length,
-        lookbackMonths: LOOKBACK_MONTHS,
-        message:
-          'Dữ liệu UpNext chưa đủ và nghiên cứu web có trích dẫn cũng chưa tìm được ít nhất hai nguồn độc lập phù hợp để đưa ra tham chiếu đáng tin cậy.',
-      };
-    }
+    return {
+      available: false as const,
+      basis: 'MULTI_SOURCE_RESEARCH' as const,
+      currency: 'VND' as const,
+      period: SalaryPeriod.MONTH,
+      sampleSize: ranked.length,
+      lookbackMonths: LOOKBACK_MONTHS,
+      message:
+        'Dữ liệu UpNext chưa đủ và nghiên cứu web có trích dẫn cũng chưa tìm được ít nhất hai nguồn độc lập phù hợp để đưa ra tham chiếu đáng tin cậy.',
+    };
+  }
 
+  private toUpnextPublicInsight(dto: SalaryInsightDto, ranked: RankedMarketJob[]) {
     const salaries = ranked.map((job) => job.monthlyMidpoint).sort((a, b) => a - b);
     const p25 = this.roundSalary(this.percentile(salaries, 0.25));
     const median = this.roundSalary(this.percentile(salaries, 0.5));

@@ -18,9 +18,9 @@ const input: SalaryResearchInput = {
 };
 
 const threeSources = [
-  { title: 'ITviec', url: 'https://example.com/itviec' },
-  { title: 'TopCV', url: 'https://example.com/topcv' },
-  { title: 'Reeracoen', url: 'https://example.com/reeracoen' },
+  { title: 'ITviec', url: 'https://itviec.com/it-jobs' },
+  { title: 'TopCV', url: 'https://www.topcv.vn/viec-lam' },
+  { title: 'Reeracoen', url: 'https://www.reeracoen.com.vn/en/jobs' },
 ];
 
 function answer(overrides: Partial<GroundedResearchResponse> = {}): GroundedResearchResponse {
@@ -125,6 +125,40 @@ describe('SalaryResearchService', () => {
     const service = new SalaryResearchService(port);
 
     await expect(service.research(input)).resolves.toBeNull();
+  });
+
+  it('rejects multiple pages from one domain even when their source titles differ', async () => {
+    const { port } = stub(
+      answer({
+        sources: [
+          { title: 'Báo cáo lương 2026', url: 'https://www.example.com/salary-report' },
+          { title: 'Tin tuyển dụng Backend', url: 'https://example.com/jobs/backend' },
+        ],
+      }),
+    );
+    const service = new SalaryResearchService(port);
+
+    await expect(service.research(input)).resolves.toBeNull();
+  });
+
+  it('coalesces concurrent research for the same market profile into one provider call', async () => {
+    let resolveAnswer: ((value: GroundedResearchResponse) => void) | undefined;
+    const response = new Promise<GroundedResearchResponse>((resolve) => {
+      resolveAnswer = resolve;
+    });
+    const { port, generateGrounded } = stub(answer());
+    generateGrounded.mockImplementation(() => response);
+    const service = new SalaryResearchService(port);
+
+    const first = service.research(input);
+    const second = service.research(input);
+    resolveAnswer?.(answer());
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      expect.any(Object),
+      expect.any(Object),
+    ]);
+    expect(generateGrounded).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a salary result the model produced without searching at all', async () => {
