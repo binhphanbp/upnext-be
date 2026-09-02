@@ -33,6 +33,7 @@
     "chat:seed-permissions": "tsx scripts/seed-chat-permissions.ts",
     "chat:backfill": "tsx scripts/backfill-chat.ts",
     "test:neglected-cv": "tsx scripts/test-neglected-cv.ts",
+    "verify:candidate-knowledge-rag": "tsx scripts/verify-candidate-knowledge-rag.ts",
     "measure-ai-cogs": "ts-node -P tsconfig.json scripts/measure-ai-cogs.ts",
     "db:reset": "prisma migrate reset",
     "prepare": "husky",
