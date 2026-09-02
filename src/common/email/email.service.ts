@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import nodemailer, { Transporter } from 'nodemailer';
 import Mail from 'nodemailer/lib/mailer';
 
+/** Dạng RFC 2392 (có domain) để client nào cũng khớp được với `src="cid:..."`. */
+const LOGO_CID = 'upnext-logo@upnext.works';
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -51,11 +54,7 @@ export class EmailService {
       text: `Nhấn vào link để xác thực email: ${params.verificationLink}`,
       html,
       attachments: [
-        {
-          filename: 'upnext-logo.png',
-          path: this.resolveEmailAssetPath('upnext-logo.png'),
-          cid: 'upnext-logo',
-        },
+        ...this.logoAttachment(),
         {
           filename: 'hero-banner.png',
           path: this.resolveEmailAssetPath('hero-banner.png'),
@@ -108,9 +107,10 @@ export class EmailService {
     const lang = params.locale === 'en' ? 'en' : 'vi';
     const templateName = `password-reset-${lang}.html`;
     const subject = lang === 'en' ? 'Reset your UpNext Password' : 'Đặt lại mật khẩu UpNext';
-    const bodyText = lang === 'en' 
-      ? `Click the link to reset your password: ${params.resetLink}` 
-      : `Nhấn vào link để đặt lại mật khẩu: ${params.resetLink}`;
+    const bodyText =
+      lang === 'en'
+        ? `Click the link to reset your password: ${params.resetLink}`
+        : `Nhấn vào link để đặt lại mật khẩu: ${params.resetLink}`;
 
     const html = this.renderTemplate(templateName, {
       resetLink: params.resetLink,
@@ -126,11 +126,7 @@ export class EmailService {
       text: bodyText,
       html,
       attachments: [
-        {
-          filename: 'upnext-logo.png',
-          path: this.resolveEmailAssetPath('upnext-logo.png'),
-          cid: 'upnext-logo',
-        },
+        ...this.logoAttachment(),
         {
           filename: 'rotation-lock.png',
           path: this.resolveEmailAssetPath('rotation-lock.png'),
@@ -161,13 +157,7 @@ export class EmailService {
       subject: `Lời mời tham gia ${params.companyName} trên UpNext`,
       text: `Bạn được mời tham gia ${params.companyName}${roleText}. Nhấn vào link để xem lời mời: ${params.invitationLink}`,
       html,
-      attachments: [
-        {
-          filename: 'upnext-logo.png',
-          path: this.resolveEmailAssetPath('upnext-logo.png'),
-          cid: 'upnext-logo',
-        },
-      ],
+      attachments: [...this.logoAttachment()],
       fallbackLog: `Company invitation for ${params.to}: ${params.invitationLink}`,
     });
   }
@@ -194,13 +184,7 @@ export class EmailService {
       subject: `[UpNext] Hồ sơ doanh nghiệp mới chờ duyệt: ${params.companyName}`,
       text: `Doanh nghiệp "${params.companyName}" (gửi bởi ${params.recruiterEmail}) đang chờ duyệt. Xem tại: ${params.reviewLink}`,
       html,
-      attachments: [
-        {
-          filename: 'upnext-logo.png',
-          path: this.resolveEmailAssetPath('upnext-logo.png'),
-          cid: 'upnext-logo',
-        },
-      ],
+      attachments: [...this.logoAttachment()],
       fallbackLog: `Company pending review "${params.companyName}" -> admin ${params.to}`,
     });
   }
@@ -221,13 +205,7 @@ export class EmailService {
       subject: `[UpNext] Đã nhận hồ sơ doanh nghiệp ${params.companyName}`,
       text: `Chúng tôi đã nhận hồ sơ doanh nghiệp "${params.companyName}" và đang chờ duyệt. UpNext sẽ thông báo kết quả sớm.`,
       html,
-      attachments: [
-        {
-          filename: 'upnext-logo.png',
-          path: this.resolveEmailAssetPath('upnext-logo.png'),
-          cid: 'upnext-logo',
-        },
-      ],
+      attachments: [...this.logoAttachment()],
       fallbackLog: `Company submission ack "${params.companyName}" -> recruiter ${params.to}`,
     });
   }
@@ -239,17 +217,20 @@ export class EmailService {
     approved: boolean;
     reason?: string | null;
     guidance?: string | null;
+    /**
+     * Ảnh minh chứng admin gửi kèm khi từ chối. Đính kèm thẳng vào email thay vì nhét
+     * thẻ `<img>` vào template: `renderTemplate` escape mọi giá trị (đúng như nó nên
+     * làm), và ảnh đính kèm thì client email nào cũng mở được.
+     */
+    evidence?: Array<{ url: string; name: string }>;
     recruiterCode?: string | null;
     companyLink: string;
   }) {
-    const templateName = params.approved
-      ? 'company-approved.html'
-      : 'company-rejected.html';
+    const templateName = params.approved ? 'company-approved.html' : 'company-rejected.html';
+    const evidence = params.approved ? [] : (params.evidence ?? []);
 
     const name = params.recruiterName?.trim() || params.to;
-    const recipientName = params.recruiterCode
-      ? `${name} - Mã NTD ${params.recruiterCode}`
-      : name;
+    const recipientName = params.recruiterCode ? `${name} - Mã NTD ${params.recruiterCode}` : name;
 
     const html = this.renderTemplate(templateName, {
       recruiterName: name,
@@ -259,8 +240,12 @@ export class EmailService {
       guidance:
         params.guidance?.trim() ||
         'Vui lòng đăng tải giấy chứng nhận đăng ký doanh nghiệp hoặc giấy tờ tương đương theo đúng quy định.',
+      evidenceNote:
+        evidence.length > 0
+          ? `Email này có ${evidence.length} ảnh minh chứng đính kèm, bạn mở phần tệp đính kèm để xem chi tiết.`
+          : '',
       companyLink: params.companyLink,
-      guidelinesLink: this.resolveFrontendLink('/huong-dan-xac-thuc-doanh-nghiep'),
+      guidelinesLink: this.configService.get<string>('mailVerificationGuideUrl')?.trim() ?? '',
       supportHotline: this.configService.get<string>('supportHotline') || '1900 0000',
       supportEmail:
         this.configService.get<string>('supportEmail') ||
@@ -284,11 +269,11 @@ export class EmailService {
       text,
       html,
       attachments: [
-        {
-          filename: 'upnext-logo.png',
-          path: this.resolveEmailAssetPath('upnext-logo.png'),
-          cid: 'upnext-logo',
-        },
+        ...this.logoAttachment(),
+        ...evidence.map((image, index) => ({
+          filename: image.name || `minh-chung-${index + 1}.png`,
+          path: image.url,
+        })),
       ],
       fallbackLog: `Company verification (${params.approved ? 'approved' : 'rejected'}) "${params.companyName}" -> recruiter ${params.to}`,
     });
@@ -328,13 +313,7 @@ export class EmailService {
       subject: `[UpNext] ${params.companyName} vừa đăng ${params.jobTitles.length} tin tuyển dụng mới`,
       text: `${params.companyName} vừa đăng tin mới: ${params.jobTitles.join(', ')}`,
       html,
-      attachments: [
-        {
-          filename: 'upnext-logo.png',
-          path: this.resolveEmailAssetPath('upnext-logo.png'),
-          cid: 'upnext-logo',
-        },
-      ],
+      attachments: [...this.logoAttachment()],
       fallbackLog: `Followed-company job alert (${params.jobTitles.length}) "${params.companyName}" -> ${params.to}`,
     });
   }
@@ -376,13 +355,7 @@ export class EmailService {
       subject: `[UpNext] Nhắc lịch phỏng vấn: ${params.jobTitle}`,
       text: `Buổi phỏng vấn cho vị trí ${params.jobTitle} sẽ diễn ra lúc ${scheduledTime}.`,
       html,
-      attachments: [
-        {
-          filename: 'upnext-logo.png',
-          path: this.resolveEmailAssetPath('upnext-logo.png'),
-          cid: 'upnext-logo',
-        },
-      ],
+      attachments: [...this.logoAttachment()],
       fallbackLog: `Interview reminder for "${params.jobTitle}" -> ${params.to} at ${scheduledTime}`,
     });
   }
@@ -448,13 +421,7 @@ export class EmailService {
       subject: `[UpNext] Thư mời nhận việc - ${params.jobTitle} - ${params.companyName}`,
       text: `Chúc mừng! Qua quá trình ứng tuyển và phỏng vấn, ${params.companyName} trân trọng gửi tới bạn Thư mời nhận việc cho vị trí ${params.jobTitle}. Xem chi tiết tại: ${params.applicationLink}`,
       html,
-      attachments: [
-        {
-          filename: 'upnext-logo.png',
-          path: this.resolveEmailAssetPath('upnext-logo.png'),
-          cid: 'upnext-logo',
-        },
-      ],
+      attachments: [...this.logoAttachment()],
       fallbackLog: `Offer letter for "${params.jobTitle}" from ${params.companyName} -> ${params.to}`,
     });
   }
@@ -577,13 +544,7 @@ export class EmailService {
       subject: params.subject,
       text: params.text,
       html,
-      attachments: [
-        {
-          filename: 'upnext-logo.png',
-          path: this.resolveEmailAssetPath('upnext-logo.png'),
-          cid: 'upnext-logo',
-        },
-      ],
+      attachments: [...this.logoAttachment()],
       fallbackLog: `${params.subject} -> ${params.to}`,
     });
   }
@@ -671,7 +632,7 @@ export class EmailService {
         { label: 'Thời hạn kháng cáo', value: `${params.appealWindowDays} ngày` },
       ],
       ctaLabel: 'GỬI KHÁNG CÁO',
-      ctaLink: this.resolveFrontendLink('/nha-tuyen-dung/khang-cao'),
+      ctaLink: this.resolveFrontendLink('/recruiter/company-reputation'),
       footerNote: 'Email tự động gửi từ hệ thống kiểm duyệt UpNext.',
       accent: 'negative',
     });
@@ -754,10 +715,40 @@ export class EmailService {
         { label: 'Kết quả', value: params.approved ? 'Được chấp nhận' : 'Không được chấp nhận' },
       ],
       ctaLabel: 'XEM HỒ SƠ DOANH NGHIỆP',
-      ctaLink: this.resolveFrontendLink('/nha-tuyen-dung/ho-so-cong-ty'),
+      ctaLink: this.resolveFrontendLink('/recruiter/company-profile'),
       footerNote: 'Email tự động gửi từ hệ thống kiểm duyệt UpNext.',
       accent: params.approved ? 'positive' : 'negative',
     });
+  }
+
+  /**
+   * Ảnh logo trong header của mọi email.
+   *
+   * Mặc định nhúng inline qua `cid:`, không cần hạ tầng gì. Nhưng `Content-ID` dạng
+   * `<upnext-logo>` (không có phần domain) là dạng một số client không khớp được —
+   * Gmail để nguyên `src="cid:upnext-logo"` và người nhận thấy ảnh lỗi — nên cid được
+   * đặt theo dạng RFC 2392 có domain.
+   *
+   * Khi cấu hình `MAIL_LOGO_URL`, logo lấy thẳng từ URL công khai đó và email không
+   * đính kèm gì nữa: cách này hiển thị được ở mọi client và bỏ luôn 24KB attachment
+   * khỏi từng email.
+   */
+  private logoSrc() {
+    const url = this.configService.get<string>('mailLogoUrl')?.trim();
+    return url ? url : `cid:${LOGO_CID}`;
+  }
+
+  private logoAttachment(): Mail.Attachment[] {
+    if (this.configService.get<string>('mailLogoUrl')?.trim()) return [];
+
+    return [
+      {
+        filename: 'upnext-logo.png',
+        path: this.resolveEmailAssetPath('upnext-logo.png'),
+        cid: LOGO_CID,
+        contentDisposition: 'inline',
+      },
+    ];
   }
 
   private async sendMail(params: {
@@ -799,14 +790,18 @@ export class EmailService {
     const templatePath = this.resolveEmailResourcePath('templates', templateName);
     let html = readFileSync(templatePath, 'utf8');
 
+    // Header của mọi template đều dùng cùng một logo, nên biến này được cấp ở đây thay
+    // vì lặp lại ở từng chỗ gọi.
+    const allVariables: Record<string, string> = { logoSrc: this.logoSrc(), ...variables };
+
     // `{{?key}}…{{/key}}` keeps its block only when `key` has a value, so one shared
     // template can drop the rows a given notification has nothing to put in.
-    for (const [key, value] of Object.entries(variables)) {
+    for (const [key, value] of Object.entries(allVariables)) {
       const block = new RegExp(`\\{\\{\\?${key}\\}\\}([\\s\\S]*?)\\{\\{\\/${key}\\}\\}`, 'g');
       html = html.replace(block, value.trim() ? '$1' : '');
     }
 
-    for (const [key, value] of Object.entries(variables)) {
+    for (const [key, value] of Object.entries(allVariables)) {
       html = html.replaceAll(`{{${key}}}`, this.escapeHtml(value));
     }
 
@@ -830,7 +825,18 @@ export class EmailService {
     const paths = [
       join(__dirname, resourceDirectory, fileName),
       join(__dirname, '..', '..', '..', 'src', 'common', 'email', resourceDirectory, fileName),
-      join(__dirname, '..', '..', '..', '..', 'src', 'common', 'email', resourceDirectory, fileName),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        '..',
+        'src',
+        'common',
+        'email',
+        resourceDirectory,
+        fileName,
+      ),
     ];
 
     return paths.find(existsSync) ?? paths[0];

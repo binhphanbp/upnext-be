@@ -143,18 +143,19 @@ enum SkillPriority {
 }
 
 enum FilePurpose {
-  CV               @map("cv")
-  AVATAR           @map("avatar")
-  COMPANY_LOGO     @map("company_logo")
-  BUSINESS_LICENSE @map("business_license")
-  CERTIFICATE      @map("certificate")
-  POST_THUMBNAIL   @map("post_thumbnail")
-  POST_COVER       @map("post_cover")
-  POST_CONTENT     @map("post_content")
-  POST_SOCIAL      @map("post_social")
-  REPORT_EVIDENCE  @map("report_evidence")
-  APPEAL_EVIDENCE  @map("appeal_evidence")
-  OTHER            @map("other")
+  CV                            @map("cv")
+  AVATAR                        @map("avatar")
+  COMPANY_LOGO                  @map("company_logo")
+  BUSINESS_LICENSE              @map("business_license")
+  CERTIFICATE                   @map("certificate")
+  POST_THUMBNAIL                @map("post_thumbnail")
+  POST_COVER                    @map("post_cover")
+  POST_CONTENT                  @map("post_content")
+  POST_SOCIAL                   @map("post_social")
+  REPORT_EVIDENCE               @map("report_evidence")
+  APPEAL_EVIDENCE               @map("appeal_evidence")
+  COMPANY_VERIFICATION_EVIDENCE @map("company_verification_evidence")
+  OTHER                         @map("other")
 }
 
 enum FileVisibility {
@@ -724,16 +725,17 @@ model FileAsset {
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
-  cvVersions              CVVersion[]         @relation("CVVersionSourceFile")
-  companyLogos            Company[]           @relation("CompanyLogoFile")
-  companyBusinessLicenses Company[]           @relation("CompanyBusinessLicenseFile")
-  postThumbnails          Post[]              @relation("PostThumbnailFile")
-  postCoverImages         Post[]              @relation("PostCoverImageFile")
-  socialPostImages        Post[]              @relation("PostSocialImageFile")
-  reportEvidences         Report[]            @relation("ReportEvidenceFile")
-  reportEvidenceItems     ReportEvidence[]    @relation("ReportEvidenceFiles")
-  appealEvidences         Appeal[]            @relation("AppealEvidenceFile")
-  messageAttachments      MessageAttachment[]
+  cvVersions                   CVVersion[]                   @relation("CVVersionSourceFile")
+  companyLogos                 Company[]                     @relation("CompanyLogoFile")
+  companyBusinessLicenses      Company[]                     @relation("CompanyBusinessLicenseFile")
+  postThumbnails               Post[]                        @relation("PostThumbnailFile")
+  postCoverImages              Post[]                        @relation("PostCoverImageFile")
+  socialPostImages             Post[]                        @relation("PostSocialImageFile")
+  reportEvidences              Report[]                      @relation("ReportEvidenceFile")
+  reportEvidenceItems          ReportEvidence[]              @relation("ReportEvidenceFiles")
+  companyVerificationEvidences CompanyVerificationEvidence[] @relation("CompanyVerificationEvidenceFile")
+  appealEvidences              Appeal[]                      @relation("AppealEvidenceFile")
+  messageAttachments           MessageAttachment[]
 
   @@index([ownerType, ownerId])
   @@index([purpose, visibility])
@@ -936,10 +938,45 @@ model Company {
   supportCases             SupportCase[]
   subscriptionUsages       SubscriptionUsage[]
   aiUsageLogs              AiUsageLog[]
+  verificationReviews      CompanyVerificationReview[]
 
   @@index([verificationStatus])
   @@index([status])
   @@map("companies")
+}
+
+/// Lịch sử quyết định duyệt / từ chối xác thực doanh nghiệp của Admin.
+/// Từ chối thì `reason` bắt buộc, và có thể kèm ảnh minh chứng trong `evidences`.
+model CompanyVerificationReview {
+  id                String                    @id @default(uuid()) @db.Uuid
+  companyId         String                    @map("company_id") @db.Uuid
+  reviewedByAdminId String?                   @map("reviewed_by_admin_id") @db.Uuid
+  decision          CompanyVerificationStatus
+  reason            String                    @db.Text
+  guidance          String?                   @db.Text
+  createdAt         DateTime                  @default(now()) @map("created_at")
+
+  company         Company                       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reviewedByAdmin AdminUser?                    @relation("CompanyVerificationReviewedByAdmin", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+  evidences       CompanyVerificationEvidence[]
+
+  @@index([companyId, createdAt])
+  @@map("company_verification_reviews")
+}
+
+/// Ảnh minh chứng Admin gửi kèm khi từ chối xác thực.
+model CompanyVerificationEvidence {
+  id       String @id @default(uuid()) @db.Uuid
+  reviewId String @map("review_id") @db.Uuid
+  fileId   String @map("file_id") @db.Uuid
+  position Int    @default(0)
+
+  review CompanyVerificationReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  file   FileAsset                 @relation("CompanyVerificationEvidenceFile", fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, fileId])
+  @@index([reviewId, position])
+  @@map("company_verification_evidences")
 }
 
 model RecruiterRole {
@@ -1062,15 +1099,18 @@ model RecruiterProfile {
 }
 
 model CompanyMember {
-  id                 String              @id @default(uuid()) @db.Uuid
-  recruiterAccountId String?             @map("recruiter_account_id") @db.Uuid
-  invitedEmail       String?             @map("invited_email") @db.VarChar(255)
-  companyId          String              @map("company_id") @db.Uuid
-  roleId             String?             @map("role_id") @db.Uuid
-  status             CompanyMemberStatus @default(ACTIVE)
-  joinedAt           DateTime            @default(now()) @map("joined_at")
-  createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @updatedAt @map("updated_at")
+  id                  String              @id @default(uuid()) @db.Uuid
+  recruiterAccountId  String?             @map("recruiter_account_id") @db.Uuid
+  invitedEmail        String?             @map("invited_email") @db.VarChar(255)
+  companyId           String              @map("company_id") @db.Uuid
+  roleId              String?             @map("role_id") @db.Uuid
+  status              CompanyMemberStatus @default(ACTIVE)
+  /// Hạn của lời mời. Chỉ có nghĩa khi status = INVITED; null là lời mời cũ từ trước
+  /// khi có hạn (đã backfill trong migration nên thực tế không còn hàng nào null).
+  invitationExpiresAt DateTime?           @map("invitation_expires_at")
+  joinedAt            DateTime            @default(now()) @map("joined_at")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
 
   recruiterAccount RecruiterAccount? @relation(fields: [recruiterAccountId], references: [id], onDelete: SetNull)
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -1722,6 +1762,7 @@ model AdminUser {
   handledAppeals           Appeal[]                       @relation("AppealHandledByAdmin")
   subscriptionPlans        SubscriptionPlan[]             @relation("SubscriptionPlanCreatedByAdmin")
   reputationActivities     CompanyReputationActivity[]
+  verificationReviews      CompanyVerificationReview[]    @relation("CompanyVerificationReviewedByAdmin")
   notificationTokens       NotificationToken[]
   conversationParticipants ConversationParticipant[]
   assignedSupportCases     SupportCase[]                  @relation("SupportCaseAssignedAdmin")

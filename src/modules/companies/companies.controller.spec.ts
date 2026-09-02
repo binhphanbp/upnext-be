@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import { EmailService } from '../../common/email/email.service';
 import { ReputationLedgerService } from '../reputation/reputation-ledger.service';
+import { AuthService } from '../auth/auth.service';
 import { UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
 import { CompaniesController } from './companies.controller';
 import { CompaniesService } from './companies.service';
@@ -47,6 +48,12 @@ describe('CompaniesController', () => {
           provide: ReputationLedgerService,
           useValue: {
             applyDelta: jest.fn(),
+          },
+        },
+        {
+          provide: AuthService,
+          useValue: {
+            signRecruiterMagicLinkToken: jest.fn().mockResolvedValue('magic-token'),
           },
         },
         {

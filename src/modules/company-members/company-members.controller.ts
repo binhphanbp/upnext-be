@@ -16,6 +16,7 @@ import {
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
+  ApiGoneResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -23,6 +24,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AllowWhenRestricted } from '../../common/decorators/allow-when-restricted.decorator';
@@ -118,6 +120,26 @@ export class CompanyMembersController {
     return this.companyMembersService.acceptInvitation(id, user);
   }
 
+  @ApiOperation({
+    summary: 'Gửi lại lời mời vào công ty',
+    description:
+      'Gia hạn lời mời thêm 7 ngày và gửi lại email. Dành cho OWNER/HR của công ty hoặc Admin.',
+  })
+  @ApiParam({ name: 'id', description: 'Company member (invitation) UUID' })
+  @ApiOkResponse({ description: 'Invitation renewed and email re-sent' })
+  @ApiConflictResponse({ description: 'Invitation is not in INVITED status' })
+  @ApiNotFoundResponse({ description: 'Invitation not found' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, RestrictedModeGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  @Post('company-members/invitations/:id/resend')
+  resendInvitation(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companyMembersService.resendInvitation(id, user);
+  }
+
   @Public()
   @ApiOperation({
     summary: 'Xem thông tin lời mời vào công ty',
@@ -128,6 +150,11 @@ export class CompanyMembersController {
     description: 'Invitation details retrieved successfully',
   })
   @ApiNotFoundResponse({ description: 'Invitation not found' })
+  @ApiGoneResponse({ description: 'Invitation has expired' })
+  // Endpoint công khai nên khoá theo IP: dùng ThrottlerGuard mặc định, không phải
+  // UserThrottlerGuard (không có `req.user` ở đây).
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @UseGuards(ThrottlerGuard)
   @Get('company-members/invitations/:id')
   getInvitation(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.companyMembersService.getInvitation(id);
@@ -144,6 +171,11 @@ export class CompanyMembersController {
   })
   @ApiBadRequestResponse({ description: 'Invalid payload or password already set' })
   @ApiNotFoundResponse({ description: 'Invitation not found' })
+  @ApiGoneResponse({ description: 'Invitation has expired' })
+  // Đây là đường public duy nhất đặt được mật khẩu cho một tài khoản NTD, nên hạn mức
+  // chặt hơn hẳn endpoint chỉ đọc ở trên.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @UseGuards(ThrottlerGuard)
   @Post('company-members/invitations/:id/accept-and-set-password')
   acceptAndSetPassword(
     @Param('id', new ParseUUIDPipe()) id: string,

@@ -55,19 +55,21 @@ describe('ReputationScoringService', () => {
   });
 
   describe('evaluateNeglectedCvPenalty', () => {
-    it('deducts reputation points and sends warning notification when an application is unreviewed after 14 days', async () => {
+    it('deducts reputation points and warns once the job expired 14 days ago with the application untouched', async () => {
       const now = new Date();
+      const twentyDaysAgo = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000);
       const fifteenDaysAgo = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
 
       prismaMock.application.findMany.mockResolvedValue([
         {
           id: 'app-1',
-          submittedAt: fifteenDaysAgo,
+          submittedAt: twentyDaysAgo,
           candidateProfile: { id: 'cand-1', account: { fullName: 'Nguyen Van A' } },
           jobPost: {
             id: 'job-1',
             title: 'Senior Frontend Engineer',
             companyId: 'company-1',
+            expiredAt: fifteenDaysAgo,
             company: { id: 'company-1', name: 'Công ty ABC' },
           },
         },
@@ -100,6 +102,34 @@ describe('ReputationScoringService', () => {
       );
     });
 
+    it('counts the 14 days from the job expiry, never from the submission date', async () => {
+      prismaMock.application.findMany.mockResolvedValue([]);
+
+      await service.evaluateNeglectedCvPenalty();
+
+      const [{ where }] = prismaMock.application.findMany.mock.calls[0];
+      // Đếm từ `submittedAt` sẽ phạt công ty khi tin vẫn đang tuyển và hạn nhận hồ sơ
+      // còn chưa tới — đó là lỗi cũ.
+      expect(where.submittedAt).toBeUndefined();
+      expect(where.jobPost.expiredAt.not).toBeNull();
+      expect(where.jobPost.expiredAt.lte).toBeInstanceOf(Date);
+
+      const daysBack = Math.round(
+        (Date.now() - (where.jobPost.expiredAt.lte as Date).getTime()) / (24 * 60 * 60 * 1000),
+      );
+      expect(daysBack).toBe(REPUTATION_CONFIG.CV_NEGLECT_DAYS);
+    });
+
+    it('leaves an application alone while its job post is still open', async () => {
+      // Tin chưa hết hạn thì không rơi vào filter, nên không có gì để phạt.
+      prismaMock.application.findMany.mockResolvedValue([]);
+
+      await service.evaluateNeglectedCvPenalty();
+
+      expect(reputationLedgerMock.applyDelta).not.toHaveBeenCalled();
+      expect(notificationsServiceMock.createNotification).not.toHaveBeenCalled();
+    });
+
     it('skips penalizing if the application was already penalized', async () => {
       const now = new Date();
       const fifteenDaysAgo = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
@@ -113,6 +143,7 @@ describe('ReputationScoringService', () => {
             id: 'job-1',
             title: 'Senior Frontend Engineer',
             companyId: 'company-1',
+            expiredAt: fifteenDaysAgo,
             company: { id: 'company-1', name: 'Công ty ABC' },
           },
         },
