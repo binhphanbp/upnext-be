@@ -17,8 +17,18 @@ import {
   estimateGeminiCostVnd,
   GeminiScoringService,
   GeminiScoreResult,
-  CvScoringCustomInstructions,
+  CvScoringContext,
 } from './gemini-scoring.service';
+import {
+  applyWeights,
+  buildPromptFingerprint,
+  readConfigSnapshot,
+  readScoringWeights,
+  ResolvedScreeningConfig,
+  resolveScreeningConfig,
+  ScoringWeights,
+  weightScaleFactor,
+} from './screening-config.resolver';
 import {
   calculateEducationMatchScore,
   EducationMatchScoreResult,
@@ -49,7 +59,7 @@ const GEMINI_BATCH_SIZE = 3;
 // absorbs an occasional 429/timeout from bursty concurrent calls.
 const GEMINI_BATCH_CONCURRENCY = 6;
 const GEMINI_FALLBACK_CONCURRENCY = 3;
-const SCORING_VERSION = 'cv-screening-v11-ai-gateway-vi';
+const SCORING_VERSION = 'cv-screening-v12-weighted-config';
 type TerminalCvScreeningRunStatus = Exclude<CvScreeningRunStatus, 'pending' | 'processing'>;
 
 type ApplicationForScreening = Prisma.ApplicationGetPayload<{
@@ -124,7 +134,7 @@ export class CvScreeningService {
       throw new ForbiddenException('Bạn không có quyền truy cập tin tuyển dụng này.');
     }
 
-    const [applicationCount, applicationPool, companyConfig] = await Promise.all([
+    const [applicationCount, applicationPool, companyConfig, jobConfig] = await Promise.all([
       this.prisma.application.count({ where: { jobPostId: dto.jobPostId } }),
       this.prisma.application.findMany({
         where: { jobPostId: dto.jobPostId },
@@ -135,7 +145,14 @@ export class CvScreeningService {
       this.prisma.cvScreeningCompanyConfig.findUnique({
         where: { companyId: recruiter.companyId },
       }),
+      this.prisma.jobPostCvScreeningConfig.findUnique({
+        where: { jobPostId: dto.jobPostId },
+      }),
     ]);
+    // The job override wins over the company defaults, which win over the
+    // system defaults. Resolved once here and snapshotted onto the run, so a
+    // config edit while the run is queued can't change how it scores.
+    const config = resolveScreeningConfig(companyConfig, jobConfig);
 
     // `limit` is "Top N" (10/20/...): the recruiter wants only the N CVs
     // closest to the job description AI-scored, not every applicant. Ranking
@@ -143,17 +160,12 @@ export class CvScreeningService {
     // other features) and sending only the winners to Gemini's slow, metered
     // scoring is what actually gets a run down to 1-2 minutes -- scoring
     // every CV with the LLM is both the cost and the latency problem, not
-    // just a throughput setting. Omitting `limit` (and having no company
+    // just a throughput setting. Omitting `limit` (and having no configured
     // default) keeps the old "score everyone" behaviour.
-    const limit = dto.limit ?? companyConfig?.defaultTopN ?? undefined;
+    const limit = dto.limit ?? config.defaultTopN ?? undefined;
     const applicationIds =
       limit && limit < applicationPool.length
-        ? await this.selectTopApplicationsByEmbedding(
-            dto.jobPostId,
-            applicationPool,
-            limit,
-            companyConfig?.minSimilarityScore ?? null,
-          )
+        ? await this.selectTopApplicationsByEmbedding(dto.jobPostId, applicationPool, limit)
         : applicationPool.map((application) => application.id);
     // Persist the exact application set with the run. A retry must never score
     // a newer applicant simply because the queue was delayed or recovered.
@@ -202,6 +214,7 @@ export class CvScreeningService {
           totalApplications,
           limit: limit ?? null,
           applicationIds,
+          configSnapshot: config,
           status: CvScreeningRunStatus.PENDING,
         },
       });
@@ -245,17 +258,20 @@ export class CvScreeningService {
     jobPostId: string,
     applicationPool: Array<{ id: string; cvVersionId: string }>,
     limit: number,
-    minScore: number | null = null,
   ): Promise<string[]> {
     try {
       const jobEmbedding = await this.embeddingService.getOrCreateJobEmbedding(jobPostId);
       const cvVersionIds = applicationPool.map((application) => application.cvVersionId);
       await this.embeddingService.getOrCreateCvEmbeddings(cvVersionIds);
+      // No similarity floor: the shortlist is purely "the N closest CVs".
+      // A recruiter-facing percentage threshold here was too abstract to set
+      // safely -- the recruiter-facing gate is the passing score on the final
+      // AI score instead.
       const ranked = await this.embeddingService.rankCvEmbeddings(
         jobEmbedding.vector,
         cvVersionIds,
         limit,
-        minScore,
+        null,
       );
 
       if (ranked.length === 0) {
@@ -407,6 +423,11 @@ export class CvScreeningService {
       missingSkills: this.toStringArray(score.missingSkills),
       summary: score.summary,
       recommendation: this.toVietnameseRecommendation(score.recommendation),
+      passingScore: score.passingScore,
+      meetsPassingScore: score.meetsPassingScore,
+      missingMustHaveCount: this.readVerdicts(score.mustHaveResults).filter(
+        (verdict) => !verdict.met,
+      ).length,
       cvFileUrl:
         score.application.cvVersion.sourceFile?.publicUrl ??
         `/api/recruiter/applications/${score.applicationId}/cv`,
@@ -445,6 +466,8 @@ export class CvScreeningService {
       throw new NotFoundException('AI score not found for this application');
     }
 
+    const weights = readScoringWeights(score.scoringWeights);
+
     return {
       id: score.id,
       runId: score.runId,
@@ -464,8 +487,21 @@ export class CvScreeningService {
       recommendation: this.toVietnameseRecommendation(score.recommendation),
       matchedSkills: this.toStringArray(score.matchedSkills),
       missingSkills: this.toStringArray(score.missingSkills),
-      criteriaBreakdown: this.toCriteriaBreakdown(score.rawAiResponse),
-      evaluationRubric: CV_SCORING_RUBRIC,
+      // The stored breakdown is on the fixed reference scale; the recruiter
+      // sees it in the weights this score was actually computed with, so the
+      // per-item points always add up to the group totals above. Rows scored
+      // before weights existed carry the reference weights, so they scale by
+      // 1 and read exactly as they always did.
+      criteriaBreakdown: this.scaleBreakdown(
+        this.toCriteriaBreakdown(score.rawAiResponse) as CvScoringCriterionBreakdown[],
+        weights,
+      ),
+      evaluationRubric: this.scaleRubric(weights),
+      scoringWeights: weights,
+      passingScore: score.passingScore,
+      meetsPassingScore: score.meetsPassingScore,
+      mustHaveResults: this.readVerdicts(score.mustHaveResults),
+      niceToHaveResults: this.readVerdicts(score.niceToHaveResults),
       cvFileUrl:
         score.application.cvVersion.sourceFile?.publicUrl ??
         `/api/recruiter/applications/${score.applicationId}/cv`,
@@ -543,7 +579,7 @@ export class CvScreeningService {
         run.limit ?? MAX_APPLICATIONS_PER_RUN,
         MAX_APPLICATIONS_PER_RUN,
       );
-      const [jobPost, applications, companyConfig] = await Promise.all([
+      const [jobPost, applications] = await Promise.all([
         this.prisma.jobPost.findUnique({
           where: { id: run.jobPostId },
           include: JOB_TEXT_INCLUDE,
@@ -580,9 +616,6 @@ export class CvScreeningService {
           orderBy: { submittedAt: 'desc' },
           take: effectiveLimit,
         }),
-        this.prisma.cvScreeningCompanyConfig.findUnique({
-          where: { companyId: run.companyId },
-        }),
       ]);
 
       if (!jobPost) {
@@ -590,22 +623,18 @@ export class CvScreeningService {
       }
 
       const jobText = buildJobText(jobPost);
-      // One instructions field per rubric group instead of a single blob, so
-      // guidance is targeted (and only injected near the criterion it's
-      // actually about) -- see GeminiScoringService.buildSystemInstruction.
-      const customInstructions: CvScoringCustomInstructions | null = companyConfig
-        ? {
-            skills: companyConfig.skillsInstructions,
-            experience: companyConfig.experienceInstructions,
-            projects: companyConfig.projectsInstructions,
-          }
-        : null;
-      // Education is scored deterministically from the job's required level
-      // (education-scoring.ts), not by the LLM -- this is the one config
-      // lever that can actually change it: score as if nothing was required.
-      const requiredEducationLevel = companyConfig?.ignoreEducationRequirement
-        ? EducationLevel.ANY
-        : jobPost.educationLevel;
+      // Read the config the run was created with, not the current one: a
+      // recruiter editing weights while a run is in flight must not produce a
+      // half-old-half-new ranking. Runs created before the snapshot column
+      // existed fall back to the system defaults.
+      const config = await this.resolveRunConfig(run);
+      const scoringContext: CvScoringContext = {
+        weights: config.weights,
+        mustHaveCriteria: config.mustHaveCriteria,
+        niceToHaveCriteria: config.niceToHaveCriteria,
+        customPrompt: config.customPrompt,
+      };
+      const requiredEducationLevel = jobPost.educationLevel;
       const cvTextByVersionId = await this.loadCvTexts(
         applications.map((application) => application.cvVersionId),
       );
@@ -638,7 +667,7 @@ export class CvScreeningService {
         await this.incrementProgress(runId, missingCvTextItems.length, missingCvTextItems.length);
       }
 
-      const toScore = await this.reuseFreshScores(runId, jobPost.updatedAt, selected);
+      const toScore = await this.reuseFreshScores(runId, jobPost.updatedAt, selected, config);
       await this.mapLimit(
         this.chunk(toScore, GEMINI_BATCH_SIZE),
         GEMINI_BATCH_CONCURRENCY,
@@ -648,9 +677,10 @@ export class CvScreeningService {
             jobText,
             requiredEducationLevel,
             batch,
+            config,
             true,
             cancelAbortController.signal,
-            customInstructions,
+            scoringContext,
           ),
         () => this.isCancelRequested(runId),
       );
@@ -778,6 +808,29 @@ export class CvScreeningService {
     });
   }
 
+  /**
+   * The config a run must score with: the snapshot taken when it was created,
+   * so an edit while it was queued can't change it mid-flight. Runs created
+   * before the snapshot column existed resolve live config instead, and fall
+   * back to the system defaults if the company/job never configured anything.
+   */
+  private async resolveRunConfig(run: {
+    companyId: string;
+    jobPostId: string;
+    configSnapshot: Prisma.JsonValue;
+  }): Promise<ResolvedScreeningConfig> {
+    const snapshot = readConfigSnapshot(run.configSnapshot);
+    if (snapshot) {
+      return snapshot;
+    }
+
+    const [companyConfig, jobConfig] = await Promise.all([
+      this.prisma.cvScreeningCompanyConfig.findUnique({ where: { companyId: run.companyId } }),
+      this.prisma.jobPostCvScreeningConfig.findUnique({ where: { jobPostId: run.jobPostId } }),
+    ]);
+    return resolveScreeningConfig(companyConfig, jobConfig);
+  }
+
   private async isCancelRequested(runId: string): Promise<boolean> {
     const run = await this.prisma.cvScreeningRun.findUnique({
       where: { id: runId },
@@ -877,18 +930,31 @@ export class CvScreeningService {
     runId: string,
     jobPostUpdatedAt: Date,
     selected: ScreeningCandidate[],
+    config: ResolvedScreeningConfig,
   ) {
     if (selected.length === 0) {
       return selected;
     }
 
+    const fingerprint = buildPromptFingerprint(config, SCORING_VERSION);
     const existingScores = await this.prisma.applicationAiScore.findMany({
       where: {
         applicationId: { in: selected.map((item) => item.application.id) },
         scoringVersion: SCORING_VERSION,
         updatedAt: { gte: jobPostUpdatedAt },
+        // A cached score is only reusable if it was produced under the same
+        // criteria/custom prompt. Weights are deliberately not part of the
+        // fingerprint -- they are re-applied below without another AI call.
+        promptFingerprint: fingerprint,
       },
-      select: { applicationId: true, runId: true },
+      select: {
+        id: true,
+        applicationId: true,
+        runId: true,
+        scoringWeights: true,
+        passingScore: true,
+        rawAiResponse: true,
+      },
     });
 
     if (existingScores.length === 0) {
@@ -905,11 +971,87 @@ export class CvScreeningService {
       await this.incrementProgress(runId, reusableFromOtherRun.length, 0);
     }
 
+    const reweighted = await this.reweightCachedScores(existingScores, config);
+
     this.logger.log(
-      `Reused ${reusableApplicationIds.size} fresh AI score(s) for CV screening run ${runId}`,
+      `Reused ${reusableApplicationIds.size} fresh AI score(s) for CV screening run ${runId}` +
+        (reweighted > 0 ? ` (${reweighted} re-weighted locally, no AI call)` : ''),
     );
 
     return selected.filter((item) => !reusableApplicationIds.has(item.application.id));
+  }
+
+  /**
+   * Re-applies the current weights/passing score to cached scores whose AI
+   * output is still valid.
+   *
+   * This is what makes "change the weights" instant and free: the model's
+   * per-criterion scores live in `rawAiResponse.criteriaBreakdown` on the
+   * reference scale, so a new split is pure arithmetic -- no Gemini call, no
+   * AI_CV_MATCHING credit, no waiting.
+   */
+  private async reweightCachedScores(
+    scores: Array<{
+      id: string;
+      scoringWeights: Prisma.JsonValue;
+      passingScore: number | null;
+      rawAiResponse: Prisma.JsonValue;
+    }>,
+    config: ResolvedScreeningConfig,
+  ): Promise<number> {
+    const stale = scores.filter(
+      (score) =>
+        !this.sameWeights(readScoringWeights(score.scoringWeights), config.weights) ||
+        (score.passingScore ?? null) !== config.passingScore,
+    );
+    if (stale.length === 0) {
+      return 0;
+    }
+
+    let updated = 0;
+    for (const score of stale) {
+      const breakdown = this.toCriteriaBreakdown(score.rawAiResponse) as CvScoringCriterionBreakdown[];
+      if (breakdown.length === 0) {
+        // Nothing to recompute from (legacy row without a breakdown): leave it
+        // as scored rather than inventing numbers.
+        continue;
+      }
+
+      const educationScore = this.referenceEducationScore(breakdown);
+      const weighted = applyWeights(breakdown, educationScore, config.weights);
+      await this.prisma.applicationAiScore.update({
+        where: { id: score.id },
+        data: {
+          ...weighted,
+          aiScore: weighted.finalScore,
+          scoringWeights: config.weights,
+          passingScore: config.passingScore,
+          meetsPassingScore:
+            config.passingScore === null ? null : weighted.finalScore >= config.passingScore,
+          recommendation: this.recommendationForScore(weighted.finalScore),
+        },
+      });
+      updated += 1;
+    }
+
+    return updated;
+  }
+
+  private sameWeights(a: ScoringWeights, b: ScoringWeights) {
+    return (
+      a.skills === b.skills &&
+      a.experience === b.experience &&
+      a.projects === b.projects &&
+      a.education === b.education
+    );
+  }
+
+  /** Pulls the deterministic education points (reference scale, 0-10) back out
+   * of a stored breakdown so a re-weight doesn't have to redo the education
+   * matching. */
+  private referenceEducationScore(breakdown: CvScoringCriterionBreakdown[]): number {
+    const group = breakdown.find((item) => item.key === 'education');
+    return group?.items.reduce((total, item) => total + (item.awardedScore ?? 0), 0) ?? 0;
   }
 
   private async scoreAndPersistBatch(
@@ -917,9 +1059,10 @@ export class CvScreeningService {
     jobText: string,
     requiredEducationLevel: EducationLevel,
     batch: ScreeningCandidate[],
+    config: ResolvedScreeningConfig,
     canFallback = true,
     signal?: AbortSignal,
-    customInstructions?: CvScoringCustomInstructions | null,
+    scoringContext?: CvScoringContext | null,
   ) {
     if (batch.length === 0) {
       return;
@@ -934,7 +1077,7 @@ export class CvScreeningService {
           candidateEducationLevel: item.candidateEducationLevel,
         })),
         signal,
-        customInstructions,
+        scoringContext,
       );
       await this.recordAiUsage(runId, usage, modelName, true);
       const resultByApplicationId = new Map(
@@ -956,7 +1099,14 @@ export class CvScreeningService {
 
         persistOperations.push({
           item,
-          operation: this.persistScore(runId, item, result, requiredEducationLevel, modelName),
+          operation: this.persistScore(
+            runId,
+            item,
+            result,
+            requiredEducationLevel,
+            modelName,
+            config,
+          ),
         });
       }
 
@@ -984,9 +1134,10 @@ export class CvScreeningService {
           jobText,
           requiredEducationLevel,
           missingResultItems,
+          config,
           canFallback,
           signal,
-          customInstructions,
+          scoringContext,
         );
       }
     } catch (error) {
@@ -1013,9 +1164,10 @@ export class CvScreeningService {
             jobText,
             requiredEducationLevel,
             [item],
+            config,
             false,
             signal,
-            customInstructions,
+            scoringContext,
           ),
         );
         return;
@@ -1036,9 +1188,10 @@ export class CvScreeningService {
     jobText: string,
     requiredEducationLevel: EducationLevel,
     missingItems: ScreeningCandidate[],
+    config: ResolvedScreeningConfig,
     canFallback: boolean,
     signal?: AbortSignal,
-    customInstructions?: CvScoringCustomInstructions | null,
+    scoringContext?: CvScoringContext | null,
   ) {
     if (canFallback && missingItems.length > 0) {
       this.logger.warn(
@@ -1050,9 +1203,10 @@ export class CvScreeningService {
           jobText,
           requiredEducationLevel,
           [item],
+          config,
           false,
           signal,
-          customInstructions,
+          scoringContext,
         ),
       );
       return;
@@ -1070,18 +1224,13 @@ export class CvScreeningService {
     result: GeminiScoreResult,
     requiredEducationLevel: EducationLevel,
     modelName: string,
+    config: ResolvedScreeningConfig,
   ) {
-    const skillScore = this.roundScore(result.skillScore);
-    const experienceScore = this.roundScore(result.experienceScore);
-    const projectScore = this.roundScore(result.projectScore);
     const candidateEducationLevel = item.candidateEducationLevel ?? result.candidateEducationLevel;
     const educationMatch = calculateEducationMatchScore(
       candidateEducationLevel,
       requiredEducationLevel,
     );
-    const educationScore = educationMatch.score;
-    const aiScore = this.roundScore(skillScore + experienceScore + projectScore + educationScore);
-    const finalScore = aiScore;
     const educationBreakdown = this.buildEducationBreakdown(
       educationMatch,
       item.candidateEducationEvidence ??
@@ -1089,7 +1238,12 @@ export class CvScreeningService {
           ? `CV ghi nhận trình độ học vấn: ${getEducationLevelLabel(result.candidateEducationLevel)}.`
           : null),
     );
+    // The breakdown is kept on the fixed reference scale (skills 40 /
+    // experience 30 / projects 20 / education 10). It is the audit record AND
+    // what a later weight change is recomputed from, so it must never be
+    // stored pre-weighted.
     const criteriaBreakdown = [...result.criteriaBreakdown, educationBreakdown];
+    const weighted = applyWeights(criteriaBreakdown, educationMatch.score, config.weights);
     const rawAiResponse = {
       ...(this.isRecord(result.raw) ? result.raw : {}),
       criteriaBreakdown,
@@ -1101,19 +1255,26 @@ export class CvScreeningService {
       runId,
       jobPostId: item.application.jobPostId,
       candidateProfileId: item.application.candidateProfileId,
-      aiScore,
-      finalScore,
-      skillScore,
-      experienceScore,
-      projectScore,
-      educationScore,
+      aiScore: weighted.finalScore,
+      finalScore: weighted.finalScore,
+      skillScore: weighted.skillScore,
+      experienceScore: weighted.experienceScore,
+      projectScore: weighted.projectScore,
+      educationScore: weighted.educationScore,
       matchedSkills: result.matchedSkills as Prisma.InputJsonValue,
       missingSkills: result.missingSkills as Prisma.InputJsonValue,
       strengths: result.strengths as Prisma.InputJsonValue,
       weaknesses: result.weaknesses as Prisma.InputJsonValue,
       summary: result.summary,
-      recommendation: this.recommendationForScore(finalScore),
+      recommendation: this.recommendationForScore(weighted.finalScore),
       rawAiResponse: rawAiResponse as Prisma.InputJsonValue,
+      scoringWeights: config.weights as unknown as Prisma.InputJsonValue,
+      passingScore: config.passingScore,
+      meetsPassingScore:
+        config.passingScore === null ? null : weighted.finalScore >= config.passingScore,
+      mustHaveResults: result.mustHaveResults as unknown as Prisma.InputJsonValue,
+      niceToHaveResults: result.niceToHaveResults as unknown as Prisma.InputJsonValue,
+      promptFingerprint: buildPromptFingerprint(config, SCORING_VERSION),
       modelName,
       scoringVersion: SCORING_VERSION,
     };
@@ -1317,6 +1478,67 @@ export class CvScreeningService {
     }
 
     return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  /**
+   * Presents a reference-scale breakdown in the weights a score was computed
+   * with, so every "đạt x/y điểm" line adds up to the weighted group total the
+   * recruiter sees. Scaling both the awarded points and the maxima keeps the
+   * ratios (and therefore the deduction badges) identical.
+   */
+  private scaleBreakdown(
+    breakdown: CvScoringCriterionBreakdown[],
+    weights: ScoringWeights,
+  ): CvScoringCriterionBreakdown[] {
+    return breakdown.map((group) => {
+      const factor = weightScaleFactor(group.key, weights);
+      if (factor === 1) return group;
+
+      return {
+        ...group,
+        items: group.items.map((item) => ({
+          ...item,
+          awardedScore: this.roundScore(item.awardedScore * factor),
+        })),
+      };
+    });
+  }
+
+  /** The rubric, restated in the recruiter's own point split. */
+  private scaleRubric(weights: ScoringWeights) {
+    return CV_SCORING_RUBRIC.map((criterion) => {
+      const factor = weightScaleFactor(criterion.key, weights);
+      return {
+        key: criterion.key,
+        label: criterion.label,
+        maxScore: this.roundScore(criterion.maxScore * factor),
+        criteria: criterion.criteria.map((item) => ({
+          key: item.key,
+          label: item.label,
+          maxScore: this.roundScore(item.maxScore * factor),
+          description: item.description,
+        })),
+      };
+    });
+  }
+
+  private readVerdicts(value: Prisma.JsonValue | null) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.flatMap((item) => {
+      if (!this.isRecord(item) || typeof item.criterion !== 'string') {
+        return [];
+      }
+      return [
+        {
+          criterion: item.criterion,
+          met: item.met === true,
+          evidence: typeof item.evidence === 'string' ? item.evidence : null,
+        },
+      ];
+    });
   }
 
   private toCriteriaBreakdown(value: Prisma.JsonValue | null) {

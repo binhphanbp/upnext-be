@@ -1141,6 +1141,7 @@ model JobPost {
   mockInterviews           MockInterview[]
   jobEmbedding             JobEmbedding?
   cvScreeningRuns          CvScreeningRun[]
+  cvScreeningConfig        JobPostCvScreeningConfig?
   applicationAiScores      ApplicationAiScore[]
   conversations            Conversation[]
   hiringTeamMembers        JobHiringTeamMember[]
@@ -1383,6 +1384,10 @@ model CvScreeningRun {
   failedCount        Int                  @default(0) @map("failed_count")
   limit              Int?
   applicationIds     Json                 @default("[]") @map("application_ids")
+  /// Resolved screening config (job override merged over company defaults)
+  /// captured when the run was created, so a config edit mid-run can't change
+  /// how the run scores, and so a finished run stays explainable.
+  configSnapshot     Json?                @map("config_snapshot")
   status             CvScreeningRunStatus @default(PENDING)
   attemptCount       Int                  @default(0) @map("attempt_count")
   nextAttemptAt      DateTime             @default(now()) @map("next_attempt_at")
@@ -1462,6 +1467,23 @@ model ApplicationAiScore {
   summary            String?  @db.Text
   recommendation     String?  @db.Text
   rawAiResponse      Json?    @map("raw_ai_response")
+  /// Snapshot of the point weights this score was computed with, e.g.
+  /// {"skills":40,"experience":30,"projects":20,"education":10}. null on rows
+  /// scored before configurable weights existed -- readers fall back to the
+  /// reference rubric, which is exactly what those rows used.
+  scoringWeights     Json?    @map("scoring_weights")
+  /// Snapshot of the "Đạt tiêu chuẩn" threshold, and whether this candidate
+  /// cleared it. null = the company had not set a passing score.
+  passingScore       Int?     @map("passing_score")
+  meetsPassingScore  Boolean? @map("meets_passing_score")
+  /// Per-criterion verdicts, e.g. [{"criterion":"2 năm React","met":false,
+  /// "evidence":"..."}]. Missing must-haves are a warning, never a veto.
+  mustHaveResults    Json?    @map("must_have_results")
+  niceToHaveResults  Json?    @map("nice_to_have_results")
+  /// Hash of the config inputs that change the model's output (criteria +
+  /// custom prompt + scoring version). Weights are deliberately excluded, so
+  /// a weight change re-weights this row locally instead of re-calling the AI.
+  promptFingerprint  String?  @map("prompt_fingerprint") @db.VarChar(64)
   modelName          String   @map("model_name") @db.VarChar(120)
   scoringVersion     String   @map("scoring_version") @db.VarChar(40)
   createdAt          DateTime @default(now()) @map("created_at")
@@ -2660,44 +2682,76 @@ model CandidateContactPreference {
   @@map("candidate_contact_preferences")
 }
 
-/// Per-company customization of the "AI lọc CV" screening behaviour. The
-/// scoring rubric itself (skills/experience/projects/education weights)
-/// stays fixed for every company -- only prompt-level guidance and the
-/// default shortlist size/threshold are configurable, to avoid touching the
-/// rubric's clamp logic and DB score columns. Absent (no row) means "use the
-/// system defaults", so a company never has to configure anything.
+/// Per-company defaults for the "AI lọc CV" screening behaviour: how the 100
+/// points are split between the four rubric groups, the recruiter's real
+/// hiring criteria, and the shortlist/passing thresholds. Absent (no row) or
+/// a null field means "use the system defaults" (see
+/// screening-config.resolver.ts), so a company never has to configure
+/// anything. A single job post can override any of this -- see
+/// JobPostCvScreeningConfig.
 model CvScreeningCompanyConfig {
-  companyId                  String   @id @map("company_id") @db.Uuid
-  /// Free-text guidance appended to the AI scoring prompt, one field per
-  /// rubric group (skills/experience/projects/education) so recruiters give
-  /// targeted context instead of one unstructured blob -- e.g. skills:
-  /// "ưu tiên ứng viên có chứng chỉ AWS". Treated as untrusted recruiter
-  /// input by the prompt -- see gemini-scoring.service.ts
-  /// buildSystemInstruction. None of these can change the fixed point
-  /// weights (skills=40/experience=30/projects=20/education=10).
-  skillsInstructions         String?  @map("skills_instructions") @db.Text
-  experienceInstructions     String?  @map("experience_instructions") @db.Text
-  projectsInstructions       String?  @map("projects_instructions") @db.Text
-  /// Education is scored deterministically (see education-scoring.ts) from
-  /// the job's required level, not by the LLM, so free-text guidance can't
-  /// influence it. This is the one real, functional education lever
-  /// instead: when true, every run for this company scores education as if
-  /// the job required none (always full marks), regardless of the job
-  /// post's own `educationLevel`.
-  ignoreEducationRequirement Boolean  @default(false) @map("ignore_education_requirement")
+  companyId          String  @id @map("company_id") @db.Uuid
+  /// Point weights per rubric group; they must be multiples of 5 and sum to
+  /// 100. Weights are applied AFTER the model scores a CV on the fixed
+  /// reference rubric (scoring-rubric.ts), never inside the prompt, so
+  /// changing them re-ranks existing results without another AI call. All
+  /// four are set together or all null (= inherit the 40/30/20/10 default).
+  weightSkills       Int?    @map("weight_skills")
+  weightExperience   Int?    @map("weight_experience")
+  weightProjects     Int?    @map("weight_projects")
+  weightEducation    Int?    @map("weight_education")
+  /// Which preset the weights came from: FRESHER | MID | SENIOR | CUSTOM.
+  /// Display-only, so the UI can re-select the right preset card.
+  weightPreset       String? @map("weight_preset") @db.VarChar(20)
+  /// Deal-breakers, e.g. ["Ít nhất 2 năm React", "Tiếng Anh giao tiếp tốt"].
+  /// The model reports met/unmet per criterion; a miss is surfaced as a
+  /// warning and reflected in the related rubric items, it does not veto.
+  mustHaveCriteria   Json?   @map("must_have_criteria")
+  /// Bonus criteria the model credits within preferred-skills / domain.
+  niceToHaveCriteria Json?   @map("nice_to_have_criteria")
+  /// One free-text note appended to the AI prompt. Treated as untrusted
+  /// recruiter input -- see gemini-scoring.service.ts buildSystemInstruction.
+  customPrompt       String? @map("custom_prompt") @db.Text
+  /// Final score (0-100) at or above which a candidate is labelled "Đạt tiêu
+  /// chuẩn". null = no labelling.
+  passingScore       Int?    @map("passing_score")
   /// Default "Top N" shortlist size when a run's request omits `limit`.
   /// null = score the whole application pool.
-  defaultTopN                Int?     @map("default_top_n")
-  /// Minimum embedding cosine-similarity score (0-100) a CV must clear to
-  /// enter the shortlist. null = no threshold (rank-only).
-  minSimilarityScore         Int?     @map("min_similarity_score")
-  updatedByAccountId         String?  @map("updated_by_account_id") @db.Uuid
-  createdAt                  DateTime @default(now()) @map("created_at")
-  updatedAt                  DateTime @updatedAt @map("updated_at")
+  defaultTopN        Int?    @map("default_top_n")
+
+  updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("cv_screening_company_configs")
+}
+
+/// Per-job-post override of the company's AI screening config. Every field is
+/// optional: a null field inherits the company value (and in turn the system
+/// default). Weights are an atomic block -- either all four are set here or
+/// the job inherits the company's split entirely.
+model JobPostCvScreeningConfig {
+  jobPostId          String  @id @map("job_post_id") @db.Uuid
+  weightSkills       Int?    @map("weight_skills")
+  weightExperience   Int?    @map("weight_experience")
+  weightProjects     Int?    @map("weight_projects")
+  weightEducation    Int?    @map("weight_education")
+  weightPreset       String? @map("weight_preset") @db.VarChar(20)
+  mustHaveCriteria   Json?   @map("must_have_criteria")
+  niceToHaveCriteria Json?   @map("nice_to_have_criteria")
+  customPrompt       String? @map("custom_prompt") @db.Text
+  passingScore       Int?    @map("passing_score")
+  defaultTopN        Int?    @map("default_top_n")
+
+  updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  jobPost JobPost @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+
+  @@map("job_post_cv_screening_configs")
 }
 
 model CompanyCandidateBlock {

@@ -1,7 +1,15 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CvScreeningConfigService } from './cv-screening-config.service';
+import { REFERENCE_WEIGHTS } from './screening-config.resolver';
+
+const SENIOR_WEIGHTS = {
+  weightSkills: 20,
+  weightExperience: 50,
+  weightProjects: 25,
+  weightEducation: 5,
+};
 
 describe('CvScreeningConfigService', () => {
   function buildService() {
@@ -9,9 +17,25 @@ describe('CvScreeningConfigService', () => {
       recruiterAccount: {
         findUnique: jest.fn().mockResolvedValue({ companyId: 'company-1' }),
       },
+      jobPost: {
+        findUnique: jest.fn().mockResolvedValue({
+          companyId: 'company-1',
+          createdByRecruiterId: 'recruiter-1',
+          accessRevocations: [],
+        }),
+      },
       cvScreeningCompanyConfig: {
         findUnique: jest.fn().mockResolvedValue(null),
-        upsert: jest.fn(),
+        upsert: jest.fn().mockImplementation(({ create }: { create: Record<string, unknown> }) =>
+          Promise.resolve({ ...create, updatedAt: new Date() }),
+        ),
+      },
+      jobPostCvScreeningConfig: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockImplementation(({ create }: { create: Record<string, unknown> }) =>
+          Promise.resolve({ ...create, updatedAt: new Date() }),
+        ),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
     const service = new CvScreeningConfigService(prisma as unknown as PrismaService);
@@ -23,50 +47,52 @@ describe('CvScreeningConfigService', () => {
   }
 
   describe('getConfig', () => {
-    it('returns system defaults when the company has no saved config', async () => {
+    it('returns the system defaults when the company has no saved config', async () => {
       const { service } = buildService();
 
       const result = await service.getConfig('recruiter-1');
 
-      expect(result).toEqual({
-        skillsInstructions: null,
-        experienceInstructions: null,
-        projectsInstructions: null,
-        ignoreEducationRequirement: false,
+      expect(result).toMatchObject({
+        scope: 'COMPANY',
+        jobPostId: null,
+        weights: REFERENCE_WEIGHTS,
+        mustHaveCriteria: [],
+        niceToHaveCriteria: [],
+        customPrompt: null,
+        passingScore: null,
         defaultTopN: null,
-        minSimilarityScore: null,
-        updatedByAccountId: null,
-        updatedAt: null,
       });
     });
 
     it('returns the saved config, readable by any team member (no permission check)', async () => {
       const { service, prisma } = buildService();
-      const updatedAt = new Date();
       prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({
         companyId: 'company-1',
-        skillsInstructions: 'Ưu tiên AWS',
-        experienceInstructions: null,
-        projectsInstructions: null,
-        ignoreEducationRequirement: true,
+        ...SENIOR_WEIGHTS,
+        weightPreset: 'SENIOR',
+        mustHaveCriteria: ['5 năm kinh nghiệm'],
+        niceToHaveCriteria: ['Từng làm fintech'],
+        customPrompt: 'Ưu tiên onboard sớm',
+        passingScore: 70,
         defaultTopN: 20,
-        minSimilarityScore: 60,
         updatedByAccountId: 'recruiter-owner',
-        updatedAt,
-        createdAt: updatedAt,
+        updatedAt: new Date(),
       });
 
-      const result = await service.getConfig('recruiter-1');
+      const result = await service.getConfig('recruiter-99');
 
-      expect(result).toEqual({
-        skillsInstructions: 'Ưu tiên AWS',
-        experienceInstructions: null,
-        projectsInstructions: null,
-        ignoreEducationRequirement: true,
+      expect(result.weights).toEqual({
+        skills: 20,
+        experience: 50,
+        projects: 25,
+        education: 5,
+      });
+      expect(result).toMatchObject({
+        weightPreset: 'SENIOR',
+        mustHaveCriteria: ['5 năm kinh nghiệm'],
+        niceToHaveCriteria: ['Từng làm fintech'],
+        passingScore: 70,
         defaultTopN: 20,
-        minSimilarityScore: 60,
-        updatedByAccountId: 'recruiter-owner',
-        updatedAt,
       });
     });
 
@@ -78,112 +104,145 @@ describe('CvScreeningConfigService', () => {
     });
   });
 
-  describe('updateConfig', () => {
+  describe('updateConfig (company scope)', () => {
     it('rejects a recruiter without company:manage permission', async () => {
       const { service } = buildService();
 
-      await expect(service.updateConfig(actingUser([]), { defaultTopN: 20 })).rejects.toThrow(
+      await expect(service.updateConfig(actingUser([]), { passingScore: 70 })).rejects.toThrow(
         ForbiddenException,
       );
     });
 
-    it('upserts the config and stamps who changed it', async () => {
+    it('saves a full weight split, criteria and thresholds', async () => {
       const { service, prisma } = buildService();
-      const saved = {
-        companyId: 'company-1',
-        skillsInstructions: 'Ưu tiên AWS',
-        experienceInstructions: 'Ít nhất 3 năm',
-        projectsInstructions: null,
-        ignoreEducationRequirement: true,
-        defaultTopN: 20,
-        minSimilarityScore: 60,
-        updatedByAccountId: 'recruiter-1',
-        updatedAt: new Date(),
-      };
-      prisma.cvScreeningCompanyConfig.upsert.mockResolvedValue(saved);
 
-      const result = await service.updateConfig(actingUser(), {
-        skillsInstructions: 'Ưu tiên AWS',
-        experienceInstructions: 'Ít nhất 3 năm',
-        ignoreEducationRequirement: true,
+      await service.updateConfig(actingUser(), {
+        ...SENIOR_WEIGHTS,
+        weightPreset: 'SENIOR',
+        mustHaveCriteria: ['  5 năm kinh nghiệm ', '5 NĂM KINH NGHIỆM'],
+        passingScore: 70,
         defaultTopN: 20,
-        minSimilarityScore: 60,
       });
 
-      expect(prisma.cvScreeningCompanyConfig.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { companyId: 'company-1' },
-          create: expect.objectContaining({
-            companyId: 'company-1',
-            skillsInstructions: 'Ưu tiên AWS',
-            experienceInstructions: 'Ít nhất 3 năm',
-            projectsInstructions: null,
-            ignoreEducationRequirement: true,
-            defaultTopN: 20,
-            minSimilarityScore: 60,
-            updatedByAccountId: 'recruiter-1',
-          }),
-          update: expect.objectContaining({
-            skillsInstructions: 'Ưu tiên AWS',
-            experienceInstructions: 'Ít nhất 3 năm',
-            ignoreEducationRequirement: true,
-            defaultTopN: 20,
-            minSimilarityScore: 60,
-            updatedByAccountId: 'recruiter-1',
-          }),
-        }),
-      );
-      expect(result.defaultTopN).toBe(20);
-      expect(result.ignoreEducationRequirement).toBe(true);
+      const { create } = prisma.cvScreeningCompanyConfig.upsert.mock.calls[0][0];
+      expect(create).toMatchObject({
+        companyId: 'company-1',
+        ...SENIOR_WEIGHTS,
+        weightPreset: 'SENIOR',
+        // Normalized: trimmed and de-duplicated case-insensitively.
+        mustHaveCriteria: ['5 năm kinh nghiệm'],
+        passingScore: 70,
+        defaultTopN: 20,
+        updatedByAccountId: 'recruiter-1',
+      });
     });
 
-    it('a partial update only touches the fields sent, leaving the others untouched', async () => {
+    it('rejects a weight split that does not total 100', async () => {
+      const { service } = buildService();
+
+      await expect(
+        service.updateConfig(actingUser(), {
+          weightSkills: 40,
+          weightExperience: 30,
+          weightProjects: 20,
+          weightEducation: 5,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects a partial weight split, which could never total 100', async () => {
+      const { service } = buildService();
+
+      await expect(
+        service.updateConfig(actingUser(), { weightSkills: 50 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('a partial save only touches the fields sent', async () => {
       const { service, prisma } = buildService();
-      prisma.cvScreeningCompanyConfig.upsert.mockResolvedValue({
-        companyId: 'company-1',
-        skillsInstructions: null,
-        experienceInstructions: null,
-        projectsInstructions: null,
-        ignoreEducationRequirement: false,
-        defaultTopN: 50,
-        minSimilarityScore: null,
-        updatedByAccountId: 'recruiter-1',
-        updatedAt: new Date(),
-      });
 
       await service.updateConfig(actingUser(), { defaultTopN: 50 });
 
       const { update } = prisma.cvScreeningCompanyConfig.upsert.mock.calls[0][0];
       expect(update).toEqual({ defaultTopN: 50, updatedByAccountId: 'recruiter-1' });
-      expect(update).not.toHaveProperty('skillsInstructions');
-      expect(update).not.toHaveProperty('experienceInstructions');
-      expect(update).not.toHaveProperty('projectsInstructions');
-      expect(update).not.toHaveProperty('ignoreEducationRequirement');
-      expect(update).not.toHaveProperty('minSimilarityScore');
+      expect(update).not.toHaveProperty('weightSkills');
+      expect(update).not.toHaveProperty('passingScore');
+      expect(update).not.toHaveProperty('customPrompt');
     });
+  });
 
-    it('an explicit null clears a previously saved value', async () => {
+  describe('job-post scope', () => {
+    it('merges the job override over the company defaults and flags what is inherited', async () => {
       const { service, prisma } = buildService();
-      prisma.cvScreeningCompanyConfig.upsert.mockResolvedValue({
-        companyId: 'company-1',
-        skillsInstructions: null,
-        experienceInstructions: null,
-        projectsInstructions: null,
-        ignoreEducationRequirement: false,
-        defaultTopN: null,
-        minSimilarityScore: null,
-        updatedByAccountId: 'recruiter-1',
+      prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({
+        ...SENIOR_WEIGHTS,
+        passingScore: 60,
+        defaultTopN: 10,
+      });
+      prisma.jobPostCvScreeningConfig.findUnique.mockResolvedValue({
+        jobPostId: 'job-1',
+        passingScore: 85,
         updatedAt: new Date(),
       });
 
-      await service.updateConfig(actingUser(), { defaultTopN: null, skillsInstructions: null });
+      const result = await service.getJobConfig('recruiter-1', 'job-1');
 
-      const { update } = prisma.cvScreeningCompanyConfig.upsert.mock.calls[0][0];
-      expect(update).toEqual({
-        defaultTopN: null,
-        skillsInstructions: null,
-        updatedByAccountId: 'recruiter-1',
+      expect(result.scope).toBe('JOB_POST');
+      expect(result.passingScore).toBe(85);
+      expect(result.weights).toEqual({ skills: 20, experience: 50, projects: 25, education: 5 });
+      expect(result.defaultTopN).toBe(10);
+      expect(result.inherited).toMatchObject({ passingScore: false, weights: true });
+    });
+
+    it('is gated by per-job access, not company:manage', async () => {
+      const { service, prisma } = buildService();
+      // A team member without company:manage may still tune a job they can access.
+      await expect(
+        service.updateJobConfig(actingUser([]), 'job-1', { passingScore: 80 }),
+      ).resolves.toMatchObject({ passingScore: 80 });
+
+      // Access revoked for this specific job -> forbidden.
+      prisma.jobPost.findUnique.mockResolvedValue({
+        companyId: 'company-1',
+        createdByRecruiterId: 'recruiter-other',
+        accessRevocations: [{ id: 'revocation-1' }],
       });
+      await expect(
+        service.updateJobConfig(actingUser([]), 'job-1', { passingScore: 80 }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejects a job post from another company', async () => {
+      const { service, prisma } = buildService();
+      prisma.jobPost.findUnique.mockResolvedValue({
+        companyId: 'company-other',
+        createdByRecruiterId: 'recruiter-1',
+        accessRevocations: [],
+      });
+
+      await expect(service.getJobConfig('recruiter-1', 'job-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('404s on a job post that does not exist', async () => {
+      const { service, prisma } = buildService();
+      prisma.jobPost.findUnique.mockResolvedValue(null);
+
+      await expect(service.getJobConfig('recruiter-1', 'job-1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('resetting drops the override and falls back to the company defaults', async () => {
+      const { service, prisma } = buildService();
+      prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({ passingScore: 60 });
+
+      const result = await service.resetJobConfig('recruiter-1', 'job-1');
+
+      expect(prisma.jobPostCvScreeningConfig.deleteMany).toHaveBeenCalledWith({
+        where: { jobPostId: 'job-1' },
+      });
+      expect(result.passingScore).toBe(60);
+      expect(result.inherited.passingScore).toBe(true);
     });
   });
 });

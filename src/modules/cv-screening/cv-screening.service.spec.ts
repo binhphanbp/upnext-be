@@ -248,6 +248,9 @@ describe('CvScreeningService.startRun -- embedding pre-filter', () => {
       cvScreeningCompanyConfig: {
         findUnique: jest.fn().mockResolvedValue(null),
       },
+      jobPostCvScreeningConfig: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       $transaction: jest
         .fn()
         .mockImplementation((callback: (client: typeof tx) => unknown) => callback(tx)),
@@ -335,13 +338,9 @@ describe('CvScreeningService.startRun -- embedding pre-filter', () => {
     );
   });
 
-  it("falls back to the company's configured default Top N and similarity threshold when the request omits limit", async () => {
+  it("falls back to the company's configured default Top N when the request omits limit", async () => {
     const { service, prisma, tx, embedding } = buildService();
-    prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({
-      defaultTopN: 2,
-      minSimilarityScore: 60,
-      customInstructions: null,
-    });
+    prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({ defaultTopN: 2 });
     embedding.rankCvEmbeddings.mockResolvedValue([{ cvVersionId: 'cv-3', semanticScore: 91 }]);
 
     await service.startRun('recruiter-1', { jobPostId: 'job-1' });
@@ -350,7 +349,7 @@ describe('CvScreeningService.startRun -- embedding pre-filter', () => {
       [1, 0],
       ['cv-1', 'cv-2', 'cv-3', 'cv-4'],
       2,
-      60,
+      null,
     );
     expect(tx.cvScreeningRun.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -359,24 +358,197 @@ describe('CvScreeningService.startRun -- embedding pre-filter', () => {
     );
   });
 
-  it("an explicit request limit overrides the company's configured default", async () => {
+  it("a job post's own default Top N overrides the company's", async () => {
     const { service, prisma, embedding } = buildService();
-    prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({
-      defaultTopN: 2,
-      minSimilarityScore: 60,
-      customInstructions: null,
-    });
+    prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({ defaultTopN: 2 });
+    prisma.jobPostCvScreeningConfig.findUnique.mockResolvedValue({ defaultTopN: 3 });
     embedding.rankCvEmbeddings.mockResolvedValue([]);
 
-    await service.startRun('recruiter-1', { jobPostId: 'job-1', limit: 3 });
+    await service.startRun('recruiter-1', { jobPostId: 'job-1' });
 
-    // limit=3 (request) wins over defaultTopN=2 (company config); minScore
-    // still comes from the company config since the request has no such field.
     expect(embedding.rankCvEmbeddings).toHaveBeenCalledWith(
       [1, 0],
       ['cv-1', 'cv-2', 'cv-3', 'cv-4'],
       3,
-      60,
+      null,
     );
+  });
+
+  it("an explicit request limit overrides every configured default", async () => {
+    const { service, prisma, embedding } = buildService();
+    prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({ defaultTopN: 2 });
+    embedding.rankCvEmbeddings.mockResolvedValue([]);
+
+    await service.startRun('recruiter-1', { jobPostId: 'job-1', limit: 3 });
+
+    expect(embedding.rankCvEmbeddings).toHaveBeenCalledWith(
+      [1, 0],
+      ['cv-1', 'cv-2', 'cv-3', 'cv-4'],
+      3,
+      null,
+    );
+  });
+
+  it('snapshots the resolved config onto the run so a later edit cannot change it', async () => {
+    const { service, prisma, tx } = buildService();
+    prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({
+      weightSkills: 20,
+      weightExperience: 50,
+      weightProjects: 25,
+      weightEducation: 5,
+      passingScore: 70,
+    });
+    prisma.jobPostCvScreeningConfig.findUnique.mockResolvedValue({
+      mustHaveCriteria: ['5 năm kinh nghiệm'],
+    });
+
+    await service.startRun('recruiter-1', { jobPostId: 'job-1' });
+
+    expect(tx.cvScreeningRun.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          configSnapshot: expect.objectContaining({
+            weights: { skills: 20, experience: 50, projects: 25, education: 5 },
+            mustHaveCriteria: ['5 năm kinh nghiệm'],
+            passingScore: 70,
+          }),
+        }),
+      }),
+    );
+  });
+});
+
+describe('CvScreeningService.reuseFreshScores -- re-weighting cached scores', () => {
+  /** A cached score whose AI output is still valid, stored on the reference
+   * scale (skills 40 / experience 30 / projects 20 / education 10). */
+  const cachedRawResponse = {
+    criteriaBreakdown: [
+      { key: 'skills', summary: '', items: [{ key: 'required-skills', awardedScore: 40 }] },
+      { key: 'experience', summary: '', items: [{ key: 'relevant-years', awardedScore: 15 }] },
+      { key: 'projects', summary: '', items: [{ key: 'project-relevance', awardedScore: 0 }] },
+      { key: 'education', summary: '', items: [{ key: 'education-level-match', awardedScore: 10 }] },
+    ],
+  };
+
+  function buildService(config: Record<string, unknown> | null) {
+    const prisma = {
+      cvScreeningRun: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'run-1',
+          jobPostId: 'job-1',
+          companyId: 'company-1',
+          limit: null,
+          applicationIds: ['app-1'],
+          configSnapshot: config,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        update: jest.fn().mockResolvedValue(undefined),
+        findUnique: jest.fn().mockResolvedValue({ cancelRequestedAt: null }),
+      },
+      applicationAiScore: {
+        count: jest.fn().mockResolvedValue(1),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'score-1',
+            applicationId: 'app-1',
+            runId: 'run-old',
+            // Scored under the default split, but the run now wants a
+            // senior-heavy one.
+            scoringWeights: { skills: 40, experience: 30, projects: 20, education: 10 },
+            passingScore: null,
+            rawAiResponse: cachedRawResponse,
+          },
+        ]),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        update: jest.fn().mockResolvedValue(undefined),
+      },
+      jobPost: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'job-1',
+          educationLevel: 'ANY',
+          updatedAt: new Date('2026-01-01'),
+          jobPostSkills: [],
+          jobPostSpecializations: [],
+          jobPostLocations: [],
+        }),
+      },
+      application: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'app-1',
+            jobPostId: 'job-1',
+            candidateProfileId: 'candidate-1',
+            cvVersionId: 'cv-1',
+            candidateProfile: { account: { fullName: 'A', email: 'a@b.c' }, educations: [] },
+            cvVersion: { contentJson: null, parsedText: 'CV text' },
+          },
+        ]),
+      },
+      cVVersion: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'cv-1', parsedText: 'CV text' }]),
+      },
+      cvScreeningCompanyConfig: { findUnique: jest.fn().mockResolvedValue(null) },
+      jobPostCvScreeningConfig: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn().mockResolvedValue(undefined),
+    };
+    const gemini = { scoreBatch: jest.fn() };
+    const service = new CvScreeningService(
+      prisma as unknown as PrismaService,
+      gemini as unknown as GeminiScoringService,
+      { consume: jest.fn(), reverse: jest.fn() } as unknown as SubscriptionQuotaService,
+      {} as EmbeddingService,
+    );
+    return { service, prisma, gemini };
+  }
+
+  it('re-weights a cached score locally instead of paying for another AI call', async () => {
+    const { service, prisma, gemini } = buildService({
+      weights: { skills: 20, experience: 50, projects: 25, education: 5 },
+      mustHaveCriteria: [],
+      niceToHaveCriteria: [],
+      customPrompt: null,
+      passingScore: 70,
+      defaultTopN: null,
+    });
+
+    await service.processClaimedRun('run-1', 'worker-1').catch(() => {
+      // finishClaimedRun runs against a stubbed transaction; the assertions
+      // below are about what happened before that point.
+    });
+
+    // The cached row is re-scored arithmetically: skills 40/40 -> 20, exp
+    // 15/30 -> 25, projects 0, education 10/10 -> 5 => 50.
+    expect(prisma.applicationAiScore.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'score-1' },
+        data: expect.objectContaining({
+          skillScore: 20,
+          experienceScore: 25,
+          projectScore: 0,
+          educationScore: 5,
+          finalScore: 50,
+          passingScore: 70,
+          meetsPassingScore: false,
+        }),
+      }),
+    );
+    // The whole point: no Gemini call, so no AI_CV_MATCHING credit and no wait.
+    expect(gemini.scoreBatch).not.toHaveBeenCalled();
+  });
+
+  it('leaves a cached score alone when the weights and threshold still match', async () => {
+    const { service, prisma, gemini } = buildService({
+      weights: { skills: 40, experience: 30, projects: 20, education: 10 },
+      mustHaveCriteria: [],
+      niceToHaveCriteria: [],
+      customPrompt: null,
+      passingScore: null,
+      defaultTopN: null,
+    });
+
+    await service.processClaimedRun('run-1', 'worker-1').catch(() => {});
+
+    expect(prisma.applicationAiScore.update).not.toHaveBeenCalled();
+    expect(gemini.scoreBatch).not.toHaveBeenCalled();
   });
 });
