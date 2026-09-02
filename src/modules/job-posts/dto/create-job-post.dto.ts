@@ -1,4 +1,15 @@
-import { IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EducationLevel, SalaryPeriod } from '@prisma/client';
 
@@ -17,6 +28,7 @@ export class CreateJobPostDto {
   })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(50_000)
   description: string;
 
   @ApiPropertyOptional({
@@ -25,6 +37,7 @@ export class CreateJobPostDto {
   })
   @IsString()
   @IsOptional()
+  @MaxLength(50_000)
   requirements?: string;
 
   @ApiPropertyOptional({
@@ -33,6 +46,7 @@ export class CreateJobPostDto {
   })
   @IsString()
   @IsOptional()
+  @MaxLength(50_000)
   benefits?: string;
 
   @ApiPropertyOptional({
