@@ -338,45 +338,8 @@ describe('CvScreeningService.startRun -- embedding pre-filter', () => {
     );
   });
 
-  it("falls back to the company's configured default Top N when the request omits limit", async () => {
-    const { service, prisma, tx, embedding } = buildService();
-    prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({ defaultTopN: 2 });
-    embedding.rankCvEmbeddings.mockResolvedValue([{ cvVersionId: 'cv-3', semanticScore: 91 }]);
-
-    await service.startRun('recruiter-1', { jobPostId: 'job-1' });
-
-    expect(embedding.rankCvEmbeddings).toHaveBeenCalledWith(
-      [1, 0],
-      ['cv-1', 'cv-2', 'cv-3', 'cv-4'],
-      2,
-      null,
-    );
-    expect(tx.cvScreeningRun.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ limit: 2 }),
-      }),
-    );
-  });
-
-  it("a job post's own default Top N overrides the company's", async () => {
-    const { service, prisma, embedding } = buildService();
-    prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({ defaultTopN: 2 });
-    prisma.jobPostCvScreeningConfig.findUnique.mockResolvedValue({ defaultTopN: 3 });
-    embedding.rankCvEmbeddings.mockResolvedValue([]);
-
-    await service.startRun('recruiter-1', { jobPostId: 'job-1' });
-
-    expect(embedding.rankCvEmbeddings).toHaveBeenCalledWith(
-      [1, 0],
-      ['cv-1', 'cv-2', 'cv-3', 'cv-4'],
-      3,
-      null,
-    );
-  });
-
-  it('an explicit request limit overrides every configured default', async () => {
-    const { service, prisma, embedding } = buildService();
-    prisma.cvScreeningCompanyConfig.findUnique.mockResolvedValue({ defaultTopN: 2 });
+  it('an explicit request limit uses embedding ranking', async () => {
+    const { service, embedding } = buildService();
     embedding.rankCvEmbeddings.mockResolvedValue([]);
 
     await service.startRun('recruiter-1', { jobPostId: 'job-1', limit: 3 });
@@ -396,7 +359,6 @@ describe('CvScreeningService.startRun -- embedding pre-filter', () => {
       weightExperience: 50,
       weightProjects: 25,
       weightEducation: 5,
-      passingScore: 70,
     });
     prisma.jobPostCvScreeningConfig.findUnique.mockResolvedValue({
       mustHaveCriteria: ['5 năm kinh nghiệm'],
@@ -410,7 +372,6 @@ describe('CvScreeningService.startRun -- embedding pre-filter', () => {
           configSnapshot: expect.objectContaining({
             weights: { skills: 20, experience: 50, projects: 25, education: 5 },
             mustHaveCriteria: ['5 năm kinh nghiệm'],
-            passingScore: 70,
           }),
         }),
       }),
@@ -511,8 +472,6 @@ describe('CvScreeningService.reuseFreshScores -- re-weighting cached scores', ()
       mustHaveCriteria: [],
       niceToHaveCriteria: [],
       customPrompt: null,
-      passingScore: 70,
-      defaultTopN: null,
     });
 
     await service.processClaimedRun('run-1', 'worker-1').catch(() => {
@@ -531,8 +490,6 @@ describe('CvScreeningService.reuseFreshScores -- re-weighting cached scores', ()
           projectScore: 0,
           educationScore: 5,
           finalScore: 50,
-          passingScore: 70,
-          meetsPassingScore: false,
         }),
       }),
     );
@@ -546,8 +503,6 @@ describe('CvScreeningService.reuseFreshScores -- re-weighting cached scores', ()
       mustHaveCriteria: [],
       niceToHaveCriteria: [],
       customPrompt: null,
-      passingScore: null,
-      defaultTopN: null,
     });
 
     await service.processClaimedRun('run-1', 'worker-1').catch(() => {});

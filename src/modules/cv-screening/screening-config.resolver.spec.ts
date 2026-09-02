@@ -37,8 +37,6 @@ describe('resolveScreeningConfig', () => {
       mustHaveCriteria: [],
       niceToHaveCriteria: [],
       customPrompt: null,
-      passingScore: null,
-      defaultTopN: null,
     });
   });
 

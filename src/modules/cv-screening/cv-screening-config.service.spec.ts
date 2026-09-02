@@ -63,8 +63,6 @@ describe('CvScreeningConfigService', () => {
         mustHaveCriteria: [],
         niceToHaveCriteria: [],
         customPrompt: null,
-        passingScore: null,
-        defaultTopN: null,
       });
     });
 
@@ -77,8 +75,6 @@ describe('CvScreeningConfigService', () => {
         mustHaveCriteria: ['5 năm kinh nghiệm'],
         niceToHaveCriteria: ['Từng làm fintech'],
         customPrompt: 'Ưu tiên onboard sớm',
-        passingScore: 70,
-        defaultTopN: 20,
         updatedByAccountId: 'recruiter-owner',
         updatedAt: new Date(),
       });
@@ -95,8 +91,6 @@ describe('CvScreeningConfigService', () => {
         weightPreset: 'SENIOR',
         mustHaveCriteria: ['5 năm kinh nghiệm'],
         niceToHaveCriteria: ['Từng làm fintech'],
-        passingScore: 70,
-        defaultTopN: 20,
       });
     });
 
