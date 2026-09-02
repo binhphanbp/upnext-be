@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { GeminiLlmAdapter } from './adapters/gemini/gemini-llm.adapter';
 import { GeminiEmbeddingAdapter } from './adapters/gemini/gemini-embedding.adapter';
 import { FallbackEmbeddingAdapter } from './adapters/http/fallback-embedding.adapter';
@@ -16,7 +17,11 @@ import { AiRunTrackerService } from './copilot/ai-run-tracker.service';
 import { LLM_PROVIDER, LlmProviderPort } from './ports/llm-provider.port';
 import { EMBEDDING_PROVIDER, EmbeddingProviderPort } from './ports/embedding-provider.port';
 import { ToolRegistryService } from './tools/tool-registry.service';
+import { CandidateKnowledgeRetrievalService } from './retrieval/candidate-knowledge-retrieval.service';
+import { CandidateKnowledgeIndexerService } from './retrieval/candidate-knowledge-indexer.service';
+import { CandidateKnowledgeCatalogService } from './retrieval/candidate-knowledge-catalog.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { PrismaModule } from '../../prisma/prisma.module';
 
 /**
  * Module AI theo ADR-001.
@@ -29,7 +34,10 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
  * không được export để giữ đúng ranh giới ADR §5.1.
  */
 @Module({
-  imports: [SubscriptionsModule],
+  // Internal upnext-ai requests sign with their own short-lived secret per
+  // call, so this module owns JwtService instead of relying on AuthModule's
+  // global registration and its browser-access-token configuration.
+  imports: [JwtModule.register({}), PrismaModule, SubscriptionsModule],
   controllers: [AiCopilotController],
   providers: [
     GeminiLlmAdapter,
@@ -73,7 +81,18 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     AiRunTrackerService,
     CandidateContextAssembler,
     ToolRegistryService,
+    CandidateKnowledgeRetrievalService,
+    CandidateKnowledgeIndexerService,
+    CandidateKnowledgeCatalogService,
   ],
-  exports: [LLM_PROVIDER, EMBEDDING_PROVIDER, CandidateContextAssembler, ToolRegistryService],
+  exports: [
+    LLM_PROVIDER,
+    EMBEDDING_PROVIDER,
+    CandidateContextAssembler,
+    ToolRegistryService,
+    CandidateKnowledgeRetrievalService,
+    CandidateKnowledgeIndexerService,
+    CandidateKnowledgeCatalogService,
+  ],
 })
 export class AiModule {}

@@ -33,10 +33,7 @@ export class RecruiterPasswordResetController {
     type: PasswordResetRequestResponse,
   })
   @ApiBadRequestResponse({ description: 'Payload không hợp lệ' })
-  requestPasswordReset(
-    @Body() dto: RequestPasswordResetDto,
-    @Headers('x-locale') locale?: string,
-  ) {
+  requestPasswordReset(@Body() dto: RequestPasswordResetDto, @Headers('x-locale') locale?: string) {
     return this.recruiterAuthService.requestPasswordReset(dto, locale);
   }
 

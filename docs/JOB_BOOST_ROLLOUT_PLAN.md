@@ -10,17 +10,17 @@
 
 Job Boost là **vị trí tuyển dụng được tài trợ trong 7 ngày**, không phải quyền được thay thế hoàn toàn kết quả phù hợp tự nhiên.
 
-| Chính sách | Quyết định triển khai |
-| --- | --- |
-| Gói Free | 1 lượt Boost / chu kỳ 30 ngày để trải nghiệm giá trị thực tế. |
-| Gói Pro | 10 lượt Boost / chu kỳ 30 ngày. |
-| Đơn vị tiêu | 1 lượt = 1 tin được tài trợ tối đa 7 ngày. |
-| Cộng dồn | Không cộng dồn credit qua chu kỳ hoặc sau khi gói hết hạn. |
-| Phạm vi bản đầu | Một sản phẩm duy nhất: `BOOSTED_JOB`. Không đưa lựa chọn `URGENT` ra UI. |
-| Hiển thị candidate | Nhãn rõ `Được tài trợ`, không gọi là `Hot`, `Phù hợp`, hay `Được đề xuất`. |
-| Phân phối | Tối đa 2 vị trí tài trợ trong 20 kết quả; giới hạn 2 tin/công ty trong cùng tập kết quả. |
-| Email/push | Không gửi chỉ vì Boost ở bản đầu. Đây là hạng mục sau, cần consent và frequency cap. |
-| Cam kết hiệu quả | Báo cáo impression/click/application; không hứa số view hay số CV tối thiểu. |
+| Chính sách         | Quyết định triển khai                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| Gói Free           | 1 lượt Boost / chu kỳ 30 ngày để trải nghiệm giá trị thực tế.                            |
+| Gói Pro            | 10 lượt Boost / chu kỳ 30 ngày.                                                          |
+| Đơn vị tiêu        | 1 lượt = 1 tin được tài trợ tối đa 7 ngày.                                               |
+| Cộng dồn           | Không cộng dồn credit qua chu kỳ hoặc sau khi gói hết hạn.                               |
+| Phạm vi bản đầu    | Một sản phẩm duy nhất: `BOOSTED_JOB`. Không đưa lựa chọn `URGENT` ra UI.                 |
+| Hiển thị candidate | Nhãn rõ `Được tài trợ`, không gọi là `Hot`, `Phù hợp`, hay `Được đề xuất`.               |
+| Phân phối          | Tối đa 2 vị trí tài trợ trong 20 kết quả; giới hạn 2 tin/công ty trong cùng tập kết quả. |
+| Email/push         | Không gửi chỉ vì Boost ở bản đầu. Đây là hạng mục sau, cần consent và frequency cap.     |
+| Cam kết hiệu quả   | Báo cáo impression/click/application; không hứa số view hay số CV tối thiểu.             |
 
 `URGENT` trong schema hiện tại được giữ để tương thích dữ liệu cũ. Nếu sau này cần nhãn “Tuyển gấp”, đó phải là một chính sách riêng có điều kiện nghiệp vụ rõ ràng, không phải một loại quảng cáo thứ hai dùng chung credit.
 
@@ -122,11 +122,11 @@ Candidate mở /jobs với query/filter
 
 Các slot hiển thị:
 
-| Bề mặt | Số lượng tối đa | Vị trí | Điều kiện |
-| --- | ---: | --- | --- |
-| `/jobs` list/grid | 2 trên 20 kết quả | slot 3 và 12, không đẩy pagination | phải khớp filter/query |
-| Homepage | 2–4 | section riêng `Việc làm được tài trợ` | chỉ job public hợp lệ |
-| Job detail | 0 | không bán placement tại trang chi tiết | không áp dụng |
+| Bề mặt            |   Số lượng tối đa | Vị trí                                 | Điều kiện              |
+| ----------------- | ----------------: | -------------------------------------- | ---------------------- |
+| `/jobs` list/grid | 2 trên 20 kết quả | slot 3 và 12, không đẩy pagination     | phải khớp filter/query |
+| Homepage          |               2–4 | section riêng `Việc làm được tài trợ`  | chỉ job public hợp lệ  |
+| Job detail        |                 0 | không bán placement tại trang chi tiết | không áp dụng          |
 
 Nếu chưa thể triển khai pagination server-side an toàn, release v1 phải dùng section sponsored riêng thay vì frontend tự sort toàn bộ danh sách. Không được phát hành một “Boost” chỉ thay đổi thứ tự mảng đã tải rồi coi là có cam kết phân phối.
 

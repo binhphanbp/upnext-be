@@ -55,10 +55,7 @@ export class NotificationsController {
   @ApiResponse({ status: 200, description: 'Notification marked as read.' })
   @ApiResponse({ status: 404, description: 'Notification not found.' })
   @ApiResponse({ status: 403, description: 'Forbidden.' })
-  async markAsRead(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  async markAsRead(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.notificationsService.markAsRead(id, user.id, user.role);
   }
 

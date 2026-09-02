@@ -14,8 +14,7 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: databaseUrl }),
 });
 
-const uid = (n: number) =>
-  `b7e90a11-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const uid = (n: number) => `b7e90a11-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 const daysAgo = (days: number) => {
   const date = new Date();

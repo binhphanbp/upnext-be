@@ -47,7 +47,9 @@ export class HiringReportsService {
       select: { id: true },
     });
     if (existing) {
-      throw new ConflictException('A hiring result report has already been submitted for this job post');
+      throw new ConflictException(
+        'A hiring result report has already been submitted for this job post',
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {

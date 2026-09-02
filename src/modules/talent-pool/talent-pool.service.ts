@@ -39,7 +39,9 @@ export class TalentPoolService {
     const pageSize = dto.pageSize ?? 20;
     const where = {
       ...VISIBLE_TO_RECRUITER_WHERE,
-      ...(dto.city ? { preferredSearchCity: { contains: dto.city, mode: 'insensitive' as const } } : {}),
+      ...(dto.city
+        ? { preferredSearchCity: { contains: dto.city, mode: 'insensitive' as const } }
+        : {}),
       ...(dto.skillIds?.length ? { skills: { some: { skillId: { in: dto.skillIds } } } } : {}),
     };
 

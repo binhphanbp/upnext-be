@@ -1,119 +1,237 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Thư mời nhận việc - UpNext</title>
-</head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px 0; color: #334155;">
-  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;">
-    
-    <!-- Top accent line -->
-    <div style="height: 6px; background-color: #f59e0b;"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thư mời nhận việc - UpNext</title>
+  </head>
+  <body
+    style="
+      font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f1f5f9;
+      margin: 0;
+      padding: 24px 0;
+      color: #334155;
+    "
+  >
+    <div
+      style="
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+      "
+    >
+      <!-- Top accent line -->
+      <div style="height: 6px; background-color: #f59e0b"></div>
 
-    <div style="padding: 32px 36px;">
-      
-      <!-- Top header bar: Logo & Date -->
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-        <tr>
-          <td style="text-align: left; vertical-align: middle;">
-            <img src="{{logoSrc}}" alt="UpNext" style="height: 28px; width: auto; display: block;" />
-          </td>
-          <td style="text-align: right; vertical-align: middle; font-size: 13px; color: #94a3b8; font-weight: 500;">
-            {{sentDate}}
-          </td>
-        </tr>
-      </table>
-
-      <!-- Offer Banner Box -->
-      <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 28px;">
-        <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: #d97706; line-height: 1.3;">
-          🎉 Thư Mời Nhận Việc (Job Offer)
-        </h1>
-        <p style="margin: 8px 0 0 0; font-size: 14px; font-weight: 600; color: #92400e;">
-          Công ty <strong>{{companyName}}</strong> trân trọng mời bạn gia nhập đội ngũ.
-        </p>
-      </div>
-
-      <!-- Greeting & Intro -->
-      <p style="font-size: 15px; margin: 0 0 14px 0; color: #0f172a;">
-        Xin chào <strong>{{candidateName}}</strong>,
-      </p>
-      <p style="font-size: 14px; line-height: 1.6; margin: 0 0 24px 0; color: #334155;">
-        Chúc mừng bạn! Qua quá trình ứng tuyển và phỏng vấn, <strong>{{companyName}}</strong> rất ấn tượng với năng lực của bạn và trân trọng gửi đến bạn đề nghị nhận việc cho vị trí <strong>{{jobTitle}}</strong>.
-      </p>
-
-      <!-- Details Card -->
-      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;">
-        <h2 style="margin: 0 0 16px 0; font-size: 13px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">
-          📌 THÔNG TIN ĐỀ NGHỊ TUYỂN DỤNG
-        </h2>
-
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 2;">
+      <div style="padding: 32px 36px">
+        <!-- Top header bar: Logo & Date -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px">
           <tr>
-            <td style="width: 40%; color: #64748b; font-weight: 500; padding: 2px 0;">Vị trí tuyển dụng:</td>
-            <td style="width: 60%; color: #0f172a; font-weight: 700; padding: 2px 0;">{{jobTitle}}</td>
-          </tr>
-          <tr>
-            <td style="color: #64748b; font-weight: 500; padding: 2px 0;">Mức lương đề xuất:</td>
-            <td style="color: #059669; font-weight: 700; padding: 2px 0;">{{salaryOffer}}</td>
-          </tr>
-          <tr>
-            <td style="color: #64748b; font-weight: 500; padding: 2px 0;">Ngày bắt đầu làm việc:</td>
-            <td style="color: #0f172a; font-weight: 600; padding: 2px 0;">{{startDate}}</td>
-          </tr>
-          <tr>
-            <td style="color: #64748b; font-weight: 500; padding: 2px 0;">Hạn phản hồi Offer:</td>
-            <td style="color: #dc2626; font-weight: 700; padding: 2px 0;">{{expiryDateText}}</td>
+            <td style="text-align: left; vertical-align: middle">
+              <img
+                src="{{logoSrc}}"
+                alt="UpNext"
+                style="height: 28px; width: auto; display: block"
+              />
+            </td>
+            <td
+              style="
+                text-align: right;
+                vertical-align: middle;
+                font-size: 13px;
+                color: #94a3b8;
+                font-weight: 500;
+              "
+            >
+              {{sentDate}}
+            </td>
           </tr>
         </table>
-      </div>
 
-      <!-- Recruiter Note Quote Box -->
-      <div style="margin-bottom: 24px;">
-        <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 700; color: #1e293b;">
-          ✉️ Thư ngỏ từ Nhà tuyển dụng:
+        <!-- Offer Banner Box -->
+        <div
+          style="
+            background-color: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 28px;
+          "
+        >
+          <h1
+            style="margin: 0; font-size: 22px; font-weight: 800; color: #d97706; line-height: 1.3"
+          >
+            🎉 Thư Mời Nhận Việc (Job Offer)
+          </h1>
+          <p style="margin: 8px 0 0 0; font-size: 14px; font-weight: 600; color: #92400e">
+            Công ty <strong>{{companyName}}</strong> trân trọng mời bạn gia nhập đội ngũ.
+          </p>
+        </div>
+
+        <!-- Greeting & Intro -->
+        <p style="font-size: 15px; margin: 0 0 14px 0; color: #0f172a">
+          Xin chào <strong>{{candidateName}}</strong>,
         </p>
-        <div style="border-left: 4px solid #10b981; background-color: #f0fdf4; padding: 16px 20px; border-radius: 0 12px 12px 0; font-size: 13px; color: #166534; line-height: 1.6;">
-          {{offerNoteHtml}}
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 24px 0; color: #334155">
+          Chúc mừng bạn! Qua quá trình ứng tuyển và phỏng vấn, <strong>{{companyName}}</strong> rất
+          ấn tượng với năng lực của bạn và trân trọng gửi đến bạn đề nghị nhận việc cho vị trí
+          <strong>{{jobTitle}}</strong>.
+        </p>
+
+        <!-- Details Card -->
+        <div
+          style="
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+          "
+        >
+          <h2
+            style="
+              margin: 0 0 16px 0;
+              font-size: 13px;
+              font-weight: 800;
+              color: #1e293b;
+              letter-spacing: 0.5px;
+              text-transform: uppercase;
+            "
+          >
+            📌 THÔNG TIN ĐỀ NGHỊ TUYỂN DỤNG
+          </h2>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 2">
+            <tr>
+              <td style="width: 40%; color: #64748b; font-weight: 500; padding: 2px 0">
+                Vị trí tuyển dụng:
+              </td>
+              <td style="width: 60%; color: #0f172a; font-weight: 700; padding: 2px 0">
+                {{jobTitle}}
+              </td>
+            </tr>
+            <tr>
+              <td style="color: #64748b; font-weight: 500; padding: 2px 0">Mức lương đề xuất:</td>
+              <td style="color: #059669; font-weight: 700; padding: 2px 0">{{salaryOffer}}</td>
+            </tr>
+            <tr>
+              <td style="color: #64748b; font-weight: 500; padding: 2px 0">
+                Ngày bắt đầu làm việc:
+              </td>
+              <td style="color: #0f172a; font-weight: 600; padding: 2px 0">{{startDate}}</td>
+            </tr>
+            <tr>
+              <td style="color: #64748b; font-weight: 500; padding: 2px 0">Hạn phản hồi Offer:</td>
+              <td style="color: #dc2626; font-weight: 700; padding: 2px 0">{{expiryDateText}}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Recruiter Note Quote Box -->
+        <div style="margin-bottom: 24px">
+          <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 700; color: #1e293b">
+            ✉️ Thư ngỏ từ Nhà tuyển dụng:
+          </p>
+          <div
+            style="
+              border-left: 4px solid #10b981;
+              background-color: #f0fdf4;
+              padding: 16px 20px;
+              border-radius: 0 12px 12px 0;
+              font-size: 13px;
+              color: #166534;
+              line-height: 1.6;
+            "
+          >
+            {{offerNoteHtml}}
+          </div>
+        </div>
+
+        <!-- Optional Attached File Box -->
+        {{?offerLetterUrl}}
+        <div
+          style="
+            margin-bottom: 24px;
+            padding: 16px 20px;
+            background-color: #fffbeb;
+            border: 1px solid #fef3c7;
+            border-radius: 12px;
+            text-align: center;
+          "
+        >
+          <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: #92400e">
+            📎 Tài liệu đính kèm từ Nhà tuyển dụng:
+          </p>
+          <a
+            href="{{offerLetterUrl}}"
+            target="_blank"
+            style="
+              display: inline-block;
+              background-color: #f59e0b;
+              color: #ffffff;
+              font-size: 13px;
+              font-weight: 700;
+              padding: 10px 20px;
+              border-radius: 8px;
+              text-decoration: none;
+            "
+          >
+            📄 Tải xuống {{attachmentName}}
+          </a>
+        </div>
+        {{/offerLetterUrl}}
+
+        <!-- CTA Button to respond to offer -->
+        <div style="text-align: center; margin: 28px 0">
+          <a
+            href="{{applicationLink}}"
+            style="
+              display: inline-block;
+              background-color: #059669;
+              color: #ffffff;
+              font-weight: 700;
+              font-size: 15px;
+              padding: 14px 28px;
+              border-radius: 10px;
+              text-decoration: none;
+              box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+            "
+          >
+            👉 Xem & Phản hồi Thư mời nhận việc
+          </a>
+        </div>
+
+        <!-- Instruction paragraph -->
+        <p
+          style="
+            font-size: 13px;
+            line-height: 1.6;
+            color: #475569;
+            margin: 0 0 28px 0;
+            text-align: center;
+          "
+        >
+          Vui lòng đăng nhập vào tài khoản UpNext của bạn để phản hồi thư mời nhận việc trước thời
+          hạn nêu trên.
+        </p>
+
+        <!-- Footer Divider & Text -->
+        <div style="border-top: 1px dotted #cbd5e1; padding-top: 20px; text-align: center">
+          <p style="margin: 0 0 4px 0; font-size: 13px; font-weight: 700; color: #64748b">
+            Cảm ơn bạn đã lựa chọn đồng hành cùng UpNext!
+          </p>
+          <p style="margin: 0; font-size: 12px; color: #94a3b8">
+            UpNext - Nền tảng tuyển dụng & phát triển sự nghiệp IT
+          </p>
         </div>
       </div>
-
-      <!-- Optional Attached File Box -->
-      {{?offerLetterUrl}}
-      <div style="margin-bottom: 24px; padding: 16px 20px; background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; text-align: center;">
-        <p style="margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: #92400e;">
-          📎 Tài liệu đính kèm từ Nhà tuyển dụng:
-        </p>
-        <a href="{{offerLetterUrl}}" target="_blank" style="display: inline-block; background-color: #f59e0b; color: #ffffff; font-size: 13px; font-weight: 700; padding: 10px 20px; border-radius: 8px; text-decoration: none;">
-          📄 Tải xuống {{attachmentName}}
-        </a>
-      </div>
-      {{/offerLetterUrl}}
-
-      <!-- CTA Button to respond to offer -->
-      <div style="text-align: center; margin: 28px 0;">
-        <a href="{{applicationLink}}" style="display: inline-block; background-color: #059669; color: #ffffff; font-weight: 700; font-size: 15px; padding: 14px 28px; border-radius: 10px; text-decoration: none; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);">
-          👉 Xem & Phản hồi Thư mời nhận việc
-        </a>
-      </div>
-
-      <!-- Instruction paragraph -->
-      <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0 0 28px 0; text-align: center;">
-        Vui lòng đăng nhập vào tài khoản UpNext của bạn để phản hồi thư mời nhận việc trước thời hạn nêu trên.
-      </p>
-
-      <!-- Footer Divider & Text -->
-      <div style="border-top: 1px dotted #cbd5e1; padding-top: 20px; text-align: center;">
-        <p style="margin: 0 0 4px 0; font-size: 13px; font-weight: 700; color: #64748b;">
-          Cảm ơn bạn đã lựa chọn đồng hành cùng UpNext!
-        </p>
-        <p style="margin: 0; font-size: 12px; color: #94a3b8;">
-          UpNext - Nền tảng tuyển dụng & phát triển sự nghiệp IT
-        </p>
-      </div>
-
     </div>
-  </div>
-</body>
+  </body>
 </html>

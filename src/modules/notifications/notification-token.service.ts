@@ -27,8 +27,7 @@ export class NotificationTokenService {
         role === ActorType.CANDIDATE ? userId : existing?.candidateAccountId || null,
       recruiterAccountId:
         role === ActorType.RECRUITER ? userId : existing?.recruiterAccountId || null,
-      adminUserId:
-        role === ActorType.ADMIN ? userId : existing?.adminUserId || null,
+      adminUserId: role === ActorType.ADMIN ? userId : existing?.adminUserId || null,
     };
 
     return this.prisma.notificationToken.upsert({

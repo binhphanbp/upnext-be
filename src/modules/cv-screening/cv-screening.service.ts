@@ -12,11 +12,23 @@ import { isJobPostAccessibleToRecruiter } from '../../common/authorization/job-p
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { SubscriptionFeature } from '../subscriptions/feature-registry';
 import { RunCvScreeningDto } from './dto/run-cv-screening.dto';
+import { EmbeddingService } from './embedding.service';
 import {
   estimateGeminiCostVnd,
   GeminiScoringService,
   GeminiScoreResult,
+  CvScoringContext,
 } from './gemini-scoring.service';
+import {
+  applyWeights,
+  buildPromptFingerprint,
+  readConfigSnapshot,
+  readScoringWeights,
+  ResolvedScreeningConfig,
+  resolveScreeningConfig,
+  ScoringWeights,
+  weightScaleFactor,
+} from './screening-config.resolver';
 import {
   calculateEducationMatchScore,
   EducationMatchScoreResult,
@@ -31,10 +43,23 @@ import { buildCvText, buildJobText, CV_TEXT_INCLUDE, JOB_TEXT_INCLUDE } from './
 // Gemini calls. Every application below this cap is scored -- there is no
 // semantic pre-filter, so nothing is silently dropped from a normal run.
 const MAX_APPLICATIONS_PER_RUN = 200;
-const GEMINI_BATCH_SIZE = 4;
-const GEMINI_BATCH_CONCURRENCY = 3;
+// Was 8. Verified live against the real gateway: an 8-CV batch consistently
+// hit the full 90s batch timeout and fell back to scoring each CV one at a
+// time (`scoreAndPersistBatch`'s `canFallback` path) -- meaning a "batch of
+// 8" run was actually running at fallback concurrency (2, one CV per call)
+// almost the whole time, not batch concurrency. A smaller batch is a lighter
+// prompt/response that the gateway can answer within the timeout on the
+// first try, so runs actually get the parallelism below instead of silently
+// degrading to the slow path on every batch.
+const GEMINI_BATCH_SIZE = 3;
+// Concurrency is a request-shape/rate-limit tradeoff, not an accuracy one:
+// each batch is still scored independently with the same rubric/prompt --
+// the scoring model tier and batch size (accuracy) are unchanged, only how
+// many requests are in flight at once. `withRetry` in GeminiScoringService
+// absorbs an occasional 429/timeout from bursty concurrent calls.
+const GEMINI_BATCH_CONCURRENCY = 6;
 const GEMINI_FALLBACK_CONCURRENCY = 3;
-const SCORING_VERSION = 'cv-screening-v11-ai-gateway-vi';
+const SCORING_VERSION = 'cv-screening-v12-weighted-config';
 type TerminalCvScreeningRunStatus = Exclude<CvScreeningRunStatus, 'pending' | 'processing'>;
 
 type ApplicationForScreening = Prisma.ApplicationGetPayload<{
@@ -78,6 +103,7 @@ export class CvScreeningService {
     private readonly prisma: PrismaService,
     private readonly geminiScoringService: GeminiScoringService,
     private readonly quota: SubscriptionQuotaService,
+    private readonly embeddingService: EmbeddingService,
   ) {}
 
   async startRun(recruiterId: string, dto: RunCvScreeningDto) {
@@ -108,27 +134,46 @@ export class CvScreeningService {
       throw new ForbiddenException('Bạn không có quyền truy cập tin tuyển dụng này.');
     }
 
-    const effectiveLimit = Math.min(
-      dto.limit ?? MAX_APPLICATIONS_PER_RUN,
-      MAX_APPLICATIONS_PER_RUN,
-    );
-    const [applicationCount, applicationSnapshot] = await Promise.all([
+    const [applicationCount, applicationPool, companyConfig, jobConfig] = await Promise.all([
       this.prisma.application.count({ where: { jobPostId: dto.jobPostId } }),
       this.prisma.application.findMany({
         where: { jobPostId: dto.jobPostId },
-        select: { id: true },
+        select: { id: true, cvVersionId: true },
         orderBy: { submittedAt: 'desc' },
-        take: effectiveLimit,
+        take: MAX_APPLICATIONS_PER_RUN,
+      }),
+      this.prisma.cvScreeningCompanyConfig.findUnique({
+        where: { companyId: recruiter.companyId },
+      }),
+      this.prisma.jobPostCvScreeningConfig.findUnique({
+        where: { jobPostId: dto.jobPostId },
       }),
     ]);
+    // The job override wins over the company defaults, which win over the
+    // system defaults. Resolved once here and snapshotted onto the run, so a
+    // config edit while the run is queued can't change how it scores.
+    const config = resolveScreeningConfig(companyConfig, jobConfig);
+
+    // `limit` is "Top N" (10/20/...), chosen per run on the screening screen:
+    // the recruiter wants only the N CVs closest to the job description
+    // AI-scored, not every applicant. Ranking by embedding similarity first
+    // (cheap, fast, already computed/cached for other features) and sending
+    // only the winners to Gemini's slow, metered scoring is what gets a run
+    // down to 1-2 minutes -- scoring every CV with the LLM is both the cost
+    // and the latency problem, not just a throughput setting. Omitting
+    // `limit` keeps the "score everyone" behaviour.
+    const limit = dto.limit;
+    const applicationIds =
+      limit && limit < applicationPool.length
+        ? await this.selectTopApplicationsByEmbedding(dto.jobPostId, applicationPool, limit)
+        : applicationPool.map((application) => application.id);
     // Persist the exact application set with the run. A retry must never score
     // a newer applicant simply because the queue was delayed or recovered.
-    const applicationIds = applicationSnapshot.map((application) => application.id);
     const totalApplications = applicationIds.length;
 
     if (applicationCount > totalApplications) {
-      this.logger.warn(
-        `Job post ${dto.jobPostId} has ${applicationCount} applications; capping this run at ${totalApplications}`,
+      this.logger.log(
+        `Job post ${dto.jobPostId} has ${applicationCount} applications; this run scores ${totalApplications} (limit=${limit ?? 'none'})`,
       );
     }
 
@@ -167,8 +212,9 @@ export class CvScreeningService {
           companyId: recruiter.companyId,
           recruiterAccountId: recruiter.id,
           totalApplications,
-          limit: dto.limit ?? null,
+          limit: limit ?? null,
           applicationIds,
+          configSnapshot: config,
           status: CvScreeningRunStatus.PENDING,
         },
       });
@@ -194,6 +240,62 @@ export class CvScreeningService {
     };
   }
 
+  /**
+   * Ranks the candidate pool by cosine similarity between the job's and each
+   * CV's embedding (`EmbeddingService.rankCvEmbeddings`, pgvector-backed with
+   * a JS fallback) and returns just the application ids for the top `limit`.
+   * Embedding compute/lookup is cheap and fast compared to a Gemini scoring
+   * call, so this is what makes "Top 10/20" both cheaper (fewer AI_CV_MATCHING
+   * credits) and faster (fewer, not just more parallel, Gemini calls) than
+   * scoring the whole pool.
+   *
+   * Never blocks a run on embedding trouble: if ranking fails for any reason
+   * (embedding provider down, pgvector unavailable and the JS fallback also
+   * errors, ...), this falls back to the same "most recent N" selection the
+   * service used before embedding pre-filtering existed.
+   */
+  private async selectTopApplicationsByEmbedding(
+    jobPostId: string,
+    applicationPool: Array<{ id: string; cvVersionId: string }>,
+    limit: number,
+  ): Promise<string[]> {
+    try {
+      const jobEmbedding = await this.embeddingService.getOrCreateJobEmbedding(jobPostId);
+      const cvVersionIds = applicationPool.map((application) => application.cvVersionId);
+      await this.embeddingService.getOrCreateCvEmbeddings(cvVersionIds);
+      // No similarity floor: the shortlist is purely "the N closest CVs".
+      // A recruiter-facing percentage threshold here was too abstract to set
+      // safely -- the recruiter-facing gate is the passing score on the final
+      // AI score instead.
+      const ranked = await this.embeddingService.rankCvEmbeddings(
+        jobEmbedding.vector,
+        cvVersionIds,
+        limit,
+        null,
+      );
+
+      if (ranked.length === 0) {
+        this.logger.warn(
+          `Embedding ranking returned no results for job ${jobPostId}; falling back to most recent ${limit}`,
+        );
+        return applicationPool.slice(0, limit).map((application) => application.id);
+      }
+
+      const applicationIdByCvVersionId = new Map(
+        applicationPool.map((application) => [application.cvVersionId, application.id]),
+      );
+      return ranked
+        .map((item) => applicationIdByCvVersionId.get(item.cvVersionId))
+        .filter((applicationId): applicationId is string => Boolean(applicationId));
+    } catch (error) {
+      this.logger.warn(
+        `Embedding pre-filter failed for job ${jobPostId}; falling back to most recent ${limit}`,
+        this.getErrorStack(error),
+      );
+      return applicationPool.slice(0, limit).map((application) => application.id);
+    }
+  }
+
   async getRun(recruiterId: string, runId: string) {
     const run = await this.getAuthorizedRun(recruiterId, runId);
 
@@ -210,11 +312,72 @@ export class CvScreeningService {
       attemptCount: run.attemptCount,
       nextAttemptAt: run.nextAttemptAt,
       errorMessage: run.errorMessage,
+      cancelRequestedAt: run.cancelRequestedAt,
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
     };
+  }
+
+  /**
+   * Cancels a run the recruiter no longer wants to wait for.
+   *
+   * - `PENDING` (worker hasn't claimed it yet): cancel outright and refund the
+   *   full quota reservation -- nothing was scored, nothing to keep.
+   * - `PROCESSING`: only flag it. The in-flight batch (already billed and
+   *   sent to Gemini) is always let to finish and persist, so cancelling
+   *   never discards paid work; the worker checks the flag between batches
+   *   (`isCancelRequested`) and stops scheduling further ones, then
+   *   `finishClaimedRun` settles the run as CANCELLED and refunds only the
+   *   CVs never scored.
+   * - Idempotent: calling this twice on an already-flagged PROCESSING run
+   *   returns the same CANCEL_REQUESTED state instead of erroring.
+   */
+  async cancelRun(recruiterId: string, runId: string) {
+    await this.getAuthorizedRun(recruiterId, runId);
+
+    const cancelledPending = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.cvScreeningRun.updateMany({
+        where: { id: runId, status: CvScreeningRunStatus.PENDING },
+        data: {
+          status: CvScreeningRunStatus.CANCELLED,
+          cancelRequestedAt: new Date(),
+          finishedAt: new Date(),
+          errorMessage: 'Đã hủy theo yêu cầu trước khi bắt đầu chấm.',
+        },
+      });
+      if (!claimed.count) return false;
+
+      const reservation = await tx.subscriptionUsage.findUnique({
+        where: { idempotencyKey: `cv-screening:${runId}` },
+      });
+      if (reservation) {
+        await this.quota.reverse(tx, reservation.id, 'cv-screening-cancelled');
+      }
+      return true;
+    });
+    if (cancelledPending) {
+      return { runId, status: CvScreeningRunStatus.CANCELLED };
+    }
+
+    const flagged = await this.prisma.cvScreeningRun.updateMany({
+      where: { id: runId, status: CvScreeningRunStatus.PROCESSING, cancelRequestedAt: null },
+      data: { cancelRequestedAt: new Date() },
+    });
+    if (flagged.count > 0) {
+      return { runId, status: 'CANCEL_REQUESTED' as const };
+    }
+
+    const current = await this.prisma.cvScreeningRun.findUnique({ where: { id: runId } });
+    if (current?.status === CvScreeningRunStatus.PROCESSING && current.cancelRequestedAt) {
+      return { runId, status: 'CANCEL_REQUESTED' as const };
+    }
+
+    throw new ConflictException({
+      code: 'CV_SCREENING_RUN_NOT_CANCELLABLE',
+      message: 'Lượt sàng lọc này đã kết thúc, không thể hủy.',
+    });
   }
 
   async getResults(recruiterId: string, runId: string) {
@@ -260,6 +423,9 @@ export class CvScreeningService {
       missingSkills: this.toStringArray(score.missingSkills),
       summary: score.summary,
       recommendation: this.toVietnameseRecommendation(score.recommendation),
+      missingMustHaveCount: this.readVerdicts(score.mustHaveResults).filter(
+        (verdict) => !verdict.met,
+      ).length,
       cvFileUrl:
         score.application.cvVersion.sourceFile?.publicUrl ??
         `/api/recruiter/applications/${score.applicationId}/cv`,
@@ -298,6 +464,8 @@ export class CvScreeningService {
       throw new NotFoundException('AI score not found for this application');
     }
 
+    const weights = readScoringWeights(score.scoringWeights);
+
     return {
       id: score.id,
       runId: score.runId,
@@ -317,8 +485,19 @@ export class CvScreeningService {
       recommendation: this.toVietnameseRecommendation(score.recommendation),
       matchedSkills: this.toStringArray(score.matchedSkills),
       missingSkills: this.toStringArray(score.missingSkills),
-      criteriaBreakdown: this.toCriteriaBreakdown(score.rawAiResponse),
-      evaluationRubric: CV_SCORING_RUBRIC,
+      // The stored breakdown is on the fixed reference scale; the recruiter
+      // sees it in the weights this score was actually computed with, so the
+      // per-item points always add up to the group totals above. Rows scored
+      // before weights existed carry the reference weights, so they scale by
+      // 1 and read exactly as they always did.
+      criteriaBreakdown: this.scaleBreakdown(
+        this.toCriteriaBreakdown(score.rawAiResponse) as CvScoringCriterionBreakdown[],
+        weights,
+      ),
+      evaluationRubric: this.scaleRubric(weights),
+      scoringWeights: weights,
+      mustHaveResults: this.readVerdicts(score.mustHaveResults),
+      niceToHaveResults: this.readVerdicts(score.niceToHaveResults),
       cvFileUrl:
         score.application.cvVersion.sourceFile?.publicUrl ??
         `/api/recruiter/applications/${score.applicationId}/cv`,
@@ -378,6 +557,19 @@ export class CvScreeningService {
       });
     }, 60_000);
 
+    // Aborts in-flight Gemini calls the moment a cancel is requested, instead
+    // of leaving them to run out their own timeout (90s x 3 retries, ~4.5min
+    // worst case). `mapLimit`'s `shouldStop` check below only stops the NEXT
+    // batch from starting -- this is what makes an already-dispatched batch
+    // actually stop too, so cancelling a slow run feels like seconds, not
+    // minutes.
+    const cancelAbortController = new AbortController();
+    const cancelWatchTimer = setInterval(() => {
+      void this.isCancelRequested(runId).then((cancelled) => {
+        if (cancelled) cancelAbortController.abort(new Error('CV screening run cancelled'));
+      });
+    }, 3_000);
+
     try {
       const effectiveLimit = Math.min(
         run.limit ?? MAX_APPLICATIONS_PER_RUN,
@@ -427,6 +619,18 @@ export class CvScreeningService {
       }
 
       const jobText = buildJobText(jobPost);
+      // Read the config the run was created with, not the current one: a
+      // recruiter editing weights while a run is in flight must not produce a
+      // half-old-half-new ranking. Runs created before the snapshot column
+      // existed fall back to the system defaults.
+      const config = await this.resolveRunConfig(run);
+      const scoringContext: CvScoringContext = {
+        weights: config.weights,
+        mustHaveCriteria: config.mustHaveCriteria,
+        niceToHaveCriteria: config.niceToHaveCriteria,
+        customPrompt: config.customPrompt,
+      };
+      const requiredEducationLevel = jobPost.educationLevel;
       const cvTextByVersionId = await this.loadCvTexts(
         applications.map((application) => application.cvVersionId),
       );
@@ -459,16 +663,33 @@ export class CvScreeningService {
         await this.incrementProgress(runId, missingCvTextItems.length, missingCvTextItems.length);
       }
 
-      const toScore = await this.reuseFreshScores(runId, jobPost.updatedAt, selected);
+      const toScore = await this.reuseFreshScores(runId, jobPost.updatedAt, selected, config);
       await this.mapLimit(
         this.chunk(toScore, GEMINI_BATCH_SIZE),
         GEMINI_BATCH_CONCURRENCY,
-        (batch) => this.scoreAndPersistBatch(runId, jobText, jobPost.educationLevel, batch),
+        (batch) =>
+          this.scoreAndPersistBatch(
+            runId,
+            jobText,
+            requiredEducationLevel,
+            batch,
+            config,
+            true,
+            cancelAbortController.signal,
+            scoringContext,
+          ),
+        () => this.isCancelRequested(runId),
       );
 
-      await this.finishClaimedRun(runId, workerId, CvScreeningRunStatus.COMPLETED);
+      const cancelled = await this.isCancelRequested(runId);
+      await this.finishClaimedRun(
+        runId,
+        workerId,
+        cancelled ? CvScreeningRunStatus.CANCELLED : CvScreeningRunStatus.COMPLETED,
+      );
     } finally {
       clearInterval(renewLeaseTimer);
+      clearInterval(cancelWatchTimer);
     }
   }
 
@@ -502,12 +723,19 @@ export class CvScreeningService {
       // CV. Deriving the final state from it makes recovery idempotent even if
       // a process dies between score persistence and progress-counter updates.
       const successfulCount = await tx.applicationAiScore.count({ where: { runId } });
+      // A recruiter-requested cancel takes priority over "partial/failed"
+      // framing once anything is genuinely left unscored -- the run stopped
+      // on purpose, not because scoring broke. If cancellation raced the last
+      // batch finishing, `successfulCount >= totalApplications` still wins:
+      // the recruiter gets their completed results, not a cancelled run.
       const finalStatus =
-        successfulCount >= run.totalApplications
-          ? CvScreeningRunStatus.COMPLETED
-          : successfulCount === 0
-            ? CvScreeningRunStatus.FAILED
-            : CvScreeningRunStatus.PARTIAL_FAILED;
+        run.cancelRequestedAt && successfulCount < run.totalApplications
+          ? CvScreeningRunStatus.CANCELLED
+          : successfulCount >= run.totalApplications
+            ? CvScreeningRunStatus.COMPLETED
+            : successfulCount === 0
+              ? CvScreeningRunStatus.FAILED
+              : CvScreeningRunStatus.PARTIAL_FAILED;
       const finalFailedCount = Math.max(0, run.totalApplications - successfulCount);
       let settlementWarning: string | null = null;
 
@@ -555,9 +783,12 @@ export class CvScreeningService {
           errorMessage:
             finalStatus === CvScreeningRunStatus.COMPLETED
               ? null
-              : (settlementWarning ??
-                errorMessage ??
-                'Một số CV không thể được chấm; quota chưa sử dụng đã được hoàn lại.'),
+              : finalStatus === CvScreeningRunStatus.CANCELLED
+                ? (settlementWarning ??
+                  `Đã hủy theo yêu cầu. Đã chấm ${successfulCount}/${run.totalApplications} CV trước khi hủy; phần còn lại đã được hoàn lượt.`)
+                : (settlementWarning ??
+                  errorMessage ??
+                  'Một số CV không thể được chấm; quota chưa sử dụng đã được hoàn lại.'),
           finishedAt: new Date(),
           lockedAt: null,
           lockedBy: null,
@@ -571,6 +802,37 @@ export class CvScreeningService {
         });
       }
     });
+  }
+
+  /**
+   * The config a run must score with: the snapshot taken when it was created,
+   * so an edit while it was queued can't change it mid-flight. Runs created
+   * before the snapshot column existed resolve live config instead, and fall
+   * back to the system defaults if the company/job never configured anything.
+   */
+  private async resolveRunConfig(run: {
+    companyId: string;
+    jobPostId: string;
+    configSnapshot: Prisma.JsonValue;
+  }): Promise<ResolvedScreeningConfig> {
+    const snapshot = readConfigSnapshot(run.configSnapshot);
+    if (snapshot) {
+      return snapshot;
+    }
+
+    const [companyConfig, jobConfig] = await Promise.all([
+      this.prisma.cvScreeningCompanyConfig.findUnique({ where: { companyId: run.companyId } }),
+      this.prisma.jobPostCvScreeningConfig.findUnique({ where: { jobPostId: run.jobPostId } }),
+    ]);
+    return resolveScreeningConfig(companyConfig, jobConfig);
+  }
+
+  private async isCancelRequested(runId: string): Promise<boolean> {
+    const run = await this.prisma.cvScreeningRun.findUnique({
+      where: { id: runId },
+      select: { cancelRequestedAt: true },
+    });
+    return Boolean(run?.cancelRequestedAt);
   }
 
   private async renewLease(runId: string, workerId: string) {
@@ -664,18 +926,30 @@ export class CvScreeningService {
     runId: string,
     jobPostUpdatedAt: Date,
     selected: ScreeningCandidate[],
+    config: ResolvedScreeningConfig,
   ) {
     if (selected.length === 0) {
       return selected;
     }
 
+    const fingerprint = buildPromptFingerprint(config, SCORING_VERSION);
     const existingScores = await this.prisma.applicationAiScore.findMany({
       where: {
         applicationId: { in: selected.map((item) => item.application.id) },
         scoringVersion: SCORING_VERSION,
         updatedAt: { gte: jobPostUpdatedAt },
+        // A cached score is only reusable if it was produced under the same
+        // criteria/custom prompt. Weights are deliberately not part of the
+        // fingerprint -- they are re-applied below without another AI call.
+        promptFingerprint: fingerprint,
       },
-      select: { applicationId: true, runId: true },
+      select: {
+        id: true,
+        applicationId: true,
+        runId: true,
+        scoringWeights: true,
+        rawAiResponse: true,
+      },
     });
 
     if (existingScores.length === 0) {
@@ -692,11 +966,83 @@ export class CvScreeningService {
       await this.incrementProgress(runId, reusableFromOtherRun.length, 0);
     }
 
+    const reweighted = await this.reweightCachedScores(existingScores, config);
+
     this.logger.log(
-      `Reused ${reusableApplicationIds.size} fresh AI score(s) for CV screening run ${runId}`,
+      `Reused ${reusableApplicationIds.size} fresh AI score(s) for CV screening run ${runId}` +
+        (reweighted > 0 ? ` (${reweighted} re-weighted locally, no AI call)` : ''),
     );
 
     return selected.filter((item) => !reusableApplicationIds.has(item.application.id));
+  }
+
+  /**
+   * Re-applies the current weights to cached scores whose AI
+   * output is still valid.
+   *
+   * This is what makes "change the weights" instant and free: the model's
+   * per-criterion scores live in `rawAiResponse.criteriaBreakdown` on the
+   * reference scale, so a new split is pure arithmetic -- no Gemini call, no
+   * AI_CV_MATCHING credit, no waiting.
+   */
+  private async reweightCachedScores(
+    scores: Array<{
+      id: string;
+      scoringWeights: Prisma.JsonValue;
+      rawAiResponse: Prisma.JsonValue;
+    }>,
+    config: ResolvedScreeningConfig,
+  ): Promise<number> {
+    const stale = scores.filter(
+      (score) => !this.sameWeights(readScoringWeights(score.scoringWeights), config.weights),
+    );
+    if (stale.length === 0) {
+      return 0;
+    }
+
+    let updated = 0;
+    for (const score of stale) {
+      const breakdown = this.toCriteriaBreakdown(
+        score.rawAiResponse,
+      ) as CvScoringCriterionBreakdown[];
+      if (breakdown.length === 0) {
+        // Nothing to recompute from (legacy row without a breakdown): leave it
+        // as scored rather than inventing numbers.
+        continue;
+      }
+
+      const educationScore = this.referenceEducationScore(breakdown);
+      const weighted = applyWeights(breakdown, educationScore, config.weights);
+      await this.prisma.applicationAiScore.update({
+        where: { id: score.id },
+        data: {
+          ...weighted,
+          aiScore: weighted.finalScore,
+          scoringWeights: config.weights,
+          recommendation: this.recommendationForScore(weighted.finalScore),
+        },
+      });
+      updated += 1;
+    }
+
+    return updated;
+  }
+
+  private sameWeights(a: ScoringWeights, b: ScoringWeights) {
+    return (
+      a.skills === b.skills &&
+      a.experience === b.experience &&
+      a.projects === b.projects &&
+      a.education === b.education
+    );
+  }
+
+  /** Pulls the deterministic education points (reference scale, 0-10) back out
+   * of a stored breakdown so a re-weight doesn't have to redo the education
+   * matching. */
+  private referenceEducationScore(breakdown: CvScoringCriterionBreakdown[]): number {
+    const group = breakdown.find((item) => item.key === 'education');
+    return group?.items.reduce((total, item) => total + (item.awardedScore ?? 0), 0) ?? 0;
   }
 
   private async scoreAndPersistBatch(
@@ -704,7 +1050,10 @@ export class CvScreeningService {
     jobText: string,
     requiredEducationLevel: EducationLevel,
     batch: ScreeningCandidate[],
+    config: ResolvedScreeningConfig,
     canFallback = true,
+    signal?: AbortSignal,
+    scoringContext?: CvScoringContext | null,
   ) {
     if (batch.length === 0) {
       return;
@@ -718,6 +1067,8 @@ export class CvScreeningService {
           cvText: item.cvText,
           candidateEducationLevel: item.candidateEducationLevel,
         })),
+        signal,
+        scoringContext,
       );
       await this.recordAiUsage(runId, usage, modelName, true);
       const resultByApplicationId = new Map(
@@ -739,7 +1090,14 @@ export class CvScreeningService {
 
         persistOperations.push({
           item,
-          operation: this.persistScore(runId, item, result, requiredEducationLevel, modelName),
+          operation: this.persistScore(
+            runId,
+            item,
+            result,
+            requiredEducationLevel,
+            modelName,
+            config,
+          ),
         });
       }
 
@@ -767,17 +1125,41 @@ export class CvScreeningService {
           jobText,
           requiredEducationLevel,
           missingResultItems,
+          config,
           canFallback,
+          signal,
+          scoringContext,
         );
       }
     } catch (error) {
+      if (signal?.aborted) {
+        // Recruiter-requested cancel, not a real failure -- no ERROR log
+        // noise, no per-CV fallback retry (that would just abort again
+        // immediately against the same signal). These CVs are simply left
+        // unscored; `finishClaimedRun` refunds the credit for each one.
+        this.logger.log(
+          `CV screening run ${runId} cancelled mid-batch; leaving ${batch.length} CV(s) unscored`,
+        );
+        await this.incrementProgress(runId, batch.length, batch.length);
+        return;
+      }
+
       if (canFallback && batch.length > 1) {
         this.logger.warn(
           `Scoring batch of ${batch.length} CVs failed; retrying each CV separately`,
           this.getErrorStack(error),
         );
         await this.mapLimit(batch, GEMINI_FALLBACK_CONCURRENCY, (item) =>
-          this.scoreAndPersistBatch(runId, jobText, requiredEducationLevel, [item], false),
+          this.scoreAndPersistBatch(
+            runId,
+            jobText,
+            requiredEducationLevel,
+            [item],
+            config,
+            false,
+            signal,
+            scoringContext,
+          ),
         );
         return;
       }
@@ -797,14 +1179,26 @@ export class CvScreeningService {
     jobText: string,
     requiredEducationLevel: EducationLevel,
     missingItems: ScreeningCandidate[],
+    config: ResolvedScreeningConfig,
     canFallback: boolean,
+    signal?: AbortSignal,
+    scoringContext?: CvScoringContext | null,
   ) {
     if (canFallback && missingItems.length > 0) {
       this.logger.warn(
         `Gemini missed ${missingItems.length} application(s); retrying each CV separately`,
       );
       await this.mapLimit(missingItems, GEMINI_FALLBACK_CONCURRENCY, (item) =>
-        this.scoreAndPersistBatch(runId, jobText, requiredEducationLevel, [item], false),
+        this.scoreAndPersistBatch(
+          runId,
+          jobText,
+          requiredEducationLevel,
+          [item],
+          config,
+          false,
+          signal,
+          scoringContext,
+        ),
       );
       return;
     }
@@ -821,18 +1215,13 @@ export class CvScreeningService {
     result: GeminiScoreResult,
     requiredEducationLevel: EducationLevel,
     modelName: string,
+    config: ResolvedScreeningConfig,
   ) {
-    const skillScore = this.roundScore(result.skillScore);
-    const experienceScore = this.roundScore(result.experienceScore);
-    const projectScore = this.roundScore(result.projectScore);
     const candidateEducationLevel = item.candidateEducationLevel ?? result.candidateEducationLevel;
     const educationMatch = calculateEducationMatchScore(
       candidateEducationLevel,
       requiredEducationLevel,
     );
-    const educationScore = educationMatch.score;
-    const aiScore = this.roundScore(skillScore + experienceScore + projectScore + educationScore);
-    const finalScore = aiScore;
     const educationBreakdown = this.buildEducationBreakdown(
       educationMatch,
       item.candidateEducationEvidence ??
@@ -840,7 +1229,12 @@ export class CvScreeningService {
           ? `CV ghi nhận trình độ học vấn: ${getEducationLevelLabel(result.candidateEducationLevel)}.`
           : null),
     );
+    // The breakdown is kept on the fixed reference scale (skills 40 /
+    // experience 30 / projects 20 / education 10). It is the audit record AND
+    // what a later weight change is recomputed from, so it must never be
+    // stored pre-weighted.
     const criteriaBreakdown = [...result.criteriaBreakdown, educationBreakdown];
+    const weighted = applyWeights(criteriaBreakdown, educationMatch.score, config.weights);
     const rawAiResponse = {
       ...(this.isRecord(result.raw) ? result.raw : {}),
       criteriaBreakdown,
@@ -852,19 +1246,23 @@ export class CvScreeningService {
       runId,
       jobPostId: item.application.jobPostId,
       candidateProfileId: item.application.candidateProfileId,
-      aiScore,
-      finalScore,
-      skillScore,
-      experienceScore,
-      projectScore,
-      educationScore,
+      aiScore: weighted.finalScore,
+      finalScore: weighted.finalScore,
+      skillScore: weighted.skillScore,
+      experienceScore: weighted.experienceScore,
+      projectScore: weighted.projectScore,
+      educationScore: weighted.educationScore,
       matchedSkills: result.matchedSkills as Prisma.InputJsonValue,
       missingSkills: result.missingSkills as Prisma.InputJsonValue,
       strengths: result.strengths as Prisma.InputJsonValue,
       weaknesses: result.weaknesses as Prisma.InputJsonValue,
       summary: result.summary,
-      recommendation: this.recommendationForScore(finalScore),
+      recommendation: this.recommendationForScore(weighted.finalScore),
       rawAiResponse: rawAiResponse as Prisma.InputJsonValue,
+      scoringWeights: config.weights as unknown as Prisma.InputJsonValue,
+      mustHaveResults: result.mustHaveResults as unknown as Prisma.InputJsonValue,
+      niceToHaveResults: result.niceToHaveResults as unknown as Prisma.InputJsonValue,
+      promptFingerprint: buildPromptFingerprint(config, SCORING_VERSION),
       modelName,
       scoringVersion: SCORING_VERSION,
     };
@@ -1070,6 +1468,67 @@ export class CvScreeningService {
     return value.filter((item): item is string => typeof item === 'string');
   }
 
+  /**
+   * Presents a reference-scale breakdown in the weights a score was computed
+   * with, so every "đạt x/y điểm" line adds up to the weighted group total the
+   * recruiter sees. Scaling both the awarded points and the maxima keeps the
+   * ratios (and therefore the deduction badges) identical.
+   */
+  private scaleBreakdown(
+    breakdown: CvScoringCriterionBreakdown[],
+    weights: ScoringWeights,
+  ): CvScoringCriterionBreakdown[] {
+    return breakdown.map((group) => {
+      const factor = weightScaleFactor(group.key, weights);
+      if (factor === 1) return group;
+
+      return {
+        ...group,
+        items: group.items.map((item) => ({
+          ...item,
+          awardedScore: this.roundScore(item.awardedScore * factor),
+        })),
+      };
+    });
+  }
+
+  /** The rubric, restated in the recruiter's own point split. */
+  private scaleRubric(weights: ScoringWeights) {
+    return CV_SCORING_RUBRIC.map((criterion) => {
+      const factor = weightScaleFactor(criterion.key, weights);
+      return {
+        key: criterion.key,
+        label: criterion.label,
+        maxScore: this.roundScore(criterion.maxScore * factor),
+        criteria: criterion.criteria.map((item) => ({
+          key: item.key,
+          label: item.label,
+          maxScore: this.roundScore(item.maxScore * factor),
+          description: item.description,
+        })),
+      };
+    });
+  }
+
+  private readVerdicts(value: Prisma.JsonValue | null) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.flatMap((item) => {
+      if (!this.isRecord(item) || typeof item.criterion !== 'string') {
+        return [];
+      }
+      return [
+        {
+          criterion: item.criterion,
+          met: item.met === true,
+          evidence: typeof item.evidence === 'string' ? item.evidence : null,
+        },
+      ];
+    });
+  }
+
   private toCriteriaBreakdown(value: Prisma.JsonValue | null) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return [];
@@ -1106,16 +1565,30 @@ export class CvScreeningService {
     return chunks;
   }
 
+  /**
+   * @param shouldStop Checked before each item is dispatched (not mid-item --
+   *   an in-flight Gemini call is always let to finish and persist its
+   *   result, so a cancel never throws away work already paid for). Once it
+   *   returns true, no worker starts another item; already-dispatched items
+   *   still run to completion.
+   */
   private async mapLimit<T, R>(
     items: T[],
     limit: number,
     mapper: (item: T, index: number) => Promise<R>,
+    shouldStop?: () => Promise<boolean>,
   ) {
     const results = new Array<R>(items.length);
     let nextIndex = 0;
+    let stopped = false;
 
     const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
       while (nextIndex < items.length) {
+        if (stopped) return;
+        if (shouldStop && (await shouldStop())) {
+          stopped = true;
+          return;
+        }
         const currentIndex = nextIndex;
         nextIndex += 1;
         results[currentIndex] = await mapper(items[currentIndex], currentIndex);

@@ -116,7 +116,6 @@ Skip this and `claude plugin list` will show the plugin as `failed to load` insi
 this repo. Not using Claude Code, or don't want the plugin? Nothing to do — it has
 no effect on the build or runtime.
 
-
 ## Team Baseline
 
 Before opening a pull request, run:

@@ -47,7 +47,8 @@ async function main() {
     create: {
       code: PLAN_CODE,
       subscriptionName: 'Recruiter Dev Unlimited (VIP Max)',
-      description: 'Gói nhà tuyển dụng cao cấp mở khóa toàn bộ tính năng và không giới hạn lượt dùng.',
+      description:
+        'Gói nhà tuyển dụng cao cấp mở khóa toàn bộ tính năng và không giới hạn lượt dùng.',
       price: 0,
       durationDays: YEARS * 365,
       jobPostLimit: 9_999,
@@ -116,7 +117,9 @@ async function main() {
     });
   }
 
-  console.log(`Subscription: ACTIVE (ID: ${subscription.id}), Hạn dùng đến: ${expiredAt.toISOString().slice(0, 10)}`);
+  console.log(
+    `Subscription: ACTIVE (ID: ${subscription.id}), Hạn dùng đến: ${expiredAt.toISOString().slice(0, 10)}`,
+  );
 
   // Clear counters
   const cleared = await prisma.subscriptionQuotaCounter.deleteMany({
@@ -126,7 +129,9 @@ async function main() {
     console.log(`Đã reset ${cleared.count} quota counters về 0.`);
   }
 
-  console.log(`\n🎉 THÀNH CÔNG: Tài khoản Recruiter ${TARGET_EMAIL} (Công ty ${account.company.name}) đã được nâng lên gói VIP Max cao nhất (10 năm, full AI & Job quota)!`);
+  console.log(
+    `\n🎉 THÀNH CÔNG: Tài khoản Recruiter ${TARGET_EMAIL} (Công ty ${account.company.name}) đã được nâng lên gói VIP Max cao nhất (10 năm, full AI & Job quota)!`,
+  );
 }
 
 main()

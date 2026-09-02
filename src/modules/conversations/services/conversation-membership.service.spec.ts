@@ -62,8 +62,7 @@ describe('ConversationMembershipService', () => {
     transaction.conversation.findMany.mockResolvedValue([{ id: 'chat-a' }, { id: 'chat-b' }]);
     transaction.conversationParticipant.upsert.mockResolvedValue({});
     prisma.$transaction.mockImplementation(
-      async (callback: (tx: typeof transaction) => Promise<unknown>) =>
-        callback(transaction),
+      async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction),
     );
 
     const result = await service.addToHiringTeam('conversation-id', 'colleague-id', user);

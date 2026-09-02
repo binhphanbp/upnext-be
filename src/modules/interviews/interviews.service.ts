@@ -127,9 +127,7 @@ export class InterviewsService {
       },
     });
     if (existingRound) {
-      throw new BadRequestException(
-        `Vòng phỏng vấn ${targetRound} đã tồn tại cho hồ sơ này.`,
-      );
+      throw new BadRequestException(`Vòng phỏng vấn ${targetRound} đã tồn tại cho hồ sơ này.`);
     }
 
     // Enforce sequential rounds: round N requires round N-1 to be COMPLETED + PASSED

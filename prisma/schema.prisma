@@ -341,6 +341,7 @@ enum CvScreeningRunStatus {
   COMPLETED      @map("completed")
   FAILED         @map("failed")
   PARTIAL_FAILED @map("partial_failed")
+  CANCELLED      @map("cancelled")
 }
 
 enum EducationLevel {
@@ -537,6 +538,7 @@ model CandidateProfile {
   talentRecommendations TalentRecommendation[]
   talentContactRequests TalentContactRequest[]
   aiConversations       AIConversation[]
+  aiRetrievalRuns       AiRetrievalRun[]
   subscriptions         CandidateSubscription[]
   subscriptionUsages    CandidateSubscriptionUsage[]
 
@@ -939,6 +941,7 @@ model Company {
   subscriptionUsages       SubscriptionUsage[]
   aiUsageLogs              AiUsageLog[]
   verificationReviews      CompanyVerificationReview[]
+  cvScreeningConfig        CvScreeningCompanyConfig?
 
   @@index([verificationStatus])
   @@index([status])
@@ -1180,6 +1183,7 @@ model JobPost {
   mockInterviews           MockInterview[]
   jobEmbedding             JobEmbedding?
   cvScreeningRuns          CvScreeningRun[]
+  cvScreeningConfig        JobPostCvScreeningConfig?
   applicationAiScores      ApplicationAiScore[]
   conversations            Conversation[]
   hiringTeamMembers        JobHiringTeamMember[]
@@ -1422,12 +1426,19 @@ model CvScreeningRun {
   failedCount        Int                  @default(0) @map("failed_count")
   limit              Int?
   applicationIds     Json                 @default("[]") @map("application_ids")
+  /// Resolved screening config (job override merged over company defaults)
+  /// captured when the run was created, so a config edit mid-run can't change
+  /// how the run scores, and so a finished run stays explainable.
+  configSnapshot     Json?                @map("config_snapshot")
   status             CvScreeningRunStatus @default(PENDING)
   attemptCount       Int                  @default(0) @map("attempt_count")
   nextAttemptAt      DateTime             @default(now()) @map("next_attempt_at")
   lockedAt           DateTime?            @map("locked_at")
   lockedBy           String?              @map("locked_by") @db.VarChar(100)
   errorMessage       String?              @map("error_message") @db.Text
+  /// Đặt khi recruiter bấm hủy một run đang PROCESSING -- worker kiểm tra cờ
+  /// này giữa các batch và dừng lại sớm thay vì chờ chấm hết toàn bộ CV.
+  cancelRequestedAt  DateTime?            @map("cancel_requested_at")
   startedAt          DateTime?            @map("started_at")
   finishedAt         DateTime?            @map("finished_at")
   createdAt          DateTime             @default(now()) @map("created_at")
@@ -1498,6 +1509,19 @@ model ApplicationAiScore {
   summary            String?  @db.Text
   recommendation     String?  @db.Text
   rawAiResponse      Json?    @map("raw_ai_response")
+  /// Snapshot of the point weights this score was computed with, e.g.
+  /// {"skills":40,"experience":30,"projects":20,"education":10}. null on rows
+  /// scored before configurable weights existed -- readers fall back to the
+  /// reference rubric, which is exactly what those rows used.
+  scoringWeights     Json?    @map("scoring_weights")
+  /// Per-criterion verdicts, e.g. [{"criterion":"2 năm React","met":false,
+  /// "evidence":"..."}]. Missing must-haves are a warning, never a veto.
+  mustHaveResults    Json?    @map("must_have_results")
+  niceToHaveResults  Json?    @map("nice_to_have_results")
+  /// Hash of the config inputs that change the model's output (criteria +
+  /// custom prompt + scoring version). Weights are deliberately excluded, so
+  /// a weight change re-weights this row locally instead of re-calling the AI.
+  promptFingerprint  String?  @map("prompt_fingerprint") @db.VarChar(64)
   modelName          String   @map("model_name") @db.VarChar(120)
   scoringVersion     String   @map("scoring_version") @db.VarChar(40)
   createdAt          DateTime @default(now()) @map("created_at")
@@ -2715,6 +2739,70 @@ model CandidateContactPreference {
   @@map("candidate_contact_preferences")
 }
 
+/// Per-company defaults for the "AI lọc CV" screening behaviour: how the 100
+/// points are split between the four rubric groups, plus the recruiter's real
+/// hiring criteria. Absent (no row) or a null field means "use the system
+/// defaults" (see screening-config.resolver.ts), so a company never has to
+/// configure anything. A single job post can override any of this -- see
+/// JobPostCvScreeningConfig. How many CVs a run scores is chosen per run on
+/// the screening screen (Top 10/Top 20), not configured here.
+model CvScreeningCompanyConfig {
+  companyId          String  @id @map("company_id") @db.Uuid
+  /// Point weights per rubric group; they must be multiples of 5 and sum to
+  /// 100. Weights are applied AFTER the model scores a CV on the fixed
+  /// reference rubric (scoring-rubric.ts), never inside the prompt, so
+  /// changing them re-ranks existing results without another AI call. All
+  /// four are set together or all null (= inherit the 40/30/20/10 default).
+  weightSkills       Int?    @map("weight_skills")
+  weightExperience   Int?    @map("weight_experience")
+  weightProjects     Int?    @map("weight_projects")
+  weightEducation    Int?    @map("weight_education")
+  /// Which preset the weights came from: FRESHER | MID | SENIOR | CUSTOM.
+  /// Display-only, so the UI can re-select the right preset card.
+  weightPreset       String? @map("weight_preset") @db.VarChar(20)
+  /// Deal-breakers, e.g. ["Ít nhất 2 năm React", "Tiếng Anh giao tiếp tốt"].
+  /// The model reports met/unmet per criterion; a miss is surfaced as a
+  /// warning and reflected in the related rubric items, it does not veto.
+  mustHaveCriteria   Json?   @map("must_have_criteria")
+  /// Bonus criteria the model credits within preferred-skills / domain.
+  niceToHaveCriteria Json?   @map("nice_to_have_criteria")
+  /// One free-text note appended to the AI prompt. Treated as untrusted
+  /// recruiter input -- see gemini-scoring.service.ts buildSystemInstruction.
+  customPrompt       String? @map("custom_prompt") @db.Text
+
+  updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("cv_screening_company_configs")
+}
+
+/// Per-job-post override of the company's AI screening config. Every field is
+/// optional: a null field inherits the company value (and in turn the system
+/// default). Weights are an atomic block -- either all four are set here or
+/// the job inherits the company's split entirely.
+model JobPostCvScreeningConfig {
+  jobPostId          String  @id @map("job_post_id") @db.Uuid
+  weightSkills       Int?    @map("weight_skills")
+  weightExperience   Int?    @map("weight_experience")
+  weightProjects     Int?    @map("weight_projects")
+  weightEducation    Int?    @map("weight_education")
+  weightPreset       String? @map("weight_preset") @db.VarChar(20)
+  mustHaveCriteria   Json?   @map("must_have_criteria")
+  niceToHaveCriteria Json?   @map("nice_to_have_criteria")
+  customPrompt       String? @map("custom_prompt") @db.Text
+
+  updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  jobPost JobPost @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+
+  @@map("job_post_cv_screening_configs")
+}
+
 model CompanyCandidateBlock {
   id                          String    @id @default(uuid()) @db.Uuid
   companyId                   String    @map("company_id") @db.Uuid
@@ -3013,6 +3101,23 @@ enum AiActionStatus {
   FAILED    @map("failed")
 }
 
+/// Corpus của Candidate Assistant. Chỉ candidate-facing content được phép tồn
+/// tại trong foundation v1; thêm audience khác phải qua privacy/product review.
+enum AiKnowledgeAudience {
+  CANDIDATE @map("candidate")
+}
+
+enum AiKnowledgeSourceType {
+  CANDIDATE_GUIDE @map("candidate_guide")
+  UPNEXT_POLICY   @map("upnext_policy")
+}
+
+enum AiKnowledgeDocumentStatus {
+  DRAFT     @map("draft")
+  PUBLISHED @map("published")
+  ARCHIVED  @map("archived")
+}
+
 model AIConversation {
   id                 String                @id @default(uuid()) @db.Uuid
   actorType          ActorType             @map("actor_type")
@@ -3037,9 +3142,103 @@ model AIConversation {
   candidateProfile CandidateProfile? @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
   messages         AIMessage[]
   actionRequests   AIActionRequest[]
+  retrievalRuns    AiRetrievalRun[]
 
   @@index([candidateProfileId, isArchived, updatedAt])
   @@map("ai_conversations")
+}
+
+/// Source-managed knowledge for Candidate Assistant. Raw files and arbitrary
+/// web pages deliberately do not belong here: content must be reviewed,
+/// versioned and explicitly published before it can be retrieved.
+model AiKnowledgeDocument {
+  id              String                    @id @default(uuid()) @db.Uuid
+  audience        AiKnowledgeAudience       @default(CANDIDATE)
+  sourceType      AiKnowledgeSourceType     @map("source_type")
+  locale          String                    @default("vi") @db.VarChar(5)
+  title           String                    @db.VarChar(240)
+  canonicalUrl    String?                   @map("canonical_url") @db.VarChar(500)
+  status          AiKnowledgeDocumentStatus @default(DRAFT)
+  sourceVersion   String                    @map("source_version") @db.VarChar(80)
+  contentChecksum String                    @map("content_checksum") @db.VarChar(128)
+  effectiveAt     DateTime?                 @map("effective_at")
+  reviewAt        DateTime?                 @map("review_at")
+  expiresAt       DateTime?                 @map("expires_at")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+
+  chunks AiKnowledgeChunk[]
+
+  @@unique([sourceType, canonicalUrl, sourceVersion])
+  @@index([audience, status, locale, expiresAt])
+  @@map("ai_knowledge_documents")
+}
+
+/// Derived, redacted retrieval data. The vector column is intentionally kept
+/// outside Prisma's model because Prisma does not model pgvector natively;
+/// retrieval only touches it through parameterised raw SQL after authorization.
+model AiKnowledgeChunk {
+  id              String    @id @default(uuid()) @db.Uuid
+  documentId      String    @map("document_id") @db.Uuid
+  ordinal         Int
+  contentRedacted String    @map("content_redacted") @db.Text
+  lexicalText     String    @map("lexical_text") @db.Text
+  tokenCount      Int       @map("token_count")
+  contentChecksum String    @map("content_checksum") @db.VarChar(128)
+  embeddingModel  String    @map("embedding_model") @db.VarChar(120)
+  indexVersion    String    @map("index_version") @db.VarChar(80)
+  isValid         Boolean   @default(true) @map("is_valid")
+  invalidatedAt   DateTime? @map("invalidated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  document           AiKnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  aiRetrievalResults AiRetrievalResult[]
+
+  @@unique([documentId, ordinal, indexVersion])
+  @@index([documentId, isValid])
+  @@map("ai_knowledge_chunks")
+}
+
+/// Audit trail for a retrieval attempt. Query text is represented by a hash so
+/// operational data cannot become another copy of candidate prompt content.
+model AiRetrievalRun {
+  id                 String   @id @default(uuid()) @db.Uuid
+  conversationId     String?  @map("conversation_id") @db.Uuid
+  candidateProfileId String   @map("candidate_profile_id") @db.Uuid
+  queryHash          String   @map("query_hash") @db.VarChar(128)
+  corpus             String   @db.VarChar(60)
+  filtersHash        String   @map("filters_hash") @db.VarChar(128)
+  topK               Int      @map("top_k")
+  latencyMs          Int      @map("latency_ms")
+  resultCount        Int      @map("result_count")
+  status             String   @db.VarChar(30)
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  conversation     AIConversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  candidateProfile CandidateProfile    @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  results          AiRetrievalResult[]
+
+  @@index([candidateProfileId, createdAt])
+  @@index([conversationId, createdAt])
+  @@map("ai_retrieval_runs")
+}
+
+model AiRetrievalResult {
+  id             String   @id @default(uuid()) @db.Uuid
+  retrievalRunId String   @map("retrieval_run_id") @db.Uuid
+  chunkId        String   @map("chunk_id") @db.Uuid
+  rank           Int
+  semanticScore  Decimal  @map("semantic_score") @db.Decimal(8, 6)
+  cited          Boolean  @default(false)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  retrievalRun AiRetrievalRun   @relation(fields: [retrievalRunId], references: [id], onDelete: Cascade)
+  chunk        AiKnowledgeChunk @relation(fields: [chunkId], references: [id], onDelete: Restrict)
+
+  @@unique([retrievalRunId, chunkId])
+  @@index([chunkId])
+  @@map("ai_retrieval_results")
 }
 
 model AIMessage {

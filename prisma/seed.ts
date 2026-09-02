@@ -3172,7 +3172,9 @@ async function main() {
 
   const recruiters = backupData.recruiters.map((rec: any) => {
     let roleCode = 'HR';
-    if (
+    if (rec.email === 'fpt-software@gmail.com') {
+      roleCode = 'HR';
+    } else if (
       rec.email === 'hr@fptsoftware.com' ||
       rec.email === 'admin@fptsoftware.com' ||
       rec.email.includes('owner') ||
@@ -5687,7 +5689,10 @@ async function main() {
         data: {
           subscriptionPlanId: item.plan.id,
           companyId: comp.id,
-          invoiceCode: `INV-${comp.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+          invoiceCode: `INV-${comp.name
+            .replace(/[^a-zA-Z0-9]/g, '')
+            .slice(0, 8)
+            .toUpperCase()}-${Date.now().toString().slice(-4)}`,
           amount: item.plan.price,
           paymentMethod: 'SEPAY',
           paymentStatus: 'PAID',
@@ -5716,7 +5721,10 @@ async function main() {
       const idempotencyKey = `seed:job-boost:${comp.id}:${boostId}`;
 
       await prisma.jobBoost.deleteMany({
-        where: { jobPostId: targetJob.id, status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] } },
+        where: {
+          jobPostId: targetJob.id,
+          status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] },
+        },
       });
 
       const boost = await prisma.jobBoost.create({
@@ -5782,7 +5790,10 @@ async function main() {
       const idempotencyKey = `seed:job-boost:${comp.id}:${boostId}`;
 
       await prisma.jobBoost.deleteMany({
-        where: { jobPostId: targetJob.id, status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] } },
+        where: {
+          jobPostId: targetJob.id,
+          status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] },
+        },
       });
 
       const boost = await prisma.jobBoost.create({

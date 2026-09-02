@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Readable } from 'stream';
 import { CvVersionsService } from '../cvs/cv-versions.service';
+import { CvScreeningWorkerService } from './cv-screening-worker.service';
 import { CvScreeningController } from './cv-screening.controller';
 import { CvScreeningService } from './cv-screening.service';
 
@@ -12,6 +13,9 @@ describe('CvScreeningController', () => {
   const cvVersionsServiceMock = {
     prepareDownload: jest.fn(),
   };
+  const cvScreeningWorkerMock = {
+    processNextRun: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -20,6 +24,7 @@ describe('CvScreeningController', () => {
       providers: [
         { provide: CvScreeningService, useValue: cvScreeningServiceMock },
         { provide: CvVersionsService, useValue: cvVersionsServiceMock },
+        { provide: CvScreeningWorkerService, useValue: cvScreeningWorkerMock },
       ],
     }).compile();
 

@@ -12,20 +12,20 @@ Tên sản phẩm v1: **AI Talent Discovery** (gợi ý ứng viên phù hợp t
 
 Đây không phải là tính năng tải/xem CV gốc hay mua danh sách liên hệ. Recruiter nhận các hồ sơ **ẩn danh có lý do phù hợp**; để tiếp cận ứng viên, recruiter phải gửi lời mời qua UpNext. Candidate quyết định chấp nhận, từ chối hoặc chặn công ty. Trong v1, candidate vẫn ẩn danh cả sau khi accept và toàn bộ trao đổi diễn ra trong UpNext; không có reveal tên, email, SĐT hay link cá nhân.
 
-| Chính sách | Quyết định v1 |
-| --- | --- |
-| Consent mặc định | Tắt. `OPEN_TO_WORK` hoặc profile `PUBLIC` không tự động đồng ý vào Talent Discovery. |
-| Owner quota | Theo **company**, không theo recruiter account. Các recruiter của cùng công ty dùng chung quota và audit ghi rõ người thực hiện. |
-| Free | 1 lượt Discovery/chu kỳ tháng, tối đa 5 hồ sơ ẩn danh; xem chi tiết CV đã redaction của 5 hồ sơ này; 1 lời mời trao đổi thử nghiệm/chu kỳ. |
-| Pro | 10 lượt Discovery/chu kỳ tháng, tối đa 30 hồ sơ ẩn danh/lượt; xem chi tiết CV đã redaction của các hồ sơ trả về; 250 lời mời trao đổi/chu kỳ. |
-| Chu kỳ quota | Chu kỳ tháng của subscription. Với gói thanh toán năm, billing phải vẫn cấp `currentPeriodStart/currentPeriodEnd` theo tháng cho các feature metered; UI hiển thị ngày reset chính xác, không ghi mơ hồ “30 ngày”. |
-| Đơn vị tính | 1 Discovery = snapshot match mới cho một Job Post. Xem lại snapshot không tốn lượt. Refresh chỉ tạo snapshot/charge mới khi job matching fingerprint đã đổi hoặc snapshot cũ hơn 7 ngày. |
-| Thời hạn snapshot | 30 ngày hoặc đến khi job/candidate không còn đủ điều kiện. |
-| Liên hệ | 1 credit `talent_contact` khi recruiter gửi lời mời; không hoàn chỉ vì candidate từ chối. |
-| Kênh liên lạc | Anonymous chat UpNext sau khi candidate chấp nhận. V1 không có product-level reveal/download/attachment; email, SĐT, link và handle theo pattern chuẩn bị chặn trước khi lưu. |
-| CV Pool cũ | `POST /talent-pool/:candidateProfileId/unlock` (trả direct contact) phải bị retire trước beta; Talent Pool nếu giữ lại chỉ được tạo invitation ẩn danh qua cùng policy Discovery. |
-| AI | Chỉ hỗ trợ tìm/giải thích mức phù hợp; không tự động reject, shortlist hay ra quyết định tuyển dụng. |
-| Dữ liệu nhạy cảm | Không đưa vào ranking hoặc hiển thị: giới tính, ngày sinh/tuổi, địa chỉ chính xác, ảnh, sức khỏe, quan điểm, nguồn gốc, dữ liệu nhận diện và thông tin liên hệ. |
+| Chính sách        | Quyết định v1                                                                                                                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Consent mặc định  | Tắt. `OPEN_TO_WORK` hoặc profile `PUBLIC` không tự động đồng ý vào Talent Discovery.                                                                                                                               |
+| Owner quota       | Theo **company**, không theo recruiter account. Các recruiter của cùng công ty dùng chung quota và audit ghi rõ người thực hiện.                                                                                   |
+| Free              | 1 lượt Discovery/chu kỳ tháng, tối đa 5 hồ sơ ẩn danh; xem chi tiết CV đã redaction của 5 hồ sơ này; 1 lời mời trao đổi thử nghiệm/chu kỳ.                                                                         |
+| Pro               | 10 lượt Discovery/chu kỳ tháng, tối đa 30 hồ sơ ẩn danh/lượt; xem chi tiết CV đã redaction của các hồ sơ trả về; 250 lời mời trao đổi/chu kỳ.                                                                      |
+| Chu kỳ quota      | Chu kỳ tháng của subscription. Với gói thanh toán năm, billing phải vẫn cấp `currentPeriodStart/currentPeriodEnd` theo tháng cho các feature metered; UI hiển thị ngày reset chính xác, không ghi mơ hồ “30 ngày”. |
+| Đơn vị tính       | 1 Discovery = snapshot match mới cho một Job Post. Xem lại snapshot không tốn lượt. Refresh chỉ tạo snapshot/charge mới khi job matching fingerprint đã đổi hoặc snapshot cũ hơn 7 ngày.                           |
+| Thời hạn snapshot | 30 ngày hoặc đến khi job/candidate không còn đủ điều kiện.                                                                                                                                                         |
+| Liên hệ           | 1 credit `talent_contact` khi recruiter gửi lời mời; không hoàn chỉ vì candidate từ chối.                                                                                                                          |
+| Kênh liên lạc     | Anonymous chat UpNext sau khi candidate chấp nhận. V1 không có product-level reveal/download/attachment; email, SĐT, link và handle theo pattern chuẩn bị chặn trước khi lưu.                                      |
+| CV Pool cũ        | `POST /talent-pool/:candidateProfileId/unlock` (trả direct contact) phải bị retire trước beta; Talent Pool nếu giữ lại chỉ được tạo invitation ẩn danh qua cùng policy Discovery.                                  |
+| AI                | Chỉ hỗ trợ tìm/giải thích mức phù hợp; không tự động reject, shortlist hay ra quyết định tuyển dụng.                                                                                                               |
+| Dữ liệu nhạy cảm  | Không đưa vào ranking hoặc hiển thị: giới tính, ngày sinh/tuổi, địa chỉ chính xác, ảnh, sức khỏe, quan điểm, nguồn gốc, dữ liệu nhận diện và thông tin liên hệ.                                                    |
 
 Mức 10 × 30 cho Pro cho phép tối đa 300 **lượt gợi ý hồ sơ ẩn danh** mỗi chu kỳ, nhưng không hứa rằng mọi run đều đủ 30 người. Nếu nguồn ứng viên đủ điều kiện thấp, hệ thống phải trả số lượng thực tế và hướng recruiter cải thiện JD/filter, không bịa thêm kết quả.
 
@@ -53,19 +53,19 @@ Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân có hiệu l
 
 ### Blocker và rủi ro hiện có
 
-| Vấn đề | Tác động | Yêu cầu xử lý trước launch |
-| --- | --- | --- |
-| Recommendation hiện trả `account.fullName` và `candidateProfileId` | Recruiter nhận định danh thật và có thể gọi endpoint khác bằng profile ID. | Thay response bằng reference opaque, projection ẩn danh và authorization per item. |
-| Recommendation không tiêu quota | Có thể tạo run không giới hạn dù gói không có quyền lợi. | Thêm feature `talent_discovery_run`, idempotency và usage ledger. |
-| Ranking load toàn bộ embedding vào application memory rồi cosine sort | Không mở rộng được theo số lượng CV; duplicate CV version có thể làm sai kết quả. | Xây discovery index một record/candidate và query pgvector có filter server-side. |
-| `buildCvText()` ưu tiên raw `parsedText` và có thể chứa tên/email; fallback cũng đưa name/email vào embedding text | PII có thể đi sang embedding provider và lưu trong cache. | Tạo text/index discovery riêng chỉ gồm dữ liệu đã pseudonymize, không tái dùng raw CV text. |
-| Talent Pool `unlock()` trả tên/email/SĐT | Đây là đường vòng phá mục tiêu giữ trao đổi trên UpNext; `candidateProfileId` từ pool còn có thể bị dùng làm direct key. | Retire endpoint direct unlock trước beta. Nếu giữ Talent Pool, chuyển toàn bộ sang card/invitation ẩn danh, không có direct reveal v1. |
-| Conversation hiện select/trả `candidateAccount.fullName` và frontend dùng nó làm tên hội thoại | Candidate bị lộ danh tính ngay sau accept, trái với Discovery masking. | Tạo serializer/contract riêng cho `TALENT_OUTREACH`: recruiter chỉ nhận alias và opaque participant reference. Identity reveal không tồn tại trong v1. |
-| Chat hiện nhận text tự do | Recruiter hoặc candidate có thể tự gửi email, SĐT, social/link để bypass nền tảng. | Áp `ContactExchangePolicy` cho mọi message/invitation outreach: reject phone, email, URL, handle, QR-like text trước persistence; attachment vẫn tắt; report/audit và UX giải thích lý do. |
-| `CHAT_OUTREACH_ENABLED` mặc định false | Luồng mời/accept có thể chưa hoạt động ở staging. | Verify feature flag, realtime/outbox và end-to-end trước beta. |
-| Candidate contact preference hiện chỉ `OPTED_IN/OPTED_OUT` | Consent liên hệ hiện có không đủ để suy ra consent xử lý/ranking CV cho Discovery, và không được dùng để bật invitation Discovery. | Thêm preference/consent Discovery riêng, default off, versioned và có `allowInvitations`; không dùng consent direct-contact legacy. |
-| Contact request hiện unique theo `(company, candidate, job)` | Công ty có thể mời cùng candidate cho nhiều Job Post trong cùng ngày. | Thêm window enforce ở DB theo `(company, candidate)` với `nextEligibleAt`; kiểm trước consume quota và trong transaction tạo invitation. |
-| Quota hiện bám theo current subscription period; `CV_POOL_VIEW` mang nghĩa direct unlock | Kế hoạch “30 ngày” và reuse `CV_POOL_VIEW` sẽ tính/hiển thị sai, có thể phá quyền lợi gói đang bán. | Dùng `TALENT_DISCOVERY_RUN` riêng; anonymous profile nằm trong run, không có `CV_POOL_VIEW`; chuẩn hóa monthly period theo billing. |
+| Vấn đề                                                                                                             | Tác động                                                                                                                           | Yêu cầu xử lý trước launch                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Recommendation hiện trả `account.fullName` và `candidateProfileId`                                                 | Recruiter nhận định danh thật và có thể gọi endpoint khác bằng profile ID.                                                         | Thay response bằng reference opaque, projection ẩn danh và authorization per item.                                                                                                         |
+| Recommendation không tiêu quota                                                                                    | Có thể tạo run không giới hạn dù gói không có quyền lợi.                                                                           | Thêm feature `talent_discovery_run`, idempotency và usage ledger.                                                                                                                          |
+| Ranking load toàn bộ embedding vào application memory rồi cosine sort                                              | Không mở rộng được theo số lượng CV; duplicate CV version có thể làm sai kết quả.                                                  | Xây discovery index một record/candidate và query pgvector có filter server-side.                                                                                                          |
+| `buildCvText()` ưu tiên raw `parsedText` và có thể chứa tên/email; fallback cũng đưa name/email vào embedding text | PII có thể đi sang embedding provider và lưu trong cache.                                                                          | Tạo text/index discovery riêng chỉ gồm dữ liệu đã pseudonymize, không tái dùng raw CV text.                                                                                                |
+| Talent Pool `unlock()` trả tên/email/SĐT                                                                           | Đây là đường vòng phá mục tiêu giữ trao đổi trên UpNext; `candidateProfileId` từ pool còn có thể bị dùng làm direct key.           | Retire endpoint direct unlock trước beta. Nếu giữ Talent Pool, chuyển toàn bộ sang card/invitation ẩn danh, không có direct reveal v1.                                                     |
+| Conversation hiện select/trả `candidateAccount.fullName` và frontend dùng nó làm tên hội thoại                     | Candidate bị lộ danh tính ngay sau accept, trái với Discovery masking.                                                             | Tạo serializer/contract riêng cho `TALENT_OUTREACH`: recruiter chỉ nhận alias và opaque participant reference. Identity reveal không tồn tại trong v1.                                     |
+| Chat hiện nhận text tự do                                                                                          | Recruiter hoặc candidate có thể tự gửi email, SĐT, social/link để bypass nền tảng.                                                 | Áp `ContactExchangePolicy` cho mọi message/invitation outreach: reject phone, email, URL, handle, QR-like text trước persistence; attachment vẫn tắt; report/audit và UX giải thích lý do. |
+| `CHAT_OUTREACH_ENABLED` mặc định false                                                                             | Luồng mời/accept có thể chưa hoạt động ở staging.                                                                                  | Verify feature flag, realtime/outbox và end-to-end trước beta.                                                                                                                             |
+| Candidate contact preference hiện chỉ `OPTED_IN/OPTED_OUT`                                                         | Consent liên hệ hiện có không đủ để suy ra consent xử lý/ranking CV cho Discovery, và không được dùng để bật invitation Discovery. | Thêm preference/consent Discovery riêng, default off, versioned và có `allowInvitations`; không dùng consent direct-contact legacy.                                                        |
+| Contact request hiện unique theo `(company, candidate, job)`                                                       | Công ty có thể mời cùng candidate cho nhiều Job Post trong cùng ngày.                                                              | Thêm window enforce ở DB theo `(company, candidate)` với `nextEligibleAt`; kiểm trước consume quota và trong transaction tạo invitation.                                                   |
+| Quota hiện bám theo current subscription period; `CV_POOL_VIEW` mang nghĩa direct unlock                           | Kế hoạch “30 ngày” và reuse `CV_POOL_VIEW` sẽ tính/hiển thị sai, có thể phá quyền lợi gói đang bán.                                | Dùng `TALENT_DISCOVERY_RUN` riêng; anonymous profile nằm trong run, không có `CV_POOL_VIEW`; chuẩn hóa monthly period theo billing.                                                        |
 
 Không được chỉ nối UI vào endpoint `talent-recommendations/runs` hiện tại. Làm vậy sẽ đưa tên thật ra API, không có commercial entitlement, không có masking policy và không đảm bảo scale.
 
@@ -119,15 +119,15 @@ Candidate exposure cap v1: cùng một company chỉ được thấy cùng candi
 
 ### 5.1. Card recruiter được phép xem
 
-| Có thể hiển thị | Quy tắc |
-| --- | --- |
-| `Candidate #A7K4` | Alias ngẫu nhiên theo recommendation/run; không phải profile ID và không dùng để truy ngược giữa các company. |
-| Job family/headline khái quát | Ví dụ “Backend Engineer”, không có tên cá nhân. |
-| Kinh nghiệm | Dải như `3–5 năm`, không cần mốc thời gian chính xác. |
-| Kỹ năng và độ khớp | Tối đa 8 skill; reason codes: kỹ năng khớp, kinh nghiệm phù hợp, working model/location match. |
-| Khoảng trống | Tối đa 3 gap chuyên môn dựa trên JD; diễn đạt là thông tin để recruiter đánh giá, không phải đánh giá con người. |
-| Vị trí/mô hình làm việc | Thành phố/tỉnh hoặc `Remote`, không hiển thị địa chỉ. |
-| Mong muốn công việc | Chỉ trường candidate chọn cho phép hiển thị, ví dụ notice-period range hoặc salary range. |
+| Có thể hiển thị               | Quy tắc                                                                                                          |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `Candidate #A7K4`             | Alias ngẫu nhiên theo recommendation/run; không phải profile ID và không dùng để truy ngược giữa các company.    |
+| Job family/headline khái quát | Ví dụ “Backend Engineer”, không có tên cá nhân.                                                                  |
+| Kinh nghiệm                   | Dải như `3–5 năm`, không cần mốc thời gian chính xác.                                                            |
+| Kỹ năng và độ khớp            | Tối đa 8 skill; reason codes: kỹ năng khớp, kinh nghiệm phù hợp, working model/location match.                   |
+| Khoảng trống                  | Tối đa 3 gap chuyên môn dựa trên JD; diễn đạt là thông tin để recruiter đánh giá, không phải đánh giá con người. |
+| Vị trí/mô hình làm việc       | Thành phố/tỉnh hoặc `Remote`, không hiển thị địa chỉ.                                                            |
+| Mong muốn công việc           | Chỉ trường candidate chọn cho phép hiển thị, ví dụ notice-period range hoặc salary range.                        |
 
 ### 5.2. Tuyệt đối che trong v1
 
@@ -145,19 +145,19 @@ V1 không có API/UI reveal tên thật, email, SĐT, link cá nhân hay attachm
 
 Vì vậy v1 áp dụng hai lớp rõ ràng:
 
-| Thành phần | Quy tắc bắt buộc |
-| --- | --- |
-| CV gốc (`original CV`) | Là input mật để server tạo bản đã redaction. Không cấp signed URL, preview URL, document id, filename, thumbnail hay API response cho recruiter qua Talent Discovery. |
+| Thành phần                                | Quy tắc bắt buộc                                                                                                                                                                                                                  |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CV gốc (`original CV`)                    | Là input mật để server tạo bản đã redaction. Không cấp signed URL, preview URL, document id, filename, thumbnail hay API response cho recruiter qua Talent Discovery.                                                             |
 | CV đã redaction (`redacted anonymous CV`) | Nếu recruiter cần xem sâu hơn card, backend tạo **bản dẫn xuất mới** giữ lại nội dung nghề nghiệp hữu ích nhưng đã loại bỏ hoặc tổng quát hóa dữ liệu định danh. Không chỉnh sửa/đè chữ trên file gốc và không download trong v1. |
 
 Mục tiêu không phải biến CV thành một bản tóm tắt nghèo thông tin. Recruiter vẫn cần thấy vai trò, seniority, skills/công nghệ, trách nhiệm, thành tựu, lĩnh vực công ty, dạng dự án và dải thời gian để đánh giá. Pipeline chỉ giữ đoạn text phù hợp sau khi redaction; không để raw CV đi thẳng ra client.
 
-| Nhóm nội dung | Chính sách trong CV đã redaction |
-| --- | --- |
-| Giữ sau sanitizer | Chức danh/level, skills, stack, trách nhiệm, thành tựu, loại sản phẩm/ngành, quy mô team đã tổng quát hóa, chứng chỉ không có credential ID, dải thời gian và dải kinh nghiệm. |
-| Che bắt buộc | Họ tên/chữ ký, email, SĐT, địa chỉ, ngày sinh, ảnh, số định danh, QR, username, link LinkedIn/GitHub/portfolio/website/social, header/footer contact, filename, metadata, hyperlink, attachment và mọi contact trong body. |
+| Nhóm nội dung                              | Chính sách trong CV đã redaction                                                                                                                                                                                                                                                                            |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Giữ sau sanitizer                          | Chức danh/level, skills, stack, trách nhiệm, thành tựu, loại sản phẩm/ngành, quy mô team đã tổng quát hóa, chứng chỉ không có credential ID, dải thời gian và dải kinh nghiệm.                                                                                                                              |
+| Che bắt buộc                               | Họ tên/chữ ký, email, SĐT, địa chỉ, ngày sinh, ảnh, số định danh, QR, username, link LinkedIn/GitHub/portfolio/website/social, header/footer contact, filename, metadata, hyperlink, attachment và mọi contact trong body.                                                                                  |
 | Che hoặc tổng quát hóa để chống truy ngược | Tên công ty, trường, khách hàng, dự án/sản phẩm nội bộ, tên người, địa điểm làm việc hoặc mốc tháng/năm quá cụ thể và các câu thành tựu có fingerprint đủ để tìm ra một người. Ví dụ `Senior Engineer tại Công ty X, dự án Y cho khách hàng Z` thành `Senior Engineer, nền tảng SaaS, 3–5 năm kinh nghiệm`. |
-| Không chắc an toàn | Bỏ đoạn đó, không “cố che” rồi hiển thị. Candidate có thể trao đổi thêm qua anonymous chat, nhưng v1 không cho gửi direct contact/link. |
+| Không chắc an toàn                         | Bỏ đoạn đó, không “cố che” rồi hiển thị. Candidate có thể trao đổi thêm qua anonymous chat, nhưng v1 không cho gửi direct contact/link.                                                                                                                                                                     |
 
 Renderer phải dựng HTML/PDF mới hoàn toàn từ `AnonymousCandidateView` đã được server redaction/validate: giữ các đoạn nghề nghiệp an toàn, thay token nhạy cảm bằng `[đã ẩn]` hoặc dạng tổng quát hóa, rồi flatten và loại bỏ link/annotation, metadata, form fields, hidden layer, image, QR/barcode và attachment. Không dùng PDF redaction overlay, không proxy file gốc, không truyền raw parsed text vào client.
 
@@ -235,13 +235,13 @@ Job Post hợp lệ
 
 Rerank v1 đề xuất:
 
-| Thành phần | Trọng số | Ghi chú |
-| --- | ---: | --- |
-| Required/preferred skills | 35 | Skill bắt buộc thiếu phải hạ mạnh hoặc loại theo rule job. |
-| Semantic similarity JD ↔ discovery profile | 30 | Dùng retrieval, không phải một quyết định tuyển dụng. |
-| Kinh nghiệm/cấp bậc | 20 | So theo dải và role taxonomy, không suy luận tuổi. |
-| Location/working model | 10 | Theo preference rõ ràng của candidate. |
-| Salary/availability opt-in | 5 | Chỉ dùng nếu candidate cho phép và cùng currency. |
+| Thành phần                                 | Trọng số | Ghi chú                                                    |
+| ------------------------------------------ | -------: | ---------------------------------------------------------- |
+| Required/preferred skills                  |       35 | Skill bắt buộc thiếu phải hạ mạnh hoặc loại theo rule job. |
+| Semantic similarity JD ↔ discovery profile |       30 | Dùng retrieval, không phải một quyết định tuyển dụng.      |
+| Kinh nghiệm/cấp bậc                        |       20 | So theo dải và role taxonomy, không suy luận tuổi.         |
+| Location/working model                     |       10 | Theo preference rõ ràng của candidate.                     |
+| Salary/availability opt-in                 |        5 | Chỉ dùng nếu candidate cho phép và cùng currency.          |
 
 Không có tín hiệu protected characteristic. Score hiển thị dạng `Rất phù hợp / Phù hợp / Có thể cân nhắc`, kèm reason codes và gaps; không gọi là “đủ điều kiện tuyển dụng”. Nếu dưới confidence threshold, không đưa vào kết quả chỉ để lấp đủ 30 card.
 
@@ -273,12 +273,12 @@ TALENT_DISCOVERY_RUN  # metered, số lần tạo/refresh snapshot
 
 `AI_CV_MATCHING` tiếp tục dành cho chấm CV của **ứng viên đã nộp đơn**. Trộn hai khái niệm sẽ làm pricing, COGS và UX sai.
 
-| Quyền lợi | Free | Pro | Ghi chú |
-| --- | ---: | ---: | --- |
-| Talent Discovery run | 1 | 10 | Theo company và theo chu kỳ tháng subscription; không rollover. |
-| Số card tối đa/run | 5 | 30 | Số thực tế có thể thấp hơn. |
+| Quyền lợi                        |                              Free |                                Pro | Ghi chú                                                                                |
+| -------------------------------- | --------------------------------: | ---------------------------------: | -------------------------------------------------------------------------------------- |
+| Talent Discovery run             |                                 1 |                                 10 | Theo company và theo chu kỳ tháng subscription; không rollover.                        |
+| Số card tối đa/run               |                                 5 |                                 30 | Số thực tế có thể thấp hơn.                                                            |
 | Profile/CV đã redaction chi tiết | Bao gồm cho tối đa 5 card của run | Bao gồm cho tối đa 30 card của run | Không charge view riêng; không dùng/redefine `CV_POOL_VIEW`; không bao giờ unmask PII. |
-| Lời mời trao đổi trong app | 1 | 250 | Dùng `TALENT_CONTACT`, theo anti-spam policy. |
+| Lời mời trao đổi trong app       |                                 1 |                                250 | Dùng `TALENT_CONTACT`, theo anti-spam policy.                                          |
 
 `TALENT_DISCOVERY_RUN` và `TALENT_CONTACT` phải được provision theo monthly period ngay cả khi company thanh toán gói năm. Backend trả `periodEnd`/`remaining`; frontend copy đúng ngày reset. Upgrade có hiệu lực ở cycle tiếp theo, downgrade không thu hồi snapshot/chat đang hợp lệ nhưng chặn run/contact mới vượt allowance; không rollover hay chuyển quota giữa company.
 
@@ -508,12 +508,12 @@ Chỉ có thể gọi AI Talent Discovery là done khi:
 
 ## 16. P0 sign-off bắt buộc trước khi bắt đầu development
 
-| Owner | Quyết định phải ký | Điều kiện pass |
-| --- | --- | --- |
-| Product | V1 là anonymous end-to-end: không identity reveal/direct-contact feature/attachment; profile detail đã bao gồm trong Discovery run. | UX/copy nêu đúng giới hạn policy (không hứa ngăn được mọi hành vi người dùng) và pricing Free/Pro theo company/monthly cycle được duyệt. |
-| Engineering | Retire direct unlock; mô hình alias conversation, quota monthly, DB windows/exposure và API opaque được duyệt. | ADR ngắn cho mỗi thay đổi cross-cutting, migration plan additive và owner từng repo. |
-| Legal/Privacy | Consent copy, purpose, retention, provider egress, redaction/exposure policy và chat moderation được duyệt. | Không có raw CV/PII đi qua Discovery provider/client; candidate revoke/block policy xác nhận. |
-| Data/AI | Taxonomy, evaluation rubric/dataset consented và threshold beta được duyệt. | Precision@10, hard-rule and no-PII gates ở mục 7.4 đo được trước beta. |
-| Operations | Feature flags, queue/DLQ, alerts, rollback và support runbook được duyệt. | Staging drill pass cho revoke, redaction scan fail, quota race, contact policy block và outage provider. |
+| Owner         | Quyết định phải ký                                                                                                                  | Điều kiện pass                                                                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Product       | V1 là anonymous end-to-end: không identity reveal/direct-contact feature/attachment; profile detail đã bao gồm trong Discovery run. | UX/copy nêu đúng giới hạn policy (không hứa ngăn được mọi hành vi người dùng) và pricing Free/Pro theo company/monthly cycle được duyệt. |
+| Engineering   | Retire direct unlock; mô hình alias conversation, quota monthly, DB windows/exposure và API opaque được duyệt.                      | ADR ngắn cho mỗi thay đổi cross-cutting, migration plan additive và owner từng repo.                                                     |
+| Legal/Privacy | Consent copy, purpose, retention, provider egress, redaction/exposure policy và chat moderation được duyệt.                         | Không có raw CV/PII đi qua Discovery provider/client; candidate revoke/block policy xác nhận.                                            |
+| Data/AI       | Taxonomy, evaluation rubric/dataset consented và threshold beta được duyệt.                                                         | Precision@10, hard-rule and no-PII gates ở mục 7.4 đo được trước beta.                                                                   |
+| Operations    | Feature flags, queue/DLQ, alerts, rollback và support runbook được duyệt.                                                           | Staging drill pass cho revoke, redaction scan fail, quota race, contact policy block và outage provider.                                 |
 
 Không có sign-off nào ở trên thì công việc chỉ dừng ở discovery/design; không merge migration hay bật flag production.
