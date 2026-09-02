@@ -11,10 +11,18 @@ export class CreateInvoiceDto {
   subscriptionPlanId: string;
 
   @ApiPropertyOptional({
-    description: 'ID của công ty (Bắt buộc đối với Admin, Recruiter sẽ tự động lấy từ Token)',
+    description: 'ID của công ty (Bắt buộc đối với Admin tạo cho NTD, Recruiter sẽ tự động lấy từ Token)',
     example: 'e2b07384-d113-49cd-a5d6-8c2fa8e1b655',
   })
   @IsUUID()
   @IsOptional()
   companyId?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID hồ sơ ứng viên (Dành cho Admin, Candidate sẽ tự động lấy từ Token)',
+    example: 'c2b07384-d113-49cd-a5d6-8c2fa8e1b666',
+  })
+  @IsUUID()
+  @IsOptional()
+  candidateProfileId?: string;
 }

@@ -14,19 +14,19 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
-  @ApiOperation({ summary: 'Tạo hóa đơn (Admin hoặc Recruiter)' })
+  @ApiOperation({ summary: 'Tạo hóa đơn (Admin, Recruiter hoặc Candidate)' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ActorType.ADMIN, ActorType.RECRUITER)
+  @Roles(ActorType.ADMIN, ActorType.RECRUITER, ActorType.CANDIDATE)
   @Post()
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateInvoiceDto) {
     return this.invoicesService.create(user, dto);
   }
 
-  @ApiOperation({ summary: 'Lấy tất cả hóa đơn (Admin thấy hết, Recruiter thấy của công ty)' })
+  @ApiOperation({ summary: 'Lấy tất cả hóa đơn (Admin thấy hết, Recruiter/Candidate thấy của mình)' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ActorType.ADMIN, ActorType.RECRUITER)
+  @Roles(ActorType.ADMIN, ActorType.RECRUITER, ActorType.CANDIDATE)
   @Get()
   findAll(@CurrentUser() user: AuthenticatedUser) {
     return this.invoicesService.findAll(user);
@@ -35,7 +35,7 @@ export class InvoicesController {
   @ApiOperation({ summary: 'Xem chi tiết một hóa đơn' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ActorType.ADMIN, ActorType.RECRUITER)
+  @Roles(ActorType.ADMIN, ActorType.RECRUITER, ActorType.CANDIDATE)
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.invoicesService.findOne(id, user);
@@ -43,11 +43,11 @@ export class InvoicesController {
 
   @ApiOperation({
     summary: 'Xác nhận thanh toán hóa đơn (Kích hoạt dịch vụ)',
-    description: 'Admin hoặc Recruiter (cho hóa đơn của công ty mình) xác nhận thanh toán.',
+    description: 'Admin hoặc Recruiter/Candidate (cho hóa đơn của mình) xác nhận thanh toán.',
   })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ActorType.ADMIN, ActorType.RECRUITER)
+  @Roles(ActorType.ADMIN, ActorType.RECRUITER, ActorType.CANDIDATE)
   @Post(':id/pay')
   pay(
     @Param('id', ParseUUIDPipe) id: string,
@@ -55,5 +55,17 @@ export class InvoicesController {
     @Body() dto: PayInvoiceDto,
   ) {
     return this.invoicesService.pay(id, user, dto);
+  }
+
+  @ApiOperation({ summary: 'Hủy hóa đơn chờ thanh toán của chính mình' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ActorType.ADMIN, ActorType.RECRUITER, ActorType.CANDIDATE)
+  @Post(':id/cancel')
+  cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoicesService.cancelOwnInvoice(id, user);
   }
 }

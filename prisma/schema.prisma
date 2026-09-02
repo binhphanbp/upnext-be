@@ -541,6 +541,7 @@ model CandidateProfile {
   aiRetrievalRuns       AiRetrievalRun[]
   subscriptions         CandidateSubscription[]
   subscriptionUsages    CandidateSubscriptionUsage[]
+  invoices              Invoice[]
 
   @@index([jobSearchStatus])
   @@index([profileVisibility])
@@ -2246,7 +2247,8 @@ model AiOperationResult {
 model Invoice {
   id                 String         @id @default(uuid()) @db.Uuid
   subscriptionPlanId String         @map("subscription_plan_id") @db.Uuid
-  companyId          String         @map("company_id") @db.Uuid
+  companyId          String?        @map("company_id") @db.Uuid
+  candidateProfileId String?        @map("candidate_profile_id") @db.Uuid
   invoiceCode        String         @unique @map("invoice_code") @db.VarChar(80)
   amount             Decimal        @db.Decimal(12, 2)
   paymentMethod      PaymentMethod? @map("payment_method")
@@ -2264,11 +2266,13 @@ model Invoice {
   createdAt          DateTime       @default(now()) @map("created_at")
   updatedAt          DateTime       @updatedAt @map("updated_at")
 
-  subscriptionPlan SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id], onDelete: Restrict)
-  company          Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subscriptionPlan SubscriptionPlan  @relation(fields: [subscriptionPlanId], references: [id], onDelete: Restrict)
+  company          Company?           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidateProfile CandidateProfile?  @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
   supportCases     SupportCase[]
 
   @@index([companyId, paymentStatus])
+  @@index([candidateProfileId, paymentStatus])
   @@index([paymentStatus, createdAt])
   @@index([createdAt])
   @@map("invoices")

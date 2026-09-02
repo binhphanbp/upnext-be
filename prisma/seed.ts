@@ -2504,7 +2504,7 @@ async function main() {
         description: 'Gói cơ bản để ứng viên trải nghiệm trợ lý nghề nghiệp AI.',
         durationDays: 30,
         status: 'ACTIVE',
-        isPublic: false,
+        isPublic: true,
         sortOrder: 10,
         createdByAdminId: adminUser.id,
       },
