@@ -731,6 +731,7 @@ model FileAsset {
   postCoverImages         Post[]              @relation("PostCoverImageFile")
   socialPostImages        Post[]              @relation("PostSocialImageFile")
   reportEvidences         Report[]            @relation("ReportEvidenceFile")
+  reportEvidenceItems     ReportEvidence[]    @relation("ReportEvidenceFiles")
   appealEvidences         Appeal[]            @relation("AppealEvidenceFile")
   messageAttachments      MessageAttachment[]
 
@@ -1815,6 +1816,7 @@ model Report {
   reporterCandidate        CandidateProfile? @relation(fields: [reporterCandidateId], references: [id], onDelete: SetNull)
   reporterRecruiterAccount RecruiterAccount? @relation(fields: [reporterRecruiterAccountId], references: [id], onDelete: SetNull)
   handledByAdmin           AdminUser?        @relation("ReportHandledByAdmin", fields: [handledByAdminId], references: [id], onDelete: SetNull)
+  evidences                ReportEvidence[]
 
   /// Postgres treats NULLs as distinct, so this only constrains recruiter-filed
   /// reports — one per recruiter per target — and leaves candidate reports alone.
@@ -1823,6 +1825,23 @@ model Report {
   @@index([status])
   @@index([reporterType])
   @@map("reports")
+}
+
+/// Ảnh bằng chứng của một báo cáo — một báo cáo gửi được nhiều ảnh.
+/// `Report.evidenceFileId` vẫn giữ ảnh đầu tiên để các chỗ đọc cũ không vỡ.
+model ReportEvidence {
+  id        String   @id @default(uuid()) @db.Uuid
+  reportId  String   @map("report_id") @db.Uuid
+  fileId    String   @map("file_id") @db.Uuid
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  report Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  file   FileAsset @relation("ReportEvidenceFiles", fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, fileId])
+  @@index([reportId, position])
+  @@map("report_evidences")
 }
 
 model Appeal {
