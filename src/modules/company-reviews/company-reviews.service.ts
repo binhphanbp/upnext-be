@@ -8,43 +8,24 @@ import { CompanyReviewStatus, Prisma } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toPagination } from '../../common/dto/pagination-query.dto';
-import {
-  COMPANY_REVIEW_TARGET_TYPE,
-  ReportsService,
-} from '../reports/reports.service';
+import { COMPANY_REVIEW_TARGET_TYPE, ReportsService } from '../reports/reports.service';
 import { CreateCompanyReviewDto } from './dto/create-company-review.dto';
 import { UpdateCompanyReviewDto } from './dto/update-company-review.dto';
 import { CreateCompanyReviewReportDto } from './dto/create-company-review-report.dto';
 import { ListMyCompanyReviewsQueryDto } from './dto/list-my-company-reviews-query.dto';
 
-const RATING_FIELDS = [
-  'overallRating',
-  'salaryBenefitsRating',
-  'trainingLearningRating',
-  'managementCareRating',
-  'cultureFunRating',
-  'officeWorkspaceRating',
-  'overtimeSatisfaction',
-] as const;
-
 /**
- * Reviews are attributed, not anonymous — but only the reviewer's name is exposed.
+ * Reviews are attributed, not anonymous — but only the reviewer name is exposed.
  * The profile also holds phoneNumber, gender, birthdate, address and jobSearchStatus,
  * none of which belong on a public page, so this selects the name and nothing else.
+ *
+ * A review is one star rating plus one comment: the per-section ratings that used to be
+ * collected are no longer read, so they are not selected either.
  */
 const PUBLIC_REVIEW_SELECT = {
   id: true,
   overallRating: true,
   summary: true,
-  overtimeSatisfaction: true,
-  overtimeReason: true,
-  whatILove: true,
-  improvementSuggestion: true,
-  salaryBenefitsRating: true,
-  trainingLearningRating: true,
-  managementCareRating: true,
-  cultureFunRating: true,
-  officeWorkspaceRating: true,
   createdAt: true,
   candidateProfile: {
     select: {
@@ -71,6 +52,12 @@ function toReviewer(review: PublicCompanyReview) {
 function withReviewer(review: PublicCompanyReview) {
   const { candidateProfile: _candidateProfile, ...rest } = review;
   return { ...rest, reviewer: toReviewer(review) };
+}
+
+/** Candidate and recruiter accounts live in separate tables; the email is what links them. */
+function sameEmail(a: string | null | undefined, b: string | null | undefined) {
+  if (!a || !b) return false;
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
 @Injectable()
@@ -135,8 +122,8 @@ export class CompanyReviewsService {
    * Recruiter-facing list of the reviews left on their own company.
    *
    * Hidden reviews are excluded, exactly as on the public page, so a recruiter never
-   * sees content visitors cannot. The reviewer's name is shown — the same name the public
-   * page shows, nothing more. Each row carries the caller's own report, if any, because
+   * sees content visitors cannot. The reviewer name is shown — the same name the public
+   * page shows, nothing more. Each row carries the caller own report, if any, because
    * the report endpoint rejects duplicates and the UI has to know before offering the action.
    */
   async listMyCompanyReviews(
@@ -167,15 +154,7 @@ export class CompanyReviewsService {
       this.prisma.companyReview.aggregate({
         where: companyWhere,
         _count: { _all: true },
-        _avg: {
-          overallRating: true,
-          salaryBenefitsRating: true,
-          trainingLearningRating: true,
-          managementCareRating: true,
-          cultureFunRating: true,
-          officeWorkspaceRating: true,
-          overtimeSatisfaction: true,
-        },
+        _avg: { overallRating: true },
       }),
       this.prisma.companyReview.groupBy({
         by: ['overallRating'],
@@ -190,7 +169,7 @@ export class CompanyReviewsService {
     }
 
     // Reports live on the polymorphic `Report` table, so there is no relation to include
-    // — they are fetched for this page's reviews and stitched on afterwards.
+    // — they are fetched for this page reviews and stitched on afterwards.
     const myReports = await this.reportsService.findRecruiterReportsByTargets({
       reporterRecruiterAccountId: recruiterUser.id,
       targetType: COMPANY_REVIEW_TARGET_TYPE,
@@ -216,14 +195,6 @@ export class CompanyReviewsService {
       summary: {
         totalReviews: aggregate._count._all,
         averageOverallRating: roundToOneDecimal(aggregate._avg.overallRating),
-        averageBySection: {
-          salaryBenefits: roundToOneDecimal(aggregate._avg.salaryBenefitsRating),
-          trainingLearning: roundToOneDecimal(aggregate._avg.trainingLearningRating),
-          managementCare: roundToOneDecimal(aggregate._avg.managementCareRating),
-          cultureFun: roundToOneDecimal(aggregate._avg.cultureFunRating),
-          officeWorkspace: roundToOneDecimal(aggregate._avg.officeWorkspaceRating),
-          overtimeSatisfaction: roundToOneDecimal(aggregate._avg.overtimeSatisfaction),
-        },
         ratingDistribution,
       },
       meta: {
@@ -236,29 +207,15 @@ export class CompanyReviewsService {
   }
 
   private buildSummary(reviews: PublicCompanyReview[]) {
-    const totalReviews = reviews.length;
-    const averages: Record<string, number | null> = {};
-
-    for (const field of RATING_FIELDS) {
-      const values = reviews
-        .map((review) => review[field])
-        .filter((value): value is number => typeof value === 'number');
-      averages[field] = values.length
-        ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10
-        : null;
-    }
+    const ratings = reviews
+      .map((review) => review.overallRating)
+      .filter((value): value is number => typeof value === 'number');
 
     return {
-      totalReviews,
-      averageOverallRating: averages.overallRating,
-      averageBySection: {
-        salaryBenefits: averages.salaryBenefitsRating,
-        trainingLearning: averages.trainingLearningRating,
-        managementCare: averages.managementCareRating,
-        cultureFun: averages.cultureFunRating,
-        officeWorkspace: averages.officeWorkspaceRating,
-        overtimeSatisfaction: averages.overtimeSatisfaction,
-      },
+      totalReviews: reviews.length,
+      averageOverallRating: ratings.length
+        ? roundToOneDecimal(ratings.reduce((sum, value) => sum + value, 0) / ratings.length)
+        : null,
     };
   }
 
@@ -297,11 +254,25 @@ export class CompanyReviewsService {
     recruiterUser: AuthenticatedUser,
     dto: CreateCompanyReviewReportDto,
   ) {
-    const review = await this.prisma.companyReview.findUnique({ where: { id: reviewId } });
+    const review = await this.prisma.companyReview.findUnique({
+      where: { id: reviewId },
+      select: {
+        id: true,
+        companyId: true,
+        candidateProfile: { select: { account: { select: { email: true } } } },
+      },
+    });
     if (!review) throw new NotFoundException('Không tìm thấy đánh giá.');
 
     if (!recruiterUser.companyId || recruiterUser.companyId !== review.companyId) {
       throw new ForbiddenException('Bạn chỉ có thể báo cáo đánh giá của công ty mình.');
+    }
+
+    // Nobody may report a review they wrote themselves. A candidate account and a
+    // recruiter account are separate rows, so the same person arrives with two ids —
+    // the email is the only thing that ties them together, and it is unique per table.
+    if (sameEmail(review.candidateProfile?.account?.email, recruiterUser.email)) {
+      throw new ForbiddenException('Bạn không thể báo cáo đánh giá do chính bạn viết.');
     }
 
     const existing = await this.reportsService.findRecruiterReport({
@@ -321,8 +292,7 @@ export class CompanyReviewsService {
       targetType: COMPANY_REVIEW_TARGET_TYPE,
       targetId: reviewId,
       reason: dto.reason,
-      evidenceFileId: dto.evidenceFileId,
+      evidenceFileIds: dto.evidenceFileIds,
     });
   }
-
 }

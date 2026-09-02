@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   ActorType,
   CompanyReviewStatus,
@@ -17,12 +23,30 @@ import { ListReportsQueryDto } from './dto/list-reports-query.dto';
 const RESTRICTED_TARGET_TYPE = 'COMPANY';
 export const COMPANY_REVIEW_TARGET_TYPE = 'COMPANY_REVIEW';
 
+/** Số ảnh bằng chứng tối đa cho một báo cáo. */
+export const MAX_REPORT_EVIDENCE_FILES = 5;
+
+/** Keeps the reporter order while dropping a file id sent twice. */
+function dedupe(ids: string[]) {
+  return [...new Set(ids)];
+}
+
 /**
  * Both reporter relations are loaded because a report is filed by either a candidate or
  * a recruiter; `reporterType` says which one to read.
  */
 const REPORT_INCLUDE = {
+  // `evidenceFile` is the first image, kept for readers that predate multi-image
+  // evidence; `evidences` is the full list.
   evidenceFile: true,
+  evidences: {
+    orderBy: { position: 'asc' },
+    select: {
+      id: true,
+      position: true,
+      file: { select: { id: true, publicUrl: true, originalName: true, mimeType: true } },
+    },
+  },
   reporterCandidate: {
     select: { id: true, account: { select: { fullName: true, email: true } } },
   },
@@ -63,6 +87,8 @@ export class ReportsService {
     const reporterCandidateId = candidateProfile.id;
     const targetId = await this.resolveTargetId(dto.targetType, dto.targetId);
 
+    this.assertCandidateMayReport(dto.targetType, targetId, reporterCandidateId);
+
     // Filing a report no longer restricts anything — that only happens once an admin
     // resolves it (see updateStatus). A single unverified complaint used to be enough to
     // zero a company's reputation, which made the report button a weapon.
@@ -92,8 +118,42 @@ export class ReportsService {
     return report;
   }
 
+  /**
+   * What a candidate is allowed to report at all.
+   *
+   * `POST /reports` takes `targetType` from the client, so every rule about who may
+   * report what has to be enforced here rather than by the route.
+   *
+   * - Company reviews are off limits to candidates entirely. A review is only reportable
+   *   by the company being reviewed, through `POST /company-reviews/:id/report`
+   *   (RECRUITER-only) — otherwise one candidate could file against another candidate's
+   *   review, and an admin resolving it hides that review.
+   * - Nobody reports their own profile.
+   */
+  private assertCandidateMayReport(
+    targetType: string,
+    targetId: string,
+    reporterCandidateId: string,
+  ) {
+    const normalized = targetType.toUpperCase();
+
+    if (normalized === COMPANY_REVIEW_TARGET_TYPE) {
+      throw new ForbiddenException(
+        'Chỉ nhà tuyển dụng của công ty được đánh giá mới có thể báo cáo đánh giá này.',
+      );
+    }
+
+    if (normalized === 'CANDIDATE' && targetId === reporterCandidateId) {
+      throw new ForbiddenException('Bạn không thể tự báo cáo hồ sơ của chính mình.');
+    }
+  }
+
   /** Checks if candidate has an active (PENDING/REVIEWING) report for the target. */
-  async findActiveCandidateReport(candidateAccountId: string, targetType: string, targetIdOrSlug: string) {
+  async findActiveCandidateReport(
+    candidateAccountId: string,
+    targetType: string,
+    targetIdOrSlug: string,
+  ) {
     const candidateProfile = await this.prisma.candidateProfile.findUnique({
       where: { candidateAccountId },
       select: { id: true },
@@ -146,21 +206,26 @@ export class ReportsService {
     targetType: string;
     targetId: string;
     reason: string;
-    evidenceFileId?: string | null;
+    /** Ordered as the reporter arranged them; the first one also lands on `evidenceFileId`. */
+    evidenceFileIds?: string[] | null;
   }) {
-    if (input.evidenceFileId) {
-      await this.assertEvidenceFileExists(input.evidenceFileId);
-    }
+    const evidenceFileIds = dedupe(input.evidenceFileIds ?? []);
+    await this.assertEvidenceFilesExist(evidenceFileIds);
 
     const report = await this.prisma.report.create({
       data: {
         targetType: input.targetType,
         targetId: input.targetId,
         reason: input.reason,
-        evidenceFileId: input.evidenceFileId ?? null,
+        // Kept in sync with the first image so the pre-existing single-file readers
+        // (admin list, emails) keep working while `evidences` holds every image.
+        evidenceFileId: evidenceFileIds[0] ?? null,
         reporterType: ActorType.RECRUITER,
         reporterRecruiterAccountId: input.reporterRecruiterAccountId,
         status: ReportStatus.PENDING,
+        evidences: {
+          create: evidenceFileIds.map((fileId, position) => ({ fileId, position })),
+        },
       },
     });
 
@@ -185,6 +250,24 @@ export class ReportsService {
   private async assertEvidenceFileExists(evidenceFileId: string) {
     const file = await this.prisma.fileAsset.findUnique({ where: { id: evidenceFileId } });
     if (!file) {
+      throw new NotFoundException('Evidence file not found');
+    }
+  }
+
+  /**
+   * Same guard for a whole set, in one query — and the cap is enforced here rather than
+   * only in the DTO so no server-side caller can slip past it either.
+   */
+  private async assertEvidenceFilesExist(evidenceFileIds: string[]) {
+    if (evidenceFileIds.length === 0) return;
+    if (evidenceFileIds.length > MAX_REPORT_EVIDENCE_FILES) {
+      throw new BadRequestException(
+        `Chỉ được gửi tối đa ${MAX_REPORT_EVIDENCE_FILES} ảnh bằng chứng.`,
+      );
+    }
+
+    const found = await this.prisma.fileAsset.count({ where: { id: { in: evidenceFileIds } } });
+    if (found !== evidenceFileIds.length) {
       throw new NotFoundException('Evidence file not found');
     }
   }
@@ -383,7 +466,10 @@ export class ReportsService {
 
     // Approving a report against a company is what puts it into Restricted Mode. Same
     // guard as above: this mutates the company, so it must not run twice.
-    if (report.targetType.toUpperCase() === RESTRICTED_TARGET_TYPE && status === ReportStatus.RESOLVED) {
+    if (
+      report.targetType.toUpperCase() === RESTRICTED_TARGET_TYPE &&
+      status === ReportStatus.RESOLVED
+    ) {
       if (report.status !== ReportStatus.PENDING && report.status !== ReportStatus.REVIEWING) {
         throw new BadRequestException('Báo cáo này đã được xử lý trước đó.');
       }
@@ -611,7 +697,9 @@ export class ReportsService {
   }
 
   private async resolveTargetId(targetType: string, targetIdOrSlug: string): Promise<string> {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetIdOrSlug);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      targetIdOrSlug,
+    );
     if (isUuid) {
       return targetIdOrSlug;
     }

@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ActorType, CompanyReviewStatus, ReportStatus } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -29,7 +29,7 @@ describe('ReportsService', () => {
     companyReview: { update: jest.fn(), findUnique: jest.fn() },
     candidateProfile: { findUnique: jest.fn() },
     company: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
-    fileAsset: { findUnique: jest.fn() },
+    fileAsset: { findUnique: jest.fn(), count: jest.fn() },
     adminUser: { findMany: jest.fn().mockResolvedValue([]) },
     recruiterAccount: { findUnique: jest.fn() },
     jobPost: { findUnique: jest.fn(), findFirst: jest.fn() },
@@ -131,6 +131,41 @@ describe('ReportsService', () => {
         }),
       ).resolves.toBeDefined();
     });
+
+    it('refuses any candidate report aimed at a company review', async () => {
+      // Only the reviewed company may report a review, through the RECRUITER-only
+      // endpoint. `targetType` comes from the client here, so this is where that rule
+      // has to hold — resolving such a report is what hides the review.
+      await expect(
+        service.create(candidate, {
+          targetType: 'COMPANY_REVIEW',
+          targetId: '11111111-1111-4111-8111-111111111111',
+          reason: 'Đánh giá này sai sự thật',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prismaMock.report.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses a report a candidate files on their own profile', async () => {
+      await expect(
+        service.create(candidate, {
+          targetType: 'CANDIDATE',
+          targetId: 'candidate-profile-id',
+          reason: 'Tự báo cáo chính mình',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prismaMock.report.create).not.toHaveBeenCalled();
+    });
+
+    it('still accepts a report on another candidate profile', async () => {
+      await expect(
+        service.create(candidate, {
+          targetType: 'CANDIDATE',
+          targetId: 'another-candidate-profile',
+          reason: 'Hồ sơ giả mạo',
+        }),
+      ).resolves.toBeDefined();
+    });
   });
 
   describe('createRecruiterReport', () => {
@@ -153,11 +188,69 @@ describe('ReportsService', () => {
           reporterType: ActorType.RECRUITER,
           reporterRecruiterAccountId: 'recruiter-account-id',
           status: ReportStatus.PENDING,
+          evidences: { create: [] },
         },
       });
       // A recruiter able to trigger Restricted Mode could knock out a competitor.
       expect(prismaMock.company.update).not.toHaveBeenCalled();
       expect(applyDelta).not.toHaveBeenCalled();
+    });
+
+    it('stores every evidence image in order and mirrors the first onto the legacy column', async () => {
+      prismaMock.report.create.mockResolvedValue({ id: 'report-id' });
+      prismaMock.fileAsset.count.mockResolvedValue(3);
+
+      await service.createRecruiterReport({
+        reporterRecruiterAccountId: 'recruiter-account-id',
+        targetType: 'COMPANY_REVIEW',
+        targetId: 'review-id',
+        reason: 'Đánh giá sai sự thật',
+        // The same file sent twice would violate the (report, file) unique index.
+        evidenceFileIds: ['file-a', 'file-b', 'file-a', 'file-c'],
+      });
+
+      expect(prismaMock.report.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          evidenceFileId: 'file-a',
+          evidences: {
+            create: [
+              { fileId: 'file-a', position: 0 },
+              { fileId: 'file-b', position: 1 },
+              { fileId: 'file-c', position: 2 },
+            ],
+          },
+        }),
+      });
+    });
+
+    it('refuses more evidence images than the cap allows', async () => {
+      prismaMock.fileAsset.count.mockResolvedValue(6);
+
+      await expect(
+        service.createRecruiterReport({
+          reporterRecruiterAccountId: 'recruiter-account-id',
+          targetType: 'COMPANY_REVIEW',
+          targetId: 'review-id',
+          reason: 'Đánh giá sai sự thật',
+          evidenceFileIds: ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prismaMock.report.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses an evidence id that points at no file', async () => {
+      prismaMock.fileAsset.count.mockResolvedValue(1);
+
+      await expect(
+        service.createRecruiterReport({
+          reporterRecruiterAccountId: 'recruiter-account-id',
+          targetType: 'COMPANY_REVIEW',
+          targetId: 'review-id',
+          reason: 'Đánh giá sai sự thật',
+          evidenceFileIds: ['real-file', 'ghost-file'],
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prismaMock.report.create).not.toHaveBeenCalled();
     });
   });
 
