@@ -16,6 +16,7 @@ import {
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { sanitizeJobPostContent } from './job-post-content.policy';
 import { CreateJobPostDto } from './dto/create-job-post.dto';
 import { ApproveJobPostDto } from './dto/approve-job-post.dto';
 import { RejectJobPostDto } from './dto/reject-job-post.dto';
@@ -47,7 +48,7 @@ export class JobPostsService {
 
     return this.prisma.jobPost.create({
       data: {
-        ...createJobPostDto,
+        ...sanitizeJobPostContent(createJobPostDto),
         slug,
         createdByRecruiterId: user.id,
         companyId: context.company.id,
@@ -150,7 +151,7 @@ export class JobPostsService {
     return this.prisma.jobPost.update({
       where: { id },
       data: {
-        ...updateJobPostDto,
+        ...sanitizeJobPostContent(updateJobPostDto),
         moderationStatus: ModerationStatus.APPROVED,
         reason: null,
         moderationNote: null,

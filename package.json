@@ -35,7 +35,8 @@
     "test:neglected-cv": "tsx scripts/test-neglected-cv.ts",
     "measure-ai-cogs": "ts-node -P tsconfig.json scripts/measure-ai-cogs.ts",
     "db:reset": "prisma migrate reset",
-    "prepare": "husky"
+    "prepare": "husky",
+    "job-posts:sanitize": "tsx scripts/sanitize-existing-job-posts.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
