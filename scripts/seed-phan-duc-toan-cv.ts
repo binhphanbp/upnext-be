@@ -72,7 +72,7 @@ async function main() {
       email,
       fullName,
       passwordHash,
-      authProvider: AuthProvider.LOCAL,
+      authProvider: AuthProvider.DEFAULT,
       emailVerifiedAt: new Date(),
     },
   });
@@ -154,7 +154,7 @@ async function main() {
         candidateProfileId: profile.id,
         title: 'CV Phan Đức Toàn - Backend Developer Intern',
         isDefault: true,
-        source: CvSource.UPLOADED,
+        source: CvSource.UPLOAD,
         status: CvStatus.ACTIVE,
       },
     });
