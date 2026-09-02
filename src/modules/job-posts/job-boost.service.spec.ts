@@ -16,7 +16,13 @@ describe('JobBoostService', () => {
 
   let prisma: {
     jobPost: { findFirst: jest.Mock };
-    jobBoost: { findFirst: jest.Mock; create: jest.Mock; updateMany: jest.Mock; findUniqueOrThrow: jest.Mock };
+    jobBoost: {
+      findFirst: jest.Mock;
+      findUnique: jest.Mock;
+      create: jest.Mock;
+      updateMany: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
+    };
     subscriptionUsage: { findFirst: jest.Mock };
     $transaction: jest.Mock;
   };
@@ -28,6 +34,7 @@ describe('JobBoostService', () => {
       jobPost: { findFirst: jest.fn() },
       jobBoost: {
         findFirst: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn(),
         updateMany: jest.fn(),
         findUniqueOrThrow: jest.fn(),
@@ -52,7 +59,7 @@ describe('JobBoostService', () => {
       prisma.jobPost.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.createBoost('job-1', user, JobBoostType.FEATURED),
+        service.createBoost('job-1', user, JobBoostType.FEATURED, 'idem-1'),
       ).rejects.toThrow(NotFoundException);
       expect(quota.consume).not.toHaveBeenCalled();
     });
@@ -65,7 +72,7 @@ describe('JobBoostService', () => {
       });
 
       await expect(
-        service.createBoost('job-1', user, JobBoostType.FEATURED),
+        service.createBoost('job-1', user, JobBoostType.FEATURED, 'idem-1'),
       ).rejects.toMatchObject({ response: { code: 'JOB_NOT_PUBLISHED' } });
       expect(quota.consume).not.toHaveBeenCalled();
     });
@@ -82,7 +89,7 @@ describe('JobBoostService', () => {
       });
 
       await expect(
-        service.createBoost('job-1', user, JobBoostType.FEATURED),
+        service.createBoost('job-1', user, JobBoostType.FEATURED, 'idem-1'),
       ).rejects.toMatchObject({ response: { code: 'JOB_BOOST_ALREADY_ACTIVE' } });
       expect(quota.consume).not.toHaveBeenCalled();
     });
@@ -98,13 +105,17 @@ describe('JobBoostService', () => {
         Promise.resolve(data),
       );
 
-      const boost = await service.createBoost('job-1', user, JobBoostType.URGENT);
+      const boost = await service.createBoost('job-1', user, JobBoostType.URGENT, 'idem-1');
 
       expect(quota.consume).toHaveBeenCalledTimes(1);
       const [, consumeArgs] = quota.consume.mock.calls[0]!;
       // `referenceId` của lượt tiêu quota phải khớp đúng `id` của JobBoost vừa
-      // tạo -- đây là cơ chế duy nhất cancelBoost() dùng để hoàn đúng lượt.
+      // tạo -- đây là cơ chế duy nhất stopBoost() dùng để hoàn đúng lượt.
       expect(consumeArgs.referenceId).toBe(boost.id);
+      // Key gửi cho SubscriptionUsage phải gắn với company -- hai công ty
+      // dùng trùng client-side UUID (rất khó nhưng không phải bất khả thi)
+      // không được va vào nhau.
+      expect(consumeArgs.idempotencyKey).toBe(`job-boost:${user.companyId}:idem-1`);
       expect(boost).toMatchObject({
         type: JobBoostType.URGENT,
         status: JobBoostStatus.ACTIVE,
@@ -112,46 +123,96 @@ describe('JobBoostService', () => {
         creditCost: 1,
       });
     });
+
+    it('replay: cùng idempotencyKey trả lại boost cũ, không tiêu thêm quota', async () => {
+      const existing = { id: 'boost-existing', jobPostId: 'job-1', status: JobBoostStatus.ACTIVE };
+      prisma.jobBoost.findUnique.mockResolvedValue(existing);
+
+      const boost = await service.createBoost('job-1', user, JobBoostType.FEATURED, 'idem-1');
+
+      expect(boost).toBe(existing);
+      expect(quota.consume).not.toHaveBeenCalled();
+      expect(prisma.jobPost.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('cùng idempotencyKey nhưng khác job -> 409', async () => {
+      prisma.jobBoost.findUnique.mockResolvedValue({
+        id: 'boost-existing',
+        jobPostId: 'job-OTHER',
+        status: JobBoostStatus.ACTIVE,
+      });
+
+      await expect(
+        service.createBoost('job-1', user, JobBoostType.FEATURED, 'idem-1'),
+      ).rejects.toMatchObject({
+        response: { code: 'IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST' },
+      });
+    });
   });
 
-  describe('cancelBoost', () => {
-    it('không hủy được lượt đã ENDED', async () => {
+  describe('stopBoost', () => {
+    it('không dừng được lượt đã ENDED', async () => {
       prisma.jobBoost.findFirst.mockResolvedValue({
         id: 'boost-1',
         status: JobBoostStatus.ENDED,
         companyId: user.companyId,
         companySubscriptionId: 'sub-1',
+        firstImpressionAt: null,
       });
 
-      await expect(service.cancelBoost('boost-1', user)).rejects.toMatchObject({
+      await expect(service.stopBoost('boost-1', user)).rejects.toMatchObject({
         response: { code: 'JOB_BOOST_NOT_CANCELLABLE' },
       });
       expect(quota.reverse).not.toHaveBeenCalled();
     });
 
-    it('hoàn đúng lượt quota gắn với boost này -- tra theo referenceId, không phải "gần nhất"', async () => {
+    it('hoàn đúng lượt quota gắn với boost này khi chưa có impression -- tra theo referenceId, không phải "gần nhất"', async () => {
       prisma.jobBoost.findFirst.mockResolvedValue({
         id: 'boost-1',
         status: JobBoostStatus.ACTIVE,
         companyId: user.companyId,
         companySubscriptionId: 'sub-1',
+        firstImpressionAt: null,
       });
       prisma.jobBoost.updateMany.mockResolvedValue({ count: 1 });
       prisma.subscriptionUsage.findFirst.mockResolvedValue({ id: 'usage-1' });
       prisma.jobBoost.findUniqueOrThrow.mockResolvedValue({ id: 'boost-1' });
 
-      await service.cancelBoost('boost-1', user);
+      const result = await service.stopBoost('boost-1', user);
 
       expect(prisma.subscriptionUsage.findFirst).toHaveBeenCalledWith({
         where: { referenceType: 'JOB_BOOST', referenceId: 'boost-1' },
       });
-      expect(quota.reverse).toHaveBeenCalledWith(prisma, 'usage-1', 'job-boost-cancelled');
+      expect(quota.reverse).toHaveBeenCalledWith(
+        prisma,
+        'usage-1',
+        'job-boost-stopped-before-impression',
+      );
+      expect(result.creditRefunded).toBe(true);
     });
 
-    it('từ chối khi công ty khác cố hủy', async () => {
+    it('KHÔNG hoàn credit khi đã có impression, dù dừng sớm (mục 4.3)', async () => {
+      prisma.jobBoost.findFirst.mockResolvedValue({
+        id: 'boost-1',
+        status: JobBoostStatus.ACTIVE,
+        companyId: user.companyId,
+        companySubscriptionId: 'sub-1',
+        firstImpressionAt: new Date('2026-08-25T00:00:00.000Z'),
+      });
+      prisma.jobBoost.updateMany.mockResolvedValue({ count: 1 });
+      prisma.jobBoost.findUniqueOrThrow.mockResolvedValue({ id: 'boost-1' });
+
+      const result = await service.stopBoost('boost-1', user);
+
+      expect(quota.reverse).not.toHaveBeenCalled();
+      expect(prisma.subscriptionUsage.findFirst).not.toHaveBeenCalled();
+      expect(result.creditRefunded).toBe(false);
+    });
+
+    it('từ chối khi công ty khác cố dừng', async () => {
       prisma.jobBoost.findFirst.mockResolvedValue(null);
 
-      await expect(service.cancelBoost('boost-1', user)).rejects.toThrow(NotFoundException);
+      await expect(service.stopBoost('boost-1', user)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -159,7 +220,7 @@ describe('JobBoostService', () => {
     const noCompanyUser = { ...user, companyId: undefined };
 
     await expect(
-      service.createBoost('job-1', noCompanyUser, JobBoostType.FEATURED),
+      service.createBoost('job-1', noCompanyUser, JobBoostType.FEATURED, 'idem-1'),
     ).rejects.toThrow(ForbiddenException);
   });
 });

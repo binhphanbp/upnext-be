@@ -298,6 +298,30 @@ enum JobBoostType {
   URGENT   @map("urgent")
 }
 
+/// Lý do một boost kết thúc trước khi hết vòng đời tự nhiên. `EXPIRED` là
+/// đường mặc định (cron `JobBoostExpirationService`); các giá trị còn lại ghi
+/// nhận lý do chủ động -- quyết định hoàn/không hoàn credit (mục 4.3 kế
+/// hoạch) chỉ áp dụng cho `RECRUITER_STOPPED`.
+enum JobBoostEndedReason {
+  EXPIRED             @map("expired")
+  RECRUITER_STOPPED   @map("recruiter_stopped")
+  JOB_CLOSED          @map("job_closed")
+  JOB_EXPIRED         @map("job_expired")
+  JOB_HIDDEN          @map("job_hidden")
+  MODERATION_REJECTED @map("moderation_rejected")
+  ADMIN_CANCELLED     @map("admin_cancelled")
+}
+
+enum JobBoostPlacement {
+  SEARCH   @map("search")
+  HOMEPAGE @map("homepage")
+}
+
+enum JobBoostEventType {
+  IMPRESSION @map("impression")
+  CLICK      @map("click")
+}
+
 enum CompanyMemberStatus {
   ACTIVE  @map("active")
   INVITED @map("invited")
@@ -2163,27 +2187,41 @@ model PaymentGatewayConfig {
 }
 
 model JobBoost {
-  id                    String         @id @default(uuid()) @db.Uuid
-  createdByRecruiterId  String         @map("created_by_recruiter_id") @db.Uuid
-  companySubscriptionId String         @map("company_subscription_id") @db.Uuid
-  jobPostId             String         @map("job_post_id") @db.Uuid
-  companyId             String         @map("company_id") @db.Uuid
-  type                  JobBoostType   @default(FEATURED)
-  status                JobBoostStatus @default(SCHEDULED)
-  creditCost            Int            @map("credit_cost")
-  startsAt              DateTime       @map("starts_at")
-  endsAt                DateTime       @map("ends_at")
-  createdAt             DateTime       @default(now()) @map("created_at")
-  updatedAt             DateTime       @updatedAt @map("updated_at")
+  id                    String               @id @default(uuid()) @db.Uuid
+  createdByRecruiterId  String               @map("created_by_recruiter_id") @db.Uuid
+  companySubscriptionId String               @map("company_subscription_id") @db.Uuid
+  jobPostId             String               @map("job_post_id") @db.Uuid
+  companyId             String               @map("company_id") @db.Uuid
+  type                  JobBoostType         @default(FEATURED)
+  status                JobBoostStatus       @default(SCHEDULED)
+  endedReason           JobBoostEndedReason? @map("ended_reason")
+  creditCost            Int                  @map("credit_cost")
+  startsAt              DateTime             @map("starts_at")
+  endsAt                DateTime             @map("ends_at")
+  /// Khóa idempotency do client sinh (một lần bấm nút = một key), khớp với
+  /// `SubscriptionUsage.idempotencyKey` của lượt tiêu quota gắn với boost này.
+  idempotencyKey        String               @unique @map("idempotency_key") @db.VarChar(200)
+  /// Mốc phân phối đầu/cuối -- quyết định chính sách hoàn credit khi dừng sớm
+  /// (mục 4.3: đã có impression thì không hoàn) và chống double count.
+  firstImpressionAt     DateTime?            @map("first_impression_at")
+  lastImpressionAt      DateTime?            @map("last_impression_at")
+  /// Mốc lượt phục vụ gần nhất -- khoá xoay vòng công bằng cho endpoint
+  /// sponsored-jobs (`ORDER BY lastServedAt ASC`), mục 5.3.
+  lastServedAt          DateTime?            @map("last_served_at")
+  placementVersion      String               @default("v1") @map("placement_version") @db.VarChar(20)
+  createdAt             DateTime             @default(now()) @map("created_at")
+  updatedAt             DateTime             @updatedAt @map("updated_at")
 
-  createdByRecruiter  RecruiterAccount    @relation("JobBoostCreatedByRecruiter", fields: [createdByRecruiterId], references: [id], onDelete: Restrict)
-  companySubscription CompanySubscription @relation(fields: [companySubscriptionId], references: [id], onDelete: Restrict)
-  jobPost             JobPost             @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
-  company             Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdByRecruiter  RecruiterAccount        @relation("JobBoostCreatedByRecruiter", fields: [createdByRecruiterId], references: [id], onDelete: Restrict)
+  companySubscription CompanySubscription     @relation(fields: [companySubscriptionId], references: [id], onDelete: Restrict)
+  jobPost             JobPost                 @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+  company             Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
   metrics             JobBoostMetric[]
+  deliveryEvents      JobBoostDeliveryEvent[]
 
   @@index([jobPostId, status])
   @@index([companyId])
+  @@index([status, lastServedAt])
   @@map("job_boost")
 }
 
@@ -2205,6 +2243,25 @@ model JobBoostMetric {
   @@unique([jobBoostId, date])
   @@index([jobPostId, date])
   @@map("job_boost_metrics")
+}
+
+/// Chống bơm impression/click ảo (F5, bot) -- một `visitorHash` chỉ được tính
+/// một lần cho mỗi (boost, placement, loại sự kiện, ngày). `visitorHash` là
+/// hash một chiều của cookie/IP phía server sinh ra, không lưu định danh thật.
+model JobBoostDeliveryEvent {
+  id          String            @id @default(uuid()) @db.Uuid
+  jobBoostId  String            @map("job_boost_id") @db.Uuid
+  placement   JobBoostPlacement
+  eventType   JobBoostEventType @map("event_type")
+  visitorHash String            @map("visitor_hash") @db.VarChar(64)
+  eventDate   DateTime          @map("event_date") @db.Date
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  jobBoost JobBoost @relation(fields: [jobBoostId], references: [id], onDelete: Cascade)
+
+  @@unique([jobBoostId, placement, eventType, visitorHash, eventDate])
+  @@index([jobBoostId, eventDate])
+  @@map("job_boost_delivery_events")
 }
 
 model CompanyReputationActivity {

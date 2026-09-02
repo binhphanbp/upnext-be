@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { NotificationsService } from '../notifications/notifications.service';
 import { JobPostsService } from './job-posts.service';
+import { JobBoostService } from './job-boost.service';
 import { ActorType, CompanyVerificationStatus, JobStatus, ModerationStatus } from '@prisma/client';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 
@@ -44,6 +45,10 @@ describe('JobPostsService', () => {
     createNotification: jest.fn(),
   };
 
+  const jobBoostServiceMock: any = {
+    invalidateActiveBoostForJob: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -57,6 +62,10 @@ describe('JobPostsService', () => {
         {
           provide: NotificationsService,
           useValue: notificationsServiceMock,
+        },
+        {
+          provide: JobBoostService,
+          useValue: jobBoostServiceMock,
         },
       ],
     }).compile();
@@ -550,6 +559,63 @@ describe('JobPostsService', () => {
         service.updateStatus('job-id', 'recruiter-id', JobStatus.CLOSED),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('ends any live boost when a published job post is closed', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({
+        id: 'job-id',
+        createdByRecruiterId: 'recruiter-id',
+        companyId: 'company-id',
+        status: JobStatus.PUBLISHED,
+        moderationStatus: ModerationStatus.APPROVED,
+      });
+      prismaMock.jobPost.update.mockResolvedValue({ id: 'job-id', status: JobStatus.CLOSED });
+
+      await service.updateStatus('job-id', 'recruiter-id', JobStatus.CLOSED);
+
+      expect(jobBoostServiceMock.invalidateActiveBoostForJob).toHaveBeenCalledWith(
+        'job-id',
+        'JOB_CLOSED',
+      );
+    });
+
+    it('does not touch any boost when publishing (only closing ends one)', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({
+        id: 'job-id',
+        createdByRecruiterId: 'recruiter-id',
+        companyId: 'company-id',
+        status: JobStatus.DRAFT,
+        moderationStatus: ModerationStatus.APPROVED,
+      });
+      prismaMock.company.findUnique.mockResolvedValue({
+        verificationStatus: CompanyVerificationStatus.VERIFIED,
+        reputationScore: '100',
+      });
+      prismaMock.jobPost.update.mockResolvedValue({ id: 'job-id', status: JobStatus.PUBLISHED });
+
+      await service.updateStatus('job-id', 'recruiter-id', JobStatus.PUBLISHED);
+
+      expect(jobBoostServiceMock.invalidateActiveBoostForJob).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('remove', () => {
+    it('ends any live boost when a job post is deleted', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({
+        id: 'job-id',
+        createdByRecruiterId: 'recruiter-id',
+        companyId: 'company-id',
+        status: JobStatus.PUBLISHED,
+        moderationStatus: ModerationStatus.APPROVED,
+      });
+      prismaMock.jobPost.update.mockResolvedValue({ id: 'job-id' });
+
+      await service.remove('job-id', 'recruiter-id');
+
+      expect(jobBoostServiceMock.invalidateActiveBoostForJob).toHaveBeenCalledWith(
+        'job-id',
+        'JOB_CLOSED',
+      );
+    });
   });
 
   describe('updateVisibility', () => {
@@ -588,6 +654,27 @@ describe('JobPostsService', () => {
       });
       expect(result.message).toBe('Cập nhật trạng thái ẩn tin tuyển dụng thành công.');
       expect(result.jobPost.isHidden).toBe(true);
+    });
+
+    it('ends any live boost when a job post is hidden', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({ id: 'job-id', isHidden: false });
+      prismaMock.jobPost.update.mockResolvedValue({ id: 'job-id', isHidden: true });
+
+      await service.updateVisibility('job-id', { isHidden: true });
+
+      expect(jobBoostServiceMock.invalidateActiveBoostForJob).toHaveBeenCalledWith(
+        'job-id',
+        'JOB_HIDDEN',
+      );
+    });
+
+    it('does not touch any boost when unhiding a job post', async () => {
+      prismaMock.jobPost.findFirst.mockResolvedValue({ id: 'job-id', isHidden: true });
+      prismaMock.jobPost.update.mockResolvedValue({ id: 'job-id', isHidden: false });
+
+      await service.updateVisibility('job-id', { isHidden: false });
+
+      expect(jobBoostServiceMock.invalidateActiveBoostForJob).not.toHaveBeenCalled();
     });
   });
 });

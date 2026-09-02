@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { getUniqueConstraintNames } from '../../prisma/unique-constraint-error';
 
 /**
  * Hai partial unique index từ `20260819130000_one_active_subscription_per_owner`
@@ -20,20 +20,11 @@ const ACTIVE_SUBSCRIPTION_INDEXES = [
  * nghĩa nghiệp vụ hoàn toàn khác và đã được xử lý riêng.
  */
 export function isActiveSubscriptionRace(error: unknown): boolean {
-  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
-    return false;
-  }
-
-  // `meta.target` là Prisma.JsonValue: có thể là string, mảng string, hoặc thiếu.
-  // Chỉ nhận đúng hai dạng đầu -- `String()` trên một object sẽ ra
-  // '[object Object]' và âm thầm không khớp gì, che mất trường hợp không lường tới.
-  const target: unknown = error.meta?.['target'];
-  const names = Array.isArray(target)
-    ? target.filter((value): value is string => typeof value === 'string')
-    : typeof target === 'string'
-      ? [target]
-      : [];
-
+  // Xem `getUniqueConstraintNames` -- trên stack Prisma 7 + @prisma/adapter-pg
+  // của project này, `error.meta.target` THƯỜNG KHÔNG CÓ trong một P2002 xảy ra
+  // trong transaction; tên constraint chỉ nằm trong message gốc của Postgres.
+  // Đọc thẳng `error.meta.target` ở đây từng khiến hàm này không bao giờ khớp.
+  const names = getUniqueConstraintNames(error);
   return names.some((name) => ACTIVE_SUBSCRIPTION_INDEXES.includes(name));
 }
 

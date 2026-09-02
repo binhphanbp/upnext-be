@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * One-off: give a real candidate an active CANDIDATE_PRO subscription so
  * `scripts/measure-ai-cogs.ts --feature=copilot` has quota to run N≈100 real
