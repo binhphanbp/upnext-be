@@ -115,8 +115,18 @@ async function main() {
   }
   console.log(`PlanFeature: ${ALL_FEATURES.length} tính năng, bật hết, không giới hạn`);
 
-  // `resolveActiveSubscription` chọn bản ghi ACTIVE còn hiệu lực mới nhất theo
-  // `startedAt`, nên đặt `startedAt: now` để gói này thắng nếu công ty còn gói cũ.
+  // Respect company_subscriptions_one_active_per_company_uq by deactivating any existing active subscription
+  await prisma.companySubscription.updateMany({
+    where: {
+      companyId: account.companyId,
+      status: SubscriptionStatus.ACTIVE,
+      id: { not: SUBSCRIPTION_ID },
+    },
+    data: {
+      status: SubscriptionStatus.INACTIVE,
+    },
+  });
+
   const subscription = await prisma.companySubscription.upsert({
     where: { id: SUBSCRIPTION_ID },
     update: {

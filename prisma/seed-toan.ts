@@ -149,24 +149,26 @@ async function main() {
   });
 
   // ── 4. Subscription plan + active subscription + paid invoice ─────────────
-  let plan = await prisma.subscriptionPlan.findFirst({ where: { subscriptionName: 'Premium' } });
+  let plan = await prisma.subscriptionPlan.findFirst({
+    where: { code: 'RECRUITER_PRO' },
+  });
   if (!plan) {
-    plan = await prisma.subscriptionPlan.create({
-      data: {
-        id: uid(5),
-        subscriptionName: 'Premium',
-        price: 2_000_000,
-        durationDays: 30,
-        jobPostLimit: 0,
-        boostCreditLimit: 10,
-        status: SubscriptionStatus.ACTIVE,
-      },
+    plan = await prisma.subscriptionPlan.findFirst({
+      where: { subscriptionName: 'Pro' },
     });
   }
+  if (!plan) {
+    throw new Error('Không tìm thấy gói Pro. Vui lòng chạy prisma/seed.ts trước.');
+  }
+
+  await prisma.companySubscription.updateMany({
+    where: { companyId: company.id, status: SubscriptionStatus.ACTIVE, id: { not: uid(6) } },
+    data: { status: SubscriptionStatus.INACTIVE },
+  });
 
   await prisma.companySubscription.upsert({
     where: { id: uid(6) },
-    update: { status: SubscriptionStatus.ACTIVE, expiredAt: addDays(now, 30) },
+    update: { planId: plan.id, status: SubscriptionStatus.ACTIVE, expiredAt: addDays(now, 30) },
     create: {
       id: uid(6),
       planId: plan.id,
@@ -182,13 +184,13 @@ async function main() {
 
   await prisma.invoice.upsert({
     where: { invoiceCode: 'INV-TOANDEV-0001' },
-    update: { paymentStatus: PaymentStatus.PAID, paidAt: now },
+    update: { paymentStatus: PaymentStatus.PAID, paidAt: now, subscriptionPlanId: plan.id },
     create: {
       id: uid(7),
       subscriptionPlanId: plan.id,
       companyId: company.id,
       invoiceCode: 'INV-TOANDEV-0001',
-      amount: 2_000_000,
+      amount: 1_490_000,
       paymentMethod: PaymentMethod.MOMO,
       paymentStatus: PaymentStatus.PAID,
       paidAt: now,

@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CompanySubscriptionsService } from '../company-subscriptions/company-subscriptions.service';
@@ -58,6 +59,64 @@ export class InvoicesService {
       where: { id: dto.subscriptionPlanId },
     });
     if (!plan) throw new NotFoundException('Subscription plan not found');
+    if (plan.status !== SubscriptionStatus.ACTIVE) {
+      throw new BadRequestException('Subscription plan is not active');
+    }
+
+    if (user.role === ActorType.RECRUITER) {
+      if (Number(plan.price) === 0) {
+        throw new BadRequestException('Cannot create invoice for a free plan');
+      }
+
+      const now = new Date();
+      const activeSub = await this.prisma.companySubscription.findFirst({
+        where: {
+          companyId: targetCompanyId,
+          status: SubscriptionStatus.ACTIVE,
+          expiredAt: { gt: now },
+        },
+        include: { plan: true },
+        orderBy: { startedAt: 'desc' },
+      });
+
+      if (activeSub && Number(activeSub.plan.price) > 0) {
+        if (activeSub.planId === plan.id) {
+          const RENEWAL_WINDOW_DAYS = 3;
+          const msUntilExpiry = activeSub.expiredAt.getTime() - now.getTime();
+          const daysUntilExpiry = msUntilExpiry / (1000 * 60 * 60 * 24);
+
+          if (daysUntilExpiry > RENEWAL_WINDOW_DAYS) {
+            const formattedDate = activeSub.expiredAt.toLocaleDateString('vi-VN');
+            throw new ConflictException({
+              code: 'SUBSCRIPTION_ALREADY_ACTIVE',
+              message: `Công ty đang sử dụng gói ${activeSub.plan.subscriptionName} (còn hạn đến ngày ${formattedDate}). Bạn chỉ có thể gia hạn khi gói còn dưới ${RENEWAL_WINDOW_DAYS} ngày.`,
+            });
+          }
+        } else {
+          throw new ConflictException({
+            code: 'SUBSCRIPTION_CHANGE_NOT_SUPPORTED',
+            message:
+              'Đổi gói giữa chu kỳ hiện chưa được hỗ trợ. Vui lòng chờ hết chu kỳ hiện tại rồi chọn gói mới.',
+          });
+        }
+      }
+
+      // Check for an existing PENDING invoice for this plan created within the last 24h
+      const pendingInvoice = await this.prisma.invoice.findFirst({
+        where: {
+          companyId: targetCompanyId,
+          subscriptionPlanId: plan.id,
+          paymentStatus: PaymentStatus.PENDING,
+          createdAt: { gt: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+        },
+        include: { subscriptionPlan: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (pendingInvoice) {
+        return pendingInvoice;
+      }
+    }
 
     // Tạo mã hóa đơn độc nhất dạng: INV-YYYYMMDD-RANDOM
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');

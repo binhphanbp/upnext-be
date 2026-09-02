@@ -47,12 +47,13 @@ const activities = [
 async function main() {
   const account = await prisma.recruiterAccount.findUnique({
     where: { email: TARGET_EMAIL },
-    select: { id: true },
+    select: { id: true, companyId: true },
   });
   if (!account) throw new Error(`Recruiter account not found: ${TARGET_EMAIL}`);
 
+  const targetCompanyId = account.companyId || COMPANY_ID;
   const company = await prisma.company.findUnique({
-    where: { id: COMPANY_ID },
+    where: { id: targetCompanyId },
     select: { id: true, name: true },
   });
   if (!company) throw new Error(`Company not found: ${COMPANY_ID}`);

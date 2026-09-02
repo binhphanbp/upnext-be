@@ -1,3 +1,4 @@
+import { PopularSearchKeywordPlacement } from '@prisma/client';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -12,6 +13,9 @@ describe('SearchKeywordService', () => {
     prismaMock = {
       searchKeywordLog: {
         create: jest.fn().mockResolvedValue({ id: 1n }),
+      },
+      popularSearchKeyword: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
       $queryRaw: jest.fn().mockResolvedValue([]),
     };
@@ -127,6 +131,41 @@ describe('SearchKeywordService', () => {
       const dto = { keyword: '  a  ' };
       await service.logSearchKeyword(dto);
       expect(prismaMock.searchKeywordLog.create).not.toHaveBeenCalled();
+    });
+  });
+  describe('getPopularKeywords', () => {
+    it('reads the curated table, never the measured search log', async () => {
+      await service.getPopularKeywords({ limit: 24 });
+
+      // Lấy chip từ `search_keyword_logs` sẽ tạo vòng lặp: chip hiện ra → người dùng bấm
+      // → log ghi lại chính chip đó → chip "phổ biến" phản chiếu lựa chọn của dev.
+      expect(prismaMock.popularSearchKeyword.findMany).toHaveBeenCalledTimes(1);
+      expect(prismaMock.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('defaults to the home hero placement in Vietnamese', async () => {
+      const result = await service.getPopularKeywords({ limit: 24 });
+
+      const [{ where, orderBy, take }] = prismaMock.popularSearchKeyword.findMany.mock.calls[0];
+      expect(where).toEqual({ placement: 'HOME_HERO', locale: 'vi', isActive: true });
+      expect(orderBy).toEqual([{ priority: 'asc' }, { label: 'asc' }]);
+      expect(take).toBe(24);
+      expect(result.placement).toBe('HOME_HERO');
+      expect(result.locale).toBe('vi');
+    });
+
+    it('never returns a chip that was retired', async () => {
+      await service.getPopularKeywords({
+        placement: PopularSearchKeywordPlacement.JOBS_SEARCH,
+        locale: 'en',
+        limit: 8,
+      });
+
+      const [{ where }] = prismaMock.popularSearchKeyword.findMany.mock.calls[0];
+      // Chip rút khỏi danh sách được tắt chứ không xoá, nên truy vấn phải lọc isActive.
+      expect(where.isActive).toBe(true);
+      expect(where.placement).toBe('JOBS_SEARCH');
+      expect(where.locale).toBe('en');
     });
   });
 });
