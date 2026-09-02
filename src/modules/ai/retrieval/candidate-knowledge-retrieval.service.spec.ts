@@ -1,4 +1,8 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { CandidateKnowledgeRetrievalService } from './candidate-knowledge-retrieval.service';
 
 describe('CandidateKnowledgeRetrievalService', () => {
@@ -24,6 +28,7 @@ describe('CandidateKnowledgeRetrievalService', () => {
       }),
       aiRetrievalRun: { create: jest.fn().mockResolvedValue({ id: 'run-1' }) },
       aiRetrievalResult: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      aiKnowledgeDocument: { findFirst: jest.fn() },
     };
     const embeddings = {
       isConfigured: () => overrides?.configured !== false,
@@ -77,5 +82,41 @@ describe('CandidateKnowledgeRetrievalService', () => {
     await expect(
       service.search({ candidateProfileId: 'candidate-1', query: '   ', locale: 'vi' }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('opens only a currently published source and returns its redacted chunks in order', async () => {
+    const { service, prisma } = buildService();
+    prisma.aiKnowledgeDocument.findFirst.mockResolvedValue({
+      id: 'document-1',
+      locale: 'vi',
+      title: 'Hướng dẫn CV',
+      sourceVersion: '2026-09-03',
+      effectiveAt: new Date('2026-09-03T00:00:00.000Z'),
+      reviewAt: new Date('2026-12-03T00:00:00.000Z'),
+      updatedAt: new Date('2026-09-03T00:00:00.000Z'),
+      chunks: [{ contentRedacted: 'Phần một.' }, { contentRedacted: 'Phần hai.' }],
+    });
+
+    await expect(service.getPublishedSource('document-1')).resolves.toEqual(
+      expect.objectContaining({
+        id: 'document-1',
+        sourceVersion: '2026-09-03',
+        content: 'Phần một.\n\nPhần hai.',
+      }),
+    );
+    expect(prisma.aiKnowledgeDocument.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ audience: 'CANDIDATE', status: 'PUBLISHED' }),
+      }),
+    );
+  });
+
+  it('does not expose an archived, expired, or otherwise unavailable source', async () => {
+    const { service, prisma } = buildService();
+    prisma.aiKnowledgeDocument.findFirst.mockResolvedValue(null);
+
+    await expect(service.getPublishedSource('document-1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

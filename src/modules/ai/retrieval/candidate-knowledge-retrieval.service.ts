@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -35,6 +36,17 @@ export type CandidateKnowledgeSearchResult = {
   semanticScore: number;
   lexicalScore: number;
   score: number;
+};
+
+export type CandidateKnowledgeSource = {
+  id: string;
+  locale: string;
+  title: string;
+  sourceVersion: string;
+  effectiveAt: string | null;
+  reviewAt: string | null;
+  updatedAt: string;
+  content: string;
 };
 
 type KnowledgeRow = CandidateKnowledgeSearchResult;
@@ -120,6 +132,56 @@ export class CandidateKnowledgeRetrievalService {
     }
 
     return results;
+  }
+
+  /**
+   * Resolves a citation to the reviewed source that produced it.
+   *
+   * This deliberately does not accept a free-form canonical URL: the client
+   * only supplies the opaque document id emitted in an authorised citation.
+   * The query repeats the same publication/effective/expiry constraints as
+   * retrieval, so an archived or expired source cannot remain readable through
+   * an old conversation link.
+   */
+  async getPublishedSource(documentId: string): Promise<CandidateKnowledgeSource> {
+    const document = await this.prisma.aiKnowledgeDocument.findFirst({
+      where: {
+        id: documentId,
+        audience: 'CANDIDATE',
+        status: 'PUBLISHED',
+        OR: [{ effectiveAt: null }, { effectiveAt: { lte: new Date() } }],
+        AND: [{ OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }],
+      },
+      select: {
+        id: true,
+        locale: true,
+        title: true,
+        sourceVersion: true,
+        effectiveAt: true,
+        reviewAt: true,
+        updatedAt: true,
+        chunks: {
+          where: { isValid: true },
+          orderBy: { ordinal: 'asc' },
+          select: { contentRedacted: true },
+        },
+      },
+    });
+
+    if (!document || document.chunks.length === 0) {
+      throw new NotFoundException('Nguồn hướng dẫn này không còn khả dụng');
+    }
+
+    return {
+      id: document.id,
+      locale: document.locale,
+      title: document.title,
+      sourceVersion: document.sourceVersion,
+      effectiveAt: document.effectiveAt?.toISOString() ?? null,
+      reviewAt: document.reviewAt?.toISOString() ?? null,
+      updatedAt: document.updatedAt.toISOString(),
+      content: document.chunks.map((chunk) => chunk.contentRedacted).join('\n\n'),
+    };
   }
 
   private async recordRun(input: {
