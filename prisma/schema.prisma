@@ -537,6 +537,7 @@ model CandidateProfile {
   talentRecommendations TalentRecommendation[]
   talentContactRequests TalentContactRequest[]
   aiConversations       AIConversation[]
+  aiRetrievalRuns       AiRetrievalRun[]
   subscriptions         CandidateSubscription[]
   subscriptionUsages    CandidateSubscriptionUsage[]
 
@@ -732,6 +733,7 @@ model FileAsset {
   postCoverImages         Post[]              @relation("PostCoverImageFile")
   socialPostImages        Post[]              @relation("PostSocialImageFile")
   reportEvidences         Report[]            @relation("ReportEvidenceFile")
+  reportEvidenceItems     ReportEvidence[]    @relation("ReportEvidenceFiles")
   appealEvidences         Appeal[]            @relation("AppealEvidenceFile")
   messageAttachments      MessageAttachment[]
 
@@ -1838,6 +1840,7 @@ model Report {
   reporterCandidate        CandidateProfile? @relation(fields: [reporterCandidateId], references: [id], onDelete: SetNull)
   reporterRecruiterAccount RecruiterAccount? @relation(fields: [reporterRecruiterAccountId], references: [id], onDelete: SetNull)
   handledByAdmin           AdminUser?        @relation("ReportHandledByAdmin", fields: [handledByAdminId], references: [id], onDelete: SetNull)
+  evidences                ReportEvidence[]
 
   /// Postgres treats NULLs as distinct, so this only constrains recruiter-filed
   /// reports — one per recruiter per target — and leaves candidate reports alone.
@@ -1846,6 +1849,23 @@ model Report {
   @@index([status])
   @@index([reporterType])
   @@map("reports")
+}
+
+/// Ảnh bằng chứng của một báo cáo — một báo cáo gửi được nhiều ảnh.
+/// `Report.evidenceFileId` vẫn giữ ảnh đầu tiên để các chỗ đọc cũ không vỡ.
+model ReportEvidence {
+  id        String   @id @default(uuid()) @db.Uuid
+  reportId  String   @map("report_id") @db.Uuid
+  fileId    String   @map("file_id") @db.Uuid
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  report Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  file   FileAsset @relation("ReportEvidenceFiles", fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, fileId])
+  @@index([reportId, position])
+  @@map("report_evidences")
 }
 
 model Appeal {
@@ -3040,6 +3060,23 @@ enum AiActionStatus {
   FAILED    @map("failed")
 }
 
+/// Corpus của Candidate Assistant. Chỉ candidate-facing content được phép tồn
+/// tại trong foundation v1; thêm audience khác phải qua privacy/product review.
+enum AiKnowledgeAudience {
+  CANDIDATE @map("candidate")
+}
+
+enum AiKnowledgeSourceType {
+  CANDIDATE_GUIDE @map("candidate_guide")
+  UPNEXT_POLICY   @map("upnext_policy")
+}
+
+enum AiKnowledgeDocumentStatus {
+  DRAFT     @map("draft")
+  PUBLISHED @map("published")
+  ARCHIVED  @map("archived")
+}
+
 model AIConversation {
   id                 String                @id @default(uuid()) @db.Uuid
   actorType          ActorType             @map("actor_type")
@@ -3064,9 +3101,103 @@ model AIConversation {
   candidateProfile CandidateProfile? @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
   messages         AIMessage[]
   actionRequests   AIActionRequest[]
+  retrievalRuns    AiRetrievalRun[]
 
   @@index([candidateProfileId, isArchived, updatedAt])
   @@map("ai_conversations")
+}
+
+/// Source-managed knowledge for Candidate Assistant. Raw files and arbitrary
+/// web pages deliberately do not belong here: content must be reviewed,
+/// versioned and explicitly published before it can be retrieved.
+model AiKnowledgeDocument {
+  id              String                    @id @default(uuid()) @db.Uuid
+  audience        AiKnowledgeAudience       @default(CANDIDATE)
+  sourceType      AiKnowledgeSourceType     @map("source_type")
+  locale          String                    @default("vi") @db.VarChar(5)
+  title           String                    @db.VarChar(240)
+  canonicalUrl    String?                   @map("canonical_url") @db.VarChar(500)
+  status          AiKnowledgeDocumentStatus @default(DRAFT)
+  sourceVersion   String                    @map("source_version") @db.VarChar(80)
+  contentChecksum String                    @map("content_checksum") @db.VarChar(128)
+  effectiveAt     DateTime?                 @map("effective_at")
+  reviewAt        DateTime?                 @map("review_at")
+  expiresAt       DateTime?                 @map("expires_at")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+
+  chunks AiKnowledgeChunk[]
+
+  @@unique([sourceType, canonicalUrl, sourceVersion])
+  @@index([audience, status, locale, expiresAt])
+  @@map("ai_knowledge_documents")
+}
+
+/// Derived, redacted retrieval data. The vector column is intentionally kept
+/// outside Prisma's model because Prisma does not model pgvector natively;
+/// retrieval only touches it through parameterised raw SQL after authorization.
+model AiKnowledgeChunk {
+  id              String    @id @default(uuid()) @db.Uuid
+  documentId      String    @map("document_id") @db.Uuid
+  ordinal         Int
+  contentRedacted String    @map("content_redacted") @db.Text
+  lexicalText     String    @map("lexical_text") @db.Text
+  tokenCount      Int       @map("token_count")
+  contentChecksum String    @map("content_checksum") @db.VarChar(128)
+  embeddingModel  String    @map("embedding_model") @db.VarChar(120)
+  indexVersion    String    @map("index_version") @db.VarChar(80)
+  isValid         Boolean   @default(true) @map("is_valid")
+  invalidatedAt   DateTime? @map("invalidated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  document           AiKnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  aiRetrievalResults AiRetrievalResult[]
+
+  @@unique([documentId, ordinal, indexVersion])
+  @@index([documentId, isValid])
+  @@map("ai_knowledge_chunks")
+}
+
+/// Audit trail for a retrieval attempt. Query text is represented by a hash so
+/// operational data cannot become another copy of candidate prompt content.
+model AiRetrievalRun {
+  id                 String   @id @default(uuid()) @db.Uuid
+  conversationId     String?  @map("conversation_id") @db.Uuid
+  candidateProfileId String   @map("candidate_profile_id") @db.Uuid
+  queryHash          String   @map("query_hash") @db.VarChar(128)
+  corpus             String   @db.VarChar(60)
+  filtersHash        String   @map("filters_hash") @db.VarChar(128)
+  topK               Int      @map("top_k")
+  latencyMs          Int      @map("latency_ms")
+  resultCount        Int      @map("result_count")
+  status             String   @db.VarChar(30)
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  conversation     AIConversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  candidateProfile CandidateProfile    @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  results          AiRetrievalResult[]
+
+  @@index([candidateProfileId, createdAt])
+  @@index([conversationId, createdAt])
+  @@map("ai_retrieval_runs")
+}
+
+model AiRetrievalResult {
+  id             String   @id @default(uuid()) @db.Uuid
+  retrievalRunId String   @map("retrieval_run_id") @db.Uuid
+  chunkId        String   @map("chunk_id") @db.Uuid
+  rank           Int
+  semanticScore  Decimal  @map("semantic_score") @db.Decimal(8, 6)
+  cited          Boolean  @default(false)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  retrievalRun AiRetrievalRun   @relation(fields: [retrievalRunId], references: [id], onDelete: Cascade)
+  chunk        AiKnowledgeChunk @relation(fields: [chunkId], references: [id], onDelete: Restrict)
+
+  @@unique([retrievalRunId, chunkId])
+  @@index([chunkId])
+  @@map("ai_retrieval_results")
 }
 
 model AIMessage {

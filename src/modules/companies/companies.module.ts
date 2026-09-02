@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../../common/email/email.service';
 import { ReputationModule } from '../reputation/reputation.module';
+import { AiModule } from '../ai/ai.module';
 import { FallbackCompanyLicenseExtractionAdapter } from './adapters/fallback-company-license-extraction.adapter';
 import { GeminiCompanyLicenseExtractionAdapter } from './adapters/gemini-company-license-extraction.adapter';
 import { HttpCompanyLicenseExtractionAdapter } from './adapters/http-company-license-extraction.adapter';
@@ -13,7 +14,7 @@ import {
 } from './ports/company-license-extraction-provider.port';
 
 @Module({
-  imports: [ReputationModule],
+  imports: [ReputationModule, AiModule],
   controllers: [CompaniesController],
   providers: [
     CompaniesService,

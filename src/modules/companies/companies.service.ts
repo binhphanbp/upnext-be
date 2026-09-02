@@ -39,6 +39,7 @@ import {
   CompanyLicenseExtractionProviderPort,
   CompanyLicenseFile,
 } from './ports/company-license-extraction-provider.port';
+import { LLM_PROVIDER, LlmProviderPort } from '../ai/ports/llm-provider.port';
 
 /**
  * A company's current plan is its ACTIVE subscription that has not lapsed yet — a row
@@ -63,7 +64,8 @@ Rules:
 - city: tên tỉnh/thành phố cấp cao nhất, dùng dạng đầy đủ như "Thành phố Hồ Chí Minh", "Thành phố Hà Nội", "Tỉnh Bình Dương".
 - address: địa chỉ trụ sở KHÔNG lặp lại city ở cuối; giữ số nhà, đường, phường/xã, quận/huyện nếu có.
 - website: domain/URL thực tế nếu có, không tự tạo.
-Fields: name, taxCode, city, address, email, phone, website.`;
+Fields: name, taxCode, city, address, email, phone, website, description.
+- description: write a concise Vietnamese company introduction using only information stated in the licence. Do not invent products, company size, benefits, achievements, or services. Return null when the licence does not contain enough information.`;
 
 const LICENSE_RESPONSE_SCHEMA: Record<string, unknown> = {
   type: 'OBJECT',
@@ -85,6 +87,11 @@ const LICENSE_RESPONSE_SCHEMA: Record<string, unknown> = {
       type: 'STRING',
       nullable: true,
       description: 'Địa chỉ trang web (website) của công ty nếu có',
+    },
+    description: {
+      type: 'STRING',
+      nullable: true,
+      description: 'Đoạn giới thiệu ngắn bằng tiếng Việt, chỉ dùng thông tin có trên giấy phép',
     },
   },
   required: ['name', 'taxCode', 'address'],
@@ -160,9 +167,64 @@ export class CompaniesService {
     private readonly reputationLedger: ReputationLedgerService,
     @Inject(COMPANY_LICENSE_EXTRACTION_PROVIDER)
     private readonly licenseExtraction: CompanyLicenseExtractionProviderPort,
+    @Inject(LLM_PROVIDER) private readonly llm: LlmProviderPort,
   ) {}
 
   private readonly logger = new Logger(CompaniesService.name);
+
+  async generateLetterTemplate(id: string, type: 'OFFER' | 'REJECTION', user: AuthenticatedUser) {
+    await this.ensureCompanyExists(id);
+    await this.checkCompanyPermission(id, user);
+    if (!this.llm.isConfigured()) {
+      throw new BadRequestException('Dịch vụ AI chưa được cấu hình');
+    }
+
+    const company = await this.prisma.company.findUniqueOrThrow({
+      where: { id },
+      select: {
+        name: true,
+        address: true,
+        email: true,
+        phone: true,
+        website: true,
+        description: true,
+        benefits: true,
+      },
+    });
+    const response = await this.llm.generateStructured({
+      systemInstruction:
+        'Bạn viết mẫu email tuyển dụng bằng tiếng Việt. Chỉ trả JSON đúng schema. Giá trị template phải là HTML an toàn để hiển thị trong trình soạn thảo, chỉ dùng các thẻ <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em> và <br>. Định dạng rõ tiêu đề, lời chào, các đoạn nội dung, danh sách thông tin cần xác nhận (nếu có) và chữ ký. Chỉ dùng thông tin công ty được cung cấp; không bịa lương, quyền lợi, ngày bắt đầu, người liên hệ, địa chỉ hoặc chính sách. Mọi dữ liệu chưa có phải để placeholder trong ngoặc vuông.',
+      messages: [
+        {
+          role: 'user',
+          text: JSON.stringify({
+            type,
+            company,
+            instruction:
+              type === 'OFFER'
+                ? 'Viết mẫu thư nhận việc chuyên nghiệp, ngắn gọn.'
+                : 'Viết mẫu thư từ chối lịch sự, ngắn gọn.',
+          }),
+        },
+      ],
+      responseSchema: {
+        type: 'OBJECT',
+        properties: { template: { type: 'STRING' } },
+        required: ['template'],
+      },
+      temperature: 0,
+      modelTier: 'fast',
+      executionProfile: 'interactive',
+    });
+    const template =
+      response.value &&
+      typeof response.value === 'object' &&
+      typeof (response.value as { template?: unknown }).template === 'string'
+        ? (response.value as { template: string }).template.trim()
+        : '';
+    if (!template) throw new BadRequestException('AI không thể tạo mẫu thư. Vui lòng thử lại.');
+    return { template };
+  }
 
   async create(createCompanyDto: CreateCompanyDto, user?: AuthenticatedUser) {
     if (createCompanyDto.taxCode) {

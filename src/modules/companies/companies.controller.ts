@@ -42,6 +42,7 @@ import { CompaniesService } from './companies.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+import { GenerateCompanyLetterTemplateDto } from './dto/generate-company-letter-template.dto';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { VerifyCompanyDto } from './dto/verify-company.dto';
 import { BanCompanyFraudDto } from './dto/ban-company-fraud.dto';
@@ -67,6 +68,20 @@ type CompanyUploadFile = {
 @Controller('companies')
 export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) {}
+
+  @Post(':id/letter-templates/generate')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Tạo mẫu thư tuyển dụng bằng AI từ hồ sơ công ty' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, UserThrottlerGuard)
+  @Roles(ActorType.RECRUITER, ActorType.ADMIN)
+  generateLetterTemplate(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: GenerateCompanyLetterTemplateDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.companiesService.generateLetterTemplate(id, dto.type, user);
+  }
 
   /**
    * Tạo mới một công ty với thông tin cơ bản.
