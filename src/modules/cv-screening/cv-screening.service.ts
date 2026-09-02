@@ -1,16 +1,12 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  ActorType,
-  CvScreeningRunStatus,
-  EducationLevel,
-  Prisma,
-} from '@prisma/client';
+import { ActorType, CvScreeningRunStatus, EducationLevel, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { isJobPostAccessibleToRecruiter } from '../../common/authorization/job-post-access';
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
@@ -39,6 +35,7 @@ const GEMINI_BATCH_SIZE = 8;
 const GEMINI_BATCH_CONCURRENCY = 1;
 const GEMINI_FALLBACK_CONCURRENCY = 1;
 const SCORING_VERSION = 'cv-screening-v11-ai-gateway-vi';
+type TerminalCvScreeningRunStatus = Exclude<CvScreeningRunStatus, 'pending' | 'processing'>;
 
 type ApplicationForScreening = Prisma.ApplicationGetPayload<{
   select: {
@@ -111,16 +108,23 @@ export class CvScreeningService {
       throw new ForbiddenException('Bạn không có quyền truy cập tin tuyển dụng này.');
     }
 
-    const applicationCount = await this.prisma.application.count({
-      where: { jobPostId: dto.jobPostId },
-    });
     const effectiveLimit = Math.min(
       dto.limit ?? MAX_APPLICATIONS_PER_RUN,
       MAX_APPLICATIONS_PER_RUN,
     );
-    // totalApplications is the progress denominator, so it must be the number
-    // of applications this run will actually score -- not the job's total.
-    const totalApplications = Math.min(applicationCount, effectiveLimit);
+    const [applicationCount, applicationSnapshot] = await Promise.all([
+      this.prisma.application.count({ where: { jobPostId: dto.jobPostId } }),
+      this.prisma.application.findMany({
+        where: { jobPostId: dto.jobPostId },
+        select: { id: true },
+        orderBy: { submittedAt: 'desc' },
+        take: effectiveLimit,
+      }),
+    ]);
+    // Persist the exact application set with the run. A retry must never score
+    // a newer applicant simply because the queue was delayed or recovered.
+    const applicationIds = applicationSnapshot.map((application) => application.id);
+    const totalApplications = applicationIds.length;
 
     if (applicationCount > totalApplications) {
       this.logger.warn(
@@ -132,10 +136,31 @@ export class CvScreeningService {
       throw new BadRequestException('This job post has no applications to screen');
     }
 
-    // The run row and the quota charge are created together: a run that exceeds
-    // the remaining allowance must not exist at all, otherwise the recruiter
-    // sees a run that can never produce results.
+    // The run row and the quota reservation are created together: a run that
+    // exceeds the remaining allowance must not exist at all. The reservation is
+    // settled (or reversed) by the durable worker when the run reaches a
+    // terminal state.
     const run = await this.prisma.$transaction(async (tx) => {
+      // Serialise starts for one job post. This protects the check below from
+      // two simultaneous HTTP requests both creating an active run. It is
+      // transaction-scoped, so a failed request never leaves a stale lock.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${dto.jobPostId}))`;
+
+      const activeRun = await tx.cvScreeningRun.findFirst({
+        where: {
+          jobPostId: dto.jobPostId,
+          status: { in: [CvScreeningRunStatus.PENDING, CvScreeningRunStatus.PROCESSING] },
+        },
+        select: { id: true },
+      });
+      if (activeRun) {
+        throw new ConflictException({
+          code: 'CV_SCREENING_RUN_IN_PROGRESS',
+          message: 'Một lượt sàng lọc CV đang chạy cho tin tuyển dụng này.',
+          runId: activeRun.id,
+        });
+      }
+
       const created = await tx.cvScreeningRun.create({
         data: {
           jobPostId: dto.jobPostId,
@@ -143,6 +168,7 @@ export class CvScreeningService {
           recruiterAccountId: recruiter.id,
           totalApplications,
           limit: dto.limit ?? null,
+          applicationIds,
           status: CvScreeningRunStatus.PENDING,
         },
       });
@@ -160,12 +186,6 @@ export class CvScreeningService {
       });
 
       return created;
-    });
-
-    setImmediate(() => {
-      void this.processRun(run.id).catch((error: unknown) => {
-        this.logger.error(`Unhandled CV screening run ${run.id} error`, this.getErrorStack(error));
-      });
     });
 
     return {
@@ -187,6 +207,8 @@ export class CvScreeningService {
       failedCount: run.failedCount,
       limit: run.limit,
       status: run.status,
+      attemptCount: run.attemptCount,
+      nextAttemptAt: run.nextAttemptAt,
       errorMessage: run.errorMessage,
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
@@ -313,24 +335,48 @@ export class CvScreeningService {
     return application.cvVersionId;
   }
 
-  private async processRun(runId: string) {
-    const run = await this.prisma.cvScreeningRun.findUnique({
-      where: { id: runId },
+  /**
+   * Executes a run that was atomically claimed by CvScreeningWorkerService.
+   * The worker identity is required on every terminal transition so an expired
+   * worker lease can never overwrite work reclaimed by another process.
+   */
+  async processClaimedRun(runId: string, workerId: string) {
+    const run = await this.prisma.cvScreeningRun.findFirst({
+      where: {
+        id: runId,
+        status: CvScreeningRunStatus.PROCESSING,
+        lockedBy: workerId,
+      },
     });
 
     if (!run) {
-      this.logger.warn(`CV screening run ${runId} not found`);
-      return;
+      throw new ConflictException({
+        code: 'CV_SCREENING_LEASE_LOST',
+        message: `CV screening run ${runId} is not claimed by this worker`,
+      });
     }
 
-    await this.prisma.cvScreeningRun.update({
-      where: { id: runId },
-      data: {
+    // A reclaimed run may have written some scores before the previous process
+    // stopped. Rebuild progress from persisted results, rather than trusting
+    // in-memory progress increments from an interrupted attempt.
+    const alreadyScored = await this.prisma.applicationAiScore.count({ where: { runId } });
+    await this.prisma.cvScreeningRun.updateMany({
+      where: {
+        id: runId,
         status: CvScreeningRunStatus.PROCESSING,
-        startedAt: new Date(),
-        errorMessage: null,
+        lockedBy: workerId,
+      },
+      data: {
+        processedCount: alreadyScored,
+        failedCount: 0,
       },
     });
+
+    const renewLeaseTimer = setInterval(() => {
+      void this.renewLease(runId, workerId).catch((error: unknown) => {
+        this.logger.error(`Failed to renew CV screening lease for run ${runId}`, error);
+      });
+    }, 60_000);
 
     try {
       const effectiveLimit = Math.min(
@@ -343,7 +389,10 @@ export class CvScreeningService {
           include: JOB_TEXT_INCLUDE,
         }),
         this.prisma.application.findMany({
-          where: { jobPostId: run.jobPostId },
+          where: {
+            jobPostId: run.jobPostId,
+            id: { in: this.toStringArray(run.applicationIds) },
+          },
           select: {
             id: true,
             jobPostId: true,
@@ -417,40 +466,124 @@ export class CvScreeningService {
         (batch) => this.scoreAndPersistBatch(runId, jobText, jobPost.educationLevel, batch),
       );
 
-      const latestRun = await this.prisma.cvScreeningRun.findUnique({
-        where: { id: runId },
-        select: { failedCount: true },
-      });
+      await this.finishClaimedRun(runId, workerId, CvScreeningRunStatus.COMPLETED);
+    } finally {
+      clearInterval(renewLeaseTimer);
+    }
+  }
 
-      await this.prisma.cvScreeningRun.update({
-        where: { id: runId },
-        data: {
-          status:
-            latestRun && latestRun.failedCount > 0
-              ? CvScreeningRunStatus.PARTIAL_FAILED
-              : CvScreeningRunStatus.COMPLETED,
-          finishedAt: new Date(),
+  /**
+   * Makes the run terminal and settles its quota atomically. A successful run
+   * keeps the original reservation. A partial or failed run reverses it, then
+   * consumes only the CVs actually scored, leaving a clear auditable ledger.
+   */
+  async finishClaimedRun(
+    runId: string,
+    workerId: string,
+    status: TerminalCvScreeningRunStatus,
+    errorMessage: string | null = null,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      const run = await tx.cvScreeningRun.findFirst({
+        where: {
+          id: runId,
+          status: CvScreeningRunStatus.PROCESSING,
+          lockedBy: workerId,
         },
       });
-    } catch (error) {
-      this.logger.error(`CV screening run ${runId} failed`, this.getErrorStack(error));
+      if (!run) {
+        throw new ConflictException({
+          code: 'CV_SCREENING_LEASE_LOST',
+          message: `CV screening run ${runId} was reclaimed before it could finish`,
+        });
+      }
 
-      const latestRun = await this.prisma.cvScreeningRun.findUnique({
-        where: { id: runId },
-        select: { processedCount: true, failedCount: true },
-      });
+      // `application_ai_scores` is the durable proof of a successfully scored
+      // CV. Deriving the final state from it makes recovery idempotent even if
+      // a process dies between score persistence and progress-counter updates.
+      const successfulCount = await tx.applicationAiScore.count({ where: { runId } });
+      const finalStatus =
+        successfulCount >= run.totalApplications
+          ? CvScreeningRunStatus.COMPLETED
+          : successfulCount === 0
+            ? CvScreeningRunStatus.FAILED
+            : CvScreeningRunStatus.PARTIAL_FAILED;
+      const finalFailedCount = Math.max(0, run.totalApplications - successfulCount);
+      let settlementWarning: string | null = null;
 
-      await this.prisma.cvScreeningRun.update({
-        where: { id: runId },
+      if (status !== finalStatus) {
+        this.logger.warn(
+          `CV screening run ${runId} requested terminal state ${status}, reconciled to ${finalStatus}`,
+        );
+      }
+
+      if (finalStatus !== CvScreeningRunStatus.COMPLETED) {
+        const reservation = await tx.subscriptionUsage.findUnique({
+          where: { idempotencyKey: `cv-screening:${run.id}` },
+        });
+        if (!reservation) {
+          settlementWarning =
+            'Không tìm thấy quota reservation để đối soát; đội vận hành cần kiểm tra ledger.';
+          this.logger.error(`Quota reservation for CV screening run ${run.id} is missing`);
+        } else {
+          await this.quota.reverse(tx, reservation.id, `cv-screening-${finalStatus.toLowerCase()}`);
+
+          if (successfulCount > 0) {
+            await this.quota.consume(tx, {
+              companyId: run.companyId,
+              feature: SubscriptionFeature.AI_CV_MATCHING,
+              quantity: successfulCount,
+              referenceType: 'CV_SCREENING_RUN_FINAL',
+              referenceId: run.id,
+              idempotencyKey: `cv-screening:${run.id}:settled:${successfulCount}`,
+              createdByRecruiterId: run.recruiterAccountId,
+            });
+          }
+        }
+      }
+
+      const updated = await tx.cvScreeningRun.updateMany({
+        where: {
+          id: runId,
+          status: CvScreeningRunStatus.PROCESSING,
+          lockedBy: workerId,
+        },
         data: {
-          status:
-            latestRun && (latestRun.processedCount > 0 || latestRun.failedCount > 0)
-              ? CvScreeningRunStatus.PARTIAL_FAILED
-              : CvScreeningRunStatus.FAILED,
-          errorMessage: this.getErrorMessage(error),
+          status: finalStatus,
+          processedCount: Math.min(run.totalApplications, successfulCount + finalFailedCount),
+          failedCount: finalFailedCount,
+          errorMessage:
+            finalStatus === CvScreeningRunStatus.COMPLETED
+              ? null
+              : (settlementWarning ??
+                errorMessage ??
+                'Một số CV không thể được chấm; quota chưa sử dụng đã được hoàn lại.'),
           finishedAt: new Date(),
+          lockedAt: null,
+          lockedBy: null,
+          nextAttemptAt: new Date(),
         },
       });
+      if (!updated.count) {
+        throw new ConflictException({
+          code: 'CV_SCREENING_LEASE_LOST',
+          message: `CV screening run ${runId} was reclaimed before it could be finalized`,
+        });
+      }
+    });
+  }
+
+  private async renewLease(runId: string, workerId: string) {
+    const renewed = await this.prisma.cvScreeningRun.updateMany({
+      where: {
+        id: runId,
+        status: CvScreeningRunStatus.PROCESSING,
+        lockedBy: workerId,
+      },
+      data: { lockedAt: new Date() },
+    });
+    if (!renewed.count) {
+      this.logger.warn(`CV screening worker lost lease for run ${runId}`);
     }
   }
 
@@ -542,19 +675,22 @@ export class CvScreeningService {
         scoringVersion: SCORING_VERSION,
         updatedAt: { gte: jobPostUpdatedAt },
       },
-      select: { applicationId: true },
+      select: { applicationId: true, runId: true },
     });
 
     if (existingScores.length === 0) {
       return selected;
     }
 
+    const reusableFromOtherRun = existingScores.filter((score) => score.runId !== runId);
     const reusableApplicationIds = new Set(existingScores.map((score) => score.applicationId));
-    await this.prisma.applicationAiScore.updateMany({
-      where: { applicationId: { in: [...reusableApplicationIds] } },
-      data: { runId },
-    });
-    await this.incrementProgress(runId, reusableApplicationIds.size, 0);
+    if (reusableFromOtherRun.length > 0) {
+      await this.prisma.applicationAiScore.updateMany({
+        where: { applicationId: { in: reusableFromOtherRun.map((score) => score.applicationId) } },
+        data: { runId },
+      });
+      await this.incrementProgress(runId, reusableFromOtherRun.length, 0);
+    }
 
     this.logger.log(
       `Reused ${reusableApplicationIds.size} fresh AI score(s) for CV screening run ${runId}`,

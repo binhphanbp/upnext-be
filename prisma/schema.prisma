@@ -1380,7 +1380,12 @@ model CvScreeningRun {
   processedCount     Int                  @default(0) @map("processed_count")
   failedCount        Int                  @default(0) @map("failed_count")
   limit              Int?
+  applicationIds     Json                 @default("[]") @map("application_ids")
   status             CvScreeningRunStatus @default(PENDING)
+  attemptCount       Int                  @default(0) @map("attempt_count")
+  nextAttemptAt      DateTime             @default(now()) @map("next_attempt_at")
+  lockedAt           DateTime?            @map("locked_at")
+  lockedBy           String?              @map("locked_by") @db.VarChar(100)
   errorMessage       String?              @map("error_message") @db.Text
   startedAt          DateTime?            @map("started_at")
   finishedAt         DateTime?            @map("finished_at")
@@ -1395,6 +1400,8 @@ model CvScreeningRun {
   @@index([jobPostId, createdAt])
   @@index([companyId, createdAt])
   @@index([recruiterAccountId, createdAt])
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([status, lockedAt])
   @@map("cv_screening_runs")
 }
 
