@@ -34,4 +34,4 @@ async function run() {
   await testModel('gemini-1.5-flash');
 }
 
-run();
+void run();

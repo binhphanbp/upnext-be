@@ -43,4 +43,4 @@ async function testBatch4() {
   console.log('Result:', data?.candidates?.[0]?.content?.parts?.[0]?.text);
 }
 
-testBatch4().finally(() => prisma.$disconnect());
+void testBatch4().finally(() => prisma.$disconnect());

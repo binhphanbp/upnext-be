@@ -24,4 +24,4 @@ async function testJob() {
   console.log('Scores count in DB:', scoresCount);
 }
 
-testJob().finally(() => prisma.$disconnect());
+void testJob().finally(() => prisma.$disconnect());

@@ -12,4 +12,4 @@ async function testCurrentRun() {
   console.log('Progress:', run?.processedCount, '/', run?.totalApplications, 'Status:', run?.status);
 }
 
-testCurrentRun().finally(() => prisma.$disconnect());
+void testCurrentRun().finally(() => prisma.$disconnect());
