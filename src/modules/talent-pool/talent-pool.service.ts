@@ -618,7 +618,7 @@ function formatInvitationHtml(
     .replaceAll('{candidateName}', candidateName)
     .replaceAll('{companyName}', companyName);
 
-  let bodyHtml = '';
+  let bodyHtml: string;
   if (/<(p|br|div|table|ul|li)\b[^>]*>/i.test(content)) {
     bodyHtml = content;
   } else {

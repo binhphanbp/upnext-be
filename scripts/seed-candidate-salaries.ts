@@ -50,8 +50,8 @@ async function main() {
       continue;
     }
 
-    let min = 15_000_000;
-    let max = 25_000_000;
+    let min: number;
+    let max: number;
 
     if (
       title.includes('lead') ||
