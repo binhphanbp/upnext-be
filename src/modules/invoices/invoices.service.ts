@@ -38,25 +38,22 @@ export class InvoicesService {
     throw new ForbiddenException('Not associated with a company');
   }
 
+  private async resolveCandidateProfileId(user: AuthenticatedUser): Promise<string> {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { candidateAccountId: user.id },
+      select: { id: true },
+    });
+    if (profile?.id) return profile.id;
+    throw new NotFoundException('Hồ sơ ứng viên không tồn tại');
+  }
+
   async create(user: AuthenticatedUser, dto: CreateInvoiceDto) {
-    let targetCompanyId: string;
-
-    if (user.role === ActorType.ADMIN) {
-      if (!dto.companyId) {
-        throw new BadRequestException('companyId is required for admin');
-      }
-      targetCompanyId = dto.companyId;
-    } else if (user.role === ActorType.RECRUITER) {
-      targetCompanyId = await this.resolveCompanyId(user);
-    } else {
-      throw new ForbiddenException('Only admins and recruiters can create invoices');
-    }
-
-    const company = await this.prisma.company.findUnique({ where: { id: targetCompanyId } });
-    if (!company) throw new NotFoundException('Company not found');
+    let targetCompanyId: string | null = null;
+    let targetCandidateProfileId: string | null = null;
 
     const plan = await this.prisma.subscriptionPlan.findUnique({
       where: { id: dto.subscriptionPlanId },
+      include: { features: true },
     });
     if (!plan) throw new NotFoundException('Subscription plan not found');
     if (plan.status !== SubscriptionStatus.ACTIVE) {
@@ -118,6 +115,58 @@ export class InvoicesService {
       }
     }
 
+    if (user.role === ActorType.ADMIN) {
+      if (!dto.companyId && !dto.candidateProfileId) {
+        throw new BadRequestException('companyId or candidateProfileId is required for admin');
+      }
+      targetCompanyId = dto.companyId || null;
+      targetCandidateProfileId = dto.candidateProfileId || null;
+    } else if (user.role === ActorType.RECRUITER) {
+      if (plan.audience !== 'RECRUITER') {
+        throw new BadRequestException('Gói này không dành cho Nhà tuyển dụng');
+      }
+      targetCompanyId = await this.resolveCompanyId(user);
+    } else if (user.role === ActorType.CANDIDATE) {
+      if (plan.audience !== 'CANDIDATE') {
+        throw new BadRequestException('Gói này không dành cho Ứng viên');
+      }
+      targetCandidateProfileId = await this.resolveCandidateProfileId(user);
+    } else {
+      throw new ForbiddenException('Bạn không có quyền tạo hóa đơn');
+    }
+
+    if (targetCompanyId) {
+      const company = await this.prisma.company.findUnique({ where: { id: targetCompanyId } });
+      if (!company) throw new NotFoundException('Company not found');
+    }
+
+    if (targetCandidateProfileId) {
+      const candidate = await this.prisma.candidateProfile.findUnique({
+        where: { id: targetCandidateProfileId },
+      });
+      if (!candidate) throw new NotFoundException('Candidate profile not found');
+    }
+
+    // Tái sử dụng hóa đơn đang CHỜ THANH TOÁN thay vì sinh liên tục hóa đơn mới khi bấm nhiều lần
+    const existingPending = await this.prisma.invoice.findFirst({
+      where: {
+        subscriptionPlanId: plan.id,
+        ...(targetCompanyId ? { companyId: targetCompanyId } : {}),
+        ...(targetCandidateProfileId ? { candidateProfileId: targetCandidateProfileId } : {}),
+        paymentStatus: PaymentStatus.PENDING,
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        subscriptionPlan: true,
+        company: true,
+        candidateProfile: true,
+      },
+    });
+
+    if (existingPending) {
+      return existingPending;
+    }
+
     // Tạo mã hóa đơn độc nhất dạng: INV-YYYYMMDD-RANDOM
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const randomStr = Math.floor(1000 + Math.random() * 9000).toString();
@@ -127,12 +176,15 @@ export class InvoicesService {
       data: {
         subscriptionPlanId: plan.id,
         companyId: targetCompanyId,
+        candidateProfileId: targetCandidateProfileId,
         invoiceCode: invoiceCode,
         amount: plan.price,
         paymentStatus: PaymentStatus.PENDING,
       },
       include: {
         subscriptionPlan: true,
+        company: true,
+        candidateProfile: true,
       },
     });
   }
@@ -140,53 +192,81 @@ export class InvoicesService {
   async findOne(id: string, user: AuthenticatedUser) {
     const invoice = await this.prisma.invoice.findUnique({
       where: { id },
-      include: { subscriptionPlan: true, company: true },
+      include: { subscriptionPlan: true, company: true, candidateProfile: true },
     });
 
     if (!invoice) throw new NotFoundException('Invoice not found');
 
-    // Bảo mật: Kiểm tra xem user có quyền xem hóa đơn này không
-    if (user.role !== ActorType.ADMIN) {
+    if (user.role === ActorType.ADMIN) {
+      return invoice;
+    }
+
+    if (user.role === ActorType.RECRUITER) {
       const userCompanyId = await this.resolveCompanyId(user);
       if (invoice.companyId !== userCompanyId) {
         throw new ForbiddenException('You do not have permission to view this invoice');
       }
+      return invoice;
     }
 
-    return invoice;
+    if (user.role === ActorType.CANDIDATE) {
+      const candidateProfileId = await this.resolveCandidateProfileId(user);
+      if (invoice.candidateProfileId !== candidateProfileId) {
+        throw new ForbiddenException('You do not have permission to view this invoice');
+      }
+      return invoice;
+    }
+
+    throw new ForbiddenException('You do not have permission to view this invoice');
   }
 
   async findAll(user: AuthenticatedUser) {
     if (user.role === ActorType.ADMIN) {
       return this.prisma.invoice.findMany({
-        include: { company: true, subscriptionPlan: true },
+        include: { company: true, candidateProfile: true, subscriptionPlan: true },
         orderBy: { createdAt: 'desc' },
       });
     }
 
-    const companyId = await this.resolveCompanyId(user);
-    return this.prisma.invoice.findMany({
-      where: { companyId },
-      include: { subscriptionPlan: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    if (user.role === ActorType.RECRUITER) {
+      const companyId = await this.resolveCompanyId(user);
+      return this.prisma.invoice.findMany({
+        where: { companyId },
+        include: { subscriptionPlan: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    if (user.role === ActorType.CANDIDATE) {
+      const candidateProfileId = await this.resolveCandidateProfileId(user);
+      return this.prisma.invoice.findMany({
+        where: { candidateProfileId },
+        include: { subscriptionPlan: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    throw new ForbiddenException('Invalid role');
   }
 
   async pay(id: string, user: AuthenticatedUser, dto: PayInvoiceDto) {
     const invoice = await this.findOne(id, user);
 
     if (user.role !== ActorType.ADMIN) {
-      const userCompanyId = await this.resolveCompanyId(user);
-      if (invoice.companyId !== userCompanyId) {
-        throw new ForbiddenException('You do not have permission to pay this invoice');
+      if (user.role === ActorType.RECRUITER) {
+        const userCompanyId = await this.resolveCompanyId(user);
+        if (invoice.companyId !== userCompanyId) {
+          throw new ForbiddenException('You do not have permission to pay this invoice');
+        }
+      } else if (user.role === ActorType.CANDIDATE) {
+        const candidateProfileId = await this.resolveCandidateProfileId(user);
+        if (invoice.candidateProfileId !== candidateProfileId) {
+          throw new ForbiddenException('You do not have permission to pay this invoice');
+        }
       }
 
       // SePay is a real, webhook-verified gateway now (see markPaidByWebhook):
-      // a recruiter self-attesting "I paid" through this endpoint is exactly
-      // the honor-system gap that made this integration necessary in the
-      // first place. Only PayPal -- still genuinely manual/unverified today
-      // -- can be self-confirmed. Admins keep a manual override for either,
-      // for support cases where the webhook never arrives.
+      // a user self-attesting "I paid" through this endpoint is not permitted for SEPAY.
       if (dto.paymentMethod === PaymentMethod.SEPAY) {
         throw new ForbiddenException(
           'Vui lòng chuyển khoản qua SePay -- hệ thống sẽ tự động xác nhận khi nhận được tiền',
@@ -198,10 +278,16 @@ export class InvoicesService {
       throw new BadRequestException('This invoice has already been paid');
     }
 
-    return this.confirmPayment(invoice.id, invoice.companyId, invoice.subscriptionPlanId, {
-      paymentMethod: dto.paymentMethod,
-      source: 'INVOICE_PAYMENT',
-    });
+    return this.confirmPayment(
+      invoice.id,
+      invoice.companyId,
+      invoice.candidateProfileId,
+      invoice.subscriptionPlanId,
+      {
+        paymentMethod: dto.paymentMethod,
+        source: 'INVOICE_PAYMENT',
+      },
+    );
   }
 
   /**
@@ -238,11 +324,17 @@ export class InvoicesService {
       return { handled: false, reason: 'amount_mismatch' };
     }
 
-    await this.confirmPayment(invoice.id, invoice.companyId, invoice.subscriptionPlanId, {
-      paymentMethod,
-      paymentReference,
-      source: 'SEPAY_WEBHOOK',
-    });
+    await this.confirmPayment(
+      invoice.id,
+      invoice.companyId,
+      invoice.candidateProfileId,
+      invoice.subscriptionPlanId,
+      {
+        paymentMethod,
+        paymentReference,
+        source: 'SEPAY_WEBHOOK',
+      },
+    );
     return { handled: true };
   }
 
@@ -253,7 +345,8 @@ export class InvoicesService {
    */
   private async confirmPayment(
     invoiceId: string,
-    companyId: string,
+    companyId: string | null | undefined,
+    candidateProfileId: string | null | undefined,
     subscriptionPlanId: string,
     options: { paymentMethod: PaymentMethod; source: string; paymentReference?: string; adminNote?: string },
   ) {
@@ -270,15 +363,129 @@ export class InvoicesService {
         include: { subscriptionPlan: true },
       });
 
-      await this.subscriptionService.activatePlanForCompany(
-        companyId,
-        subscriptionPlanId,
-        options.source,
-        tx,
-      );
+      if (companyId) {
+        await this.subscriptionService.activatePlanForCompany(
+          companyId,
+          subscriptionPlanId,
+          options.source,
+          tx,
+        );
+
+        // Hủy các hóa đơn PENDING cũ của công ty này
+        if (typeof tx.invoice?.updateMany === 'function') {
+          await tx.invoice.updateMany({
+            where: {
+              id: { not: invoiceId },
+              companyId,
+              paymentStatus: PaymentStatus.PENDING,
+            },
+            data: {
+              paymentStatus: PaymentStatus.FAILED,
+              cancelledAt: new Date(),
+              cancelledReason: 'Đã hoàn tất thanh toán hóa đơn khác',
+            },
+          });
+        }
+      } else if (candidateProfileId) {
+        await this.activatePlanForCandidate(
+          candidateProfileId,
+          subscriptionPlanId,
+          options.source,
+          tx,
+        );
+
+        // Hủy các hóa đơn PENDING cũ của ứng viên này
+        if (typeof tx.invoice?.updateMany === 'function') {
+          await tx.invoice.updateMany({
+            where: {
+              id: { not: invoiceId },
+              candidateProfileId,
+              paymentStatus: PaymentStatus.PENDING,
+            },
+            data: {
+              paymentStatus: PaymentStatus.FAILED,
+              cancelledAt: new Date(),
+              cancelledReason: 'Đã hoàn tất thanh toán hóa đơn khác',
+            },
+          });
+        }
+      }
 
       return updatedInvoice;
     });
+  }
+
+  async cancelOwnInvoice(id: string, user: AuthenticatedUser) {
+    const invoice = await this.findOne(id, user);
+
+    if (invoice.paymentStatus !== PaymentStatus.PENDING) {
+      throw new BadRequestException('Chỉ có thể hủy hóa đơn đang chờ thanh toán');
+    }
+
+    return this.prisma.invoice.update({
+      where: { id },
+      data: {
+        paymentStatus: PaymentStatus.FAILED,
+        cancelledAt: new Date(),
+        cancelledReason: 'Người dùng hủy thanh toán',
+      },
+    });
+  }
+
+  private async activatePlanForCandidate(
+    candidateProfileId: string,
+    subscriptionPlanId: string,
+    source: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const plan = await tx.subscriptionPlan.findUnique({
+      where: { id: subscriptionPlanId },
+      include: { features: true },
+    });
+    if (!plan) throw new NotFoundException('Subscription plan not found');
+
+    const now = new Date();
+    const durationDays = plan.durationDays || 30;
+    const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+    // Set any currently active candidate subscription to INACTIVE
+    await tx.candidateSubscription.updateMany({
+      where: { candidateProfileId, status: SubscriptionStatus.ACTIVE },
+      data: { status: SubscriptionStatus.INACTIVE },
+    });
+
+    const subscription = await tx.candidateSubscription.create({
+      data: {
+        candidateProfileId,
+        planId: plan.id,
+        startedAt: now,
+        expiredAt: expiresAt,
+        currentPeriodStart: now,
+        currentPeriodEnd: expiresAt,
+        source: source || 'SEPAY',
+        status: SubscriptionStatus.ACTIVE,
+      },
+    });
+
+    // Create quota counters
+    if (plan.features.length) {
+      await tx.candidateSubscriptionQuotaCounter.createMany({
+        data: plan.features.map((feature) => ({
+          candidateSubscriptionId: subscription.id,
+          feature: feature.feature,
+          limitValue: feature.limitValue,
+          usedValue: 0,
+          periodStart: now,
+          periodEnd: expiresAt,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    this.logger.log(
+      `Activated CandidateSubscription ${subscription.id} (${plan.code}) for candidateProfile ${candidateProfileId}`,
+    );
+    return subscription;
   }
 
   async findAdminInvoices(query: AdminInvoiceQueryDto) {
@@ -296,6 +503,11 @@ export class InvoicesService {
         { company: { name: { contains: searchTerm, mode: 'insensitive' } } },
         { company: { taxCode: { contains: searchTerm, mode: 'insensitive' } } },
         { company: { email: { contains: searchTerm, mode: 'insensitive' } } },
+        {
+          candidateProfile: {
+            account: { email: { contains: searchTerm, mode: 'insensitive' } },
+          },
+        },
       ];
     }
 
@@ -341,6 +553,18 @@ export class InvoicesService {
               email: true,
               phone: true,
               verificationStatus: true,
+            },
+          },
+          candidateProfile: {
+            select: {
+              id: true,
+              phoneNumber: true,
+              account: {
+                select: {
+                  id: true,
+                  email: true,
+                },
+              },
             },
           },
           subscriptionPlan: true,
@@ -406,6 +630,9 @@ export class InvoicesService {
       where: { id },
       include: {
         company: true,
+        candidateProfile: {
+          include: { account: true },
+        },
         subscriptionPlan: {
           include: { features: true },
         },
@@ -442,15 +669,24 @@ export class InvoicesService {
           adminNote: dto.adminNote,
           paidAt: new Date(),
         },
-        include: { company: true, subscriptionPlan: true },
+        include: { company: true, candidateProfile: true, subscriptionPlan: true },
       });
 
-      await this.subscriptionService.activatePlanForCompany(
-        invoice.companyId,
-        invoice.subscriptionPlanId,
-        'ADMIN_MANUAL_CONFIRM',
-        tx,
-      );
+      if (invoice.companyId) {
+        await this.subscriptionService.activatePlanForCompany(
+          invoice.companyId,
+          invoice.subscriptionPlanId,
+          'ADMIN_MANUAL_CONFIRM',
+          tx,
+        );
+      } else if (invoice.candidateProfileId) {
+        await this.activatePlanForCandidate(
+          invoice.candidateProfileId,
+          invoice.subscriptionPlanId,
+          'ADMIN_MANUAL_CONFIRM',
+          tx,
+        );
+      }
 
       await this.auditLogService.log(
         {
@@ -500,7 +736,7 @@ export class InvoicesService {
           cancelledAt: new Date(),
           cancelledReason: dto.reason,
         },
-        include: { company: true, subscriptionPlan: true },
+        include: { company: true, candidateProfile: true, subscriptionPlan: true },
       });
 
       await this.auditLogService.log(
@@ -548,20 +784,33 @@ export class InvoicesService {
             ? `${invoice.adminNote ? invoice.adminNote + '\n' : ''}[Hoàn tiền]: ${dto.adminNote}`
             : invoice.adminNote,
         },
-        include: { company: true, subscriptionPlan: true },
+        include: { company: true, candidateProfile: true, subscriptionPlan: true },
       });
 
-      // Huỷ gói dịch vụ đã kích hoạt từ hoá đơn này nếu công ty đang active gói này
-      await tx.companySubscription.updateMany({
-        where: {
-          companyId: invoice.companyId,
-          planId: invoice.subscriptionPlanId,
-          status: SubscriptionStatus.ACTIVE,
-        },
-        data: {
-          status: SubscriptionStatus.CANCELLED,
-        },
-      });
+      // Huỷ gói dịch vụ đã kích hoạt từ hoá đơn này nếu đang active gói này
+      if (invoice.companyId) {
+        await tx.companySubscription.updateMany({
+          where: {
+            companyId: invoice.companyId,
+            planId: invoice.subscriptionPlanId,
+            status: SubscriptionStatus.ACTIVE,
+          },
+          data: {
+            status: SubscriptionStatus.CANCELLED,
+          },
+        });
+      } else if (invoice.candidateProfileId) {
+        await tx.candidateSubscription.updateMany({
+          where: {
+            candidateProfileId: invoice.candidateProfileId,
+            planId: invoice.subscriptionPlanId,
+            status: SubscriptionStatus.ACTIVE,
+          },
+          data: {
+            status: SubscriptionStatus.CANCELLED,
+          },
+        });
+      }
 
       await this.auditLogService.log(
         {
