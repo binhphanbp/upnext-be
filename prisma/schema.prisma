@@ -340,6 +340,7 @@ enum CvScreeningRunStatus {
   COMPLETED      @map("completed")
   FAILED         @map("failed")
   PARTIAL_FAILED @map("partial_failed")
+  CANCELLED      @map("cancelled")
 }
 
 enum EducationLevel {
@@ -935,6 +936,7 @@ model Company {
   supportCases             SupportCase[]
   subscriptionUsages       SubscriptionUsage[]
   aiUsageLogs              AiUsageLog[]
+  cvScreeningConfig        CvScreeningCompanyConfig?
 
   @@index([verificationStatus])
   @@index([status])
@@ -1387,6 +1389,9 @@ model CvScreeningRun {
   lockedAt           DateTime?            @map("locked_at")
   lockedBy           String?              @map("locked_by") @db.VarChar(100)
   errorMessage       String?              @map("error_message") @db.Text
+  /// Đặt khi recruiter bấm hủy một run đang PROCESSING -- worker kiểm tra cờ
+  /// này giữa các batch và dừng lại sớm thay vì chờ chấm hết toàn bộ CV.
+  cancelRequestedAt  DateTime?            @map("cancel_requested_at")
   startedAt          DateTime?            @map("started_at")
   finishedAt         DateTime?            @map("finished_at")
   createdAt          DateTime             @default(now()) @map("created_at")
@@ -2653,6 +2658,33 @@ model CandidateContactPreference {
   candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
 
   @@map("candidate_contact_preferences")
+}
+
+/// Per-company customization of the "AI lọc CV" screening behaviour. The
+/// scoring rubric itself (skills/experience/projects/education weights)
+/// stays fixed for every company -- only prompt-level guidance and the
+/// default shortlist size/threshold are configurable, to avoid touching the
+/// rubric's clamp logic and DB score columns. Absent (no row) means "use the
+/// system defaults", so a company never has to configure anything.
+model CvScreeningCompanyConfig {
+  companyId          String   @id @map("company_id") @db.Uuid
+  /// Free-text guidance appended to the AI scoring prompt (e.g. "ưu tiên
+  /// ứng viên có chứng chỉ AWS"). Treated as untrusted recruiter input by
+  /// the prompt -- see gemini-scoring.service.ts buildSystemInstruction.
+  customInstructions String?  @map("custom_instructions") @db.Text
+  /// Default "Top N" shortlist size when a run's request omits `limit`.
+  /// null = score the whole application pool.
+  defaultTopN        Int?     @map("default_top_n")
+  /// Minimum embedding cosine-similarity score (0-100) a CV must clear to
+  /// enter the shortlist. null = no threshold (rank-only).
+  minSimilarityScore Int?     @map("min_similarity_score")
+  updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("cv_screening_company_configs")
 }
 
 model CompanyCandidateBlock {

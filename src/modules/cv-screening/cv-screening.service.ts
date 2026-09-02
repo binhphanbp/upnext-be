@@ -12,6 +12,7 @@ import { isJobPostAccessibleToRecruiter } from '../../common/authorization/job-p
 import { SubscriptionQuotaService } from '../subscriptions/subscription-quota.service';
 import { SubscriptionFeature } from '../subscriptions/feature-registry';
 import { RunCvScreeningDto } from './dto/run-cv-screening.dto';
+import { EmbeddingService } from './embedding.service';
 import {
   estimateGeminiCostVnd,
   GeminiScoringService,
@@ -31,9 +32,22 @@ import { buildCvText, buildJobText, CV_TEXT_INCLUDE, JOB_TEXT_INCLUDE } from './
 // Gemini calls. Every application below this cap is scored -- there is no
 // semantic pre-filter, so nothing is silently dropped from a normal run.
 const MAX_APPLICATIONS_PER_RUN = 200;
-const GEMINI_BATCH_SIZE = 8;
-const GEMINI_BATCH_CONCURRENCY = 1;
-const GEMINI_FALLBACK_CONCURRENCY = 1;
+// Was 8. Verified live against the real gateway: an 8-CV batch consistently
+// hit the full 90s batch timeout and fell back to scoring each CV one at a
+// time (`scoreAndPersistBatch`'s `canFallback` path) -- meaning a "batch of
+// 8" run was actually running at fallback concurrency (2, one CV per call)
+// almost the whole time, not batch concurrency. A smaller batch is a lighter
+// prompt/response that the gateway can answer within the timeout on the
+// first try, so runs actually get the parallelism below instead of silently
+// degrading to the slow path on every batch.
+const GEMINI_BATCH_SIZE = 3;
+// Concurrency is a request-shape/rate-limit tradeoff, not an accuracy one:
+// each batch is still scored independently with the same rubric/prompt --
+// the scoring model tier and batch size (accuracy) are unchanged, only how
+// many requests are in flight at once. `withRetry` in GeminiScoringService
+// absorbs an occasional 429/timeout from bursty concurrent calls.
+const GEMINI_BATCH_CONCURRENCY = 6;
+const GEMINI_FALLBACK_CONCURRENCY = 3;
 const SCORING_VERSION = 'cv-screening-v11-ai-gateway-vi';
 type TerminalCvScreeningRunStatus = Exclude<CvScreeningRunStatus, 'pending' | 'processing'>;
 
@@ -78,6 +92,7 @@ export class CvScreeningService {
     private readonly prisma: PrismaService,
     private readonly geminiScoringService: GeminiScoringService,
     private readonly quota: SubscriptionQuotaService,
+    private readonly embeddingService: EmbeddingService,
   ) {}
 
   async startRun(recruiterId: string, dto: RunCvScreeningDto) {
@@ -108,27 +123,44 @@ export class CvScreeningService {
       throw new ForbiddenException('Bạn không có quyền truy cập tin tuyển dụng này.');
     }
 
-    const effectiveLimit = Math.min(
-      dto.limit ?? MAX_APPLICATIONS_PER_RUN,
-      MAX_APPLICATIONS_PER_RUN,
-    );
-    const [applicationCount, applicationSnapshot] = await Promise.all([
+    const [applicationCount, applicationPool, companyConfig] = await Promise.all([
       this.prisma.application.count({ where: { jobPostId: dto.jobPostId } }),
       this.prisma.application.findMany({
         where: { jobPostId: dto.jobPostId },
-        select: { id: true },
+        select: { id: true, cvVersionId: true },
         orderBy: { submittedAt: 'desc' },
-        take: effectiveLimit,
+        take: MAX_APPLICATIONS_PER_RUN,
+      }),
+      this.prisma.cvScreeningCompanyConfig.findUnique({
+        where: { companyId: recruiter.companyId },
       }),
     ]);
+
+    // `limit` is "Top N" (10/20/...): the recruiter wants only the N CVs
+    // closest to the job description AI-scored, not every applicant. Ranking
+    // by embedding similarity first (cheap, fast, already computed/cached for
+    // other features) and sending only the winners to Gemini's slow, metered
+    // scoring is what actually gets a run down to 1-2 minutes -- scoring
+    // every CV with the LLM is both the cost and the latency problem, not
+    // just a throughput setting. Omitting `limit` (and having no company
+    // default) keeps the old "score everyone" behaviour.
+    const limit = dto.limit ?? companyConfig?.defaultTopN ?? undefined;
+    const applicationIds =
+      limit && limit < applicationPool.length
+        ? await this.selectTopApplicationsByEmbedding(
+            dto.jobPostId,
+            applicationPool,
+            limit,
+            companyConfig?.minSimilarityScore ?? null,
+          )
+        : applicationPool.map((application) => application.id);
     // Persist the exact application set with the run. A retry must never score
     // a newer applicant simply because the queue was delayed or recovered.
-    const applicationIds = applicationSnapshot.map((application) => application.id);
     const totalApplications = applicationIds.length;
 
     if (applicationCount > totalApplications) {
-      this.logger.warn(
-        `Job post ${dto.jobPostId} has ${applicationCount} applications; capping this run at ${totalApplications}`,
+      this.logger.log(
+        `Job post ${dto.jobPostId} has ${applicationCount} applications; this run scores ${totalApplications} (limit=${limit ?? 'none'})`,
       );
     }
 
@@ -167,7 +199,7 @@ export class CvScreeningService {
           companyId: recruiter.companyId,
           recruiterAccountId: recruiter.id,
           totalApplications,
-          limit: dto.limit ?? null,
+          limit: limit ?? null,
           applicationIds,
           status: CvScreeningRunStatus.PENDING,
         },
@@ -194,6 +226,59 @@ export class CvScreeningService {
     };
   }
 
+  /**
+   * Ranks the candidate pool by cosine similarity between the job's and each
+   * CV's embedding (`EmbeddingService.rankCvEmbeddings`, pgvector-backed with
+   * a JS fallback) and returns just the application ids for the top `limit`.
+   * Embedding compute/lookup is cheap and fast compared to a Gemini scoring
+   * call, so this is what makes "Top 10/20" both cheaper (fewer AI_CV_MATCHING
+   * credits) and faster (fewer, not just more parallel, Gemini calls) than
+   * scoring the whole pool.
+   *
+   * Never blocks a run on embedding trouble: if ranking fails for any reason
+   * (embedding provider down, pgvector unavailable and the JS fallback also
+   * errors, ...), this falls back to the same "most recent N" selection the
+   * service used before embedding pre-filtering existed.
+   */
+  private async selectTopApplicationsByEmbedding(
+    jobPostId: string,
+    applicationPool: Array<{ id: string; cvVersionId: string }>,
+    limit: number,
+    minScore: number | null = null,
+  ): Promise<string[]> {
+    try {
+      const jobEmbedding = await this.embeddingService.getOrCreateJobEmbedding(jobPostId);
+      const cvVersionIds = applicationPool.map((application) => application.cvVersionId);
+      await this.embeddingService.getOrCreateCvEmbeddings(cvVersionIds);
+      const ranked = await this.embeddingService.rankCvEmbeddings(
+        jobEmbedding.vector,
+        cvVersionIds,
+        limit,
+        minScore,
+      );
+
+      if (ranked.length === 0) {
+        this.logger.warn(
+          `Embedding ranking returned no results for job ${jobPostId}; falling back to most recent ${limit}`,
+        );
+        return applicationPool.slice(0, limit).map((application) => application.id);
+      }
+
+      const applicationIdByCvVersionId = new Map(
+        applicationPool.map((application) => [application.cvVersionId, application.id]),
+      );
+      return ranked
+        .map((item) => applicationIdByCvVersionId.get(item.cvVersionId))
+        .filter((applicationId): applicationId is string => Boolean(applicationId));
+    } catch (error) {
+      this.logger.warn(
+        `Embedding pre-filter failed for job ${jobPostId}; falling back to most recent ${limit}`,
+        this.getErrorStack(error),
+      );
+      return applicationPool.slice(0, limit).map((application) => application.id);
+    }
+  }
+
   async getRun(recruiterId: string, runId: string) {
     const run = await this.getAuthorizedRun(recruiterId, runId);
 
@@ -210,11 +295,72 @@ export class CvScreeningService {
       attemptCount: run.attemptCount,
       nextAttemptAt: run.nextAttemptAt,
       errorMessage: run.errorMessage,
+      cancelRequestedAt: run.cancelRequestedAt,
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
     };
+  }
+
+  /**
+   * Cancels a run the recruiter no longer wants to wait for.
+   *
+   * - `PENDING` (worker hasn't claimed it yet): cancel outright and refund the
+   *   full quota reservation -- nothing was scored, nothing to keep.
+   * - `PROCESSING`: only flag it. The in-flight batch (already billed and
+   *   sent to Gemini) is always let to finish and persist, so cancelling
+   *   never discards paid work; the worker checks the flag between batches
+   *   (`isCancelRequested`) and stops scheduling further ones, then
+   *   `finishClaimedRun` settles the run as CANCELLED and refunds only the
+   *   CVs never scored.
+   * - Idempotent: calling this twice on an already-flagged PROCESSING run
+   *   returns the same CANCEL_REQUESTED state instead of erroring.
+   */
+  async cancelRun(recruiterId: string, runId: string) {
+    await this.getAuthorizedRun(recruiterId, runId);
+
+    const cancelledPending = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.cvScreeningRun.updateMany({
+        where: { id: runId, status: CvScreeningRunStatus.PENDING },
+        data: {
+          status: CvScreeningRunStatus.CANCELLED,
+          cancelRequestedAt: new Date(),
+          finishedAt: new Date(),
+          errorMessage: 'Đã hủy theo yêu cầu trước khi bắt đầu chấm.',
+        },
+      });
+      if (!claimed.count) return false;
+
+      const reservation = await tx.subscriptionUsage.findUnique({
+        where: { idempotencyKey: `cv-screening:${runId}` },
+      });
+      if (reservation) {
+        await this.quota.reverse(tx, reservation.id, 'cv-screening-cancelled');
+      }
+      return true;
+    });
+    if (cancelledPending) {
+      return { runId, status: CvScreeningRunStatus.CANCELLED };
+    }
+
+    const flagged = await this.prisma.cvScreeningRun.updateMany({
+      where: { id: runId, status: CvScreeningRunStatus.PROCESSING, cancelRequestedAt: null },
+      data: { cancelRequestedAt: new Date() },
+    });
+    if (flagged.count > 0) {
+      return { runId, status: 'CANCEL_REQUESTED' as const };
+    }
+
+    const current = await this.prisma.cvScreeningRun.findUnique({ where: { id: runId } });
+    if (current?.status === CvScreeningRunStatus.PROCESSING && current.cancelRequestedAt) {
+      return { runId, status: 'CANCEL_REQUESTED' as const };
+    }
+
+    throw new ConflictException({
+      code: 'CV_SCREENING_RUN_NOT_CANCELLABLE',
+      message: 'Lượt sàng lọc này đã kết thúc, không thể hủy.',
+    });
   }
 
   async getResults(recruiterId: string, runId: string) {
@@ -378,12 +524,25 @@ export class CvScreeningService {
       });
     }, 60_000);
 
+    // Aborts in-flight Gemini calls the moment a cancel is requested, instead
+    // of leaving them to run out their own timeout (90s x 3 retries, ~4.5min
+    // worst case). `mapLimit`'s `shouldStop` check below only stops the NEXT
+    // batch from starting -- this is what makes an already-dispatched batch
+    // actually stop too, so cancelling a slow run feels like seconds, not
+    // minutes.
+    const cancelAbortController = new AbortController();
+    const cancelWatchTimer = setInterval(() => {
+      void this.isCancelRequested(runId).then((cancelled) => {
+        if (cancelled) cancelAbortController.abort(new Error('CV screening run cancelled'));
+      });
+    }, 3_000);
+
     try {
       const effectiveLimit = Math.min(
         run.limit ?? MAX_APPLICATIONS_PER_RUN,
         MAX_APPLICATIONS_PER_RUN,
       );
-      const [jobPost, applications] = await Promise.all([
+      const [jobPost, applications, companyConfig] = await Promise.all([
         this.prisma.jobPost.findUnique({
           where: { id: run.jobPostId },
           include: JOB_TEXT_INCLUDE,
@@ -420,6 +579,9 @@ export class CvScreeningService {
           orderBy: { submittedAt: 'desc' },
           take: effectiveLimit,
         }),
+        this.prisma.cvScreeningCompanyConfig.findUnique({
+          where: { companyId: run.companyId },
+        }),
       ]);
 
       if (!jobPost) {
@@ -427,6 +589,7 @@ export class CvScreeningService {
       }
 
       const jobText = buildJobText(jobPost);
+      const customInstructions = companyConfig?.customInstructions ?? null;
       const cvTextByVersionId = await this.loadCvTexts(
         applications.map((application) => application.cvVersionId),
       );
@@ -463,12 +626,28 @@ export class CvScreeningService {
       await this.mapLimit(
         this.chunk(toScore, GEMINI_BATCH_SIZE),
         GEMINI_BATCH_CONCURRENCY,
-        (batch) => this.scoreAndPersistBatch(runId, jobText, jobPost.educationLevel, batch),
+        (batch) =>
+          this.scoreAndPersistBatch(
+            runId,
+            jobText,
+            jobPost.educationLevel,
+            batch,
+            true,
+            cancelAbortController.signal,
+            customInstructions,
+          ),
+        () => this.isCancelRequested(runId),
       );
 
-      await this.finishClaimedRun(runId, workerId, CvScreeningRunStatus.COMPLETED);
+      const cancelled = await this.isCancelRequested(runId);
+      await this.finishClaimedRun(
+        runId,
+        workerId,
+        cancelled ? CvScreeningRunStatus.CANCELLED : CvScreeningRunStatus.COMPLETED,
+      );
     } finally {
       clearInterval(renewLeaseTimer);
+      clearInterval(cancelWatchTimer);
     }
   }
 
@@ -502,12 +681,19 @@ export class CvScreeningService {
       // CV. Deriving the final state from it makes recovery idempotent even if
       // a process dies between score persistence and progress-counter updates.
       const successfulCount = await tx.applicationAiScore.count({ where: { runId } });
+      // A recruiter-requested cancel takes priority over "partial/failed"
+      // framing once anything is genuinely left unscored -- the run stopped
+      // on purpose, not because scoring broke. If cancellation raced the last
+      // batch finishing, `successfulCount >= totalApplications` still wins:
+      // the recruiter gets their completed results, not a cancelled run.
       const finalStatus =
-        successfulCount >= run.totalApplications
-          ? CvScreeningRunStatus.COMPLETED
-          : successfulCount === 0
-            ? CvScreeningRunStatus.FAILED
-            : CvScreeningRunStatus.PARTIAL_FAILED;
+        run.cancelRequestedAt && successfulCount < run.totalApplications
+          ? CvScreeningRunStatus.CANCELLED
+          : successfulCount >= run.totalApplications
+            ? CvScreeningRunStatus.COMPLETED
+            : successfulCount === 0
+              ? CvScreeningRunStatus.FAILED
+              : CvScreeningRunStatus.PARTIAL_FAILED;
       const finalFailedCount = Math.max(0, run.totalApplications - successfulCount);
       let settlementWarning: string | null = null;
 
@@ -555,9 +741,12 @@ export class CvScreeningService {
           errorMessage:
             finalStatus === CvScreeningRunStatus.COMPLETED
               ? null
-              : (settlementWarning ??
-                errorMessage ??
-                'Một số CV không thể được chấm; quota chưa sử dụng đã được hoàn lại.'),
+              : finalStatus === CvScreeningRunStatus.CANCELLED
+                ? (settlementWarning ??
+                  `Đã hủy theo yêu cầu. Đã chấm ${successfulCount}/${run.totalApplications} CV trước khi hủy; phần còn lại đã được hoàn lượt.`)
+                : (settlementWarning ??
+                  errorMessage ??
+                  'Một số CV không thể được chấm; quota chưa sử dụng đã được hoàn lại.'),
           finishedAt: new Date(),
           lockedAt: null,
           lockedBy: null,
@@ -571,6 +760,14 @@ export class CvScreeningService {
         });
       }
     });
+  }
+
+  private async isCancelRequested(runId: string): Promise<boolean> {
+    const run = await this.prisma.cvScreeningRun.findUnique({
+      where: { id: runId },
+      select: { cancelRequestedAt: true },
+    });
+    return Boolean(run?.cancelRequestedAt);
   }
 
   private async renewLease(runId: string, workerId: string) {
@@ -705,6 +902,8 @@ export class CvScreeningService {
     requiredEducationLevel: EducationLevel,
     batch: ScreeningCandidate[],
     canFallback = true,
+    signal?: AbortSignal,
+    customInstructions?: string | null,
   ) {
     if (batch.length === 0) {
       return;
@@ -718,6 +917,8 @@ export class CvScreeningService {
           cvText: item.cvText,
           candidateEducationLevel: item.candidateEducationLevel,
         })),
+        signal,
+        customInstructions,
       );
       await this.recordAiUsage(runId, usage, modelName, true);
       const resultByApplicationId = new Map(
@@ -768,16 +969,38 @@ export class CvScreeningService {
           requiredEducationLevel,
           missingResultItems,
           canFallback,
+          signal,
+          customInstructions,
         );
       }
     } catch (error) {
+      if (signal?.aborted) {
+        // Recruiter-requested cancel, not a real failure -- no ERROR log
+        // noise, no per-CV fallback retry (that would just abort again
+        // immediately against the same signal). These CVs are simply left
+        // unscored; `finishClaimedRun` refunds the credit for each one.
+        this.logger.log(
+          `CV screening run ${runId} cancelled mid-batch; leaving ${batch.length} CV(s) unscored`,
+        );
+        await this.incrementProgress(runId, batch.length, batch.length);
+        return;
+      }
+
       if (canFallback && batch.length > 1) {
         this.logger.warn(
           `Scoring batch of ${batch.length} CVs failed; retrying each CV separately`,
           this.getErrorStack(error),
         );
         await this.mapLimit(batch, GEMINI_FALLBACK_CONCURRENCY, (item) =>
-          this.scoreAndPersistBatch(runId, jobText, requiredEducationLevel, [item], false),
+          this.scoreAndPersistBatch(
+            runId,
+            jobText,
+            requiredEducationLevel,
+            [item],
+            false,
+            signal,
+            customInstructions,
+          ),
         );
         return;
       }
@@ -798,13 +1021,23 @@ export class CvScreeningService {
     requiredEducationLevel: EducationLevel,
     missingItems: ScreeningCandidate[],
     canFallback: boolean,
+    signal?: AbortSignal,
+    customInstructions?: string | null,
   ) {
     if (canFallback && missingItems.length > 0) {
       this.logger.warn(
         `Gemini missed ${missingItems.length} application(s); retrying each CV separately`,
       );
       await this.mapLimit(missingItems, GEMINI_FALLBACK_CONCURRENCY, (item) =>
-        this.scoreAndPersistBatch(runId, jobText, requiredEducationLevel, [item], false),
+        this.scoreAndPersistBatch(
+          runId,
+          jobText,
+          requiredEducationLevel,
+          [item],
+          false,
+          signal,
+          customInstructions,
+        ),
       );
       return;
     }
@@ -1106,16 +1339,30 @@ export class CvScreeningService {
     return chunks;
   }
 
+  /**
+   * @param shouldStop Checked before each item is dispatched (not mid-item --
+   *   an in-flight Gemini call is always let to finish and persist its
+   *   result, so a cancel never throws away work already paid for). Once it
+   *   returns true, no worker starts another item; already-dispatched items
+   *   still run to completion.
+   */
   private async mapLimit<T, R>(
     items: T[],
     limit: number,
     mapper: (item: T, index: number) => Promise<R>,
+    shouldStop?: () => Promise<boolean>,
   ) {
     const results = new Array<R>(items.length);
     let nextIndex = 0;
+    let stopped = false;
 
     const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
       while (nextIndex < items.length) {
+        if (stopped) return;
+        if (shouldStop && (await shouldStop())) {
+          stopped = true;
+          return;
+        }
         const currentIndex = nextIndex;
         nextIndex += 1;
         results[currentIndex] = await mapper(items[currentIndex], currentIndex);
