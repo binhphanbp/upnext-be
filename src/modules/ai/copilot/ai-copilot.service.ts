@@ -34,6 +34,10 @@ import {
   routerResponseSchema,
 } from '../prompts/candidate-copilot.prompts';
 import { ToolRegistryService } from '../tools/tool-registry.service';
+import {
+  CandidateKnowledgeRetrievalService,
+  CandidateKnowledgeSearchResult,
+} from '../retrieval/candidate-knowledge-retrieval.service';
 import { AiActionsService } from './ai-actions.service';
 import { AiConversationsService } from './ai-conversations.service';
 
@@ -97,6 +101,7 @@ export class AiCopilotService {
     private readonly conversations: AiConversationsService,
     private readonly actions: AiActionsService,
     private readonly prisma: PrismaService,
+    private readonly knowledge: CandidateKnowledgeRetrievalService,
   ) {}
 
   /**
@@ -271,6 +276,33 @@ export class AiCopilotService {
         throw new Error('AI_TOOL_FAILED');
       }
 
+      // General candidate guidance is the only v1 path that reads the shared,
+      // reviewed knowledge corpus. CV, application and job facts remain in
+      // their already-authorised domain tools; they never enter shared RAG.
+      const knowledgeResults =
+        effectivePlan.intent === 'GENERAL_GUIDANCE'
+          ? await this.knowledge.search({
+              candidateProfileId: input.candidateProfileId,
+              conversationId: input.conversationId,
+              query: input.prompt,
+              locale: normalizeCopilotLocale(input.locale),
+            })
+          : [];
+      if (knowledgeResults.length) {
+        outcomes.push({
+          call: {
+            id: randomUUID(),
+            name: 'candidate_knowledge',
+            label:
+              normalizeCopilotLocale(input.locale) === 'en'
+                ? 'Reading UpNext guidance'
+                : 'Đọc hướng dẫn UpNext',
+            status: 'succeeded',
+          },
+          data: knowledgeResults,
+        });
+      }
+
       /* ---------------- Bước 3: dẫn chứng và thẻ, do backend tính ---------------- */
 
       const derived = await this.deriveCardsAndCitations(
@@ -279,6 +311,7 @@ export class AiCopilotService {
         input.locale,
       );
       citations.push(...derived.citations);
+      citations.push(...this.knowledgeCitations(knowledgeResults, citations.length + 1));
 
       /* ---------------- Bước 4: stream câu trả lời ---------------- */
 
@@ -463,9 +496,9 @@ export class AiCopilotService {
 
     const byName = new Map(plan.toolCalls.map((tool) => [tool.name, tool]));
     const approved = required[inScopeIntent].map((name) => ({
-        name,
-        argument: byName.get(name)?.argument ?? this.contextArgumentFor(name, input),
-      }));
+      name,
+      argument: byName.get(name)?.argument ?? this.contextArgumentFor(name, input),
+    }));
 
     // The model may classify intent, but it may not expand the data boundary.
     // Only the deterministic allowlist for that intent is executed. This keeps
@@ -721,6 +754,21 @@ export class AiCopilotService {
 ${english ? 'DATA' : 'DỮ LIỆU'}:
 ${sections.join('\n\n') || (english ? '(no data — answer only with safe, general platform guidance)' : '(không có dữ liệu — chỉ trả lời bằng hướng dẫn chung, an toàn về nền tảng)')}${citationList}
 UNTRUSTED_DOCUMENT>>>`;
+  }
+
+  private knowledgeCitations(
+    results: CandidateKnowledgeSearchResult[],
+    startIndex: number,
+  ): AiCitation[] {
+    return results.map((result, index) => ({
+      id: `knowledge:${result.chunkId}`,
+      index: startIndex + index,
+      sourceType: 'POLICY' as const,
+      sourceId: result.documentId,
+      title: result.title,
+      excerpt: result.excerpt,
+      ...(result.canonicalUrl ? { href: result.canonicalUrl } : {}),
+    }));
   }
 
   private mapError(
