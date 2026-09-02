@@ -102,7 +102,7 @@ export class CandidateKnowledgeRetrievalService {
         SELECT *, ("semanticScore" * 0.7 + "lexicalScore" * 0.3)::double precision AS "score"
         FROM candidates
       `);
-    } catch (error) {
+    } catch {
       status = 'failed';
       // Do not downgrade to JSON similarity: RAG is unavailable until infra is fixed.
       throw new ServiceUnavailableException('Candidate knowledge retrieval is unavailable');
