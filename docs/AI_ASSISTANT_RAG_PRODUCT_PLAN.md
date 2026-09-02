@@ -2,7 +2,7 @@
 
 > Trạng thái: đề xuất để Product, Engineering, Privacy/Security và vận hành cùng review. Chưa phải uỷ quyền triển khai production.
 >
-> Phạm vi: trợ lý AI cho ứng viên trước; trợ lý cho nhà tuyển dụng chỉ triển khai sau khi chứng minh được một use case vận hành có giá trị. Tài liệu này thay thế cách nghĩ “đặt một chatbot ở mọi trang”.
+> Phạm vi: **chỉ Candidate Career Assistant**. Nhà tuyển dụng tiếp tục dùng các workflow AI chuyên biệt hiện có; Recruiter Chatbot không nằm trong roadmap này. Tài liệu này thay thế cách nghĩ “đặt một chatbot ở mọi trang”.
 
 ## 1. Quyết định điều hành
 
@@ -10,8 +10,8 @@ UpNext không nên làm một chatbot hỏi gì cũng trả lời. Giá trị th
 
 | Đối tượng | Quyết định | Lý do |
 | --- | --- | --- |
-| Ứng viên | Làm **Candidate Career Assistant** trước. | Nhu cầu lặp lại, tần suất cao: hiểu CV, chọn việc, theo dõi đơn, chuẩn bị ứng tuyển/phỏng vấn. Dữ liệu chủ yếu là của chính người dùng nên rủi ro quyền truy cập thấp hơn. |
-| Nhà tuyển dụng | Có nhu cầu, nhưng không làm “Recruiter Chatbot” tổng quát ngay. Làm **Recruiter Hiring Assistant** theo từng màn hình nghiệp vụ sau. | Recruiter chỉ trả tiền khi AI rút ngắn thời gian tạo JD, triage applications và quyết định bước tiếp theo; chat chung chung có chi phí cao, khó đánh giá ROI và rủi ro lộ CV/candidate lớn. |
+| Ứng viên | Làm **Candidate Career Assistant**. | Nhu cầu lặp lại, tần suất cao: hiểu CV, chọn việc, theo dõi đơn, chuẩn bị ứng tuyển/phỏng vấn. Dữ liệu chủ yếu là của chính người dùng nên rủi ro quyền truy cập thấp hơn. |
+| Nhà tuyển dụng | **Không làm Recruiter Chatbot.** Giữ và cải tiến workflow AI chuyên biệt: tạo/import JD, salary insight, CV Screening; Talent Discovery là roadmap riêng có consent/masking. | Chat tổng quát làm phân tán roadmap, khó đo ROI, tăng chi phí và mở rộng bề mặt rủi ro lộ CV/candidate. Mỗi workflow hiện có đã có entry point, quyền và kết quả nghiệp vụ rõ hơn chat. |
 | RAG | Bắt buộc cho tri thức dài/tài liệu và truy vấn semantic; không dùng RAG một cách hình thức cho dữ liệu entity nhỏ đã có API chuẩn. | Đọc toàn bộ CV, JD, knowledge base vào prompt vừa tốn tiền vừa dễ hallucinate; nhưng gọi DB tool cho “trạng thái đơn của tôi” chính xác hơn vector search. |
 | Agentic | Dùng **workflow có giới hạn**, không dùng autonomous agent. | Hệ thống tuyển dụng có quyền riêng tư, quota và tác động nghiệp vụ; agent không được tự mở rộng quyền, gửi tin, sửa dữ liệu hoặc chạy vòng lặp vô hạn. |
 
@@ -28,16 +28,11 @@ UpNext không nên làm một chatbot hỏi gì cũng trả lời. Giá trị th
 
 Kết quả mong muốn phải là một hành động rõ ràng: sửa CV section, lưu/apply job, xem job tương tự, chuẩn bị checklist, hoặc theo dõi application. Câu trả lời văn xuôi không dẫn đến hành động không được tính là thành công sản phẩm.
 
-### 2.2 Nhà tuyển dụng
+### 2.2. Vì sao không làm Recruiter Chatbot
 
-Recruiter cần AI khi đang xử lý công việc chứ không phải khi muốn “tán gẫu với AI”:
+Recruiter không cần thêm một cửa sổ chat để hỏi những việc hệ thống đã có workflow chuyên biệt. Giá trị tuyển dụng nằm ở các tác vụ có state và bằng chứng: tạo JD, benchmark lương, CV Screening, và Talent Discovery có consent. Các phần này phải tiếp tục được cải thiện **ngay trong job/application workspace**, không bị bọc lại bằng chat.
 
-1. **Tạo job:** biến brief/JD thô thành JD chuẩn, kiểm tra thiếu thông tin và benchmark lương.
-2. **Triage pipeline:** tóm tắt số lượng, bottleneck, ứng viên cần review tiếp; không tự reject hay tự shortlist.
-3. **Review một application/CV:** giải thích bằng chứng khớp/gap theo rubric đã định; đưa checklist phỏng vấn có thể sửa.
-4. **Điều hành tuyển dụng:** nhắc SLA, job sắp hết hạn, funnel bất thường, nội dung recruiter cần hoàn thiện.
-
-Recruiter Assistant chỉ đáng làm nếu các output này xuất hiện đúng trong job workspace/application workspace và có nút hành động rõ ràng. Không làm public chatbot, không cho hỏi dữ liệu ngoài company scope, không đưa contact/CV gốc vào prompt hay output.
+Điều này giúp tập trung đầu tư vào trải nghiệm candidate — nơi một assistant xuyên CV, job và application giải quyết nhiều bế tắc lặp lại — đồng thời tránh tạo một đường mới có thể lộ dữ liệu candidate hoặc khiến recruiter dựa vào câu trả lời khó audit.
 
 ## 3. Hiện trạng đã audit
 
@@ -77,7 +72,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | Fact có cấu trúc/quyền sở hữu | Tool SQL có authorization | trạng thái đơn, quota, job đang mở | Vector search, vì có thể stale/sai quyền |
 | Một document dài | Chunk retrieval trong document đã được phép | “CV này có ví dụ leadership nào?” | Toàn bộ PDF/raw CV vào prompt |
-| Corpus tri thức đã quản trị | Hybrid search keyword + vector + rerank | quy trình ứng tuyển, chính sách UpNext, hướng dẫn recruiter | Web search tự do ở v1 |
+| Corpus tri thức đã quản trị | Hybrid search keyword + vector + rerank | quy trình ứng tuyển, chính sách UpNext, hướng dẫn candidate | Web search tự do ở v1 |
 | Semantic matching | Index theo entity và filter trước retrieval | job phù hợp candidate, candidate phù hợp job | LLM tự bịa score hoặc scan toàn DB |
 
 ### 4.2 Nguyên tắc dữ liệu
@@ -107,31 +102,16 @@ flowchart LR
 - Không dùng web search live cho tư vấn nghề nghiệp; dữ liệu ngoài kiểm soát sẽ làm citation/chi phí/safety khó quản lý.
 - Không giữ toàn bộ CV/message history trong prompt. Dùng summary đã kiểm soát + top chunks có evidence.
 
-## 6. Recruiter Hiring Assistant: có cần, nhưng đúng lúc
+## 6. Ranh giới recruiter và dependency hiện có
 
-### 6.1 Quyết định rollout
+Recruiter Chatbot bị loại khỏi kế hoạch này. Không tạo endpoint chat, knowledge corpus, quota hay UI chat mới cho recruiter.
 
-**Có cần**, vì giải quyết thời gian vận hành trực tiếp và tạo lý do mua gói. Nhưng chỉ launch sau Candidate Assistant retrieval foundation và sau khi hoàn tất privacy plan cho Talent Discovery/CV masking. V1 recruiter không phải nơi để xem hay tìm CV ngoài pipeline được phép.
+Các dependency recruiter chỉ ảnh hưởng Candidate Assistant ở đúng hai điểm:
 
-### 6.2 Use case theo giá trị và rủi ro
+1. Candidate chỉ retrieve job đang public, approved, chưa hết hạn; không đọc draft hay dữ liệu nội bộ company.
+2. Candidate không bao giờ dùng assistant để xem candidate khác, CV pool, contact hoặc kết quả CV Screening.
 
-| Ưu tiên | Use case | Data scope | Tác động | Quyết định |
-| --- | --- | --- | --- | --- |
-| P0 | JD copilot: thiếu field, rewrite, import, salary insight | company job draft + curated hiring knowledge | draft-only | Mở rộng từ AI Job Post hiện có |
-| P0 | Pipeline brief | company-owned job + aggregate application states | read-only | Làm sau khi event/analytics đáng tin cậy |
-| P1 | Application review brief | application đã được recruiter phép xem + CV redacted/evidence rubric | recommendation, human confirms | Chỉ trong application workspace |
-| P1 | Interview preparation kit | selected application + job + rubric | draft-only | Không suy luận protected attributes |
-| P2 | Outreach draft | verified company + job + candidate consent policy | proposed message, recruiter confirms | Phụ thuộc Talent Discovery privacy controls |
-| Không làm | “Tìm CV trong toàn hệ thống” hoặc reveal contact qua chat | candidate data ngoài explicit consent/access | high privacy risk | Bị cấm |
-
-### 6.3 ROI gate
-
-Không mở rộng recruiter chat nếu beta không đạt đồng thời:
-
-- ≥25% recruiter beta dùng một workflow hành động được mỗi tuần;
-- median time từ tạo draft JD đến publish hoặc từ application open đến review giảm ít nhất 20% so với cohort control;
-- không có incident cross-company/candidate PII;
-- tỷ lệ accept/modify suggestion cao hơn ignore; và chi phí AI/workflow nằm trong margin của gói.
+Các roadmap AI recruiter hiện có (AI Job Post, CV Screening, Talent Discovery) tiếp tục được quản lý và review trong tài liệu/PR riêng; không được gộp vào scope, KPI hoặc release gate của Candidate Assistant.
 
 ## 7. Bounded agentic workflow
 
@@ -234,9 +214,9 @@ Thêm online canary: 5–10% opt-in, kill switch theo workflow, dashboard theo r
 
 ## 14. Lộ trình triển khai và release gates
 
-### Phase 0 — Product discovery và controls (1–2 tuần)
+### Phase 0 — Candidate discovery và controls (1–2 tuần)
 
-- Phỏng vấn 8–12 candidate và 6–8 recruiter theo task thật; chọn 3 candidate workflows và 2 recruiter workflows bằng tần suất × pain × measurable outcome.
+- Phỏng vấn 10–15 candidate theo task thật; chọn 3 candidate workflows bằng tần suất × pain × measurable outcome.
 - Chốt data classification, consent, retention, policy/action matrix, pricing hypothesis và success metrics.
 - Viết eval scenarios trước code; nhận sign-off Product, Privacy/Security, Engineering.
 
@@ -258,16 +238,16 @@ Thêm online canary: 5–10% opt-in, kill switch theo workflow, dashboard theo r
 
 **Gate:** grounded-answer and task-success threshold đạt; no P0 privacy/safety issue; cost nằm trong budget.
 
-### Phase 3 — Recruiter workbench beta (2–3 tuần)
+### Phase 3 — Candidate Assistant expanded beta (2–3 tuần)
 
-- JD copilot and pipeline brief first; application review chỉ dùng permitted, masked evidence and human-confirmed recommendations.
-- Company-scoped retrieval, role/assignment checks, company audit export, recruiter eval set.
+- Mở rộng các workflow candidate đã đạt metric: CV patch có diff/confirm, job-search explanation và preparation kit theo job đã chọn.
+- Cải thiện retrieval freshness, long-document chunking, conversation summary và feedback-to-evaluation loop; không tăng quyền hành động tự động.
 
-**Gate:** ROI gate mục 6.3; no candidate identity/contact leak; Legal review passed for each new data purpose.
+**Gate:** candidate task-success và grounded-answer threshold duy trì khi tải/corpus tăng; no P0 privacy/safety issue.
 
-### Phase 4 — Bounded agent workflows (sau beta)
+### Phase 4 — Bounded candidate workflows (sau beta)
 
-- Chỉ thêm multi-step workflow nơi single tool/RAG không đủ, ví dụ “tạo interview kit từ selected job + selected application + rubric”.
+- Chỉ thêm multi-step workflow nơi single tool/RAG không đủ, ví dụ “tạo interview kit từ selected job + CV của chính candidate + rubric”.
 - Implement plan state, tool receipts, action proposal/approval, replay tests and per-step budget.
 
 **Gate:** mỗi tool/action có owner, audit/retry/rollback story; không có autonomous high-impact action.
@@ -276,7 +256,7 @@ Thêm online canary: 5–10% opt-in, kill switch theo workflow, dashboard theo r
 
 | Area | Owner | Deliverable |
 | --- | --- | --- |
-| Product/research | Product lead | workflow priority, JTBD, pricing, success metrics |
+| Product/research | Product lead | candidate workflow priority, JTBD, pricing, success metrics |
 | Backend | Backend team | policy engine, tools, retrieval/audit/action contracts, queues |
 | AI service | AI team | provider gateway, embeddings, structured/stream interfaces, model observability |
 | Frontend | Frontend team | context-first assistant UX, citations, diff/confirm, feedback/fallback |
@@ -293,7 +273,7 @@ Chỉ được tuyên bố hoàn thiện một workflow khi đồng thời có:
 3. E2E staging test với dữ liệu test; retry/cancel/quota refund/action confirmation đều pass.
 4. Automated unit, integration, cross-tenant, prompt-injection, PII-redaction và retrieval evaluation tests pass.
 5. Dashboard/alert/kill switch/runbook, cost budget và audit trace hoạt động.
-6. Privacy/Security sign-off; nếu liên quan recruiter/candidate discovery thì consent/masking policy được test.
+6. Privacy/Security sign-off cho dữ liệu candidate, consent/masking policy và retention được test.
 7. Canary đủ dữ liệu đạt quality/utility/cost thresholds trước khi mở rộng.
 
 ## 17. Việc không nên làm ngay
@@ -303,6 +283,6 @@ Chỉ được tuyên bố hoàn thiện một workflow khi đồng thời có:
 - Dùng embeddings từ raw CV để tìm candidate toàn hệ thống.
 - Dùng agent tự do có quyền write hoặc gửi outreach.
 - Bán unlimited chat trước khi có cost guardrail, cache, quota và eval.
-- Làm Recruiter Chatbot song song chỉ vì Candidate Copilot đã có UI.
+- Mở lại đề xuất Recruiter Chatbot chỉ vì Candidate Copilot đã có UI; đó là một quyết định sản phẩm mới, cần tài liệu và sign-off riêng.
 
 Kết quả cần hướng tới không phải nhiều tin nhắn AI hơn; là thời gian ra quyết định ngắn hơn, hành động đúng hơn, và dữ liệu candidate/company được giữ đúng quyền.
