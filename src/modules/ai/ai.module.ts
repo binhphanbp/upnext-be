@@ -16,6 +16,7 @@ import { AiRunTrackerService } from './copilot/ai-run-tracker.service';
 import { LLM_PROVIDER, LlmProviderPort } from './ports/llm-provider.port';
 import { EMBEDDING_PROVIDER, EmbeddingProviderPort } from './ports/embedding-provider.port';
 import { ToolRegistryService } from './tools/tool-registry.service';
+import { CandidateKnowledgeRetrievalService } from './retrieval/candidate-knowledge-retrieval.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 /**
@@ -73,7 +74,14 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     AiRunTrackerService,
     CandidateContextAssembler,
     ToolRegistryService,
+    CandidateKnowledgeRetrievalService,
   ],
-  exports: [LLM_PROVIDER, EMBEDDING_PROVIDER, CandidateContextAssembler, ToolRegistryService],
+  exports: [
+    LLM_PROVIDER,
+    EMBEDDING_PROVIDER,
+    CandidateContextAssembler,
+    ToolRegistryService,
+    CandidateKnowledgeRetrievalService,
+  ],
 })
 export class AiModule {}
