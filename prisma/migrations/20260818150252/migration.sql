@@ -1,8 +1,8 @@
 -- DropIndex
-DROP INDEX "applications_offer_deadline_at_idx";
+DROP INDEX IF EXISTS "applications_offer_deadline_at_idx";
 
 -- DropIndex
-DROP INDEX "reports_reporter_recruiter_account_id_idx";
+DROP INDEX IF EXISTS "reports_reporter_recruiter_account_id_idx";
 
 -- RenameIndex
 ALTER INDEX "ai_conversations_candidate_profile_id_is_archived_updated_at_id" RENAME TO "ai_conversations_candidate_profile_id_is_archived_updated_a_idx";
