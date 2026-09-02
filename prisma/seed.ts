@@ -15,6 +15,11 @@ import {
   InterviewResult,
   InterviewStatus,
   InterviewType,
+  JobBoostEndedReason,
+  JobBoostEventType,
+  JobBoostPlacement,
+  JobBoostStatus,
+  JobBoostType,
   JobSearchStatus,
   JobStatus,
   ModerationStatus,
@@ -27,6 +32,7 @@ import {
   ProfileVisibility,
   SalaryPeriod,
   SkillPriority,
+  SubscriptionUsageDirection,
   WorkingModel,
 } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -5629,6 +5635,214 @@ async function main() {
       paymentStatus: 'FAILED',
     },
   });
+
+  // --- Seed Realistic Job Boosts & Subscriptions across Representative Companies ---
+  const targetBoostCompanies = [
+    { search: 'FPT Software', plan: plans.pro, activeCount: 1, endedCount: 1 },
+    { search: 'Be Group', plan: plans.pro, activeCount: 1, endedCount: 0 },
+    { search: 'TopCV Vietnam', plan: plans.pro, activeCount: 1, endedCount: 1 },
+    { search: 'Sendo Technology', plan: plans.free, activeCount: 1, endedCount: 0 },
+    { search: 'Becamex IDC', plan: plans.free, activeCount: 0, endedCount: 0 },
+    { search: 'Vietravel', plan: plans.pro, activeCount: 0, endedCount: 0 },
+  ];
+
+  for (const item of targetBoostCompanies) {
+    const comp = await prisma.company.findFirst({
+      where: { name: { contains: item.search, mode: 'insensitive' } },
+      include: {
+        recruiterAccounts: true,
+        jobPosts: {
+          where: { status: 'PUBLISHED', moderationStatus: 'APPROVED' },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!comp || comp.recruiterAccounts.length === 0) continue;
+
+    const recruiter = comp.recruiterAccounts[0];
+    const totalBoostsNeeded = item.activeCount + item.endedCount;
+    const boostLimit = item.plan.code === 'RECRUITER_PRO' ? 10 : 1;
+
+    let compSub = await prisma.companySubscription.findFirst({
+      where: { companyId: comp.id, status: 'ACTIVE' },
+    });
+
+    if (!compSub) {
+      compSub = await prisma.companySubscription.create({
+        data: {
+          planId: item.plan.id,
+          companyId: comp.id,
+          jobPostLimit: item.plan.jobPostLimit ?? 100,
+          jobPostUsed: Math.min(comp.jobPosts.length, 5),
+          boostCreditTotal: boostLimit,
+          boostCreditUsed: totalBoostsNeeded,
+          startedAt: addDays(now, -10),
+          expiredAt: addDays(now, 20),
+          status: 'ACTIVE',
+        },
+      });
+
+      await prisma.invoice.create({
+        data: {
+          subscriptionPlanId: item.plan.id,
+          companyId: comp.id,
+          invoiceCode: `INV-${comp.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+          amount: item.plan.price,
+          paymentMethod: 'SEPAY',
+          paymentStatus: 'PAID',
+          paidAt: addDays(now, -10),
+        },
+      });
+    } else {
+      await prisma.companySubscription.update({
+        where: { id: compSub.id },
+        data: {
+          planId: item.plan.id,
+          boostCreditTotal: boostLimit,
+          boostCreditUsed: totalBoostsNeeded,
+          status: 'ACTIVE',
+        },
+      });
+    }
+
+    const jobsToBoost = comp.jobPosts.slice(0, totalBoostsNeeded + 2);
+    let jobIndex = 0;
+
+    // ACTIVE Boosts
+    for (let i = 0; i < item.activeCount && jobIndex < jobsToBoost.length; i++) {
+      const targetJob = jobsToBoost[jobIndex++];
+      const boostId = randomUUID();
+      const idempotencyKey = `seed:job-boost:${comp.id}:${boostId}`;
+
+      await prisma.jobBoost.deleteMany({
+        where: { jobPostId: targetJob.id, status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] } },
+      });
+
+      const boost = await prisma.jobBoost.create({
+        data: {
+          id: boostId,
+          createdByRecruiterId: recruiter.id,
+          companySubscriptionId: compSub.id,
+          jobPostId: targetJob.id,
+          companyId: comp.id,
+          type: JobBoostType.FEATURED,
+          status: JobBoostStatus.ACTIVE,
+          creditCost: 1,
+          startsAt: addDays(now, -3),
+          endsAt: addDays(now, 4),
+          firstImpressionAt: addDays(now, -3),
+          lastImpressionAt: addDays(now, 0),
+          lastServedAt: addDays(now, 0),
+          idempotencyKey,
+        },
+      });
+
+      await prisma.subscriptionUsage.upsert({
+        where: { idempotencyKey },
+        create: {
+          companyId: comp.id,
+          companySubscriptionId: compSub.id,
+          feature: 'featured_job',
+          quantity: 1,
+          direction: SubscriptionUsageDirection.CONSUME,
+          referenceType: 'job_boost',
+          referenceId: boost.id,
+          idempotencyKey,
+          createdByRecruiterId: recruiter.id,
+        },
+        update: {},
+      });
+
+      const metricsData = [];
+      for (let day = -3; day <= 0; day++) {
+        const metricDate = new Date(addDays(now, day));
+        metricDate.setUTCHours(0, 0, 0, 0);
+        metricsData.push({
+          jobBoostId: boost.id,
+          jobPostId: targetJob.id,
+          impressions: 180 + Math.floor(Math.random() * 80) + (day + 3) * 30,
+          clicks: 22 + Math.floor(Math.random() * 12) + (day + 3) * 5,
+          applicationsCount: Math.floor(Math.random() * 3) + 1,
+          savedCount: Math.floor(Math.random() * 4) + 2,
+          date: metricDate,
+        });
+      }
+
+      await prisma.jobBoostMetric.createMany({
+        data: metricsData,
+        skipDuplicates: true,
+      });
+    }
+
+    // ENDED Boosts
+    for (let i = 0; i < item.endedCount && jobIndex < jobsToBoost.length; i++) {
+      const targetJob = jobsToBoost[jobIndex++];
+      const boostId = randomUUID();
+      const idempotencyKey = `seed:job-boost:${comp.id}:${boostId}`;
+
+      await prisma.jobBoost.deleteMany({
+        where: { jobPostId: targetJob.id, status: { in: [JobBoostStatus.SCHEDULED, JobBoostStatus.ACTIVE] } },
+      });
+
+      const boost = await prisma.jobBoost.create({
+        data: {
+          id: boostId,
+          createdByRecruiterId: recruiter.id,
+          companySubscriptionId: compSub.id,
+          jobPostId: targetJob.id,
+          companyId: comp.id,
+          type: JobBoostType.FEATURED,
+          status: JobBoostStatus.ENDED,
+          endedReason: JobBoostEndedReason.EXPIRED,
+          creditCost: 1,
+          startsAt: addDays(now, -10),
+          endsAt: addDays(now, -3),
+          firstImpressionAt: addDays(now, -10),
+          lastImpressionAt: addDays(now, -3),
+          lastServedAt: addDays(now, -3),
+          idempotencyKey,
+        },
+      });
+
+      await prisma.subscriptionUsage.upsert({
+        where: { idempotencyKey },
+        create: {
+          companyId: comp.id,
+          companySubscriptionId: compSub.id,
+          feature: 'featured_job',
+          quantity: 1,
+          direction: SubscriptionUsageDirection.CONSUME,
+          referenceType: 'job_boost',
+          referenceId: boost.id,
+          idempotencyKey,
+          createdByRecruiterId: recruiter.id,
+        },
+        update: {},
+      });
+
+      const metricsData = [];
+      for (let day = -10; day <= -3; day++) {
+        const metricDate = new Date(addDays(now, day));
+        metricDate.setUTCHours(0, 0, 0, 0);
+        metricsData.push({
+          jobBoostId: boost.id,
+          jobPostId: targetJob.id,
+          impressions: 160 + Math.floor(Math.random() * 90),
+          clicks: 20 + Math.floor(Math.random() * 15),
+          applicationsCount: Math.floor(Math.random() * 2),
+          savedCount: Math.floor(Math.random() * 3) + 1,
+          date: metricDate,
+        });
+      }
+
+      await prisma.jobBoostMetric.createMany({
+        data: metricsData,
+        skipDuplicates: true,
+      });
+    }
+  }
+
   // --- Seed Blog/Content data ---
   const careerCategory = await prisma.postCategory.create({
     data: {
