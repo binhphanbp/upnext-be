@@ -55,4 +55,13 @@ export class UpsertPaymentConfigDto {
   @IsOptional()
   @MaxLength(255)
   webhookSecret?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'API Token lấy từ SePay (my.sepay.vn -> Cài đặt công ty -> API Access) để tự động quét lịch sử giao dịch qua API (Polling) mà không cần dùng Webhook. Để trống nếu không muốn đổi token hiện tại.',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(255)
+  apiToken?: string;
 }

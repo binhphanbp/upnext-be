@@ -132,6 +132,21 @@ describe('AiCopilotService — business orchestration', () => {
     expect(streamText.mock.calls[0]?.[0].messages.at(-1)?.text).toContain(
       'Dùng thành tựu có thể đo lường.',
     );
+    // The same source emitted to the client must be present in the model's
+    // evidence list. Otherwise the model has no valid `[n]` marker to attach
+    // to the claim it writes, even though the UI renders a source card later.
+    expect(streamText.mock.calls[0]?.[0].messages.at(-1)?.text).toContain('[1] Hướng dẫn CV');
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        event: 'citation',
+        data: expect.objectContaining({
+          citation: expect.objectContaining({
+            sourceVersion: 'v1',
+            href: '/candidate/ai/knowledge/document-1',
+          }),
+        }),
+      }),
+    );
   });
 
   it('ghi AiUsageLog cho lượt Copilot đã hoàn tất, tổng token router + answer (D3c)', async () => {

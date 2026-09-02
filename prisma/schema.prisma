@@ -2293,6 +2293,7 @@ model PaymentGatewayConfig {
   /// nếu tài khoản ngân hàng không dùng VA.
   contentPrefix    String?       @map("content_prefix") @db.VarChar(20)
   webhookSecret    String?       @map("webhook_secret") @db.VarChar(255)
+  apiToken         String?       @map("api_token") @db.VarChar(255)
   updatedByAdminId String?       @map("updated_by_admin_id") @db.Uuid
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")

@@ -317,7 +317,12 @@ export class AiCopilotService {
 
       yield { event: 'status', data: { step: 'streaming' } };
 
-      const dataBlock = this.buildDataBlock(outcomes, derived.citations, input.locale);
+      // `citations` includes both domain-tool evidence and the reviewed RAG
+      // sources.  Passing only `derived.citations` here made knowledge sources
+      // visible in the UI after streaming, but invisible to the answer model
+      // while it was composing `[n]` markers.  That breaks the correspondence
+      // between a factual claim and its displayed source.
+      const dataBlock = this.buildDataBlock(outcomes, citations, input.locale);
 
       for await (const chunk of this.llm.streamText({
         systemInstruction: candidateAnswerPrompt(input.locale),
@@ -767,7 +772,11 @@ UNTRUSTED_DOCUMENT>>>`;
       sourceId: result.documentId,
       title: result.title,
       excerpt: result.excerpt,
-      ...(result.canonicalUrl ? { href: result.canonicalUrl } : {}),
+      sourceVersion: result.sourceVersion,
+      // A citation opens the exact reviewed document, not a generic chat route
+      // which happens to carry the same guide slug. The endpoint applies the
+      // publication lifecycle checks again before returning the source body.
+      href: `/candidate/ai/knowledge/${result.documentId}`,
     }));
   }
 
