@@ -17,6 +17,7 @@ import { LLM_PROVIDER, LlmProviderPort } from './ports/llm-provider.port';
 import { EMBEDDING_PROVIDER, EmbeddingProviderPort } from './ports/embedding-provider.port';
 import { ToolRegistryService } from './tools/tool-registry.service';
 import { CandidateKnowledgeRetrievalService } from './retrieval/candidate-knowledge-retrieval.service';
+import { CandidateKnowledgeIndexerService } from './retrieval/candidate-knowledge-indexer.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 /**
@@ -75,6 +76,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     CandidateContextAssembler,
     ToolRegistryService,
     CandidateKnowledgeRetrievalService,
+    CandidateKnowledgeIndexerService,
   ],
   exports: [
     LLM_PROVIDER,
@@ -82,6 +84,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     CandidateContextAssembler,
     ToolRegistryService,
     CandidateKnowledgeRetrievalService,
+    CandidateKnowledgeIndexerService,
   ],
 })
 export class AiModule {}
